@@ -2,16 +2,16 @@
 """Gerbang ukuran dan kinerja (TRD §9.7, PRD §5.1–§5.3).
 
   python3 tools/ukur.py [data/sim.duckdb] [--ingest] [--scrypt]
-  python3 tools/ukur.py --api localhost:8000 [--user admin] [--folder 2026-09-29]   # sandi: S4_UKUR_PASSWORD atau ditanya
-  python3 tools/ukur.py --api [host:port] [--folder 2026-09-29]     # lapisan HTTP (Tahap 11)
+  python3 tools/ukur.py --api [host:port] [--user admin] [--folder 2026-09-29]     # lapisan HTTP (Tahap 11)
 
 Mengukur: ukuran berkas dan per tabel; waktu query yang akan dipakai tiap halaman dashboard; (opsional)
 waktu ingest satu folder tambahan dan ingest tanpa perubahan; (opsional) biaya hash sandi.
 Query di bawah adalah yang akan dipakai API Tahap 11: semuanya membaca tabel agregat, bukan tabel mentah.
 
 --api mengukur tiap endpoint halaman lewat HTTP: waktu dan ukuran respons. Tanpa host: aplikasi dijalankan di dalam
-proses ini atas database nyata (server harus mati). Dengan host: server yang sedang berjalan; isi cookie sesi di
-variabel lingkungan S4_COOKIE (nilai cookie s4_session dari peramban yang sudah masuk).
+proses ini atas database nyata (server harus mati). Dengan host: server yang sedang berjalan; sesi dari variabel
+lingkungan S4_COOKIE (nilai cookie s4_session dari peramban yang sudah masuk), atau masuk sebagai --user dengan sandi
+dari S4_UKUR_PASSWORD (atau ditanya).
 """
 import argparse, os, statistics, sys, time
 
@@ -75,40 +75,28 @@ def ukuran_tabel(con):
     return out
 
 
-def ukur_api(alamat, user, folder, ulang=5):
-    """Lapisan HTTP penuh (PRD §5.1/§5.2): tiap endpoint halaman pada server yang berjalan, ≤ 300 ms dan ≤ 500 KB. Kode keluar 1 bila ada yang meleset."""
-    import getpass, http.cookiejar, json, urllib.error, urllib.request
-    base = alamat if '://' in alamat else f'http://{alamat}'
-    op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-    pw = os.environ.get('S4_UKUR_PASSWORD') or getpass.getpass(f'Sandi {user}: ')
-    masuk = urllib.request.Request(base + '/api/auth/login', data=json.dumps(dict(username=user, password=pw)).encode(),
-                                   headers={'Content-Type': 'application/json', 'X-Requested-With': 'ukur'})
-    try: op.open(masuk).read()
-    except urllib.error.HTTPError as e: sys.exit(f'gagal masuk: {e.code} {e.read()[:200]!r}')
-    get = lambda u: op.open(base + u).read()
-    svc = [s['service'] for s in json.loads(get(f'/api/folders/{folder}'))['services']]
-    urls = ([f'/api/folders/{folder}'] + [f'/api/folders/{folder}/{h}' for h in ('overview', 'map', 'security', 'rootcause', 'availability', 'pods', 'business', 'tracing')]
-            + [f'/api/folders/{folder}/services/{s}' for s in svc] + ['/api/trends', '/api/trends?last=all', '/api/meta'])
-    print(f'# Lapisan HTTP — {base}, folder {folder}; min / median dari {ulang} (ms); target ≤ {TARGET["api_ms"]} ms dan ≤ {TARGET["api_kb"]} KB')
-    meleset = []
-    for u in urls:
-        get(u)   # pemanasan
-        t = []
-        for _ in range(ulang):
-            a = time.perf_counter(); isi = get(u); t.append((time.perf_counter() - a) * 1000)
-        md, kb = statistics.median(t), len(isi) / 1000
-        ok = md <= TARGET['api_ms'] and kb <= TARGET['api_kb']
-        if not ok: meleset.append(u)
-        print(f'  {u:62} {min(t):7.1f} / {md:7.1f}  {kb:7.1f} KB  {"ok" if ok else "MELESET"}')
-    print(f'\n{len(urls)} endpoint; meleset: {meleset or "tidak ada"}')
-    return not meleset
-def ukur_api(host, folder):
+def ukur_api(host, folder, user='admin', ulang=5):
+    """Lapisan HTTP (PRD §5.1/§5.2): tiap endpoint halaman ≤ 300 ms dan ≤ 500 KB. Mengembalikan kode keluar (1 bila ada yang meleset).
+
+    host kosong: aplikasi di dalam proses atas database nyata (server harus mati). Dengan host: server yang berjalan; sesi dari
+    S4_COOKIE (nilai cookie s4_session) bila diisi, kalau tidak masuk sebagai `user` (sandi: S4_UKUR_PASSWORD atau ditanya).
+    """
     import json
     sys.path.insert(0, os.path.join(V2, 'tools'))
     if host:
-        import urllib.request
-        def get(path):
-            with urllib.request.urlopen(urllib.request.Request(f'http://{host}{path}', headers={'Cookie': 's4_session=' + os.environ['S4_COOKIE']})) as r: return r.read()
+        import getpass, http.cookiejar, urllib.error, urllib.request
+        base = host if '://' in host else f'http://{host}'
+        if os.environ.get('S4_COOKIE'):
+            def get(path):
+                with urllib.request.urlopen(urllib.request.Request(base + path, headers={'Cookie': 's4_session=' + os.environ['S4_COOKIE']})) as r: return r.read()
+        else:
+            op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+            pw = os.environ.get('S4_UKUR_PASSWORD') or getpass.getpass(f'Sandi {user}: ')
+            masuk = urllib.request.Request(base + '/api/auth/login', data=json.dumps(dict(username=user, password=pw)).encode(),
+                                           headers={'Content-Type': 'application/json', 'X-Requested-With': 'ukur'})
+            try: op.open(masuk).read()
+            except urllib.error.HTTPError as e: sys.exit(f'gagal masuk: {e.code} {e.read()[:200]!r}')
+            get = lambda path: op.open(base + path).read()
     else:
         import kesetaraan
         tc = kesetaraan.klien_api(); get = lambda path: tc.get(path).content
@@ -116,17 +104,20 @@ def ukur_api(host, folder):
     folder = folder or max(folders, key=lambda f: f['lines'])['folder']
     svc = [s['service'] for s in json.loads(get(f'/api/folders/{folder}'))['services']]
     urls = ['/api/meta', f'/api/folders/{folder}'] + [f'/api/folders/{folder}/{h}' for h in ('overview', 'map', 'security', 'rootcause', 'availability', 'pods', 'business', 'tracing')]
-    urls += [f'/api/folders/{folder}/services/{s}' for s in svc] + ['/api/trends?last=all', f'/api/folders/{folder}/tables/flows?limit=500', f'/api/folders/{folder}/tables/trace?q=unauthorized']
-    print(f'# Endpoint lewat HTTP ({host or "dalam proses"}), folder {folder}; min / median dari 5 (ms), ukuran (KB); target <= 300 ms dan <= 500 KB')
+    urls += [f'/api/folders/{folder}/services/{s}' for s in svc] + ['/api/trends', '/api/trends?last=all',
+             f'/api/folders/{folder}/tables/flows?limit=500', f'/api/folders/{folder}/tables/trace?q=unauthorized']
+    print(f'# Endpoint lewat HTTP ({host or "dalam proses"}), folder {folder}; min / median dari {ulang} (ms), ukuran (KB); '
+          f'target ≤ {TARGET["api_ms"]} ms dan ≤ {TARGET["api_kb"]} KB')
     gagal = []
     for u in urls:
-        get(u); t = []
-        for _ in range(5):
+        get(u); t = []   # pemanasan
+        for _ in range(ulang):
             a = time.perf_counter(); body = get(u); t.append((time.perf_counter() - a) * 1000)
-        md = statistics.median(t)
-        if md > 300 or len(body) > 500_000: gagal.append(u)
-        print(f'  {u:62} {min(t):6.1f} / {md:6.1f}  {len(body) / 1024:7.1f} KB')
-    print(f'Di atas target: {gagal or "tidak ada"}')
+        md, kb = statistics.median(t), len(body) / 1000
+        ok = md <= TARGET['api_ms'] and kb <= TARGET['api_kb']
+        if not ok: gagal.append(u)
+        print(f'  {u:62} {min(t):6.1f} / {md:6.1f}  {kb:7.1f} KB  {"ok" if ok else "MELESET"}')
+    print(f'\n{len(urls)} endpoint; di atas target: {gagal or "tidak ada"}')
     return 1 if gagal else 0
 
 
@@ -136,15 +127,11 @@ def main():
     ap.add_argument('db', nargs='?', default=os.path.join(V2, 'data', 'sim.duckdb'))
     ap.add_argument('--ingest', action='store_true', help='ukur juga waktu ingest (memakai database nyata)')
     ap.add_argument('--scrypt', action='store_true', help='ukur biaya hash sandi')
-    ap.add_argument('--api', metavar='HOST:PORT', help='ukur lapisan HTTP server yang berjalan (bukan berkas database)')
-    ap.add_argument('--user', default='admin', help='akun untuk --api')
-    ap.add_argument('--folder', default='2026-09-29', help='folder untuk --api (bawaan: folder terbesar)')
-    a = ap.parse_args()
-    if a.api: sys.exit(0 if ukur_api(a.api, a.user, a.folder) else 1)
     ap.add_argument('--api', nargs='?', const='', default=None, metavar='HOST:PORT', help='ukur endpoint lewat HTTP (tanpa host: di dalam proses)')
+    ap.add_argument('--user', default='admin', help='akun untuk --api HOST bila S4_COOKIE kosong')
     ap.add_argument('--folder', help='folder untuk --api (bawaan: yang barisnya terbanyak)')
     a = ap.parse_args()
-    if a.api is not None: sys.exit(ukur_api(a.api, a.folder))
+    if a.api is not None: sys.exit(ukur_api(a.api, a.folder, a.user))
     con = duckdb.connect(a.db, read_only=True)
     folders = [str(r[0]) for r in con.execute('SELECT folder FROM folder_state ORDER BY folder').fetchall()]
     n = len(folders)
