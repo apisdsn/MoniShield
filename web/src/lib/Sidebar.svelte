@@ -4,7 +4,7 @@
      Di layar sempit tampil sebagai laci (App.svelte). -->
 <script>
   import { lang, t } from '../i18n.js';
-  import { num, titleCase } from '../format.js';
+  import { num, sysName } from '../format.js';
   import { TABS, build } from '../state.js';
   import { APP_NAME } from '../brand.js';
   import Icon from './Icon.svelte';
@@ -40,7 +40,7 @@
       {#each summary.services as s}
         <li>
           <a href={href({ tab: 'layanan', service: s.service })} aria-current={active('layanan', s.service)} onclick={onpick}>
-            <Icon name="server" /><span class="lbl">{titleCase(s.service)}</span>
+            <Icon name="server" /><span class="lbl sys">{sysName(s.service)}</span>
             {#if s.err}
               <span class="b" aria-hidden="true">{num(s.err, $lang)}</span>
               <span class="sr-only">{$t('nav.badge_err', { n: num(s.err, $lang) })}</span>

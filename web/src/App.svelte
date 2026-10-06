@@ -7,7 +7,7 @@
   import { lang, t } from './i18n.js';
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
   import { route, go, build, ADMIN } from './state.js';
-  import { dLabel, logRange, num, titleCase, tWIB } from './format.js';
+  import { dLabel, logRange, num, sysName, tWIB } from './format.js';
   import { APP_NAME } from './brand.js';
   import Sidebar from './lib/Sidebar.svelte';
   import Header from './lib/Header.svelte';
@@ -126,7 +126,7 @@
   const title = $derived.by(() => {
     const r = $route;
     if (r.tab === 'overview') return $t('title.overview');
-    if (r.tab === 'layanan') return titleCase(r.service || '');
+    if (r.tab === 'layanan') return sysName(r.service);
     if (r.tab === 'sandi') return $t('pw.title');
     if (r.tab === 'admin/user') return $t('menu.users');
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
@@ -212,7 +212,7 @@
   <div class="wrap" inert={drawer || undefined}>
     <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'tren' || !isDataTab}
       onfolder={setFolder} onreload={reload} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
-      {title} {suffix} {status} bind:titleEl={h1} />
+      {title} sysTitle={$route.tab === 'layanan'} {suffix} {status} bind:titleEl={h1} />
     {#if subtitle}<p class="sub"><span class="dot ok" aria-hidden="true"></span>{subtitle}</p>{/if}
 
     {#if $offline}

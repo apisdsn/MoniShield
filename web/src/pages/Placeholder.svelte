@@ -5,7 +5,7 @@
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, delta, titleCase, bytes } from '../format.js';
+  import { num, delta, sysName, bytes } from '../format.js';
   import Kpi from '../lib/Kpi.svelte';
   import ChartCard from '../lib/ChartCard.svelte';
   import HBar from '../lib/HBar.svelte';
@@ -54,7 +54,7 @@
     const out = [];
     if (summary?.attack_ip_count) out.push({ tone: 'err', title: $t('att.attack', { n: num(summary.attack_ip_count, $lang) }), text: $t('att.attack_text'), href: link('keamanan'), link: $t('att.to_security') });
     const worst = [...svc].sort((a, b) => b.err - a.err)[0];
-    if (worst?.err) out.push({ tone: 'err', title: $t('att.errors', { svc: titleCase(worst.service), n: num(worst.err, $lang) }),
+    if (worst?.err) out.push({ tone: 'err', title: $t('att.errors', { svc: sysName(worst.service), n: num(worst.err, $lang) }),
       text: $t('kpi.error_info', { http: num(worst.err_http, $lang), log: num(worst.err_log, $lang) }), href: link('layanan', worst.service), link: $t('att.to_service') });
     if (ng?.n5xx) out.push({ tone: 'warn', title: $t('att.n5xx', { n: num(ng.n5xx, $lang) }), text: $t('att.n5xx_text', { n: num(ng.requests, $lang) }), href: link('ketersediaan'), link: $t('att.to_availability') });
     const rusak = (summary?.files || []).filter((f) => f.status === 'rusak').length;
@@ -107,17 +107,17 @@
     </div>
 
     <div class="grid">
-      <ChartCard chip={$t('chip.folder')} title={$t('placeholder.lines_per_service')} type="bar" labels={svc.map((s) => titleCase(s.service))}
+      <ChartCard chip={$t('chip.folder')} title={$t('placeholder.lines_per_service')} type="bar" labels={svc.map((s) => sysName(s.service))}
         datasets={[{ label: $t('kpi.lines'), data: svc.map((s) => s.lines), colors: svc.map((_, i) => `--c${(i % 10) + 1}`) }]} />
       <ChartCard title={$t('placeholder.file_status')} type="doughnut" labels={Object.keys(statusRows).map((k) => $t(`file.${k}`))}
         datasets={[{ data: Object.values(statusRows) }]} />
       <ChartCard chip={$t('chip.hourly')} title={$t('placeholder.err_per_hour')} type="line" timeAxis wide labels={hours}
-        datasets={errSeries.map(([s, pts], i) => { const m = Object.fromEntries(pts); return { label: titleCase(s), data: hours.map((h) => m[h] || 0), color: `--c${(i % 10) + 1}` }; })} />
+        datasets={errSeries.map(([s, pts], i) => { const m = Object.fromEntries(pts); return { label: sysName(s), data: hours.map((h) => m[h] || 0), color: `--c${(i % 10) + 1}` }; })} />
       <HBar title={$t('placeholder.err_per_service')} rows={svc.filter((s) => s.err).map((s) => ({ label: s.service, value: s.err }))} color="--err" valueLabel={$t('kpi.error')} />
 
       <DataTable title={$t('placeholder.files')} rows={summary?.files || []} limit={10} bar="lines" columns={[
         { key: 'pod', label: $t('col.pod') },
-        { key: 'service', label: $t('col.service'), fmt: (r) => titleCase(r.service) },
+        { key: 'service', label: $t('col.service'), fmt: (r) => sysName(r.service) },
         { key: 'ns', label: $t('col.ns'), fmt: (r) => r.ns || '–' },
         { key: 'lines', label: $t('col.lines'), type: 'num', sort: true },
         { key: 'err', label: $t('kpi.error'), type: 'num', sort: true },
@@ -129,7 +129,7 @@
       <DataTable chip={$t('chip.all_data')} title={$t('placeholder.messages')} {folder} table="messages" initial={page.tables.messages} columns={[
         { key: 'level', label: $t('col.level'), cls: (r) => r.level },
         { key: 'msg_key', label: $t('col.message'), detail: (r) => r.sample },
-        { key: 'service', label: $t('col.service'), fmt: (r) => titleCase(r.service) },
+        { key: 'service', label: $t('col.service'), fmt: (r) => sysName(r.service) },
         { key: 'n', label: $t('table.count'), type: 'num', sort: true },
       ]} />
 

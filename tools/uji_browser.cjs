@@ -56,7 +56,7 @@ async function login(page, user, pw) {
   await page.click('button[type=submit]');
   await page.waitForSelector('aside nav');
   // ------------------------------------------------------------------ 3. kerangka setelah masuk
-  await page.waitForFunction(() => document.querySelector('aside')?.textContent.includes('Om-Be-Simpel-Loop'));
+  await page.waitForFunction(() => document.querySelector('aside')?.textContent.includes('om-be-simpel-loop'));
   cek('kembali ke alamat yang diminta (#/keamanan)', page.url().includes('#/keamanan'), page.url());
   const grp = await page.$$eval('aside .grp', (e) => e.map((x) => x.textContent.trim()));
   cek('sidebar dua grup', grp.length === 2, grp.join(' | '));
@@ -67,6 +67,13 @@ async function login(page, user, pw) {
   const sub = await page.textContent('.sub'), st = await page.textContent('header .status');
   cek('subjudul memuat rentang waktu log; baris status memuat jumlah layanan', /berisi log .+WIB/.test(sub) && /\d+\s+layanan/.test(st), `${sub} | ${st}`);
   cek('folder ada di alamat', /folder=2026-10-06/.test(page.url()), page.url());
+  // nama sistem (layanan) tampil huruf kecil, termasuk judul halaman layanan (keputusan pemilik 2026-10-06)
+  const namaLayanan = await page.$$eval('aside a[href*="layanan/"] .lbl', (e) => e.map((x) => x.innerText.trim()));
+  await page.click('aside a[href*="layanan/om-be-appsmanager"]');
+  await page.waitForFunction(() => location.hash.includes('layanan/om-be-appsmanager'));
+  const judulLayanan = await page.$eval('header h1 span', (e) => e.innerText.trim());
+  cek('nama layanan huruf kecil di sidebar dan judul', namaLayanan.length === 7 && namaLayanan.every((x) => x === x.toLowerCase()) && judulLayanan === 'om-be-appsmanager',
+      `${namaLayanan.join(', ')} | judul: ${judulLayanan}`);
   await page.click('aside a[href*="#/overview"]');
   await page.waitForSelector('.kpis .kpi');
   await page.waitForSelector('canvas');
@@ -140,7 +147,7 @@ async function login(page, user, pw) {
   await u.page.fill('#pw-old', 'sandi-awal-uji-123'); await u.page.fill('#pw-new', 'sandi-baru-uji-456'); await u.page.fill('#pw-again', 'sandi-baru-uji-456');
   await u.page.click('button[type=submit]');
   await u.page.waitForSelector('aside nav');
-  await u.page.waitForFunction(() => document.querySelector('aside')?.textContent.includes('Om-Be-Simpel-Loop'));
+  await u.page.waitForFunction(() => document.querySelector('aside')?.textContent.includes('om-be-simpel-loop'));
   const navUser = await u.page.textContent('aside nav'), navAdmin = await page.textContent('aside nav');
   cek('sidebar user sama dengan admin', navUser === navAdmin);
   await u.page.click('button[aria-haspopup=menu] >> visible=true');

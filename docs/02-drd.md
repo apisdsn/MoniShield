@@ -638,7 +638,10 @@ Ungu batang "IP klien" `#8a5cd6` yang ditulis mati diganti `--violet`.
 | Fokus | garis 2 px `--accent` + jarak 2 px | baru, §9 |
 | Gerak | transisi 150 ms; dimatikan bila `prefers-reduced-motion` | |
 
-Kapitalisasi: teks antarmuka *Capitalize Each Word* lewat CSS, data tidak (lama). Pengecualian baru: kalimat
+Kapitalisasi: teks antarmuka *Capitalize Each Word* lewat CSS, data tidak (lama). **Keputusan pemilik 2026-10-06**:
+**nama sistem** (layanan backend/frontend, pod, namespace, host, upstream, modul) selalu **huruf kecil** apa adanya,
+termasuk di sidebar, judul halaman layanan, label chart, dan kalimat temuan (lama: `tc()` mengkapitalkan nama layanan;
+perubahan U33). Kode: `sysName()` di `format.js` dan class `sys` untuk elemen yang dikapitalkan CSS. Pengecualian baru: kalimat
 panjang (catatan, butir temuan, keterangan kosong) **tidak** dikapitalisasi; sekarang ikut terkapitalisasi
 dan sulit dibaca ("Lokasi Adalah Perkiraan Tingkat Kota Dari Database…") (U13).
 
@@ -1083,6 +1086,7 @@ Semua yang tidak disebut di sini **sama dengan tampilan lama**.
 | U29 | Layar admin: Kelola user, Ingest & impor (termasuk impor S3 dan catatan audit) | Keputusan pemilik | baru |
 | U30 | Tabel alur IP menampilkan 100 baris pertama, bukan 3.000 | Kini bisa dilanjutkan dan difilter di seluruh data; 3.000 baris adalah beban render terbesar | perilaku |
 | U31 | Kartu satu halaman tampil bersamaan, bukan satu per satu | Satu permintaan per halaman (TRD) | perilaku |
+| U33 | Nama sistem (layanan, pod, namespace, host, upstream, modul) huruf kecil apa adanya | Keputusan pemilik 2026-10-06: nama sistem dibaca sebagai pengenal teknis | tampilan |
 | U32 | Angka dan chart yang berubah karena perbaikan definisi: chart error per jam nginx/frontend memuat baris error log; donat level simpel-loop memakai tingkat efektif; "lambat ≥ 5 dtk" memuat 3xx | Keputusan pemilik (TRD §4.4); diberi keterangan `(i)` | perbaikan |
 
 Tidak berubah meski sempat dipertimbangkan: urutan dan nama tab; warna dan gaya kartu; jenis chart tiap

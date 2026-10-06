@@ -100,8 +100,10 @@ export function delta(cur, prev, prevFolder, lang, { good = false, comparable = 
   };
 }
 
-/** Nama layanan dengan Capitalize Each Word (lama: tc), untuk teks antarmuka. */
-export const titleCase = (s) => String(s).replace(/(^|[\s\-/([])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
+/** Nama sistem (layanan, pod, namespace, host, upstream, modul): selalu huruf kecil seperti di klaster, tidak ikut
+ *  Capitalize Each Word teks antarmuka (keputusan pemilik 2026-10-06; lama: tc() mengkapitalkan nama layanan).
+ *  Di elemen yang mengkapitalkan lewat CSS, bungkus dengan class "sys". */
+export const sysName = (s) => String(s ?? '').toLowerCase();
 
 /** Potong label (chart batang horizontal: 48, layar sempit 28). */
 export const cut = (s, n) => (String(s).length > n ? String(s).slice(0, n - 1) + '…' : String(s));

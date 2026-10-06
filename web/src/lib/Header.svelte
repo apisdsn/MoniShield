@@ -10,7 +10,7 @@
   import Icon from './Icon.svelte';
   import { APP_NAME } from '../brand.js';
   let { me, route, folders, folder, folderDisabled = false, onfolder, onreload, onlogout, onmenu, drawerOpen = false,
-        menuBtn = $bindable(), title, suffix = '', status = [], titleEl = $bindable() } = $props();
+        menuBtn = $bindable(), title, sysTitle = false, suffix = '', status = [], titleEl = $bindable() } = $props();
 
   function segKey(e, values, current, set) {
     if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
@@ -47,7 +47,7 @@
     </div>
   </div>
   <div class="ttl">
-    <h1 bind:this={titleEl} tabindex="-1">{title}{#if suffix}<span class="sfx">&nbsp;— {suffix}</span>{/if}</h1>
+    <h1 bind:this={titleEl} tabindex="-1"><span class:sys={sysTitle}>{title}</span>{#if suffix}<span class="sfx">&nbsp;— {suffix}</span>{/if}</h1>
     {#if status.length}
       <p class="status">
         {#each status as s, i}{#if i}<span class="sep" aria-hidden="true">·</span>{/if}<span class="it"><span class="dot {s.tone || ''}" aria-hidden="true"></span>{#if s.n !== undefined}<b>{s.n}</b>&nbsp;{/if}{s.text}</span>{/each}
@@ -69,7 +69,7 @@
   h1 { font-size: 1.375rem; font-weight: 600; line-height: 1.25; color: var(--heading); text-transform: capitalize; overflow-wrap: anywhere; }
   h1:focus { outline: none; }
   h1:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .sfx { color: var(--muted); font-weight: 500; }
+  .sfx { color: var(--muted); font-weight: 500; white-space: nowrap; }
   .status { margin: 4px 0 0; font-size: 0.78rem; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
   .it { display: inline-flex; align-items: center; white-space: nowrap; }
   .status .it :global(b) { color: var(--fg); font-weight: 600; }

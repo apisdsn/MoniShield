@@ -2,7 +2,7 @@
 // Pemformat v2 vs contoh di inventaris §2.0 dan keluaran fungsi lama di dashboard_template.html.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tWIB, dur, durMs, tRange, dLabel, num, logRange, delta, bytes, pct, titleCase, cut } from '../web/src/format.js';
+import { tWIB, dur, durMs, tRange, dLabel, num, logRange, delta, bytes, pct, sysName, cut } from '../web/src/format.js';
 
 test('waktu WIB seperti lama', () => {
   assert.equal(tWIB('2026-09-28 06:03', 'id'), '28 Sep 2026 06.03 WIB');
@@ -73,8 +73,9 @@ test('perubahan vs folder sebelumnya (dlt lama: empat bentuk)', () => {
 });
 
 test('label', () => {
-  assert.equal(titleCase('nginx-ingress-controller'), 'Nginx-Ingress-Controller');
-  assert.equal(titleCase('om-be-simpel-loop'), 'Om-Be-Simpel-Loop');
+  assert.equal(sysName('nginx-ingress-controller'), 'nginx-ingress-controller');   // nama sistem huruf kecil apa adanya
+  assert.equal(sysName('Om-Be-Simpel-Loop'), 'om-be-simpel-loop');
+  assert.equal(sysName(null), '');
   assert.equal(cut('a'.repeat(60), 48).length, 48);
   assert.equal(cut('pendek', 48), 'pendek');
 });
