@@ -1,0 +1,33 @@
+# Salin menjadi config.toml (opsional). Semua kunci punya nilai bawaan = perilaku sistem lama.
+# Variabel lingkungan S4_* menimpa isi berkas ini. Rahasia (sandi admin, token, kunci AWS) HANYA lewat
+# variabel lingkungan / .env, jangan ditulis di sini.
+
+# log_dir   = "/path/ke/folder-log"   # S4_LOG_DIR; bawaan: folder induk v2/
+# data_dir  = "data"                  # S4_DATA_DIR
+# cache_dir = "/path/ke/.cache"       # S4_CACHE_DIR; bawaan: <log_dir>/.cache
+# state_dir = "data"                  # S4_STATE_DIR (auth.db)
+# inbox_dir = "data/inbox"            # S4_INBOX_DIR
+# bind = "127.0.0.1:8000"             # S4_BIND
+# ingest_on_start = true              # S4_INGEST_ON_START
+# cookie_secure = true                # S4_COOKIE_SECURE; false hanya untuk lokal tanpa HTTPS
+
+# Titik tujuan di peta = IP publik server (hasil resolve api-simpel4.ombudsman.go.id).
+# server_ip = "103.170.104.228"
+# server_fallback = ["Jakarta", "Jakarta", "ID", -6.2, 106.82]
+# dns_upstream = "10.88.1.100"
+# upstream_prefix = "ombudsman-ombudsman-"
+
+# session_idle_minutes = 60
+# session_max_hours = 12
+
+# Impor S3: kosong = fitur mati. Bentuk: bucket -> daftar awalan yang boleh.
+# import_region = "ap-southeast-3"
+# import_max_objects = 500
+# import_max_object_mb = 1024
+# import_max_total_mb = 5120
+# [import_buckets]
+# simpel4-backup = ["k8s-logs/"]
+
+# Base URL produksi per upstream (untuk menampilkan URL lengkap).
+# [hosts]
+# om-be-simpel-loop-3000 = "https://api-simpel4.ombudsman.go.id"

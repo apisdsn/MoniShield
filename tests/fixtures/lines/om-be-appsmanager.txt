@@ -1,0 +1,10 @@
+2026-09-25 16:04:28.984  INFO 1 --- [           main] i.c.appsmanager.AppsmanagerApplication   : Started AppsmanagerApplication in 17.163 seconds (JVM running for 19.336)
+2026-09-27 17:30:23.317 ERROR 1 --- [nio-3000-exec-7] id.com.appsmanager.config.jwt.JwtUtils   : JWT token is expired: JWT expired at 2026-09-28T00:23:58Z. Current time: 2026-09-28T00:30:23Z, a difference of 385316 milliseconds.  Allowed clock skew: 0 milliseconds.
+2026-09-27 23:31:53.899  WARN 1 --- [nio-3000-exec-5] i.c.a.controller.UserController          : SECURITY ALERT: Refresh token expired from IP: 125.164.203.65. Error: JWT expired at 2026-09-27T02:59:54Z. Current time: 2026-09-28T06:31:53Z, a difference of 99119899 milliseconds.  Allowed clock skew: 0 milliseconds.
+2026-09-27 23:39:32.545  WARN 1 --- [nio-3000-exec-6] i.c.a.controller.UserController          : SECURITY EVENT: Invalid password for user/email: 'akun.contoh@ombudsman.go.id' from IP: 39.194.3.114 (Attempt 1/3)
+2026-09-27 23:44:36.582  WARN 1 --- [nio-3000-exec-8] i.c.a.controller.UserController          : SECURITY ALERT: Password reset and notification email sent due to 3 failed login attempts for user/email: 'akun.contoh@ombudsman.go.id' from IP: 36.83.211.41
+2026-09-27 22:39:08.196  INFO 1 --- [nio-3000-exec-3] i.c.a.controller.UserController          : SECURITY EVENT: User 'akun.contoh' successfully logged in from IP: 103.189.62.129
+2026-09-25 16:04:19.931  WARN 1 --- [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+org.springframework.security.web.firewall.RequestRejectedException: The request was rejected because the URL contained a potentially malicious String "//"
+Hibernate: select user0_.id_user as id_user1_8_, user0_.email as email2_8_, user0_.user_name as user_nam3_8_, user0_.user_password as user_pas4_8_ from apps_manager.td_user user0_ where user0_.user_name=?
+  .   ____          _            __ _ _

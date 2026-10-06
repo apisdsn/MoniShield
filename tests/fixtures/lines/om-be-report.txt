@@ -1,0 +1,4 @@
+2026-09-27 19:14:19.466  INFO 1 --- [nio-3000-exec-3] i.c.jasper.service.JasperReportService   : cover_map_kuning pdf path : /tmp/cover_map_kuning7643129013998660935.pdf
+2026-09-27 19:14:19.466  INFO 1 --- [nio-3000-exec-3] i.c.jasper.service.JasperReportService   : Jasper template path : /jasper/cover_map_kuning.jrxml
+2026-09-27 19:14:19.466  INFO 1 --- [nio-3000-exec-3] i.c.jasper.service.JasperReportService   : cover_map_kuning pdf path : /tmp/cover_map_kuning7643129013998660935.pdf
+2026-09-28 02:57:29.187  INFO 1 --- [io-3000-exec-10] i.c.jasper.service.JasperReportService   : Jasper template path : null

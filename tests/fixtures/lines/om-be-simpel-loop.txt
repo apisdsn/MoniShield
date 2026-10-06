@@ -1,0 +1,9 @@
+[OM-INFO] {"requestId":"b822909ecd30abd7322cb20867352854","event":"http.request.completed","method":"GET","path":"/tx-file-upload","statusCode":200,"ipAddress":"103.176.97.213","durationMs":48}
+[OM-INFO] {"requestId":"b01894fd9e1e681baa01b138c526eb14","event":"http.request.completed","method":"PATCH","path":"/regenerate-dokumen","statusCode":200,"ipAddress":"103.235.153.126","durationMs":3243}
+[OM-ERROR] {"event":"http.request.failed","requestId":"69dda3958192b7ac11f28e3e2dc2f10c","method":"GET","path":"/tx-laporan/count","statusCode":401,"durationMs":1,"error":{"name":"UnauthorizedError","message":"Unauthorized"}}
+[OM-ERROR] {"event":"http.request.failed","requestId":"fd9017c9a138fdc7c70dbf2c8c158159","method":"POST","path":"/files","statusCode":200,"durationMs":88,"error":{"name":"MulterError","message":"File too large"}}
+[OM-INFO] Email sent successfully
+[OM-INFO] Notification email sent successfully sendNotificationMailToKepalaKeasistenanRiksa {
+[OM-PERFORMANCE] GET /v-monitoring { totalMs: 92 }
+  recipient: {
+Server is running at http://127.0.0.1:3000

@@ -1,0 +1,5 @@
+10.88.1.102 - - [27/Sep/2026:17:03:24 +0000] "GET /lapor-ombudsman HTTP/1.1" 200 1752 "-" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36" "103.176.97.213, 10.88.1.100"
+10.88.1.102 - - [27/Sep/2026:23:29:19 +0000] "GET /apple-touch-icon-precomposed.png HTTP/1.1" 404 118 "-" "NetworkingExtension/8624.5.1.10.3 Network/5812.160.9 iOS/26.6.2" "103.142.111.209, 10.88.1.100"
+2026/09/27 23:29:19 [error] 27#27: *6403 open() "/app/apple-touch-icon-precomposed.png" failed (2: No such file or directory), client: 10.88.1.102, server: localhost, request: "GET /apple-touch-icon-precomposed.png HTTP/1.1", host: "simpel4.ombudsman.go.id"
+2026/09/25 16:45:21 [notice] 1#1: using the "epoll" event method
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh

@@ -1,0 +1,3 @@
+[ERROR] plugin/errors: 2 backup-simpel4-volume.s3.ap-southeast-3.amazonaws.com. AAAA: read udp 10.42.191.189:58401->10.88.1.100:53: i/o timeout
+[INFO] plugin/reload: Running configuration MD5 = bc6e2114f2404d5c2a2bcadadcd9cb59
+CoreDNS-1.8.0
