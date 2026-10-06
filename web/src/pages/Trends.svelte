@@ -3,7 +3,6 @@
      6 chart + 2 tabel; tabel selalu menggulir mendatar dengan kolom Layanan terkunci dan folder terbaru di kanan.
      Satu permintaan: GET /api/trends?last=… -->
 <script>
-  import { tick } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num, dLabel, sysName } from '../format.js';
@@ -18,15 +17,16 @@
   const BIZ = ['Laporan Dibuat', 'Registrasi Laporan', 'File Diunggah', 'Email Terkirim', 'OTP Diminta'];   // kunci dari API (data lama)
 
   let range = $state(RANGES.includes(loadPref('trendRange', '30')) ? loadPref('trendRange', '30') : '30');
-  let data = $state(null), busy = $state(false), error = $state(null);
-  let seq = 0, scrollers = [];
+  // $state.raw: data dibaca saja; array-nya diserahkan ke Chart.js, yang menambah properti internal ke array (proksi $state menolaknya)
+  let data = $state.raw(null), busy = $state(false), error = $state(null);
+  let seq = 0;
 
   async function load() {
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
       const j = await api.get(`/api/trends?last=${range}`);
-      if (my === seq) { data = j; await tick(); scrollers.forEach((el) => el && (el.scrollLeft = el.scrollWidth)); }   // folder terbaru terlihat
+      if (my === seq) data = j;
     } catch (e) {
       if (my === seq) error = e;
     } finally {
@@ -39,6 +39,13 @@
   const bySvc = (k) => (data?.services || []).map((s, i) => ({ label: sysName(s), data: data[k][s].map((v) => v ?? 0), color: `--c${(i % 10) + 1}` }));
   const slug = (k) => k.toLowerCase().replace(/ /g, '_');   // kunci kamus metrik bisnis (label, diterjemahkan; DRD §6.3)
   const stack = { scales: { x: { stacked: true }, y: { stacked: true } } };
+
+  // tabel mulai dari ujung kanan: folder terbaru terlihat (DRD §3.3); diulang tiap data berganti
+  function scrollEnd(node, _key) {
+    const go = () => requestAnimationFrame(() => (node.scrollLeft = node.scrollWidth));
+    go();
+    return { update: go };
+  }
 
   // perubahan error vs folder sebelumnya: hanya bila error kemarin > 0 dan baris kemarin ≥ 50 % hari ini (lama)
   function change(s, i) {
@@ -78,10 +85,10 @@
       datasets={BIZ.map((k, i) => ({ label: $t(`biz.${slug(k)}`), data: data.business[k], color: `--c${i + 1}` }))} />
     <ChartCard title={$t('tr.lines')} type="bar" {labels} datasets={bySvc('lines')} options={stack} />
 
-    {#each [['err', $t('tr.err_table')], ['lines', $t('tr.completeness')]] as [kind, title], ti}
+    {#each [['err', $t('tr.err_table')], ['lines', $t('tr.completeness')]] as [kind, title]}
       <section class="card wide" aria-label={title}>
         <header><h2>{title}</h2></header>
-        <div class="scroll tt" bind:this={scrollers[ti]} tabindex="0" role="region" aria-label={title}>
+        <div class="scroll tt" use:scrollEnd={data} tabindex="0" role="region" aria-label={title}>
           <table>
             <caption class="sr-only">{title}</caption>
             <thead><tr><th scope="col" class="first">{$t('col.service')}</th>{#each labels as l}<th scope="col" class="n">{l}</th>{/each}</tr></thead>

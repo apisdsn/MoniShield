@@ -73,7 +73,7 @@
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const ds = datasets.map((d, k) => {
       const c = v(d.color || PAL[k % PAL.length]);
-      const base = { label: d.label, data: d.data };
+      const base = { label: d.label, data: [...(d.data || [])] };   // salinan: Chart.js memasang properti internal pada array data
       if (type === 'line') {
         return { ...base, fill: true, tension: 0.42, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2, borderColor: c,
           backgroundColor: (ctx) => {

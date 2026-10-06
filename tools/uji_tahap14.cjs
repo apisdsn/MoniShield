@@ -100,7 +100,7 @@ const siap = async (page) => { await page.waitForSelector('main section.card'); 
       const beda = [];
       a.rows.forEach((r, ri) => r.forEach((sel, ci) => {
         let x = norm(b.rows[ri]?.[ci] ?? '');
-        if (ci > 0 && i === 1 && / rusak$/.test(x)) { rusak++; x = x.replace(/ rusak$/, ''); }                 // tanda baru B05 di sel berangka
+        if (ci > 0 && i === 1 && /\d\s*rusak$/.test(x)) { rusak++; x = x.replace(/\s*rusak$/, ''); }           // tanda baru B05 di sel berangka
         if (ci > 0 && i === 1 && x === 'rusak' && norm(sel) === 'kosong') { rusak++; x = 'kosong'; }            // B05: file kosong karena rusak
         if (ci > 0 && i === 1 && x === 'tidak ada') x = 'tidak ada';
         const y = norm(sel);
