@@ -158,11 +158,28 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | Kredensial sementara: tiga kolom sandi tanpa autocomplete, keterangan "memori server saja", bentuk salah ditolak, hapus; nilai tidak pernah tampil | DRD §3.11 | skrip | ☑ |
 | 8 kombinasi bahasa × tema × lebar (kedua layar) | U1–U3 | skrip | ☑ |
 
+## Peta IP (inv. §2.2, DRD §3.2, §7) — Tahap 20 ☑
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| 6 KPI; IP asal, modul, pod, total request sama dengan lama; lokasi/negara/"dari luar Indonesia" berbeda karena MaxMind vs DB-IP (rencana Tahap 7) | inv. §2.2 | `tools/uji_tahap20.cjs` (06 Okt) | ☑ |
+| Pemilih modul (di alamat `?modul=`): KPI, titik, tabel berganti; posisi dan zoom peta tetap | DRD §3.2 | skrip | ☑ |
+| 13 lapisan §7.3; titik server di Jakarta berlabel; label lokasi terbesar nama + "N IP · N req"; kelompok < 40 px tanpa angka (keputusan pemilik) | DRD §7.3, §7.5 | skrip + lihat | ☑ |
+| Label negara → provinsi (zoom ≥ 4) → kabupaten (zoom ≥ 7) tanpa bertumpuk; kelompok pecah di zoom 8 | DRD §7.3, §7.5 | skrip | ☑ |
+| Roda mouse menggulir halaman + petunjuk "Tahan Ctrl…"; Ctrl + roda memperbesar; keyboard panah/+/−/0/Esc | DRD §7.6 | skrip | ☑ |
+| 390 px sentuh: 4:3 (min. 300 px), tombol 44 px, satu jari tidak menggeser peta, dua jari menggeser; tombol layar penuh | DRD §7.6, §8.2 | skrip (CDP sentuh) | ☑ |
+| Tooltip (lokasi, IP, request, modul) → "Lihat di tabel" mengisi filter tabel alur; Esc menutup | DRD §7.7 | skrip | ☑ |
+| Semua permintaan ke asal yang sama; internet diputus → peta, label, titik tetap tampil; atribusi MaxMind · GeoNames · Natural Earth selalu terlihat | DRD §7.2, §7.8 | skrip | ☑ |
+| Ganti tema/bahasa: warna dan nama negara berganti tanpa kehilangan posisi | DRD §7.1 | skrip | ☑ |
+| Tabel alur 100 pertama + lanjutan (baris sama dengan lama); catatan menyebut MaxMind; tanpa nginx → catatan | inv. §2.2, X6 | skrip | ☑ |
+| Halaman layanan: peta terlipat; dibuka → alur modul itu saja | DRD §3.10, Q5 | skrip | ☑ |
+| 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
+
 ## Halaman berikutnya
 
 | Halaman | Acuan | Tahap |
 |---|---|:-:|
-| Peta IP / Command Center | inv. §2.2, DRD §3.2, §7, §12 | 20, 22 |
+| Command Center (peta dunia, realtime) | DRD §12 | 22 |
 
 Tiap tahap menambah bagiannya di sini dengan bentuk yang sama, dan skrip `tools/uji_tahapNN.cjs` bila halamannya
 punya padanan di dashboard lama.
