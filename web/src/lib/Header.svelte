@@ -1,10 +1,11 @@
 <!-- Baris alat yang menempel di atas (DRD §2.1 U3, §8.2): pemilih folder, bahasa, tema, muat ulang, menu user.
-     ≤ 900 px: bar 52 px [☰] SIMPEL4 Log [Folder ▾] [⋯]; bahasa, tema, muat ulang, dan isi menu user masuk ⋯. -->
+     ≤ 900 px: bar 52 px [☰] SIMPeL4 Dashboard [Folder ▾] [⋯]; bahasa, tema, muat ulang, dan isi menu user masuk ⋯. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { theme } from '../theme.js';
   import FolderPicker from './FolderPicker.svelte';
   import UserMenu from './UserMenu.svelte';
+  import { APP_NAME } from '../brand.js';
   let { me, route, folders, folder, folderDisabled = false, onfolder, onreload, onlogout, onmenu, drawerOpen = false, menuBtn = $bindable() } = $props();
 
   function segKey(e, values, current, set) {
@@ -18,7 +19,7 @@
 
 <header class="top">
   <button bind:this={menuBtn} class="icon-btn burger" onclick={onmenu} aria-expanded={drawerOpen} aria-controls="side" aria-label={$t('nav.open')}>☰</button>
-  <span class="brand" aria-hidden="true">SIMPEL4 Log</span>
+  <span class="brand" aria-hidden="true">{APP_NAME}</span>
   <div class="tools">
     {#if folders?.length}
       <FolderPicker {folders} value={folder} disabled={folderDisabled} onchange={onfolder} />

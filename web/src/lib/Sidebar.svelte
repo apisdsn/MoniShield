@@ -5,13 +5,14 @@
   import { lang, t } from '../i18n.js';
   import { num, titleCase } from '../format.js';
   import { TABS, build } from '../state.js';
+  import { APP_NAME } from '../brand.js';
   let { route, summary = null, onpick = null } = $props();
 
   const href = (patch) => build({ ...route, ...patch, ...(patch.tab !== 'layanan' ? { service: null } : {}) });
   const active = (tab, service = null) => (route.tab === tab && (tab !== 'layanan' || route.service === service) ? 'page' : undefined);
 </script>
 
-<div class="logo"><i aria-hidden="true">S4</i><span>SIMPEL4 Log</span></div>
+<div class="logo"><i aria-hidden="true">S4</i><span>{APP_NAME}</span></div>
 <nav aria-label={$t('nav.label')}>
   <h2 class="grp" id="nav-analisis">{$t('nav.analysis')}</h2>
   <ul aria-labelledby="nav-analisis">

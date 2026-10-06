@@ -8,6 +8,7 @@
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
   import { route, go, build, ADMIN } from './state.js';
   import { dLabel, logRange, num, titleCase } from './format.js';
+  import { APP_NAME } from './brand.js';
   import Sidebar from './lib/Sidebar.svelte';
   import Header from './lib/Header.svelte';
   import EmptyState from './lib/EmptyState.svelte';
@@ -140,7 +141,7 @@
     if (summary?.folder === folder) parts.push($t('sub.services', { n: summary.services.length }));
     return parts.join(' · ');
   });
-  $effect(() => { document.title = screen === 'app' ? `${title} · SIMPEL4 Log` : 'SIMPEL4 Log'; });
+  $effect(() => { document.title = screen === 'app' ? `${title} · ${APP_NAME}` : APP_NAME; });
   const sparse = $derived(isDataTab && $route.tab !== 'tren' && folderInfo && folderInfo.lines < SPARSE_LINES);
 
   // ---------------------------------------------------------------- sesi menganggur (DRD §6.9)

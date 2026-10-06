@@ -1115,7 +1115,7 @@ kartu; isi kolom tabel; batas top-N tampilan awal; teks temuan otomatis; tema ba
 | Q5 | Peta di halaman layanan: setuju terlipat secara bawaan (U6), atau justru dihapus dari sana? | Terlipat |
 | Q6 | "–" vs 0 (U16): setuju? Ini satu-satunya perubahan yang mengubah apa yang tertulis di KPI. | Ya |
 | Q7 | Perubahan "tambahan" di §10 (urut tabel, salin, pintasan, `(i)`): dikerjakan dalam migrasi, atau setelah kesetaraan terbukti? | Dalam migrasi, setelah P0 |
-| Q8 | Adakah identitas visual Ombudsman RI (logo, warna resmi) yang harus dipakai? Sekarang logonya kotak "S4". | Tetap "S4" |
+| Q8 | Adakah identitas visual Ombudsman RI (logo, warna resmi) yang harus dipakai? Sekarang logonya kotak "S4". **Nama aplikasi diputuskan 2026-10-06: "SIMPeL4 Dashboard"** (`web/src/brand.js`) | Tetap "S4" |
 
 ---
 

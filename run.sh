@@ -1,5 +1,5 @@
 #!/bin/sh
-# Jalankan SIMPEL4 Log Dashboard v2 secara lokal: ./run.sh
+# Jalankan SIMPeL4 Dashboard (v2) secara lokal: ./run.sh
 # Konfigurasi dan rahasia dibaca aplikasi dari v2/.env (lihat .env.example); skrip ini tidak membacanya.
 set -eu
 cd "$(dirname "$0")"
