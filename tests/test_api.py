@@ -395,6 +395,11 @@ def test_bentuk_respons_halaman(user):
     assert n['available'] and n['kpi']['requests'] == sum(x for _, x in n['status']) and 'endpoints' in n['tables']
     assert n['kpi']['err'] == n['kpi']['err_http'] + n['kpi']['err_log'] == sum(e for _, _, e in n['hour'])   # TRD §4.4 butir 2
     for h, total, err in n['hour']: assert len(h) == 13                           # 'YYYY-MM-DD HH' WIB
+    # peta di halaman layanan: hanya ingress dan modul yang punya alur (selain itu tidak meminta /map, yang menjawab 404)
+    mods = user.get(f'/api/folders/{B}/map').json()['modules']
+    assert n['has_flows'] is True
+    for svc in [x['service'] for x in user.get(f'/api/folders/{B}').json()['services'] if x['lines']]:
+        assert user.get(f'/api/folders/{B}/services/{svc}').json().get('has_flows') == (svc == NG or svc in mods), svc
 
 
 def test_ip_selalu_disertai_bentuk_sel(user):

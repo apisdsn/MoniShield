@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends
 
 from .common import ApiError, cursor, folder_param, require_user_ready, SL, H, _all, _no
+from .map import MOD
 from .tables import NG, first
 
 router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
@@ -22,4 +23,6 @@ def service_page(service: str, folder: str = Depends(folder_param), cur=Depends(
         status=_all(cur, 'SELECT status::VARCHAR, n FROM agg_status WHERE folder = ? AND service = ? ORDER BY 1', folder, service),
         upstreams=_all(cur, 'SELECT upstream, requests FROM agg_upstream WHERE folder = ? ORDER BY requests DESC, upstream LIMIT 12', folder) if service == NG else [],
         levels=_all(cur, 'SELECT level, n FROM agg_level WHERE folder = ? AND service = ? ORDER BY n DESC, level', folder, service),
+        # peta di halaman layanan (Tahap 20): ingress = semua alur; modul di belakang ingress = alur modul itu (lama: flowsOf)
+        has_flows=bool(cur.execute(f"SELECT 1 FROM agg_flow WHERE folder = ? AND (? = ? OR {MOD} = ?) LIMIT 1", [folder, service, NG, service]).fetchone()),
         tables={t: v for t, v in tabel.items() if v['total']})   # kartu yang datanya kosong tidak dikirim (inv. §2.10)

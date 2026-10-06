@@ -61,7 +61,7 @@
         {#each data.levels.slice(0, 4) as [lvl, n]}<Kpi label={lvl} value={n} tone="muted" />{/each}
       </div>
       <div class="grid">
-        <ServiceMap {folder} {service} {server} />
+        <ServiceMap {folder} {service} {server} hasFlows={data.has_flows} />
         <ServiceCards {data} {folder} />
       </div>
     {/if}

@@ -1,20 +1,21 @@
 <!-- Peta di halaman layanan (DRD §3.10, ASUMSI Q5: terlipat): ingress nginx = semua alur; modul di belakang ingress =
-     alur modul itu saja. Data diminta sekali saat halaman dibuka (untuk tahu ada alur atau tidak); peta (MapLibre)
-     baru dibuat saat bagian ini dibuka. Layanan tanpa alur: bagian ini tidak tampil. -->
+     alur modul itu saja. Ada alur atau tidak dibaca dari respons halaman layanan (`has_flows`); bila ada, data peta
+     diminta saat halaman dibuka dan peta (MapLibre) baru dibuat saat bagian ini dibuka. Tanpa alur: tidak tampil. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num } from '../format.js';
   import FlowMap from './FlowMap.svelte';
 
-  let { folder, service, server = null } = $props();
+  let { folder, service, hasFlows = false, server = null } = $props();
   const NG = 'nginx-ingress-controller';
   let data = $state.raw(null), open = $state(false);
   $effect(() => {
     const f = folder, s = service;
     data = null; open = false;
+    if (!hasFlows) return;   // dari respons halaman layanan: tanpa alur -> tidak meminta peta (yang menjawab 404)
     const q = s === NG ? '' : `?module=${encodeURIComponent(s)}`;
-    api.get(`/api/folders/${encodeURIComponent(f)}/map${q}`).then((j) => { if (f === folder && s === service) data = j; }, () => {});   // 404 = modul tanpa alur
+    api.get(`/api/folders/${encodeURIComponent(f)}/map${q}`).then((j) => { if (f === folder && s === service) data = j; }, () => {});
   });
 </script>
 
