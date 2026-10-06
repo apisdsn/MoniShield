@@ -100,3 +100,16 @@ def wib(ts, n=16):
 def ip_cell(ip, asn=None, cc=None, org=None):
     """Sel IP + pemilik jaringan (TRD §5.1): hanya {'ip'} bila pemilik tidak diketahui."""
     return dict(ip=ip) if org is None else dict(ip=ip, asn=asn, cc=cc, org=org)
+
+
+# ------------------------------------------------------------------ dipakai modul halaman (TRD §5.3)
+# Semua angka halaman dibaca dari tabel agregat lengkap (TRD K4), bukan dari daftar yang sudah dipotong.
+# Bila log yang dibutuhkan tidak ada: 200 dengan available=false + reason, bukan galat.
+SL, AM, RP = 'om-be-simpel-loop', 'om-be-appsmanager', 'om-be-report'
+H = "strftime({}, '%Y-%m-%d %H')"   # jam WIB, format lama
+
+
+def _all(cur, sql, *p): return [list(r) for r in cur.execute(sql, list(p)).fetchall()]
+def _one(cur, sql, *p): return cur.execute(sql, list(p)).fetchone()[0]
+def _no(reason): return dict(available=False, reason=reason)
+def _has(svc, name): return bool(svc.get(name))   # layanan ada DAN punya baris
