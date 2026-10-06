@@ -17,6 +17,10 @@ def cmd_status(cfg, args):
             print(f'  {k:22} {v}')
         from . import auth
         print(f'  {"basis data akun":22} {auth.redact_url(cfg.auth_url)}')
+        from . import importer
+        cs = importer.Credentials(cfg).status()
+        print(f'  {"impor S3":22} ' + (f'aktif: {", ".join(importer.allowed_examples(cfg))}' if cfg.import_buckets else 'tidak diaktifkan'))
+        print(f'  {"kredensial impor":22} ' + ('tersedia (lingkungan)' if cs['available'] else 'tidak ada'))
         folders = sorted(d for d in os.listdir(cfg.log_dir) if rules.DATE_DIR.fullmatch(d)) if os.path.isdir(cfg.log_dir) else []
         print(f'folder log di disk: {len(folders)}' + (f' ({folders[0]} … {folders[-1]})' if folders else ' (tidak ada)'))
     if not os.path.exists(cfg.db_path):
@@ -132,6 +136,43 @@ def cmd_ingest(cfg, args):
     return 1 if r['files_failed'] else 0
 
 
+def _import_print(r):
+    for o in r['objects']:
+        print(f"  {'ambil ' if o['action'] == 'ambil' else 'lewati'} {o['rel']:70} {_n(o['size']):>13} B" + (f"  ({o['reason']})" if o['reason'] else ''))
+    for w in r.get('warnings', []): print('  peringatan:', w, file=sys.stderr)
+    print(f"{r['take']} objek {'akan diambil' if r['dry_run'] else 'diambil'} ({_n(r['bytes'])} B), {r['skipped']} dilewati; "
+          f"diunduh {r['downloaded']} objek / {_n(r['downloaded_bytes'])} B; kredensial: {r['credentials']}")
+
+
+def cmd_import(cfg, args):
+    """Impor dari awalan S3 (TRD §3.8). Server berjalan -> lewat API (token mesin); selain itu di proses ini lalu ingest folder itu."""
+    import time
+
+    from . import importer
+    try: importer.parse_url(cfg, args.url)                 # daftar izin diperiksa sebelum apa pun menghubungi AWS
+    except importer.ImportFail as e: print(f'ditolak: {e.message}', file=sys.stderr); return 2
+    if _api(cfg, 'GET', '/api/health') is not None:
+        if not cfg.job_token: print('server sedang berjalan tetapi S4_JOB_TOKEN kosong', file=sys.stderr); return 2
+        code, body = _api(cfg, 'POST', '/api/admin/import', dict(url=args.url, dry_run=args.dry_run))
+        if code != 202: print(f"ditolak: {body.get('error', {}).get('message', code)}", file=sys.stderr); return 2
+        while True:
+            time.sleep(1)
+            code, j = _api(cfg, 'GET', f"/api/admin/import/{body['job_id']}") or (None, None)
+            if code != 200: print('server berhenti menjawab saat impor berjalan', file=sys.stderr); return 2
+            if not j['running'] and j['status'] not in ('berjalan',) and (j['result'] or j['status'] == 'gagal'): break
+        if j['status'] == 'gagal': print(f"impor gagal: {j['message']}", file=sys.stderr); return 1
+        _import_print(j['result']); print(f"impor #{j['job_id']} (lewat API server): {j['message']}"); return 0
+    try: r = importer.run(cfg, args.url, importer.Credentials(cfg), dry_run=args.dry_run)
+    except importer.ImportFail as e: print(f'impor gagal: {e.message}', file=sys.stderr); return 1
+    _import_print(r)
+    if not args.dry_run:
+        from . import ingest
+        g = ingest.run(cfg, folder=r['folder'])
+        print(f"ingest #{g['run_id']}: {g['status']}; {g['files_changed']} file berubah ({g['files_failed']} gagal)")
+        return 1 if g['files_failed'] else 0
+    return 0
+
+
 def cmd_refdata(cfg, args):
     import dataclasses
 
@@ -219,6 +260,8 @@ def main(argv=None):
     g.add_argument('--folder', type=_date); g.add_argument('--all', action='store_true')
     p = sub.add_parser('refdata', help='lengkapi pemilik & lokasi IP dan buat ulang berkas peta'); p.set_defaults(fn=cmd_refdata)
     p.add_argument('--offline', action='store_true', help='jangan mengunduh apa pun')
+    p = sub.add_parser('import', help='impor folder log dari awalan S3 (s3://<bucket>/<awalan>/<YYYY-MM-DD>/)'); p.set_defaults(fn=cmd_import)
+    p.add_argument('url'); p.add_argument('--dry-run', action='store_true', help='hanya daftar objek dan rencana; tidak mengunduh')
     p = sub.add_parser('forget', help='hapus data satu folder dari database'); p.set_defaults(fn=cmd_forget)
     p.add_argument('folder', type=_date)
     args = ap.parse_args(argv)

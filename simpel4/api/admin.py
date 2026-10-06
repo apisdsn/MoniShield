@@ -1,12 +1,13 @@
 """Pemicu ingest, penurunan ulang, dan penghapusan folder (TRD §5.5). Ingest berjalan DI DALAM proses API (K1)."""
 import json
 import threading
+import time
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
-from .. import ingest
+from .. import importer, ingest
 from .common import DATE, ApiError, client_ip, require_admin, require_admin_or_job
 
 router = APIRouter(prefix='/api/admin')
@@ -25,6 +26,19 @@ class IngestManager:
             self.state.update(running=True, phase='pindai', done=0, total=0, folder=folder, started_by=by, error=None)
         self.thread = threading.Thread(target=self._run, args=(folder, force), name='ingest', daemon=True)
         self.thread.start()
+
+    def run_blocking(self, folder, by, wait_seconds=1800):
+        """Jalankan ingest satu folder di thread pemanggil (impor S3), setelah ingest lain selesai. -> ringkasan."""
+        t0 = time.time()
+        while True:
+            with self._lock:
+                if not self.state['running']:
+                    self.state.update(running=True, phase='pindai', done=0, total=0, folder=folder, started_by=by, error=None); break
+            if time.time() - t0 > wait_seconds: raise ApiError(409, 'ingest_running', 'Ingest lain tidak selesai-selesai.')
+            time.sleep(1)
+        self._run(folder, False)
+        if self.state['error']: raise RuntimeError(self.state['error'])
+        return self.state['last']
 
     def _progress(self, phase, **k): self.state.update(phase=phase, **{x: k[x] for x in ('done', 'total', 'folder') if x in k})
 
@@ -108,3 +122,115 @@ def forget(body: FolderBody, request: Request, admin=Depends(require_admin)):
     if not n: raise ApiError(404, 'not_found', 'Folder tidak ditemukan.')
     _audit(request, admin, 'forget', f'folder={folder} ({n} file)')
     return dict(folder=folder, files=n)
+
+
+# ------------------------------------------------------------------ impor S3 (TRD §3.8, Tahap 19)
+class ImportManager:
+    """Satu impor pada satu waktu, di thread latar: unduh (importer) lalu ingest folder itu. Rencana objek per job disimpan di memori."""
+
+    def __init__(self, app):
+        self.app, self._lock = app, threading.Lock()
+        self.creds = importer.Credentials(app.state.cfg)
+        self.state = dict(running=False, job_id=None, phase=None, done=0, total=0)
+        self.plans, self.thread = {}, None   # job_id -> hasil importer.run (dibatasi 20 terakhir)
+
+    def start(self, url, dry_run, by):
+        cfg = self.app.state.cfg
+        try: bucket, prefix, folder = importer.parse_url(cfg, url)          # tautan diperiksa sebelum ada koneksi ke AWS
+        except importer.ImportFail as e: raise ApiError(e.status, e.code, e.message) from None
+        if not self.creds.get()[0]: raise ApiError(400, 'no_credentials', importer.NO_CREDENTIALS)
+        with self._lock:
+            if self.state['running']: raise ApiError(409, 'import_running', 'Impor lain sedang berjalan; tunggu sampai selesai.')
+            self.state.update(running=True, job_id=None, phase='daftar', done=0, total=0)
+        try: job = self.app.state.auth.job_create(by, bucket, prefix, folder, 'coba' if dry_run else 'berjalan')
+        except BaseException: self.state.update(running=False, phase=None); raise
+        self.state['job_id'] = job
+        self.thread = threading.Thread(target=self._run, args=(job, url, dry_run, by), name='import', daemon=True)
+        self.thread.start()
+        return job
+
+    def _progress(self, phase, **k): self.state.update(phase=phase, **{x: k[x] for x in ('done', 'total') if x in k})
+
+    def _run(self, job, url, dry_run, by):
+        auth, cfg = self.app.state.auth, self.app.state.cfg
+        try:
+            r = importer.run(cfg, url, self.creds, dry_run=dry_run, progress=self._progress)
+            msg = f"{r['take']} objek {'akan diambil' if dry_run else 'diambil'}, {r['skipped']} dilewati"
+            if not dry_run:
+                self.state['phase'] = 'ingest'
+                ing = self.app.state.ingest.run_blocking(r['folder'], f'impor #{job}')
+                r['ingest'] = {k: ing[k] for k in ('run_id', 'status', 'files_changed', 'files_failed')}
+                msg += f"; ingest #{ing['run_id']}: {ing['files_changed']} file berubah"
+            msg += ''.join(f'; {w}' for w in r['warnings'])
+            self._keep(job, r)
+            auth.job_finish(job, 'coba' if dry_run else 'selesai', r['bytes'] if dry_run else r['downloaded_bytes'],
+                            r['take'] if dry_run else r['downloaded'], r['skipped'], msg)
+        except importer.ImportFail as e:
+            self._keep(job, dict(error=dict(code=e.code, message=e.message)))
+            auth.job_finish(job, 'gagal', message=e.message)
+        except Exception as e:  # noqa: BLE001  galat dilaporkan lewat status job; tanpa rahasia (pesan boto tidak memuat kunci)
+            self._keep(job, dict(error=dict(code='import_failed', message=f'{type(e).__name__}: {e}'[:500])))
+            auth.job_finish(job, 'gagal', message=f'{type(e).__name__}: {e}'[:500])
+        finally:
+            self.state.update(running=False, phase=None)
+
+    def _keep(self, job, r):
+        self.plans[job] = r
+        for old in sorted(self.plans)[:-20]: self.plans.pop(old, None)
+
+    def wait(self, timeout=None):
+        if self.thread: self.thread.join(timeout)
+
+
+class ImportBody(BaseModel):
+    url: str = ''
+    dry_run: bool = False
+
+
+class CredBody(BaseModel):
+    access_key_id: str = ''
+    secret_access_key: str = ''
+    session_token: str = ''
+
+
+def _import_view(request):
+    m, cfg = request.app.state.imports, request.app.state.cfg
+    return dict(enabled=bool(cfg.import_buckets), allowed=importer.allowed_examples(cfg), region=cfg.import_region,
+                credentials=m.creds.status(), running=m.state['running'], state=m.state)
+
+
+@router.post('/import', status_code=202)
+def start_import(request: Request, body: ImportBody = ImportBody(), who=Depends(require_admin_or_job)):
+    job = request.app.state.imports.start(body.url, body.dry_run, who['username'])
+    _audit(request, who, 'import.start', f"#{job} {body.url[:300]}{' (coba)' if body.dry_run else ''}")
+    return dict(job_id=job)
+
+
+@router.get('/import')
+def import_overview(request: Request, limit: int = Query(20, ge=1, le=100), admin=Depends(require_admin)):
+    return dict(_import_view(request), jobs=request.app.state.auth.job_list(limit))
+
+
+@router.get('/import/{job_id}')
+def import_job(job_id: int, request: Request, who=Depends(require_admin_or_job)):
+    m = request.app.state.imports
+    j = request.app.state.auth.job_get(job_id)
+    if not j: raise ApiError(404, 'not_found', 'Job impor tidak ditemukan.')
+    live = m.state if m.state['job_id'] == job_id and m.state['running'] else None
+    return dict(j, running=bool(live), progress=live, result=m.plans.get(job_id))
+
+
+@router.post('/import/credentials')
+def set_credentials(body: CredBody, request: Request, admin=Depends(require_admin)):
+    """Hanya admin bersesi (bukan token mesin). Nilai disimpan di memori proses saja dan tidak pernah dikembalikan."""
+    try: request.app.state.imports.creds.set(body.access_key_id, body.secret_access_key, body.session_token)
+    except importer.ImportFail as e: raise ApiError(e.status, e.code, e.message) from None
+    _audit(request, admin, 'import.credentials.set', 'kredensial sementara ditempel (memori)')
+    return dict(credentials=request.app.state.imports.creds.status())
+
+
+@router.delete('/import/credentials')
+def clear_credentials(request: Request, admin=Depends(require_admin)):
+    request.app.state.imports.creds.clear()
+    _audit(request, admin, 'import.credentials.clear', 'kredensial sementara dihapus')
+    return dict(credentials=request.app.state.imports.creds.status())

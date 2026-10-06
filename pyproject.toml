@@ -21,6 +21,9 @@ test = [
     "pytest>=8",   # menjalankan uji
     "httpx>=0.27", # dibutuhkan klien uji FastAPI
 ]
+s3 = [
+    "boto3>=1.34", # impor dari awalan S3 (Tahap 19); hanya ListObjectsV2 dan GetObject
+]
 
 [tool.setuptools]
 packages = ["simpel4", "simpel4.derive", "simpel4.api"]

@@ -57,6 +57,7 @@ def create_app(cfg=None):
         app.state.auth.bootstrap_admin(cfg.admin_user, cfg.admin_password)
         if cfg.ingest_on_start: app.state.ingest.start(by='(mulai server)')
         yield
+        app.state.imports.wait(timeout=600)
         app.state.ingest.wait(timeout=600)
         app.state.auth.close()
         app.state.con.close()
@@ -64,6 +65,7 @@ def create_app(cfg=None):
     app = FastAPI(title='SIMPeL4 Dashboard', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cfg = cfg
     app.state.ingest = admin.IngestManager(app)
+    app.state.imports = admin.ImportManager(app)
     check_roles(ROUTERS)
     for r in ROUTERS: app.include_router(r)
 

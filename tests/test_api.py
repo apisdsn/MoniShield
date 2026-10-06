@@ -167,7 +167,7 @@ def test_matriks_peran_mencakup_semua_rute(client):
     for r in sorted(rute, key=lambda r: r.path == '/api/auth/logout'):            # keluar diuji paling akhir
         dep = next(d for d in (common.require_admin_or_job, common.require_admin, common.require_user_ready, common.require_user, common.public)
                    if d in set(appmod._deps(r.dependant)))
-        path = r.path.replace('{folder}', B).replace('{user_id}', '999999').replace('{table}', 'c401').replace('{service}', NG)
+        path = r.path.replace('{folder}', B).replace('{user_id}', '999999').replace('{job_id}', '999999').replace('{table}', 'c401').replace('{service}', NG)
         method = sorted(r.methods)[0].lower()
         for i, (tc, hdr) in enumerate(((anon, X), (user, X), (client, X), (mesin, {**X, 'Authorization': f'Bearer {TOKEN}'}))):
             kw = dict(headers=hdr) if method in ('get', 'delete') else dict(headers=hdr, json={})

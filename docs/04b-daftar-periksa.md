@@ -144,7 +144,7 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | User biasa di alamat admin: "Tidak punya akses"; API 403 | TRD §8.4 | skrip | ☑ |
 | Ponsel: kartu baris, "+ Tambah user" menempel di bawah, dialog layar penuh | DRD §3.11 | skrip + lihat | ☑ |
 
-## Ingest & impor (DRD §3.11, TRD §8.4) — Tahap 18 ☑ (kartu impor: Tahap 19)
+## Ingest & impor (DRD §3.11, TRD §8.4) — Tahap 18 ☑, kartu impor Tahap 19 ☑ (uji dengan S3 tiruan)
 
 | Butir | Acuan | Cara | Hasil |
 |---|---|---|:-:|
@@ -152,14 +152,16 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | "Ingest sekarang": nonaktif selama berjalan; kemajuan tiap 2 dtk (`aria-live` sopan, `progressbar`); selesai → pemberitahuan "0 file berubah"; dashboard tetap terbuka | DRD §3.11 | skrip | ☑ |
 | Peringatan ingest bisa dibuka (`details`); galat ditampilkan | DRD §3.11 | lihat | ☑ |
 | Catatan audit: terbaru di atas, 50 pertama + lanjutan, filter; waktu, user, tindakan, rincian, IP; tanpa sandi/token | DRD §3.11 | skrip | ☑ |
-| Kartu "Impor dari S3": catatan "dibangun di Tahap 19" | rencana 19 | lihat | ☑ |
+| Impor: status kredensial (tersedia/tidak + sumber, tanpa nilai); bentuk tautan yang diterima; impor mati → catatan cara mengaktifkan | DRD §3.11 | `tools/uji_tahap19.cjs` | ☑ |
+| "Coba dulu": ringkasan + rincian ambil/lewati dengan alasan, 0 byte diunduh; tautan ditolak dengan sebab (bucket, awalan, tanggal) | DRD §3.11 | skrip | ☑ |
+| "Impor": konfirmasi menyebut tautan, kemajuan (`progressbar`, `aria-live`), selesai → ingest + folder muncul; ulang → 0 objek; riwayat impor | DRD §3.11 | skrip | ☑ |
+| Kredensial sementara: tiga kolom sandi tanpa autocomplete, keterangan "memori server saja", bentuk salah ditolak, hapus; nilai tidak pernah tampil | DRD §3.11 | skrip | ☑ |
 | 8 kombinasi bahasa × tema × lebar (kedua layar) | U1–U3 | skrip | ☑ |
 
 ## Halaman berikutnya
 
 | Halaman | Acuan | Tahap |
 |---|---|:-:|
-| Impor S3 (kartu di layar Ingest & impor) | DRD §3.11 | 19 |
 | Peta IP / Command Center | inv. §2.2, DRD §3.2, §7, §12 | 20, 22 |
 
 Tiap tahap menambah bagiannya di sini dengan bentuk yang sama, dan skrip `tools/uji_tahapNN.cjs` bila halamannya

@@ -179,6 +179,31 @@ class Auth:
                     for r in s.scalars(select(AuditLog).order_by(AuditLog.id.desc()).limit(limit).offset(offset))]
         return total, rows
 
+    # ---------------------------------------------------------------- import_job (Tahap 19)
+    @staticmethod
+    def _job(j):
+        return dict(job_id=j.job_id, requested_by=j.requested_by, bucket=j.bucket, prefix=j.prefix, folder=j.folder, status=j.status,
+                    bytes=j.bytes, files=j.files, skipped=j.skipped, message=j.message, started_at=iso(j.started_at), finished_at=iso(j.finished_at))
+
+    def job_create(self, by, bucket, prefix, folder, status='berjalan'):
+        with self._tx() as s:
+            j = ImportJob(requested_by=(by or '')[:40] or None, bucket=bucket, prefix=prefix, folder=folder, status=status, started_at=now())
+            s.add(j); s.flush()
+            return j.job_id
+
+    def job_finish(self, job_id, status, bytes=None, files=None, skipped=None, message=None):
+        with self._tx() as s:
+            j = s.get(ImportJob, job_id)
+            if j: j.status, j.bytes, j.files, j.skipped, j.message, j.finished_at = status, bytes, files, skipped, (message or '')[:2000] or None, now()
+
+    def job_get(self, job_id):
+        with self._tx() as s:
+            j = s.get(ImportJob, job_id)
+            return self._job(j) if j else None
+
+    def job_list(self, limit=20):
+        with self._tx() as s: return [self._job(j) for j in s.scalars(select(ImportJob).order_by(ImportJob.job_id.desc()).limit(limit))]
+
     # ---------------------------------------------------------------- user
     @staticmethod
     def _public(u):

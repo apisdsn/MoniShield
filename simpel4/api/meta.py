@@ -30,7 +30,9 @@ def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)
     return dict(version=__version__, folders=folders, hosts=cfg.hosts,
                 server=dict(ip=cfg.server_ip, city=kota, region=prov, cc=cc, lat=lat, lon=lon), dns_upstream=cfg.dns_upstream,
                 ip_data=dict(owner=owner > 0, location=located > 0, map=refdata.map_ready(cfg)), attribution=refdata.ATTRIBUTION,
-                ingest=dict(running=st['running'], phase=st['phase'], last_status=(st['last'] or {}).get('status'), error=st['error']))
+                ingest=dict(running=st['running'], phase=st['phase'], last_status=(st['last'] or {}).get('status'), error=st['error']),
+                # impor S3: hanya "aktif?" dan "kredensial tersedia? sumbernya?" (TRD §3.8); nilai kredensial tidak pernah dikirim
+                imports=dict(enabled=bool(cfg.import_buckets), credentials={k: v for k, v in request.app.state.imports.creds.status().items() if k in ('available', 'source')}))
 
 
 @router.get('/folders/{folder}')

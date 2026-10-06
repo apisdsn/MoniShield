@@ -25,6 +25,7 @@
 # import_max_objects = 500
 # import_max_object_mb = 1024
 # import_max_total_mb = 5120
+# import_timeout_minutes = 30
 # [import_buckets]
 # simpel4-backup = ["k8s-logs/"]
 

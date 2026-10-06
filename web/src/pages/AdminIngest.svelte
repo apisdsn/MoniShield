@@ -1,6 +1,6 @@
 <!-- Ingest & impor (DRD §3.11, TRD §8.4), hanya admin: status ingest terakhir (dari database, bertahan setelah server
      dimulai ulang) dan yang sedang berjalan, tombol "Ingest sekarang", kemajuan (diperbarui tiap 2 detik, diumumkan
-     sopan ke pembaca layar), peringatan; catatan audit (500 terbaru, 50 pertama tampil). Kartu impor S3 di Tahap 19.
+     sopan ke pembaca layar), peringatan; kartu impor S3 (lib/ImportCard, Tahap 19); catatan audit (500 terbaru, 50 pertama tampil).
      Dashboard tetap bisa dipakai selama ingest (ingest berjalan di thread server, K1). -->
 <script>
   import { onMount } from 'svelte';
@@ -9,7 +9,7 @@
   import { num, tWIB, utcToWib } from '../format.js';
   import { toast } from '../lib/Toast.svelte';
   import DataTable from '../lib/DataTable.svelte';
-  import Note from '../lib/Note.svelte';
+  import ImportCard from '../lib/ImportCard.svelte';
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
 
@@ -88,10 +88,7 @@
       <p class="muted small">{$t('ing.hint')}</p>
     </section>
 
-    <section class="card wide" aria-labelledby="imp-h">
-      <header><h2 id="imp-h">{$t('ing.import_title')}</h2></header>
-      <Note wide={false}>{$t('ing.import_soon', { stage: 19 })}</Note>
-    </section>
+    <ImportCard onfinished={() => { loadStatus(); loadAudit(); onfinished?.(); }} />
 
     {#if audit}
       <DataTable title={$t('ing.audit')} rows={audit.rows} limit={50} columns={[
