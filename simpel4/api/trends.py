@@ -19,7 +19,10 @@ def trends(request: Request, cur=Depends(cursor)):
     lo, pos = folders[0], {f: i for i, f in enumerate(folders)}
     kosong = lambda isi=None: [isi] * len(folders)
     rows = _all(cur, 'SELECT folder::VARCHAR, service, lines, err, warn, files_corrupt, requests, n4xx, n5xx FROM agg_service WHERE folder >= ? ORDER BY service', lo)
-    names = list(dict.fromkeys(r[1] for r in rows))
+    # urutan layanan = urutan kemunculan pertama (folder terlama dulu, lalu urutan file di folder itu), sama dengan lama
+    names = [r[0] for r in _all(cur, """WITH f AS (SELECT service, min(folder) AS f FROM agg_service WHERE folder >= ? GROUP BY service)
+                                     SELECT f.service FROM f JOIN ingest_file i ON i.service = f.service AND i.folder = f.f
+                                     GROUP BY f.service, f.f ORDER BY f.f, min(i.relpath)""", lo)]
     out = {k: {s: kosong() for s in names} for k in ('lines', 'err', 'warn', 'file_status')}   # None = layanan tidak ada di folder itu
     http = {k: kosong(0) for k in ('total', 'n4xx', 'n5xx')}
     for f, s, lines, err, warn, rusak, req, n4, n5 in rows:

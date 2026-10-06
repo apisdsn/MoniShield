@@ -405,6 +405,10 @@ def test_tren(user):
     assert j['lines'][NG] == [None, user.get(f'/api/folders/{B}/services/{NG}').json()['kpi']['lines']]     # null = layanan tidak ada di folder itu
     assert j['file_status']['om-be-referensi'] == [None, 'rusak'] and j['file_status']['om-be-appsmanager'][1] == 'kosong'
     assert user.get('/api/trends?last=14').json()['folders'] == [A, B]
+    # urutan layanan = kemunculan pertama: layanan folder A (urutan file), lalu yang baru muncul di B
+    sa = [s['service'] for s in user.get(f'/api/folders/{A}').json()['services']]
+    sb = [s['service'] for s in user.get(f'/api/folders/{B}').json()['services']]
+    assert j['services'] == sa + [s for s in sb if s not in sa]
     for buruk in ('0', '15', '-1', 'semua', "30' OR 1=1"):
         r = user.get('/api/trends', params=dict(last=buruk)); assert (r.status_code, kode(r)) == (400, 'invalid_parameter'), buruk
 

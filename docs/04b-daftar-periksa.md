@@ -51,11 +51,24 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | Peta modul ini, terlipat secara bawaan (U6) | DRD §3.10 no. 1 | — | Tahap 20 |
 | 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
 
+## Tren (inv. §2.3, DRD §3.3) — Tahap 14
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| Catatan "Data tiap hari tidak selalu lengkap …" | inv. §2.3 | lihat | ☐ |
+| 6 chart: error, warning, baris log per hari per layanan (bertumpuk); request HTTP (Total, 4xx, 5xx); keamanan (serangan, password salah, reset); bisnis (5 metrik) — seri dan angka sama dengan lama | inv. §2.3 | `tools/uji_tahap14.cjs` | ☐ |
+| Tabel "Error per layanan & perubahan": angka dan ▲/▼ % sama dengan lama | inv. §2.3 | skrip | ☐ |
+| Tabel "Kelengkapan data": angka / Kosong / Tidak ada sama; tanda baru "Rusak" (B05) | inv. §2.3, DRD §3.3 | skrip | ☐ |
+| simpel-loop 30 Sep "Tidak ada"; 1 Okt "Rusak"/"Kosong" | rencana Tahap 14 | skrip | ☐ |
+| Pemilih folder di header nonaktif dengan keterangan | DRD §3.3 | skrip | ☐ |
+| Pemilih rentang 14 / 30 / 90 / semua (bawaan 30, diingat per browser): jumlah kolom berubah | DRD §3.3 U4 | skrip, database simulasi 40 folder | ☐ |
+| Tabel menggulir mendatar, kolom Layanan terkunci, folder terbaru di kanan; juga di 390 px (bukan kartu) | DRD §3.3, §8.2 | skrip | ☐ |
+| 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☐ |
+
 ## Halaman berikutnya
 
 | Halaman | Acuan | Tahap |
 |---|---|:-:|
-| Tren | inv. §2.3, DRD §3.3 | 14 |
 | Keamanan | inv. §2.4, DRD §3.4 | 15 |
 | Akar Masalah, Ketersediaan | inv. §2.5–§2.6, DRD §3.5–§3.6 | 16 |
 | Pod, Bisnis, Pelacakan Request | inv. §2.7–§2.9, DRD §3.7–§3.9 | 17 |
