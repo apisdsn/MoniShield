@@ -130,11 +130,36 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | Tanpa kecocokan (27 Sep) atau tanpa simpel-loop (30 Sep): catatan "Pelacakan butuh log om-be-simpel-loop dan ingress nginx …" (ASUMSI; lama 27 Sep menampilkan KPI nol) | DRD §6.6 | skrip | ☑ |
 | 8 kombinasi bahasa × tema × lebar (ketiga halaman) | U1–U3 | skrip | ☑ |
 
+## Kelola user (DRD §3.11, TRD §8.4) — Tahap 18 ☑
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| Tabel user: nama, nama tampilan, peran (tag admin), status (aktif = tag ok, nonaktif = redup, terkunci), terakhir masuk (WIB), menu aksi ⋯ | DRD §3.11 | `tools/uji_tahap18.cjs` | ☑ |
+| Tambah user dalam dialog: aturan ditulis sebelum mengetik, galat per kolom (`aria-describedby`), "Buat acak"; fokus di kolom pertama; Esc menutup, fokus kembali ke pemicu | DRD §3.11 | skrip | ☑ |
+| User baru: wajib ganti sandi, lalu seluruh dashboard tanpa menu admin | TRD §8.2 | skrip (dua jendela) | ☑ |
+| Naik/turun peran berlaku pada permintaan berikutnya (pindah tab / muat ulang) | rencana 18 | skrip | ☑ |
+| Reset sandi: konfirmasi menyebut nama; sandi sementara tampil sekali + Salin + "tidak akan ditampilkan lagi"; sesi user langsung berakhir | DRD §3.11 | skrip | ☑ |
+| Nonaktifkan / Hapus: konfirmasi menyebut nama; sesi berakhir; masuk ditolak dengan pesan umum; aktifkan lagi | DRD §3.11 | skrip | ☑ |
+| Admin terakhir / akun sendiri: butir tidak ditawarkan (nonaktif + sebab); peran terkunci; daftar basi → pesan penolakan di dialog; API 409 | DRD §3.11 | skrip | ☑ |
+| User biasa di alamat admin: "Tidak punya akses"; API 403 | TRD §8.4 | skrip | ☑ |
+| Ponsel: kartu baris, "+ Tambah user" menempel di bawah, dialog layar penuh | DRD §3.11 | skrip + lihat | ☑ |
+
+## Ingest & impor (DRD §3.11, TRD §8.4) — Tahap 18 ☑ (kartu impor: Tahap 19)
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| Ingest terakhir dari database (bertahan setelah server mulai ulang): waktu WIB, berhasil/gagal, N file berubah dari M | DRD §3.11 | skrip + `test_api.py` | ☑ |
+| "Ingest sekarang": nonaktif selama berjalan; kemajuan tiap 2 dtk (`aria-live` sopan, `progressbar`); selesai → pemberitahuan "0 file berubah"; dashboard tetap terbuka | DRD §3.11 | skrip | ☑ |
+| Peringatan ingest bisa dibuka (`details`); galat ditampilkan | DRD §3.11 | lihat | ☑ |
+| Catatan audit: terbaru di atas, 50 pertama + lanjutan, filter; waktu, user, tindakan, rincian, IP; tanpa sandi/token | DRD §3.11 | skrip | ☑ |
+| Kartu "Impor dari S3": catatan "dibangun di Tahap 19" | rencana 19 | lihat | ☑ |
+| 8 kombinasi bahasa × tema × lebar (kedua layar) | U1–U3 | skrip | ☑ |
+
 ## Halaman berikutnya
 
 | Halaman | Acuan | Tahap |
 |---|---|:-:|
-| Kelola user, Ingest & impor | DRD §3.11 | 18 |
+| Impor S3 (kartu di layar Ingest & impor) | DRD §3.11 | 19 |
 | Peta IP / Command Center | inv. §2.2, DRD §3.2, §7, §12 | 20, 22 |
 
 Tiap tahap menambah bagiannya di sini dengan bentuk yang sama, dan skrip `tools/uji_tahapNN.cjs` bila halamannya

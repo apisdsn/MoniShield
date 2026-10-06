@@ -62,6 +62,14 @@ export function dur(s, lang) {
 }
 
 /** Durasi dalam milidetik (bentuk data API). */
+/** Waktu UTC dari server akun/ingest ('YYYY-MM-DD HH:MM[:SS]') -> 'YYYY-MM-DD HH:MM' WIB (UTC+7), untuk tWIB(). */
+export function utcToWib(s) {
+  if (!/^\d{4}-\d\d-\d\d[ T]\d\d:\d\d/.test(s || '')) return null;
+  const d = new Date(s.slice(0, 16).replace(' ', 'T') + ':00Z');
+  if (Number.isNaN(+d)) return null;
+  return new Date(+d + 7 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+}
+
 export const durMs = (ms, lang) => (ms === null || ms === undefined ? '–' : dur(ms / 1000, lang));
 
 /** Ukuran berkas: 1.536 -> '1,5 KB'. */

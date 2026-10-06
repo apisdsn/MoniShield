@@ -1,4 +1,5 @@
 """Pemicu ingest, penurunan ulang, dan penghapusan folder (TRD §5.5). Ingest berjalan DI DALAM proses API (K1)."""
+import json
 import threading
 from typing import Optional
 
@@ -71,7 +72,16 @@ def start_ingest(request: Request, body: IngestBody = IngestBody(), who=Depends(
 
 
 @router.get('/ingest/status')
-def ingest_status(request: Request, who=Depends(require_admin_or_job)): return request.app.state.ingest.state
+def ingest_status(request: Request, who=Depends(require_admin_or_job)):
+    """Status di memori + ingest terakhir yang selesai dari database (bertahan setelah server dimulai ulang; waktu UTC)."""
+    cur = request.app.state.con.cursor()
+    try:
+        r = cur.execute("""SELECT started_at, finished_at, status, files_seen, files_changed, message FROM ingest_run
+                          WHERE finished_at IS NOT NULL ORDER BY run_id DESC LIMIT 1""").fetchone()
+    finally: cur.close()
+    last_run = r and dict(started_at=str(r[0].replace(microsecond=0)), finished_at=str(r[1].replace(microsecond=0)), status=r[2], files_seen=r[3], files_changed=r[4],
+                          warnings=json.loads(r[5]) if r[5] else [])
+    return dict(request.app.state.ingest.state, last_run=last_run)
 
 
 def _exclusive(request, fn):

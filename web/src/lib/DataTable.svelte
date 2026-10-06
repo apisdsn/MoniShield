@@ -285,7 +285,7 @@
     .cards tr { border: 1px solid var(--line); border-radius: var(--r-box); padding: 8px 12px; margin-bottom: 10px; }
     .cards td { border: 0; padding: 4px 0; text-align: left !important; white-space: normal !important; position: static !important; background: none !important; min-width: 0 !important; }
     .cards td.k { font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid var(--row-line); margin-bottom: 4px; }
-    .cards td:not(.k) { display: grid; grid-template-columns: minmax(90px, 40%) 1fr; gap: 10px; }
+    .cards td:not(.k) { display: grid; grid-template-columns: minmax(90px, 40%) 1fr; gap: 10px; justify-items: start; }   /* tag/tombol selebar isinya, bukan selebar kolom */
     .cards td:not(.k)::before { content: attr(data-label); color: var(--th-fg); font-size: 0.75rem; text-transform: capitalize; }
     .cards td.none { display: block; }
     .cards td.none::before { content: none; }

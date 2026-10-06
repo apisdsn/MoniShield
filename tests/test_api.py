@@ -282,6 +282,9 @@ def test_ingest_lewat_api_dan_dashboard_tetap_terbuka(client):
         time.sleep(0.02)
     assert set(selama) == {200} and st['error'] is None
     assert (st['last']['status'], st['last']['files_parsed'], st['last']['files_failed']) == ('ok', 9, 0)
+    lr = st['last_run']                                                         # dari ingest_run: bertahan setelah server mulai ulang
+    assert (lr['status'], lr['files_changed'], lr['warnings']) == ('ok', st['last']['files_changed'], st['last']['warnings'])
+    assert lr['finished_at'] >= lr['started_at']
     assert client.get(f'/api/folders/{B}').json()['services'][0]['lines'] == 11
     assert 'ingest.start' in [x['action'] for x in client.get('/api/admin/audit').json()['rows']]
 

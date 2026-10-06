@@ -2,7 +2,7 @@
 // Pemformat v2 vs contoh di inventaris §2.0 dan keluaran fungsi lama di dashboard_template.html.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tWIB, dur, durMs, tRange, dLabel, num, logRange, delta, bytes, pct, sysName, cut } from '../web/src/format.js';
+import { tWIB, dur, durMs, tRange, dLabel, num, logRange, delta, bytes, pct, sysName, cut, utcToWib } from '../web/src/format.js';
 
 test('waktu WIB seperti lama', () => {
   assert.equal(tWIB('2026-09-28 06:03', 'id'), '28 Sep 2026 06.03 WIB');
@@ -78,4 +78,12 @@ test('label', () => {
   assert.equal(sysName(null), '');
   assert.equal(cut('a'.repeat(60), 48).length, 48);
   assert.equal(cut('pendek', 48), 'pendek');
+});
+
+test('waktu UTC akun/ingest -> WIB (lewat tengah malam)', () => {
+  assert.equal(utcToWib('2026-10-06 18:40:12'), '2026-10-07 01:40');
+  assert.equal(utcToWib('2026-10-06 02:05'), '2026-10-06 09:05');
+  assert.equal(tWIB(utcToWib('2026-12-31 20:00:00'), 'id'), '1 Jan 2027 03.00 WIB');
+  assert.equal(utcToWib(null), null);
+  assert.equal(utcToWib('bukan waktu'), null);
 });

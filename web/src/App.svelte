@@ -2,7 +2,7 @@
      Data dashboard tidak dimuat sebelum masuk (DRD §6.9). Halaman data dipasang per tab; sampai Tahap 13–20 semuanya
      memakai Placeholder (halaman contoh komponen). -->
 <script>
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { get } from 'svelte/store';
   import { lang, t } from './i18n.js';
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
@@ -14,13 +14,14 @@
   import EmptyState from './lib/EmptyState.svelte';
   import ErrorState from './lib/ErrorState.svelte';
   import Toast, { toast } from './lib/Toast.svelte';
-  import Note from './lib/Note.svelte';
   import Login from './pages/Login.svelte';
   import ChangePassword from './pages/ChangePassword.svelte';
   import Placeholder from './pages/Placeholder.svelte';
   import Pods from './pages/Pods.svelte';
   import Business from './pages/Business.svelte';
   import Tracing from './pages/Tracing.svelte';
+  import AdminUsers from './pages/AdminUsers.svelte';
+  import AdminIngest from './pages/AdminIngest.svelte';
   import Overview from './pages/Overview.svelte';
   import Service from './pages/Service.svelte';
   import Trends from './pages/Trends.svelte';
@@ -60,6 +61,14 @@
     me = u; expired = false;
     if (u.must_change_password) screen = 'force-password';
     else loadMeta().then(() => meta && (screen = 'app'));   // kembali ke alamat yang tadi diminta: alamat tidak diubah
+  }
+  // peran/nama bisa diubah admin kapan saja: dibaca ulang tiap pindah tab dan muat ulang ("pada permintaan berikutnya")
+  async function refreshMe() {
+    try {
+      const u = await api.get('/api/me');
+      if (u.role !== me?.role || u.display_name !== me?.display_name) me = u;
+      if (u.must_change_password) screen = 'force-password';
+    } catch { /* 401 -> sesi habis ditangani api.js */ }
   }
   function clear() { me = null; meta = null; summary = null; lastFolder = null; }
   async function logout() {
@@ -120,13 +129,13 @@
   $effect(() => {
     const key = `${$route.tab}/${$route.service}`;
     if (screen !== 'app') return;
-    if (lastTab && key !== lastTab) { window.scrollTo({ top: 0 }); tick().then(() => h1?.focus()); drawer = false; }
+    if (lastTab && key !== lastTab) { window.scrollTo({ top: 0 }); tick().then(() => h1?.focus()); drawer = false; untrack(refreshMe); }
     lastTab = key;
   });
 
   function reload() {
     if (screen !== 'app') return;
-    loadMeta();
+    loadMeta(); refreshMe();
     reloadKey++;
   }
   function setFolder(f) { go({ folder: f }); }
@@ -253,8 +262,10 @@
         <EmptyState title={$t('state.no_access')} text={$t('state.no_access_text')}>
           <a class="btn" href={build({ tab: 'overview', service: null, folder, module: null })}>{$t('action.to_overview')}</a>
         </EmptyState>
-      {:else if isAdminTab}
-        <Note>{$t('placeholder.admin', { stage: 18 })}</Note>
+      {:else if $route.tab === 'admin/user'}
+        <AdminUsers {me} onme={refreshMe} />
+      {:else if $route.tab === 'admin/ingest'}
+        <AdminIngest onfinished={reload} />
       {:else if !folders.length}
         <EmptyState title={$t('state.no_data')} text={me.role === 'admin' ? '' : $t('state.no_data_user')}>
           {#if me.role === 'admin'}<a class="btn primary" href={build({ tab: 'admin/ingest', service: null })}>{$t('menu.ingest')}</a>{/if}
