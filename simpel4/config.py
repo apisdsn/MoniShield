@@ -42,6 +42,8 @@ class Config:
     upstream_prefix: str = 'ombudsman-ombudsman-'
     maxmind_account_id: str = ''
     maxmind_license_key: str = ''
+    attack_rules: str = 'crs'      # tampilan Keamanan: 'crs' (OWASP CRS + CAPEC, Tahap 21) atau 'lama' (aturan sistem lama; uji kesetaraan)
+    attack_paranoia: int = 1       # tingkat paranoia CRS 1..4 (ASUMSI S1: 1, paling sedikit salah-tuduh)
     import_buckets: dict = dataclasses.field(default_factory=dict)  # bucket -> [awalan yang boleh]; kosong = impor mati
     import_region: str = 'ap-southeast-3'
     import_max_objects: int = 500
@@ -124,4 +126,6 @@ def load(env=None, dotenv=None):
     cfg.cache_dir = os.path.abspath(cfg.cache_dir or os.path.join(cfg.log_dir, '.cache'))
     cfg.state_dir = os.path.abspath(cfg.state_dir or cfg.data_dir)
     cfg.inbox_dir = os.path.abspath(cfg.inbox_dir or os.path.join(cfg.data_dir, 'inbox'))
+    if cfg.attack_rules not in ('crs', 'lama'): raise SystemExit("S4_ATTACK_RULES harus 'crs' atau 'lama'")
+    if not 1 <= cfg.attack_paranoia <= 4: raise SystemExit('S4_ATTACK_PARANOIA harus 1..4')
     return cfg

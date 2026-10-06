@@ -11,7 +11,7 @@ from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .. import __version__, auth as authmod, config, db
+from .. import __version__, auth as authmod, config, db, detect
 from . import (admin, availability, business, map, meta, overview, pods, rootcause, security, service, session, tables, tracing,
                trends, users)
 from .common import ROLE_DEPS
@@ -64,6 +64,7 @@ def create_app(cfg=None):
 
     app = FastAPI(title='SIMPeL4 Dashboard', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cfg = cfg
+    detect.use(cfg)   # tingkat paranoia CRS untuk derive lewat API (Tahap 21)
     app.state.ingest = admin.IngestManager(app)
     app.state.imports = admin.ImportManager(app)
     check_roles(ROUTERS)

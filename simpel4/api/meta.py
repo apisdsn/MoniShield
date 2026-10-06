@@ -36,7 +36,7 @@ def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)
 
 
 @router.get('/folders/{folder}')
-def folder_summary(folder: str = Depends(folder_param), user=Depends(require_user_ready), cur=Depends(cursor)):
+def folder_summary(request: Request, folder: str = Depends(folder_param), user=Depends(require_user_ready), cur=Depends(cursor)):
     prev = cur.execute('SELECT max(folder) FROM folder_state WHERE folder < ?', [folder]).fetchone()[0]
     lama = {r[0]: dict(lines=r[1], err=r[2], warn=r[3]) for r in cur.execute('SELECT service, lines, err, warn FROM agg_service WHERE folder = ?', [prev]).fetchall()} if prev else {}
     # urutan layanan = urutan file pertama tiap layanan (urutan baca sistem lama)
@@ -51,5 +51,6 @@ def folder_summary(folder: str = Depends(folder_param), user=Depends(require_use
                  'SELECT service, pod, ns, lines, err, warn, size_bytes, status FROM ingest_file WHERE folder = ? ORDER BY relpath', [folder]).fetchall()]
     r = cur.execute('SELECT range_start_utc, range_end_utc FROM folder_state WHERE folder = ?', [folder]).fetchone()
     return dict(folder=folder, prev_folder=str(prev) if prev else None, range_start=wib(r[0]), range_end=wib(r[1]),
-                attack_ip_count=cur.execute('SELECT count(*) FROM agg_attack_ip WHERE folder = ?', [folder]).fetchone()[0],
+                attack_ip_count=cur.execute(f"SELECT count(*) FROM {'agg_crs_ip' if request.app.state.cfg.attack_rules == 'crs' else 'agg_attack_ip'} WHERE folder = ?",
+                                            [folder]).fetchone()[0],
                 services=services, files=files)

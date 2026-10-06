@@ -12,6 +12,7 @@ Aturan kesetaraan dengan sistem lama yang dijaga di SQL ini:
 """
 import glob, os
 
+from .. import detect
 from . import steps
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -39,10 +40,10 @@ def run(con, folder, now, rules_version):
         SELECT min(ts_utc), max(ts_utc) FROM fe_access WHERE folder = $f UNION ALL
         SELECT min(ts_utc), max(ts_utc) FROM spring_line WHERE folder = $f)""", {'f': folder}).fetchone()
     con.execute('DELETE FROM folder_state WHERE folder = ?', [folder])
-    con.execute("""INSERT INTO folder_state
+    con.execute("""INSERT INTO folder_state (folder, derived_at, rules_version, range_start_utc, range_end_utc, lines, files, files_empty, files_corrupt, crs_version)
         SELECT $f, $now, $v, $a, $b, coalesce(sum(lines), 0), count(*),
-               count(*) FILTER (WHERE lines = 0), count(*) FILTER (WHERE status = 'rusak')
-        FROM ingest_file WHERE folder = $f HAVING count(*) > 0""", {'f': folder, 'now': now, 'v': rules_version, 'a': rng[0], 'b': rng[1]})
+               count(*) FILTER (WHERE lines = 0), count(*) FILTER (WHERE status = 'rusak'), $crs
+        FROM ingest_file WHERE folder = $f HAVING count(*) > 0""", {'f': folder, 'now': now, 'v': rules_version, 'a': rng[0], 'b': rng[1], 'crs': detect.version_key()})
 
 
 def folders(con): return [str(r[0]) for r in con.execute('SELECT DISTINCT folder FROM ingest_file ORDER BY 1').fetchall()]

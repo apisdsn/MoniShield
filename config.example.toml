@@ -20,6 +20,10 @@
 # session_idle_minutes = 60
 # session_max_hours = 12
 
+# Deteksi serangan (Tahap 21): "crs" = OWASP CRS + CAPEC, "lama" = aturan sistem lama (uji kesetaraan).
+# attack_rules = "crs"               # S4_ATTACK_RULES
+# attack_paranoia = 1                 # S4_ATTACK_PARANOIA, 1..4
+
 # Impor S3: kosong = fitur mati. Bentuk: bucket -> daftar awalan yang boleh.
 # import_region = "ap-southeast-3"
 # import_max_objects = 500

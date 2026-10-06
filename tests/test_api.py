@@ -241,7 +241,8 @@ def test_meta(client):
 def test_folder(client):
     admin(client)
     f = client.get(f'/api/folders/{B}').json()
-    assert (f['folder'], f['prev_folder'], f['attack_ip_count']) == (B, A, 2)
+    # IP sumber serangan mengikuti aturan deteksi yang dipakai (Tahap 21: OWASP CRS; aturan lama menandai 2 IP di data ini)
+    assert (f['folder'], f['prev_folder']) == (B, A) and f['attack_ip_count'] == client.get(f'/api/folders/{B}/security').json()['kpi']['attack_ips'] == 1
     assert [s['service'] for s in f['services']] == ['nginx-ingress-controller', 'coredns', 'layanan-baru', 'om-be-appsmanager', 'om-be-referensi', 'om-be-report', 'om-be-simpel-loop']
     ng = f['services'][0]
     assert (ng['lines'], ng['err'], ng['warn'], ng['err_http'], ng['err_log'], ng['requests'], ng['n4xx'], ng['files'], ng['prev']) == (11, 2, 1, 0, 2, 7, 2, 1, None)

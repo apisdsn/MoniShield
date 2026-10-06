@@ -15,7 +15,7 @@ MAX_LIMIT, MAX_Q = 500, 200
 T = "strftime({}, '%Y-%m-%d %H:%M')"   # TIMESTAMP WIB -> teks format lama
 UTC = "strftime({} + INTERVAL 7 HOUR, '%Y-%m-%d %H:%M')"
 
-# Keparahan kategori serangan (lama: konstanta SEV di template). Diganti penamaan CAPEC di Tahap 21.
+# Keparahan kategori serangan aturan LAMA (konstanta SEV di template); aturan CRS membawa keparahannya sendiri (Tahap 21).
 SEV = {'Log4Shell / RCE': 3, 'SQL Injection': 3, 'Path Traversal / LFI': 3, 'XSS': 3,
        'Probe file sensitif': 2, 'Scan CMS / WordPress': 2, 'Probe PHP / CGI': 2, 'UA tool/scanner otomatis': 1}
 _in = lambda n: ', '.join("'" + c.replace("'", "''") + "'" for c, s in SEV.items() if s == n)
@@ -105,6 +105,19 @@ TABLES = {
                    ('client', 'status', 'error', 'n', 'max_ms', 'first', 'last'), ip='client'),
 }
 
+# Tahap 21 (TRD §4.6): bila cfg.attack_rules = 'crs', dua tabel serangan dibaca dari agregat OWASP CRS (kategori = CAPEC/keluarga,
+# keparahan dari aturan CRS, kolom `rules` = ID aturan). Agregat lama tetap ada untuk uji kesetaraan (attack_rules = 'lama').
+CRS_TABLES = {
+    'attack-urls': Table(f"""SELECT category, severity, method_path, hits, ip_count, top_ip, status_counts, sizes, upstreams, ua_first AS ua, rules,
+                                    {T.format('first_wib')} AS first, {T.format('last_wib')} AS last
+                             FROM agg_crs_url WHERE folder = $f""", 300, 'severity DESC, hits DESC, category, method_path',
+                         ('category', 'method_path', 'top_ip', 'status_counts', 'upstreams', 'ua', 'rules'), ('category', 'severity', 'method_path', 'hits', 'ip_count', 'first', 'last'),
+                         ip='top_ip'),
+    'attack-ips': Table(f"""SELECT ip, hits, cats, max_severity, status_counts, ua_top AS ua, {T.format('first_wib')} AS first, {T.format('last_wib')} AS last
+                            FROM agg_crs_ip WHERE folder = $f""", 100, 'hits DESC, ip', ('ip', 'cats', 'status_counts', 'ua'),
+                        ('ip', 'hits', 'max_severity', 'first', 'last'), ip='ip'),
+}
+
 
 def owners(cur, ips):
     """{ip: sel IP + pemilik} untuk sekumpulan IP (TRD §5.1), satu query."""
@@ -123,9 +136,14 @@ def cells(cur, rows, cols=(), lists=()):
     return rows
 
 
-def page(cur, name, folder, service=None, module=None, q='', sort=None, dir='desc', limit=None, offset=0):
+def table_of(name, scheme='crs'):
+    """Definisi tabel; tabel serangan mengikuti aturan deteksi yang dipakai (cfg.attack_rules)."""
+    return CRS_TABLES[name] if scheme == 'crs' and name in CRS_TABLES else TABLES.get(name)
+
+
+def page(cur, name, folder, service=None, module=None, q='', sort=None, dir='desc', limit=None, offset=0, scheme='crs'):
     """Satu halaman tabel. Pemanggil sudah memvalidasi `name`, `sort`, `dir`; di sini hanya nilai terikat."""
-    t = TABLES[name]
+    t = table_of(name, scheme)
     limit = t.limit if limit is None else limit
     join = f""", i.org AS _org, i.cc AS _cc, i.city AS _city, i.region AS _region, i.country AS _country, i.lat AS _lat
                FROM t LEFT JOIN ip_info i ON i.ip = t."{t.ip}\"""" if t.ip else ' FROM t'
@@ -145,9 +163,9 @@ def page(cur, name, folder, service=None, module=None, q='', sort=None, dir='des
     return dict(table=name, total=total, matched=matched, limit=limit, offset=offset, rows=rows)
 
 
-def first(cur, name, folder, service=None, module=None, limit=None):
+def first(cur, name, folder, service=None, module=None, limit=None, scheme='crs'):
     """Halaman pertama untuk respons halaman: {total, rows} (TRD §5.1)."""
-    p = page(cur, name, folder, service=service, module=module, limit=limit)
+    p = page(cur, name, folder, service=service, module=module, limit=limit, scheme=scheme)
     return dict(total=p['total'], rows=p['rows'])
 
 
@@ -167,7 +185,8 @@ def table_page(table: str, request: Request, folder: str = Depends(folder_param)
     p = request.query_params
     asing = set(p) - {'service', 'module', 'q', 'sort', 'dir', 'limit', 'offset'}
     if asing: raise ApiError(400, 'invalid_parameter', 'Parameter tidak dikenal.')
-    t = TABLES.get(table)
+    scheme = request.app.state.cfg.attack_rules
+    t = table_of(table, scheme)
     if not t: raise ApiError(404, 'not_found', 'Tabel tidak ditemukan.')
     service, module, q, sort, dir = p.get('service'), p.get('module'), p.get('q', ''), p.get('sort'), p.get('dir', 'desc')
     if t.per_service and not service: raise ApiError(400, 'invalid_parameter', 'Parameter wajib: service.')
@@ -178,4 +197,4 @@ def table_page(table: str, request: Request, folder: str = Depends(folder_param)
     if dir not in ('asc', 'desc'): raise ApiError(400, 'invalid_parameter', 'Parameter tidak sah: dir.')
     limit = _int(p['limit'], 'limit', 1, MAX_LIMIT) if 'limit' in p else None
     offset = _int(p['offset'], 'offset', 0, 999999) if 'offset' in p else 0
-    return page(cur, table, folder, service=service, module=module or None, q=q, sort=sort, dir=dir, limit=limit, offset=offset)
+    return page(cur, table, folder, service=service, module=module or None, q=q, sort=sort, dir=dir, limit=limit, offset=offset, scheme=scheme)

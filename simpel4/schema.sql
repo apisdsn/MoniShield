@@ -291,3 +291,28 @@ CREATE OR REPLACE VIEW v_attack_cat AS
 
 CREATE OR REPLACE VIEW v_dns AS
     SELECT folder, key AS domain, requests AS n FROM agg_endpoint WHERE service = 'coredns';
+
+-- ---------------------------------------------------------------- Tahap 21: deteksi serangan OWASP CRS, kategori CAPEC (TRD §4.6)
+-- Kolom lama attack_cat dan tabel agg_attack_* TETAP (aturan lama, uji kesetaraan). Klasifikasi CRS dihitung saat menurunkan
+-- agregat dari path dan User-Agent yang tersimpan (tanpa parse ulang). ADD COLUMN IF NOT EXISTS: berlaku juga untuk database lama.
+ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_rules INTEGER[];      -- ID aturan CRS yang kena; NULL = bukan serangan
+ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS capec VARCHAR;            -- ID CAPEC aturan berkeparahan tertinggi
+ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_attack VARCHAR;       -- keluarga serangan CRS (sqli, xss, rce, ...)
+ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_severity TINYINT;     -- 1..3 (tag tampilan)
+ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_score SMALLINT;       -- skor anomali (>= ambang 5)
+ALTER TABLE folder_state ADD COLUMN IF NOT EXISTS crs_version VARCHAR;      -- versi CRS + tingkat paranoia saat agregat CRS diturunkan
+
+CREATE TABLE IF NOT EXISTS agg_crs_url (
+    folder DATE, category VARCHAR, method_path VARCHAR,          -- category = ID CAPEC
+    attack VARCHAR, severity TINYINT, rules INTEGER[],
+    hits BIGINT, ip_count BIGINT, top_ip VARCHAR, status_counts MAP(VARCHAR, INTEGER),
+    sizes BIGINT[], upstreams VARCHAR[], ua_first VARCHAR, first_wib TIMESTAMP, last_wib TIMESTAMP,
+    PRIMARY KEY (folder, category, method_path));
+CREATE TABLE IF NOT EXISTS agg_crs_ip (
+    folder DATE, ip VARCHAR,
+    hits BIGINT, cats MAP(VARCHAR, INTEGER), max_severity TINYINT, status_counts MAP(VARCHAR, INTEGER),
+    ua_top VARCHAR, first_wib TIMESTAMP, last_wib TIMESTAMP,
+    PRIMARY KEY (folder, ip));
+CREATE TABLE IF NOT EXISTS agg_crs_hour (
+    folder DATE, hour_wib TIMESTAMP, n BIGINT,
+    PRIMARY KEY (folder, hour_wib));

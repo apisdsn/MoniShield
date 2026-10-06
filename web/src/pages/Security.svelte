@@ -1,6 +1,8 @@
 <!-- Keamanan (DRD §3.4, inv. §2.4): 8 KPI (4 + 4, U5), "Temuan utama" (9 aturan, komponen + kamus), 6 chart, 5 tabel,
      catatan kaki. Satu permintaan: GET /api/folders/{folder}/security (tabel halaman pertama ikut di respons).
-     Semua teks data dirender sebagai teks (tanpa sisipan HTML mentah). -->
+     Tahap 21: data.scheme = 'crs' (bawaan) -> kategori = "CAPEC/keluarga CRS" (mis. '242/xss'), keparahan dari aturan
+     CRS, kolom "Aturan" berisi ID CRS, catatan kaki menyebut CRS + versi + bagian request yang diperiksa;
+     'lama' -> tampilan aturan sistem lama (uji kesetaraan). Semua teks data dirender sebagai teks. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -38,9 +40,18 @@
 
   // label (diterjemahkan, DRD §6.3): kategori serangan, tanda akun
   const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-  const cat = (c) => $t(`cat.${slug(c)}`);
+  const crs = $derived(data?.scheme === 'crs');
+  // CRS: "<nama CAPEC> · <keluarga>" — keluarga ditulis bila menambah informasi (mis. CAPEC-242 Injeksi kode · XSS)
+  const SAMA = new Set(['66/sqli', '63/xss', '126/lfi', '253/rfi', '664/ssrf', '310/reputation-scanner']);
+  const cat = (c) => {
+    if (!crs) return $t(`cat.${slug(c)}`);
+    const [id, fam] = c.split('/');
+    return SAMA.has(c) || !fam ? $t(`capec.${id}`) : `${$t(`capec.${id}`)} · ${$t(`fam.${slug(fam)}`)}`;
+  };
+  const capecId = (c) => `CAPEC-${c.split('/')[0]}`;
   const SEV = { 'Log4Shell / RCE': 3, 'SQL Injection': 3, 'Path Traversal / LFI': 3, XSS: 3, 'Probe file sensitif': 2, 'Scan CMS / WordPress': 2, 'Probe PHP / CGI': 2 };
-  const sev = (c) => SEV[c] || 1;
+  const sevCrs = $derived(Object.fromEntries((data?.by_category || []).map(([c, , v]) => [c, v])));
+  const sev = (c) => (crs ? sevCrs[c] || 1 : SEV[c] || 1);
   const sevTok = (s) => (s === 3 ? '--err' : s === 2 ? '--warn' : '--neutral');
   const statusText = (sc) => Object.entries(sc).sort(([a], [b]) => a.localeCompare(b)).map(([c, n]) => `${c}×${n}`).join(' ');   // bentuk lama "200×3 401×1"
   const has2xx = (sc) => Object.keys(sc).some((c) => c.startsWith('2'));
@@ -51,7 +62,7 @@
   const findings = $derived.by(() => {
     if (!data) return [];
     const f = data.findings, k = data.kpi, T = data.tables;
-    const urls = T['attack-urls'], full = urls.rows.length >= urls.total;     // daftar lengkap -> urutan persis seperti lama
+    const urls = T['attack-urls'], full = !crs && urls.rows.length >= urls.total;     // aturan lama + daftar lengkap -> urutan persis seperti lama
     const rowsOf = (c) => urls.rows.filter((r) => r.category === c);
     const out = [];
     if (f.log4shell) {
@@ -71,7 +82,7 @@
     if (f.cloud_owners.length) {
       const ips = T['attack-ips'], fullIp = ips.rows.length >= ips.total;
       const CLOUD = /CLOUD|OCEAN|AMAZON|AWS|AZURE|MICROSOFT|HETZNER|OVH|LINODE|VULTR|ALIBABA|TENCENT|HOSTING|DATACENTER/i;
-      const owners = fullIp ? uniq(ips.rows.filter((r) => Object.keys(r.cats).some((c) => sev(c) >= 2)).map((r) => r.ip.org || 'Tidak diketahui').filter((o) => CLOUD.test(o)))
+      const owners = fullIp && !crs ? uniq(ips.rows.filter((r) => Object.keys(r.cats).some((c) => sev(c) >= 2)).map((r) => r.ip.org || 'Tidak diketahui').filter((o) => CLOUD.test(o)))
                             : f.cloud_owners;
       out.push({ key: 'cloud', b: {}, t: { owners: owners.map(org).join(', ') } });
     }
@@ -107,7 +118,7 @@
     <div class="kpis four">
       <Kpi icon="shield" label={$t('sec.kpi.attack_requests')} value={k.attack_requests} tone="err" />
       <Kpi icon="globe" label={$t('sec.kpi.attack_ips')} value={k.attack_ips} tone="warn" />
-      <Kpi icon="alert" label={$t('sec.kpi.critical')} value={k.critical_hits} tone="err" />
+      <Kpi icon="alert" label={$t(crs ? 'sec.kpi.critical_crs' : 'sec.kpi.critical')} value={k.critical_hits} tone="err" />
       <Kpi icon="pulse" label={$t('sec.kpi.urls_2xx')} value={k.attack_urls_2xx} tone="warn" />
       <Kpi icon="key" label={$t('sec.kpi.login_fail_ips')} value={k.login_fail_ips} tone="warn" />
       <Kpi icon="user" label={$t('sec.kpi.ok_after_fail')} value={k.accounts_ok_after_fail} tone="warn" />
@@ -144,6 +155,7 @@
       <DataTable title={$t('sec.t.urls')} {folder} table="attack-urls" initial={T['attack-urls']} maxHeight={560} columns={[
         { key: 'category', label: $t('col.category'), custom: true, sort: true, minw: 150 },
         { key: 'method_path', label: $t('col.url'), custom: true, minw: 340 },
+        ...(crs ? [{ key: 'rules', label: $t('sec.col.rules'), custom: true, minw: 90 }] : []),
         { key: 'hits', label: $t('col.hits'), type: 'num', sort: true },
         { key: 'top_ip', label: 'IP', type: 'ip', more: (r) => r.ip_count - 1 },
         { key: 'status_counts', label: $t('col.status'), custom: true },
@@ -152,7 +164,8 @@
         { key: 'first', label: $t('col.time'), type: 'range', to: 'last', cls: () => 'nowrap', sort: true },
       ]}>
         {#snippet cell(r, c)}
-          {#if c.key === 'category'}<SeverityTag level={r.severity} text={cat(r.category)} />
+          {#if c.key === 'category'}<span title={crs ? capecId(r.category) : undefined}><SeverityTag level={r.severity} text={cat(r.category)} /></span>{#if crs}<div class="muted small">{capecId(r.category)}</div>{/if}
+          {:else if c.key === 'rules'}<div class="small mono">{#each r.rules as id}<div>{id}</div>{/each}</div>
           {:else if c.key === 'method_path'}<AttackUrl methodPath={r.method_path} upstreams={r.upstreams} ua={r.ua} {hosts} />
           {:else if c.key === 'status_counts'}<StatusCode counts={r.status_counts} />{#if r.severity >= 2 && has2xx(r.status_counts)}<div class="WARN small">{$t('sec.verify_2xx')}</div>{/if}
           {:else if c.key === 'upstreams'}<div class="small">{#each r.upstreams as u}<div class="nowrap">{u}</div>{/each}</div>{/if}
@@ -214,7 +227,7 @@
         { key: 'ua', label: 'User-Agent', clip: true },
       ]} />
     </div>
-    <p class="muted foot">{$t('sec.footnote')}</p>
+    <p class="muted foot">{crs ? $t('sec.footnote_crs', { version: data.crs.version, pl: data.crs.paranoia, n: data.crs.rules, th: data.crs.threshold }) : $t('sec.footnote')}</p>
   </div>
 {/if}
 

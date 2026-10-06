@@ -121,7 +121,8 @@ def klien_api():
     from simpel4.api import app as appmod
     auth.SCRYPT = (10, 8, 1)   # hash murah: ini alat banding, bukan server
     pw, x = 'sandi-pembanding-pertama', {'X-Requested-With': 'kesetaraan'}
-    c = dataclasses.replace(config.load(), auth_database_url='sqlite:///' + os.path.join(tempfile.mkdtemp(), 'auth.db'), ingest_on_start=False,
+    # attack_rules='lama': kesetaraan dibuktikan dengan aturan serangan sistem lama (Tahap 21: tampilan memakai CRS)
+    c = dataclasses.replace(config.load(), auth_database_url='sqlite:///' + os.path.join(tempfile.mkdtemp(), 'auth.db'), ingest_on_start=False, attack_rules='lama',
                             cookie_secure=False, admin_user='admin', admin_password=pw, jwt_secret='rahasia-sementara-alat-pembanding-kesetaraan')
     tc = TestClient(appmod.create_app(c)); tc.__enter__()
     assert tc.post('/api/auth/login', json=dict(username='admin', password=pw), headers=x).status_code == 200

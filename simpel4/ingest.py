@@ -5,7 +5,7 @@ Agregat diturunkan lewat derive_folder(), yang diisi tahap berikutnya.
 """
 import concurrent.futures, datetime, json, multiprocessing, os, shutil, threading, time
 
-from . import db, derive, parse, refdata, rules
+from . import db, derive, detect, parse, refdata, rules
 
 RAW_TABLES = list(parse.TABLES)
 _lock = threading.Lock()  # satu ingest pada satu waktu (TRD §3.1)
@@ -47,7 +47,8 @@ def scan(roots):
 def _load_csv(con, table, csv_path, file_id, folder):
     cols = ', '.join(f"string_split({c}, ',')" if c in parse.LIST_COLS else c for c in parse.TABLES[table][1:])
     lit = csv_path.replace("'", "''")
-    con.execute(f"""INSERT INTO {table} SELECT ?::INTEGER, line_no, ?::DATE, {cols}
+    names = ', '.join(['file_id', 'line_no', 'folder'] + parse.TABLES[table][1:])   # nama kolom eksplisit: tabel bisa punya kolom turunan (crs_*, Tahap 21)
+    con.execute(f"""INSERT INTO {table} ({names}) SELECT ?::INTEGER, line_no, ?::DATE, {cols}
                     FROM read_csv('{lit}', header=true, all_varchar=true, allow_quoted_nulls=false, quote='"', escape='"', delim=',')""",
                 [file_id, folder])
 
@@ -89,6 +90,7 @@ def forget(con, folder):
 def run(cfg, con=None, folder=None, force=False, workers=None, progress=None):
     """Jalankan ingest. Mengembalikan ringkasan; melempar Busy bila ingest lain berjalan."""
     if not _lock.acquire(blocking=False): raise Busy('ingest sedang berjalan')
+    detect.use(cfg)
     own = con is None
     try:
         con = con or db.open(cfg.db_path)
@@ -162,6 +164,18 @@ def _run(cfg, con, only_folder, force, workers, progress):
             try: derive.steps.correlation(con, fd); con.execute('COMMIT')
             except BaseException: con.execute('ROLLBACK'); raise
             res['folders_recorrelated'].append(fd)
+        # 5b. deteksi CRS (Tahap 21): folder yang agregat CRS-nya dibuat dengan versi aturan/tingkat paranoia lain diturunkan ulang
+        #     dari path dan User-Agent yang tersimpan (tanpa parse ulang)
+        res['folders_redetected'] = []
+        for (fd,) in con.execute('SELECT folder::VARCHAR FROM folder_state WHERE crs_version IS DISTINCT FROM ? ORDER BY 1', [detect.version_key()]).fetchall():
+            if fd in res['folders_changed'] or (only_folder and fd != only_folder): continue
+            progress(phase='muat', folder=fd)
+            con.execute('BEGIN')
+            try:
+                derive.steps.crs(con, fd)
+                con.execute('UPDATE folder_state SET crs_version = ? WHERE folder = ?', [detect.version_key(), fd]); con.execute('COMMIT')
+            except BaseException: con.execute('ROLLBACK'); raise
+            res['folders_redetected'].append(fd)
         res['files_changed'] = res['files_parsed'] + res['files_removed'] + res['files_failed']
 
         # 6. lengkapi pemilik & lokasi IP dan berkas peta (TRD §3.6); kegagalan unduh tidak menggagalkan ingest

@@ -7,7 +7,7 @@ Tiap fungsi: hapus baris folder ini, sisipkan yang baru. Dipanggil di dalam tran
 import collections
 from urllib.parse import unquote_plus
 
-from .. import rules
+from .. import detect, rules
 
 C = collections.Counter
 WIB = "date_trunc('minute', {} + INTERVAL 7 HOUR)::VARCHAR"  # 'YYYY-MM-DD HH:MM:SS' -> dipotong [:16] = menit WIB
@@ -39,6 +39,45 @@ def attack(con, folder):  # lama:71 add_attack + bagian atk/atk_ip/atk_h summari
     if atk_ip: con.executemany(f'INSERT INTO agg_attack_ip VALUES (?, ?, ?, {MAP}, {MAP}, ?, ?, ?)', [
         [folder, ip, a['n'], *_map(a['cat']), *_map(dict(sorted(a['st'].items()))), a['ua'].most_common(1)[0][0], a['first'], a['last']] for ip, a in atk_ip.items()])
     if atk_h: con.executemany('INSERT INTO agg_attack_hour VALUES (?, ?, ?)', [[folder, h + ':00:00', n] for h, n in atk_h.items()])
+
+
+def crs(con, folder):  # Tahap 21, TRD §4.6: klasifikasi OWASP CRS per pasangan unik (metode, path, UA), lalu agregat ber-CAPEC
+    """Isi kolom crs_* di nginx_access folder ini dan agg_crs_url/ip/hour. Aturan lama (attack_cat, agg_attack_*) tidak disentuh."""
+    con.execute('UPDATE nginx_access SET crs_rules = NULL, capec = NULL, crs_attack = NULL, crs_severity = NULL, crs_score = NULL '
+                'WHERE folder = ? AND crs_score IS NOT NULL', [folder])
+    found = []
+    for meth, path, ua in con.execute('SELECT DISTINCT method, path, ua FROM nginx_access WHERE folder = ?', [folder]).fetchall():
+        r = detect.classify(meth, path, ua, detect.PARANOIA)
+        if r: found.append([meth, path, ua, r['rules'], r['capec'], r['attack'], r['severity'], r['score']])
+    if found:
+        con.execute('CREATE OR REPLACE TEMP TABLE _crs (method VARCHAR, path VARCHAR, ua VARCHAR, rules INTEGER[], capec VARCHAR, attack VARCHAR, sev TINYINT, score SMALLINT)')
+        con.executemany('INSERT INTO _crs VALUES (?, ?, ?, ?, ?, ?, ?, ?)', found)
+        con.execute("""UPDATE nginx_access a SET crs_rules = c.rules, capec = c.capec, crs_attack = c.attack, crs_severity = c.sev, crs_score = c.score
+                       FROM _crs c WHERE a.folder = ? AND a.method = c.method AND a.path = c.path AND a.ua = c.ua""", [folder])
+        con.execute('DROP TABLE _crs')
+    rows = con.execute(f"""SELECT a.capec, a.crs_attack, a.crs_severity, a.crs_rules, {WIB.format('a.ts_utc')}, a.ip, a.method, a.path, a.status::VARCHAR,
+                                  a.bytes, a.ua, a.upstream
+                           FROM nginx_access a JOIN ingest_file f USING (file_id)
+                           WHERE a.folder = ? AND a.crs_score IS NOT NULL ORDER BY f.relpath, a.line_no""", [folder]).fetchall()
+    url, ipa, hour = {}, {}, C()
+    for capec, fam, sev, rids, h, ip, meth, path, st, size, ua, up in rows:   # bentuk sama dengan attack() di atas
+        h, cat = h[:16], f'{capec}/{fam}'   # kategori = CAPEC/keluarga CRS: XSS dan injeksi PHP sama-sama CAPEC-242, tetap terpisah
+        a = url.setdefault((cat, f'{meth} {unquote_plus(path)[:200]}'),
+                           dict(n=0, ips=C(), st=C(), size=set(), up=set(), ua=ua[:100], first=h, last=h, fam=C(), sev=0, rules=set()))
+        a['n'] += 1; a['ips'][ip] += 1; a['st'][st] += 1; a['size'].add(int(size)); a['up'].add(up); a['fam'][fam] += 1
+        a['sev'] = max(a['sev'], sev); a['rules'].update(rids); a['first'] = min(a['first'], h); a['last'] = max(a['last'], h)
+        i = ipa.setdefault(ip, dict(n=0, cat=C(), st=C(), ua=C(), first=h, last=h, sev=0))
+        i['n'] += 1; i['cat'][cat] += 1; i['st'][st] += 1; i['ua'][ua[:100]] += 1; i['sev'] = max(i['sev'], sev)
+        i['first'] = min(i['first'], h); i['last'] = max(i['last'], h)
+        hour[h[:13]] += 1
+    for t in ('agg_crs_url', 'agg_crs_ip', 'agg_crs_hour'): con.execute(f'DELETE FROM {t} WHERE folder = ?', [folder])
+    if url: con.executemany(f'INSERT INTO agg_crs_url VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {MAP}, ?, ?, ?, ?, ?)', [
+        [folder, cat, mp, a['fam'].most_common(1)[0][0], a['sev'], sorted(a['rules']), a['n'], len(a['ips']), a['ips'].most_common(1)[0][0],
+         *_map(dict(sorted(a['st'].items()))), sorted(a['size'])[:5], sorted(a['up']), a['ua'], a['first'], a['last']] for (cat, mp), a in url.items()])
+    if ipa: con.executemany(f'INSERT INTO agg_crs_ip VALUES (?, ?, ?, {MAP}, ?, {MAP}, ?, ?, ?)', [
+        [folder, ip, a['n'], *_map(a['cat']), a['sev'], *_map(dict(sorted(a['st'].items()))), a['ua'].most_common(1)[0][0], a['first'], a['last']]
+        for ip, a in ipa.items()])
+    if hour: con.executemany('INSERT INTO agg_crs_hour VALUES (?, ?, ?)', [[folder, h + ':00:00', n] for h, n in hour.items()])
 
 
 def accounts(con, folder):  # lama:251 accounts(); event login appsmanager dalam urutan baca
@@ -122,7 +161,7 @@ def jwt(con, folder):  # lama:223-224; kelompok umur lewat rules.jwt_bucket()
     if out: con.executemany('INSERT INTO agg_jwt VALUES (?, ?, ?, ?)', [[folder, svc, b, n] for (svc, b), n in out.items()])
 
 
-STEPS = (attack, accounts, incidents, correlation, business, jwt)
+STEPS = (attack, crs, accounts, incidents, correlation, business, jwt)
 
 
 def affected_by(con, changed):

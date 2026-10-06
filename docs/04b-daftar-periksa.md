@@ -158,6 +158,22 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | Kredensial sementara: tiga kolom sandi tanpa autocomplete, keterangan "memori server saja", bentuk salah ditolak, hapus; nilai tidak pernah tampil | DRD §3.11 | skrip | ☑ |
 | 8 kombinasi bahasa × tema × lebar (kedua layar) | U1–U3 | skrip | ☑ |
 
+## Keamanan: deteksi OWASP CRS + CAPEC (TRD §4.6) — Tahap 21 ☑
+
+Tampilan bawaan (`S4_ATTACK_RULES=crs`). Bagian "Keamanan" di atas tetap berlaku untuk tampilan aturan lama
+(`S4_ATTACK_RULES=lama`), yang diuji ulang dengan `tools/uji_tahap15.cjs` agar kesetaraan tidak hilang.
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| 8 KPI = API; KPI kritis = request berkeparahan tertinggi (CRITICAL), label "Serangan kritis (keparahan tertinggi)" | TRD §4.6 | `tools/uji_tahap21.cjs` (06 Okt: 50 · 4 · 50 · 46 · 9 · 1 · 0 · 4) | ☑ |
+| Jumlah IP penyerang di ringkasan folder (Overview, banner) = KPI Keamanan, skema yang sama | TRD §4.6 | skrip | ☑ |
+| Kategori bernama CAPEC dua bahasa (+ keluarga CRS bila CAPEC-nya umum) dan baris kecil "CAPEC-n"; chart kategori memakai nama yang sama | rencana Tahap 21 | skrip (49 baris URL, 4 baris IP, ID dan EN) | ☑ |
+| Kolom "Aturan CRS": ID aturan yang kena per baris, sama dengan API | rencana Tahap 21 | skrip | ☑ |
+| Temuan utama: Log4Shell dari aturan Log4j CRS; kategori kritis = 3 kategori berkeparahan tertinggi | TRD §4.6 | skrip | ☑ |
+| Catatan kaki: CRS + versi + lisensi + tingkat paranoia + jumlah aturan + ambang; hanya URL, argumen, User-Agent yang diperiksa; bukan pengganti WAF | rencana Tahap 21 | skrip (ID dan EN) | ☑ |
+| Isi URL/UA serangan tetap tampil sebagai teks | rencana Tahap 15 | skrip | ☑ |
+| 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
+
 ## Peta IP (inv. §2.2, DRD §3.2, §7) — Tahap 20 ☑
 
 | Butir | Acuan | Cara | Hasil |

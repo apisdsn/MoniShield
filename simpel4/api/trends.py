@@ -31,7 +31,8 @@ def trends(request: Request, cur=Depends(cursor)):
         out['file_status'][s][i] = 'rusak' if rusak else 'kosong' if not lines else 'ok'
         if s == NG: http['total'][i], http['n4xx'][i], http['n5xx'][i] = req, n4, n5
     sec = {k: kosong(0) for k in ('attack_requests', 'login_fail', 'resets')}
-    for f, n in _all(cur, 'SELECT folder::VARCHAR, sum(hits) FROM agg_attack_url WHERE folder >= ? GROUP BY 1', lo): sec['attack_requests'][pos[f]] = int(n)
+    atk = 'agg_crs_url' if request.app.state.cfg.attack_rules == 'crs' else 'agg_attack_url'   # Tahap 21: aturan deteksi yang dipakai
+    for f, n in _all(cur, f'SELECT folder::VARCHAR, sum(hits) FROM {atk} WHERE folder >= ? GROUP BY 1', lo): sec['attack_requests'][pos[f]] = int(n)
     # lama: Σ login[*][1] dan [2] = hanya IP yang punya gagal/reset; sama dengan jumlah semua baris
     for f, a, b in _all(cur, 'SELECT folder::VARCHAR, sum(fail), sum(lock) FROM agg_login_ip WHERE folder >= ? GROUP BY 1', lo):
         sec['login_fail'][pos[f]], sec['resets'][pos[f]] = int(a), int(b)

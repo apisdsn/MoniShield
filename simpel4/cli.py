@@ -223,7 +223,8 @@ def _local_db(cfg):
 
 
 def cmd_derive(cfg, args):
-    from . import db, ingest
+    from . import db, detect, ingest
+    detect.use(cfg)
     done = ingest.derive_all(_local_db(cfg), args.folder)
     print(f'agregat diturunkan ulang untuk {len(done)} folder' + (f' ({done[0]} … {done[-1]})' if done else ''))
     return 0

@@ -75,7 +75,9 @@ def con_for(cfg): return db.open(cfg.db_path)
 def taruh_ip(con, **kolom):
     """Sisipkan satu baris nginx_access berisi IP tertentu."""
     for i, ip in enumerate(kolom['ips'], 1):
-        con.execute("""INSERT INTO nginx_access VALUES (1, ?, DATE '2026-01-02', TIMESTAMP '2026-01-02 00:00:00', ?, 'GET', '/', '/', 200, 1,
+        con.execute("""INSERT INTO nginx_access (file_id, line_no, folder, ts_utc, ip, method, path, path_key, status, bytes, ua, request_time,
+                                                upstream, request_id, pod_final, up_addrs, up_statuses, attack_cat, is_uptime_kuma)
+                       VALUES (1, ?, DATE '2026-01-02', TIMESTAMP '2026-01-02 00:00:00', ?, 'GET', '/', '/', 200, 1,
                        'UA', 0.1, '-', NULL, '-', NULL, NULL, NULL, false)""", [i, ip])
 
 
