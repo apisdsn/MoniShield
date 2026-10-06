@@ -65,11 +65,23 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | Tabel menggulir mendatar, kolom Layanan terkunci, folder terbaru di kanan; juga di 390 px (bukan kartu) | DRD §3.3, §8.2 | skrip | ☑ |
 | 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
 
+## Keamanan (inv. §2.4, DRD §3.4) — Tahap 15 ☑
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| 8 KPI ditata 4 + 4 (U5), angka sama dengan lama | 06 Okt: 88 · 14 · 5 · 62 · 9 · 1 · 0 · 4 | `tools/uji_tahap15.cjs` (06 Okt, 29 Sep, 28 Sep) | ☑ |
+| "Temuan utama": 9 aturan, kalimat sama dengan lama dalam 2 bahasa; dari komponen + kamus, bukan HTML dalam string | inv. §2.4 | skrip (6 butir 06 Okt, 11 butir 29 Sep) | ☑ |
+| 6 chart: kategori (warna keparahan), timeline per jam, top 10 IP, per pemilik jaringan, password salah per jam, top 10 IP password salah | inv. §2.4 | skrip (judul kartu) | ☑ |
+| 5 tabel: endpoint serangan (URL lengkap + base host + UA, "2xx – verifikasi"), IP sumber, analisis akun (ISP Sama), login gagal (Multi-akun), IP 4xx | inv. §2.4 | skrip (kolom inti tiap baris) | ☑ |
+| Tanpa nginx: catatan "deteksi serangan per URL tidak tersedia"; bagian login tetap | DRD §6.6 | skrip (28 Sep) | ☑ |
+| URL berisi `<script>` / `onerror` / `${jndi:` tampil sebagai teks, tidak dieksekusi; tidak ada `@html` | rencana Tahap 15 | skrip (29 Sep) + `grep` | ☑ |
+| Kategori serangan dan tanda akun diterjemahkan (label, DRD §6.3) | DRD §6.3 | lihat | ☑ |
+| 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
+
 ## Halaman berikutnya
 
 | Halaman | Acuan | Tahap |
 |---|---|:-:|
-| Keamanan | inv. §2.4, DRD §3.4 | 15 |
 | Akar Masalah, Ketersediaan | inv. §2.5–§2.6, DRD §3.5–§3.6 | 16 |
 | Pod, Bisnis, Pelacakan Request | inv. §2.7–§2.9, DRD §3.7–§3.9 | 17 |
 | Kelola user, Ingest & impor | DRD §3.11 | 18 |

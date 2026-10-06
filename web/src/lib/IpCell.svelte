@@ -27,9 +27,9 @@
 </div>
 
 <style>
-  .ipc { min-width: 0; }
+  .ipc { min-width: 140px; }
   .ip { display: inline-flex; align-items: center; gap: 6px; }
-  b { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; word-break: break-all; }
+  b { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }   /* IPv4 tidak dipecah */
   .more { color: var(--muted); font-size: 0.6875rem; }
   .cp {
     opacity: 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0 4px;

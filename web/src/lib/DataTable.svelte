@@ -15,12 +15,14 @@
 
   /**
    * columns: [{key, label, type?, sort?, fmt?(row, lang), clip?, cls?(row), sev?(row) -> {level, text}, detail?(row) -> teks}]
+   *   minw?: lebar minimum kolom (px) agar teks panjang tidak dipecah per huruf di kolom sempit (tidak berlaku di kartu baris).
+   *   custom?: true -> sel digambar snippet `cell(row, col)` milik pemanggil (komponen, bukan HTML dalam string).
    *   status?: kunci kode status yang ditampilkan berwarna di depan teks sel (mis. '401 /path').
    *   type: 'text' (bawaan) | 'num' | 'ip' | 'ips' | 'status' | 'statuses' | 'sev' | 'time' | 'range' | 'dur' | 'pct' | 'bytes' | 'code' | 'tags'
    * Sumber statis: rows. Sumber server: folder + table (+ params), initial = {total, rows} dari respons halaman.
    */
   let { title, columns, rows = null, folder = null, table = null, params = {}, initial = null, limit = null,
-        bar = null, wide = true, maxHeight = 440, rowId = null, highlight = null, chip = null } = $props();
+        bar = null, wide = true, maxHeight = 440, rowId = null, highlight = null, chip = null, cell = null } = $props();
 
   const STEP = 100;
   const remote = $derived(!!table);
@@ -161,7 +163,7 @@
       <thead>
         <tr>
           {#each columns as c}
-            <th scope="col" class:n={numeric(c)} aria-sort={ariaSort(c)}>
+            <th scope="col" class:n={numeric(c)} aria-sort={ariaSort(c)} style={c.minw ? `min-width:${c.minw}px` : undefined}>
               {#if c.sort}<button class="sort" onclick={() => sortBy(c)}>{c.label}<span aria-hidden="true">{sort === c.key ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}</span></button>{:else}{c.label}{/if}
             </th>
           {/each}
@@ -171,8 +173,10 @@
         {#each view as row, i (rowId ? row[rowId] : i)}
           <tr class:hl={highlight !== null && rowId && row[rowId] === highlight} id={rowId ? `${uid}-${row[rowId]}` : undefined}>
             {#each columns as c, k}
-              <td class={[c.cls?.(row), { n: numeric(c), k: k === 0 }]} data-label={c.label}>
-                {#if c.type === 'ip'}
+              <td class={[c.cls?.(row), { n: numeric(c), k: k === 0 }]} data-label={c.label} style={c.minw ? `min-width:${c.minw}px` : undefined}>
+                {#if c.custom && cell}
+                  {@render cell(row, c)}
+                {:else if c.type === 'ip'}
                   <IpCell ip={row[c.key]} more={typeof c.more === 'function' ? c.more(row) : 0} />
                 {:else if c.type === 'ips'}
                   {#each row[c.key] || [] as x}<IpCell ip={x} />{/each}
@@ -279,7 +283,7 @@
     .cards table, .cards tbody, .cards tr, .cards td { display: block; width: auto; }
     .cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
     .cards tr { border: 1px solid var(--line); border-radius: var(--r-box); padding: 8px 12px; margin-bottom: 10px; }
-    .cards td { border: 0; padding: 4px 0; text-align: left !important; white-space: normal !important; position: static !important; background: none !important; }
+    .cards td { border: 0; padding: 4px 0; text-align: left !important; white-space: normal !important; position: static !important; background: none !important; min-width: 0 !important; }
     .cards td.k { font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid var(--row-line); margin-bottom: 4px; }
     .cards td:not(.k) { display: grid; grid-template-columns: minmax(90px, 40%) 1fr; gap: 10px; }
     .cards td:not(.k)::before { content: attr(data-label); color: var(--th-fg); font-size: 0.75rem; text-transform: capitalize; }
