@@ -18,7 +18,7 @@ const CHART_STUB = `(() => { const deep = () => new Proxy({}, { get: (t, k) => (
 
 // tabel lama/baru -> baris berisi teks sel (kolom inti dipilih pemanggil)
 const tabel = (p, sel, judul) => p.$$eval(sel, (cards, judul) => {
-  const c = cards.find((x) => (x.querySelector('h3, h2')?.childNodes[0]?.textContent || '').trim().toLowerCase().startsWith(judul));
+  const c = cards.find((x) => x.querySelector('table') && (x.querySelector('h3, h2')?.childNodes[0]?.textContent || '').trim().toLowerCase().startsWith(judul));   // kartu chart berjudul mirip dilewati
   if (!c) return null;
   return [...c.querySelectorAll('tr')].filter((tr) => tr.querySelector('td') && !tr.querySelector('td[colspan]')).map((tr) => [...tr.cells].map((td) => td.innerText));
 }, judul);

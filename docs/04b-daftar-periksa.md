@@ -78,11 +78,31 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | Kategori serangan dan tanda akun diterjemahkan (label, DRD §6.3) | DRD §6.3 | lihat | ☑ |
 | 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
 
+## Akar Masalah (inv. §2.5, DRD §3.5) — Tahap 16 ☑
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| "Ringkasan akar masalah" hingga 5 butir, kalimat sama dengan lama (dua bahasa, kode sebagai `<code>`); kosong → "Tidak ada pola …" | inv. §2.5 | `tools/uji_tahap16.cjs` (29 Sep, 06 Okt, 30 Sep, 27 Sep) | ☑ |
+| Butir error koneksi memakai jumlah penuh (30 Sep 200 → 1.200) | TRD §4.4 butir 1 | skrip | ☑ |
+| 4 chart: 401 berulang, umur JWT (bertumpuk per layanan), PDF per template, error koneksi per jenis | inv. §2.5 | skrip (data chart vs lama) | ☑ |
+| Baru: "Refresh token kedaluwarsa: N" di bawah chart JWT | DRD §3.5 B07 | skrip (29 Sep: 237) | ☑ |
+| Tabel 401: 30 baris pertama sama (seri boleh beda urutan) + "Menampilkan 30 dari N"; PDF; DNS + dampak | inv. §2.5, B04 | skrip | ☑ |
+| Upstream DNS dari konfigurasi (`S4_DNS_UPSTREAM`), bukan tulis mati | inv. §2.5 | lihat | ☑ |
+
+## Ketersediaan (inv. §2.6, DRD §3.6) — Tahap 16 ☑
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| 7 KPI (4 + 3) sama dengan lama kecuali error koneksi pod (30 Sep 200 → 1.200); retry 825; 10 insiden | inv. §2.6, TRD §4.4 butir 1 | skrip (30 Sep, 06 Okt) | ☑ |
+| 3 chart: 5xx per jam, 5xx per upstream, Uptime-Kuma per jam (berhasil/gagal) — data sama | inv. §2.6 | skrip | ☑ |
+| Tabel per upstream, insiden (durasi menit), target Uptime-Kuma — sama; error koneksi 200 pertama + lanjutan | inv. §2.6 | skrip | ☑ |
+| Tanpa nginx: catatan "Analisis ketersediaan memakai log ingress nginx …" | DRD §6.6 | skrip (28 Sep) | ☑ |
+| 8 kombinasi bahasa × tema × lebar (kedua halaman) | U1–U3 | skrip | ☑ |
+
 ## Halaman berikutnya
 
 | Halaman | Acuan | Tahap |
 |---|---|:-:|
-| Akar Masalah, Ketersediaan | inv. §2.5–§2.6, DRD §3.5–§3.6 | 16 |
 | Pod, Bisnis, Pelacakan Request | inv. §2.7–§2.9, DRD §3.7–§3.9 | 17 |
 | Kelola user, Ingest & impor | DRD §3.11 | 18 |
 | Peta IP / Command Center | inv. §2.2, DRD §3.2, §7, §12 | 20, 22 |

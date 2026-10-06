@@ -221,9 +221,6 @@
 <style>
   .content { transition: opacity 0.15s; }
   .content.dim { opacity: 0.6; }
-  .kpis.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  @media (max-width: 900px) { .kpis.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 359px) { .kpis.four { grid-template-columns: minmax(0, 1fr); } }
   .foot { font-size: 0.75rem; margin-top: 18px; }
   :global(.small) { font-size: 0.75rem; }
   :global(td.strong) { font-weight: 600; }

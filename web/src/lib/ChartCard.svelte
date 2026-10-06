@@ -44,7 +44,7 @@
    * tooltipTitle(i): baris judul tooltip (mis. IP + pemilik). options: digabung ke opsi Chart.js.
    */
   let { title, type = 'bar', labels = [], datasets = [], wide = false, timeAxis = false, fmtV = null, tooltipTitle = null,
-        options = {}, info = null, valueLabel = null, actions = null, chip = null } = $props();
+        options = {}, info = null, valueLabel = null, actions = null, chip = null, footer = null } = $props();   // footer: snippet keterangan di bawah chart
 
   let canvas = $state();
   let asTable = $state(false);
@@ -164,6 +164,7 @@
       <div class="chart" role="img" aria-label={summary}><canvas bind:this={canvas} aria-hidden="true"></canvas></div>
       {#if oneDay}<p class="day muted">{dLabel(String(labels[0]).slice(0, 10), $lang)} · WIB</p>{/if}
     {/if}
+    {#if footer}<div class="foot">{@render footer()}</div>{/if}
   </section>
 {/if}
 
@@ -174,6 +175,7 @@
   @media (max-width: 900px) { .btn.sm { min-height: var(--touch); } }
   h2 { display: flex; align-items: center; }
   .day { margin: 6px 0 0; font-size: 0.75rem; text-align: center; }
+  .foot { margin-top: 10px; font-size: 0.8125rem; color: var(--muted); }
   .tbl { max-height: 280px; }
   table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
   th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--row-line); }

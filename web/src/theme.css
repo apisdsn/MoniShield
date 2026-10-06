@@ -270,3 +270,5 @@ td.ERROR, td.EXC, td.WARN, td.INFO, td.PERFORMANCE, td.DEBUG { white-space: nowr
 @media (max-width: 359px) {
   .kpis { grid-template-columns: minmax(0, 1fr); }
 }
+/* KPI 4 + 4 / 4 + 3 tanpa baris yatim di layar lebar (DRD U5) */
+@media (min-width: 901px) { .kpis.four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

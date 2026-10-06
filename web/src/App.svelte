@@ -22,6 +22,8 @@
   import Service from './pages/Service.svelte';
   import Trends from './pages/Trends.svelte';
   import Security from './pages/Security.svelte';
+  import RootCause from './pages/RootCause.svelte';
+  import Availability from './pages/Availability.svelte';
 
   // ASUMSI (DRD §6.6 "praktis kosong"): folder dengan < 1.000 baris log diberi pita kuning (jumlah file rusak ikut
   // disebut). File rusak saja tidak cukup: folder penuh pun sering punya 1–3 file berbaris rusak.
@@ -260,6 +262,10 @@
             <Overview {folder} {summary} {reloadKey} {onready} />
           {:else if $route.tab === 'keamanan'}
             <Security {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} />
+          {:else if $route.tab === 'akar-masalah'}
+            <RootCause {folder} dnsUpstream={meta?.dns_upstream || ''} {reloadKey} {onready} />
+          {:else if $route.tab === 'ketersediaan'}
+            <Availability {folder} {reloadKey} {onready} />
           {:else if $route.tab === 'tren'}
             <Trends {reloadKey} {onready} />
           {:else if $route.tab === 'layanan'}
