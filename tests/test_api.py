@@ -93,10 +93,11 @@ def test_format_galat(client):
 # ------------------------------------------------------------------ masuk dan sesi
 def test_masuk_cookie_dan_wajib_ganti_sandi(client):
     r = masuk(client)
-    assert r.json() == dict(username='admin', display_name='Administrator', role='admin', must_change_password=True)
+    assert r.json() == dict(username='admin', display_name='Administrator', role='admin', must_change_password=True, session_idle_minutes=60)
     ck = r.headers['set-cookie'].lower()
     assert 's4_session=' in ck and 'httponly' in ck and 'samesite=strict' in ck and 'path=/' in ck and 'secure' not in ck  # cookie_secure=False di uji
     assert PW not in r.text and client.get('/api/me').json()['must_change_password'] is True
+    assert client.get('/api/me').json()['session_idle_minutes'] == 60                  # dasar peringatan sesi di tampilan (DRD §6.9)
     r = client.get('/api/meta')
     assert (r.status_code, kode(r)) == (403, 'must_change_password')            # hanya /api/me dan ganti sandi yang boleh
     assert client.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200

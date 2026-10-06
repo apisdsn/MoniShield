@@ -10,7 +10,7 @@ diperbarui dan penyimpangan dicatat di bagian tahap itu.
 
 ## Cara membaca
 
-- **21 tahap**, urut mengikuti alur data: aturan dan skema → ingest → agregat → uji kesetaraan → API →
+- **21 tahap** (+ 12a, 22, 23 atas permintaan pemilik 2026-10-06), urut mengikuti alur data: aturan dan skema → ingest → agregat → uji kesetaraan → API →
   kerangka tampilan → halaman satu per satu → layar admin → impor → peta, lalu satu peningkatan yang
   diminta pemilik: deteksi serangan berbasis OWASP CRS (Tahap 21).
 - Setiap tahap bisa dijalankan dan diperiksa sendiri. Tahap berikutnya tidak dimulai sebelum verifikasi
@@ -41,7 +41,8 @@ belum terpasang (dipasang di Tahap 2); **disk bebas hanya 17 GB** (berpengaruh k
 | 9 | Gerbang ukuran dan kinerja | 8 | P7 | ☑ 2026-10-06 |
 | 10 | API: kerangka, login, peran, ingest dalam proses | 8 | — | ☑ 2026-10-06 |
 | 11 | API data semua halaman + uji kesetaraan E2 | 10 | X6 | ☑ 2026-10-06 |
-| 12 | Kerangka tampilan dan komponen bersama | 1, 11 | Q6, Q7, Q8 | ☐ |
+| 12 | Kerangka tampilan dan komponen bersama | 1, 11 | Q6, Q7, Q8 | ◐ 2026-10-06 sebagian: tinggal uji di ponsel sungguhan |
+| 12a | Gaya mengikuti referensi desain pemilik (token, ikon, kartu perhatian) | 12 | **R6** | ☐ baru |
 | 13 | Halaman Layanan dan Overview | 12 | — | ☐ |
 | 14 | Halaman Tren | 12 | Q4 | ☐ |
 | 15 | Halaman Keamanan | 12 | — | ☐ |
@@ -51,6 +52,8 @@ belum terpasang (dipasang di Tahap 2); **disk bebas hanya 17 GB** (berpengaruh k
 | 19 | Impor dari awalan S3 | 10, 18 | X2, X3 | ☐ |
 | 20 | Peta IP | 7, 13 | Q3, Q5, X7 | ☐ |
 | 21 | Deteksi serangan: aturan OWASP CRS, kategori CAPEC | 8, 15 | **S1** | ☐ |
+| 22 | Command Center (halaman) | 12a, 13, 15, 16, 20 | R5 | ☐ baru |
+| 23 | Aliran realtime dari Kafka ke Command Center | 22 | **R1–R4** | ☐ baru |
 
 Setelah Tahap 21: `migrate/07-docker-compose.md` (bergantung X2, X3, X8; X2 belum diketahui pemilik dan
 harus diperiksa di server: proxy/HTTPS yang ada, akses keluar, disk, memori) dan `migrate/08-kesetaraan.md`.
@@ -61,6 +64,7 @@ harus diperiksa di server: proxy/HTTPS yang ada, akses keluar, disk, memori) dan
 |---|---|---|
 
 
+| **R1–R6** Command Center realtime lewat Kafka (permintaan 2026-10-06, TRD §11.2, §12): isi dan produsen aliran, keterlambatan yang boleh, hubungan dengan folder harian, akses broker, posisi halaman, cakupan gaya baru | Lihat TRD §11.2; gaya baru untuk seluruh dashboard; aliran hanya untuk "hari ini", folder harian tetap sumber kebenaran | Tahap 12a, 22, 23; bila Kafka menggantikan folder harian sepenuhnya, ingest dan uji kesetaraan perlu dirancang ulang |
 | **S1** deteksi serangan: (a) cara "di skrip" atau juga "di ingress"? (b) tampilan lama diganti atau berdampingan? (c) tingkat paranoia CRS? | (a) di skrip saja; cara di ingress diusulkan ke pengelola klaster. (b) Kategori CAPEC **menggantikan** kategori lama di tampilan; klasifikasi lama tetap disimpan untuk uji. (c) Tingkat paranoia 1 (paling sedikit salah-tuduh) | Tahap 21 saja. Bila ingress kelak menjalankan CRS, dashboard perlu parser log audit ModSecurity/Coraza: tahap baru |
 
 Semua pertanyaan lain hanya mengubah nilai bawaan atau satu komponen.
@@ -744,6 +748,36 @@ tidak ada di log, jadi tidak diperiksa. Ini bukan pengganti WAF.
 
 ---
 
+## Tahap 12a — Gaya mengikuti referensi desain pemilik
+
+**Tujuan.** Permintaan pemilik 2026-10-06 (DRD §12): tampilan seperti gambar referensi, diterapkan pada token dan
+komponen bersama **sebelum** halaman data dibangun, supaya Tahap 13–20 tidak ditata dua kali.
+⚠ **Bergantung R6** (seluruh dashboard atau hanya Command Center).
+
+**File diubah**: `web/src/theme.css`, `lib/Sidebar.svelte` (ikon SVG dibundel), `lib/Kpi.svelte` (ikon + badge),
+`lib/Alert.svelte` → kartu perhatian bernomor dengan tautan, `App.svelte` (baris status ringkas di bawah judul).
+
+**Verifikasi**: `node tools/uji_browser.cjs` tetap lulus; tangkapan layar 1440/390 px dibandingkan dengan referensi;
+kontras token baru dihitung (DRD §5.6); `grep` URL di `web/dist` tetap tanpa domain luar.
+
+---
+
+## Tahap 22 — Command Center (halaman)
+
+**Tujuan.** Satu layar berisi peta, KPI utama, kartu "yang perlu perhatian", dan ringkasan tiap halaman, memakai
+endpoint dan komponen yang sudah ada (TRD §12). Tanpa Kafka pun berfungsi dari folder terbaru.
+⚠ **Bergantung R5**.
+
+---
+
+## Tahap 23 — Aliran realtime dari Kafka
+
+**Tujuan.** Konsumen Kafka di dalam proses server (K1), tabel `rt_*`, endpoint SSE `/api/stream`, penanda
+"streaming · kejadian terakhir N detik lalu" di Command Center (TRD §12). ⚠ **Bergantung R1–R4**; tidak dimulai
+sebelum dijawab, karena isi aliran menentukan parser dan uji kesetaraan.
+
+---
+
 ## Catatan penyimpangan
 
 Diisi `migrate/06-eksekusi.md` setiap tahap selesai: nomor tahap, tanggal, apa yang berbeda dari rencana
@@ -762,3 +796,4 @@ atau dari TRD/DRD, dan alasannya.
 | 9 | 2026-10-06 | **Gerbang LULUS; ASUMSI T1 terbukti**, cadangan tabel kamus tidak diperlukan. (a) Disk bebas ternyata 32 GB (bukan 17 GB seperti saat rencana ditulis), jadi simulasi dijalankan penuh **365 folder**, tanpa ekstrapolasi. (b) Request id diberi awalan per folder di simulasi agar korelasi tetap di dalam folder seperti data nyata. (c) Waktu ingest diukur dua bagian: parse + muat + turunkan pada database nyata, dan menurunkan agregat satu folder di atas database setahun (bagian yang tumbuh dengan ukuran data). (d) Biaya hash sandi ikut diukur untuk Tahap 10. Verifikasi 4 dari 4 lulus: simulasi 365 folder selesai (19 menit; 48,3 juta baris nginx); ukuran **4,75 GB** (≤ 10 GB); 21 query halaman total **20,5 ms**, paling lambat 7,3 ms (≤ 200 ms); Tren 365 folder **5,4 ms** (≤ 500 ms); ingest folder terbesar 6,9 dtk + 1,7 dtk turunkan pada skala setahun (≤ 60 dtk); ingest tanpa perubahan 0,4 dtk (≤ 5 dtk); `sim.duckdb` dihapus, ruang kembali. Rincian dan batas pengukuran di `docs/04a-hasil-ukur.md`. Catatan jujur: simulasi menggandakan satu folder, jadi data nyata yang lebih beragam bisa lebih besar; waktu query belum memuat lapisan HTTP (diukur lagi di Tahap 11); `derive --all` setahun ±10 menit. Kesetaraan tetap 0 berbeda setelah tahap ini. |
 | 10 | 2026-10-06 | **Perubahan atas permintaan pemilik di tengah tahap**: "untuk token gunakan jwt untuk database gunakan postgresql dan pakai orm". (a) Akun, sesi, audit, catatan impor pindah dari `sqlite3` mentah ke **SQLAlchemy ORM**; server memakai **PostgreSQL** (`S4_AUTH_DATABASE_URL`), SQLite lewat ORM yang sama bila kosong (uji, jalan lokal). (b) Token sesi menjadi **JWT HS256** (`S4_JWT_SECRET`, wajib, ≥ 32 karakter) di cookie HttpOnly; baris sesi tetap diperiksa di basis data agar keluar/reset/nonaktif berlaku seketika. (c) **ASUMSI T16**: DuckDB tetap untuk data log (lihat TRD K11); perlu konfirmasi pemilik. (d) Tiga dependensi baru: `sqlalchemy`, `psycopg[binary]`, `pyjwt`; compose (langkah 7) mendapat layanan `postgres` + volume `s4-pgdata` menggantikan `s4-state`. (e) Tabel bernama `app_user`/`app_session` (kata kunci PostgreSQL). (f) Skema dibuat `create_all`, belum ada alat migrasi. (g) Verifikasi rencana disesuaikan: admin pertama wajib ganti sandi sebelum `/api/meta` (sesuai TRD §8.2), dan penguncian diuji pada akun yang ada. Hasil: uji akun + API **64 lulus di SQLite dan 64 lulus di PostgreSQL 17**; seluruh uji 195 lulus, 2 dilewati; server nyata di atas PostgreSQL: 17 dari 17 pemeriksaan lulus (401 tanpa sesi; cookie JWT HttpOnly SameSite=Strict; 11 folder; 2026-10-06 = 7 layanan, nginx err 125, attack_ip_count 14, sama untuk admin dan user; user → `/api/admin/users` 403; `simpel4 ingest` lewat API "0 file berubah"; header CSP/nosniff/Referrer-Policy; login salah ke-6 → 429; sesi mati setelah keluar; tidak ada rahasia di log server). |
 | 11 | 2026-10-06 | (a) Endpoint halaman, endpoint tabel, uji Tahap 11 di `test_api.py`, dan E2 di `tools/kesetaraan.py`/`test_equivalence.py` **sudah ada di repositori** saat sesi ini mulai (dikerjakan sebelumnya tetapi belum ditandai selesai); sesi ini membangun ulang database dari nol, menjalankan semua verifikasi, dan melengkapi yang kurang. (b) Semula sepuluh halaman ada dalam satu `api/pages.py`; kini **dipecah satu modul per halaman** sesuai TRD (`overview.py`, `map.py`, `trends.py`, `security.py`, `rootcause.py`, `availability.py`, `pods.py`, `business.py`, `tracing.py`, `service.py`); bantuan bersama (`_all`, `_one`, `_no`, `_has`, jam WIB) pindah ke `common.py`. (c) Definisi 25 tabel dan endpoint tabel ada di `api/tables.py`, **bukan** `common.py` seperti rencana: satu berkas khusus kontrak tabel (kolom urut, kolom `q`, batas lama) lebih mudah ditinjau; `common.py` tetap berisi validasi, peran, sel IP. (d) `tools/ukur.py --api HOST:PORT` ditambahkan: masuk dengan `--user` (sandi dari `S4_UKUR_PASSWORD` atau ditanya), mengukur 19 endpoint (ringkasan folder, 8 halaman, 7 layanan, Tren 30/semua, meta), keluar kode 1 bila ada yang > 300 ms atau > 500 KB. (e) Aturan E2: setiap baris lama harus ada di daftar **lengkap** v2 dengan isi sama persis, dan urutan nilai pengurut N baris pertama sama; daftar v2 boleh lebih panjang (tidak dipotong lagi, TRD K4). Laporan E2 dicetak `py tools/kesetaraan.py` (E1–E4); `tools/laporan_kesetaraan.py` tetap E1/E3/E4. (f) **ASUMSI X6**: tabel alur bawaan 100 baris (`flows.limit`), sisanya lewat halaman tabel. (g) Pencarian `q=count` pada `c401` 09-29 memberi `matched` 208 (≤ 653). (h) Di sesi ini akun memakai SQLite lewat ORM; PostgreSQL tidak diuji ulang (tidak ada perubahan di `auth.py`). Verifikasi 8 dari 8 lulus: `pytest tests/test_api.py tests/test_equivalence.py` 87 lulus (matriks peran mencakup semua rute); E1 3.022 angka 0 berbeda, **E2 601 daftar / 9.889 baris lama, 0 berbeda**, E3 1.734 IP 0 berbeda, E4 169 pemeriksaan 0 tidak sesuai; server nyata: `security` 10-06 `attack_requests` 88 / `attack_ips` 14; `availability` 09-30 error koneksi pod 1.200; `map` 09-28 `available: false, reason: "no_nginx"`; `c401?limit=5&q=count` total 653, 5 baris; `sort=1;drop` → 400; `ukur.py --api`: 19 endpoint, terlambat `security` 112 ms, terbesar `tracing` 178 KB, 0 meleset. Seluruh uji: 239 lulus, 2 dilewati. |
+| 12 | 2026-10-06 | **SEBAGIAN: belum diuji di ponsel sungguhan** (DRD §8 mewajibkannya; dari lingkungan cloud hanya emulasi Chromium 390/360 px). (a) Alamat memakai hash `#/<tab>?folder=…&modul=…` karena server menyajikan `web/dist` statis tanpa fallback path; slug tab lama (`#keamanan`, `#<layanan>`) tetap terbuka. Folder ikut di alamat juga di Tren dan layar admin agar tetap saat kembali. (b) `/api/me` dan jawaban login kini memuat `session_idle_minutes` (perubahan kecil di `api/session.py` + uji) untuk pita "Sesi berakhir dalam 5 menit". (c) Plugin build kecil membuang `https://` dari tautan dokumentasi galat Svelte (`svelte.dev/e/…`, teks pesan galat, tak pernah diambil) agar `web/dist` bebas alamat luar; sisa URL hanya skema XML. (d) **ASUMSI** "folder praktis kosong" (DRD §6.6) = < 1.000 baris log; file rusak saja tidak memicu pita karena folder penuh pun punya 1–3 file berbaris rusak. (e) Pilihan folder di layar sempit hanya menampilkan tanggal (`6 Okt 2026`) agar tidak terpotong. (f) Q6 "–" untuk angka yang lognya tidak ada, Q7 (urut kolom, salin IP, `(i)`, "Lihat sebagai tabel", pintasan `[` `]` `/`) dikerjakan; Q8 logo tetap "S4". (g) `Placeholder.svelte` sekaligus halaman contoh semua komponen dengan data nyata (satu permintaan `overview`). (h) Skrip uji browser disimpan: `tools/uji_browser.cjs` (50 pemeriksaan) dan `tools/uji_sesi.cjs` (7); Playwright bukan dependensi proyek. (i) Di tengah tahap pemilik meminta gaya mengikuti gambar referensi dan modul Command Center realtime via Kafka: dicatat sebagai Tahap 12a, 22, 23 dan pertanyaan R1–R6 (TRD §11.2, §12; DRD §12), **belum dikerjakan**. Verifikasi: `npm ci && npm run build` tanpa peringatan; `node tools/cek_i18n.mjs` "kunci sama: 148"; `node --test tests/test_format.mjs` 8 lulus; URL di `web/dist` hanya skema XML; `./run.sh` membangun lalu melayani; browser: 50/50 (Masuk tanpa data sebelum masuk, ganti sandi wajib, sidebar dua grup + lencana `14 IP`, 11 folder, subjudul berisi rentang log, folder/tab di alamat, kembali/pintasan, tabel 25 + lanjutan + filter server + aria-sort, ID/EN dan tema diingat, Tab: Lewati ke isi → navigasi → header dengan fokus terlihat, user = sidebar sama tanpa menu admin dan `admin/user` → "Tidak punya akses", 390 & 360 px: tanpa gulir mendatar, KPI 2 kolom, tabel jadi kartu, sentuh ≥ 44 px, laci + Esc, menu ⋯) dan 7/7 (pita sesi, sesi habis → Masuk lalu kembali ke alamat sama, server mati → pita "Tidak tersambung" → pulih sendiri 4 dtk); `pytest tests/test_api.py tests/test_auth.py` 100 lulus. |

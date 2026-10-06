@@ -1116,3 +1116,25 @@ kartu; isi kolom tabel; batas top-N tampilan awal; teks temuan otomatis; tema ba
 | Q6 | "–" vs 0 (U16): setuju? Ini satu-satunya perubahan yang mengubah apa yang tertulis di KPI. | Ya |
 | Q7 | Perubahan "tambahan" di §10 (urut tabel, salin, pintasan, `(i)`): dikerjakan dalam migrasi, atau setelah kesetaraan terbukti? | Dalam migrasi, setelah P0 |
 | Q8 | Adakah identitas visual Ombudsman RI (logo, warna resmi) yang harus dipakai? Sekarang logonya kotak "S4". | Tetap "S4" |
+
+---
+
+## 12. Permintaan 2026-10-06: gaya referensi dan Command Center (belum diterapkan)
+
+Pemilik mengirim gambar referensi (dashboard gelap bergaya "Fleet Overview") dan meminta modul **Command Center**
+realtime. Yang terlihat di referensi dan dampaknya ke dokumen ini:
+
+| Unsur referensi | Bandingkan dengan v2 sekarang | Usulan |
+|---|---|---|
+| Latar navy gelap, aksen teal, kartu bersudut besar, garis tipis | Sudah sama arah (token §5) | Pertahankan token; kontras §5.6 tetap berlaku |
+| Sidebar bergrup dengan **ikon** per butir, logo kiri atas, kartu aksi di kaki | Sidebar tanpa ikon, titik penanda | Tambah ikon garis (SVG dibundel, tanpa CDN) |
+| Bar judul berisi **baris status ringkas** (`37/40 healthy · 2 failing …`) | Subjudul folder + rentang waktu | Baris status ringkas di bawah judul halaman |
+| KPI ringkas dengan ikon, angka besar + badge perubahan, menu `⋯` | KPI tanpa ikon | Ikon + badge perubahan berwarna (tetap disertai teks, §9.2) |
+| Kartu **"What needs your attention"** bernomor dengan tautan aksi | "Temuan utama" berupa daftar | Kartu perhatian bernomor; tiap butir menaut ke halaman/tabel terkait |
+| Tabel status ringkas + pil status (Healthy / Stuck / Cost spike) | Tag keparahan §4.5 | Pil status memakai tag §4.5 |
+| Penanda **"streaming · last event 2s ago"** dan tombol **Live** | Tidak ada pembaruan otomatis (A7, §6.8) | Hanya di Command Center, setelah aliran Kafka ada (TRD §12) |
+
+Ini menyimpang dari prinsip "tampilan lama dipertahankan" di awal dokumen, jadi butuh persetujuan pemilik (TRD R6).
+**ASUMSI**: gaya baru diterapkan pada token dan komponen bersama (satu tahap, sebelum halaman data dibangun ulang),
+susunan dan isi tiap halaman tetap menurut §3; Command Center menjadi halaman ke-11, paling atas di grup Analisis.
+

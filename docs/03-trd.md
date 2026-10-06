@@ -1456,3 +1456,36 @@ pembatasan per modul). Yang tersisa, diurutkan menurut pengaruhnya ke langkah 5�
 | X8 | Cadangan volume `s4-state` (wajib) dan `s4-data`: ikut jadwal cadangan server? | Ya |
 
 Pertanyaan DRD Q3, Q6, Q7 masih terbuka; skema dan API di atas tidak bergantung pada jawabannya.
+
+**Permintaan baru pemilik (2026-10-06, saat Tahap 12)**: modul **Command Center** (peta, overview, dan semua info
+di satu layar, **realtime**) karena data kelak dialirkan lewat **Kafka**. Ini mengubah K1/A7 (ingest harian, tanpa
+pembaruan otomatis); usulan dan asumsinya di §12. Pertanyaan yang menentukan:
+
+| # | Pertanyaan | Asumsi sementara |
+|--:|---|---|
+| R1 | **Isi aliran Kafka**: baris log mentah per layanan (format sama dengan file sekarang) atau event yang sudah terstruktur? Siapa produsennya (Fluent Bit/Vector/aplikasi)? Nama topik? | Baris log mentah, satu topik per layanan, dikirim pengumpul log klaster |
+| R2 | **Seberapa realtime**: angka di layar boleh terlambat berapa (detik/menit)? | ≤ 10 detik |
+| R3 | **Hubungan dengan folder harian**: folder log harian (dan impor S3) tetap jadi sumber kebenaran, aliran Kafka hanya untuk "hari ini"? | Ya: aliran mengisi jendela berjalan; folder harian tetap di-ingest dan menggantikan data aliran untuk tanggal itu |
+| R4 | **Akses Kafka**: alamat broker, autentikasi (SASL/TLS), bisa dijangkau dari server dashboard? | Belum diketahui; diperiksa saat deploy (seperti X2) |
+| R5 | **Command Center menggantikan Overview** atau halaman baru di samping 10 halaman yang ada? Untuk siapa (layar dinding/NOC atau pengguna biasa)? | Halaman baru, paling atas di sidebar; Overview tetap |
+| R6 | **Gaya tampilan** mengikuti gambar referensi untuk **seluruh** dashboard atau hanya Command Center? | Seluruh dashboard (token dan komponen bersama), susunan isi tiap halaman tetap |
+
+---
+
+## 12. Usulan: Command Center dan aliran realtime (Kafka) — BELUM DISETUJUI
+
+Ditulis saat Tahap 12 atas permintaan pemilik; semua butir di bawah **ASUMSI** sampai R1–R6 (§11.2) dijawab.
+
+- **Tetap satu proses pemilik DuckDB (K1).** Konsumen Kafka berjalan sebagai utas di proses server yang sama (seperti
+  ingest dalam proses, Tahap 10), menulis per kelompok kecil (mis. tiap 2 detik atau 5.000 pesan) ke tabel
+  `rt_*` berjendela waktu, memakai parser yang sama (`parse.py`) agar definisi angka tidak bercabang.
+- **Ke browser lewat Server-Sent Events** (`GET /api/stream`, satu arah, cookie sesi yang sama, lolos CSP `'self'`,
+  tersambung ulang otomatis). WebSocket tidak perlu karena browser tidak mengirim apa-apa.
+- **Command Center** = satu halaman yang memakai komponen bersama: KPI berjalan, peta, "yang perlu perhatian"
+  (temuan otomatis yang sudah ada: serangan, login gagal, 5xx, error koneksi pod), dan aliran kejadian terbaru;
+  penanda "streaming · kejadian terakhir N detik lalu" dan status Live/terputus.
+- **Folder harian tetap sumber kebenaran (R3)**: ingest folder menggantikan data aliran untuk tanggal itu, jadi uji
+  kesetaraan E1–E4 tetap berlaku.
+- Dependensi baru opsional `simpel4[kafka]` (`confluent-kafka`), hanya diimpor bila `S4_KAFKA_BROKERS` diisi;
+  tanpa itu dashboard berjalan seperti sekarang dan Command Center memakai data folder terbaru.
+

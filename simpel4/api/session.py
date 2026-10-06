@@ -26,7 +26,7 @@ def login(body: Login, request: Request, response: Response):
     cfg, auth = request.app.state.cfg, request.app.state.auth
     token, user = auth.login(body.username, body.password, client_ip(request), request.headers.get('user-agent'))
     response.set_cookie(COOKIE, token, max_age=cfg.session_max_hours * 3600, httponly=True, secure=cfg.cookie_secure, samesite='strict', path='/')
-    return _me(user)
+    return dict(_me(user), session_idle_minutes=auth.idle)
 
 
 @router.post('/auth/logout')
@@ -37,7 +37,9 @@ def logout(request: Request, response: Response, user=Depends(require_user)):
 
 
 @router.get('/me')
-def me(user=Depends(require_user)): return _me(user)
+def me(request: Request, user=Depends(require_user)):
+    # batas menganggur dikirim agar tampilan bisa memperingatkan 5 menit sebelum sesi berakhir (DRD §6.9)
+    return dict(_me(user), session_idle_minutes=request.app.state.auth.idle)
 
 
 @router.post('/me/password')
