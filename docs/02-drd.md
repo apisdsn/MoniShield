@@ -1132,7 +1132,7 @@ realtime. Yang terlihat di referensi dan dampaknya ke dokumen ini:
 | KPI ringkas dengan ikon, angka besar + badge perubahan, menu `⋯` | KPI tanpa ikon | Ikon + badge perubahan berwarna (tetap disertai teks, §9.2) |
 | Kartu **"What needs your attention"** bernomor dengan tautan aksi | "Temuan utama" berupa daftar | Kartu perhatian bernomor; tiap butir menaut ke halaman/tabel terkait |
 | Tabel status ringkas + pil status (Healthy / Stuck / Cost spike) | Tag keparahan §4.5 | Pil status memakai tag §4.5 |
-| Penanda **"streaming · last event 2s ago"** dan tombol **Live** | Tidak ada pembaruan otomatis (A7, §6.8) | Hanya di Command Center, setelah aliran Kafka ada (TRD §12) |
+| Penanda **"streaming · last event 2s ago"** dan tombol **Live** | Tidak ada pembaruan otomatis (A7, §6.8) | **Ditunda**: folder log tetap sumber utama (keputusan 2026-10-06); sementara diganti "data folder 6 Okt · di-ingest 17.51 WIB" |
 
 Ini menyimpang dari prinsip "tampilan lama dipertahankan" di awal dokumen, jadi butuh persetujuan pemilik (TRD R6).
 **ASUMSI**: gaya baru diterapkan pada token dan komponen bersama (satu tahap, sebelum halaman data dibangun ulang),

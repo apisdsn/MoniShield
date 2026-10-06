@@ -53,7 +53,7 @@ belum terpasang (dipasang di Tahap 2); **disk bebas hanya 17 GB** (berpengaruh k
 | 20 | Peta IP | 7, 13 | Q3, Q5, X7 | ☐ |
 | 21 | Deteksi serangan: aturan OWASP CRS, kategori CAPEC | 8, 15 | **S1** | ☐ |
 | 22 | Command Center (halaman) | 12a, 13, 15, 16, 20 | R5 | ☐ baru |
-| 23 | Aliran realtime dari Kafka ke Command Center | 22 | **R1–R4** | ☐ baru |
+| 23 | Aliran realtime dari Kafka ke Command Center | 22 | R1, R2, R4 | ⏸ ditunda: Kafka untuk ke depan (keputusan 2026-10-06) |
 
 Setelah Tahap 21: `migrate/07-docker-compose.md` (bergantung X2, X3, X8; X2 belum diketahui pemilik dan
 harus diperiksa di server: proxy/HTTPS yang ada, akses keluar, disk, memori) dan `migrate/08-kesetaraan.md`.
@@ -64,7 +64,7 @@ harus diperiksa di server: proxy/HTTPS yang ada, akses keluar, disk, memori) dan
 |---|---|---|
 
 
-| **R1–R6** Command Center realtime lewat Kafka (permintaan 2026-10-06, TRD §11.2, §12): isi dan produsen aliran, keterlambatan yang boleh, hubungan dengan folder harian, akses broker, posisi halaman, cakupan gaya baru | Lihat TRD §11.2; gaya baru untuk seluruh dashboard; aliran hanya untuk "hari ini", folder harian tetap sumber kebenaran | Tahap 12a, 22, 23; bila Kafka menggantikan folder harian sepenuhnya, ingest dan uji kesetaraan perlu dirancang ulang |
+| **R5, R6** Command Center (permintaan 2026-10-06, TRD §11.2, §12): halaman baru atau menggantikan Overview; gaya referensi untuk seluruh dashboard atau hanya Command Center. **Sudah diputuskan**: folder log tetap sumber utama pembaruan, Kafka hanya untuk ke depan (R3; R1, R2, R4 ditunda) | Halaman baru di atas Overview; gaya baru untuk seluruh dashboard | Tahap 12a dan 22 saja |
 | **S1** deteksi serangan: (a) cara "di skrip" atau juga "di ingress"? (b) tampilan lama diganti atau berdampingan? (c) tingkat paranoia CRS? | (a) di skrip saja; cara di ingress diusulkan ke pengelola klaster. (b) Kategori CAPEC **menggantikan** kategori lama di tampilan; klasifikasi lama tetap disimpan untuk uji. (c) Tingkat paranoia 1 (paling sedikit salah-tuduh) | Tahap 21 saja. Bila ingress kelak menjalankan CRS, dashboard perlu parser log audit ModSecurity/Coraza: tahap baru |
 
 Semua pertanyaan lain hanya mengubah nilai bawaan atau satu komponen.
@@ -765,16 +765,19 @@ kontras token baru dihitung (DRD §5.6); `grep` URL di `web/dist` tetap tanpa do
 ## Tahap 22 — Command Center (halaman)
 
 **Tujuan.** Satu layar berisi peta, KPI utama, kartu "yang perlu perhatian", dan ringkasan tiap halaman, memakai
-endpoint dan komponen yang sudah ada (TRD §12). Tanpa Kafka pun berfungsi dari folder terbaru.
+endpoint dan komponen yang sudah ada (TRD §12). Datanya dari folder log (sumber utama); diperbarui saat folder
+baru di-ingest atau tombol "Muat ulang", tanpa aliran realtime (Kafka ditunda).
 ⚠ **Bergantung R5**.
 
 ---
 
 ## Tahap 23 — Aliran realtime dari Kafka
 
-**Tujuan.** Konsumen Kafka di dalam proses server (K1), tabel `rt_*`, endpoint SSE `/api/stream`, penanda
-"streaming · kejadian terakhir N detik lalu" di Command Center (TRD §12). ⚠ **Bergantung R1–R4**; tidak dimulai
-sebelum dijawab, karena isi aliran menentukan parser dan uji kesetaraan.
+**DITUNDA** (keputusan pemilik 2026-10-06): folder log tetap sumber utama pembaruan; Kafka hanya untuk ke depan.
+Tahap ini tidak dijalankan oleh `migrate/06-eksekusi.md` sampai pemilik membukanya kembali.
+
+**Tujuan (nanti).** Konsumen Kafka di dalam proses server (K1), tabel `rt_*`, endpoint SSE `/api/stream`, penanda
+"streaming · kejadian terakhir N detik lalu" di Command Center (TRD §12). Bergantung R1, R2, R4.
 
 ---
 

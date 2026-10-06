@@ -1459,22 +1459,28 @@ Pertanyaan DRD Q3, Q6, Q7 masih terbuka; skema dan API di atas tidak bergantung 
 
 **Permintaan baru pemilik (2026-10-06, saat Tahap 12)**: modul **Command Center** (peta, overview, dan semua info
 di satu layar, **realtime**) karena data kelak dialirkan lewat **Kafka**. Ini mengubah K1/A7 (ingest harian, tanpa
-pembaruan otomatis); usulan dan asumsinya di §12. Pertanyaan yang menentukan:
+pembaruan otomatis); usulan dan asumsinya di §12. **Pemilik menjawab (2026-10-06): Kafka hanya untuk ke depan;
+pembaruan tetap lewat folder log sebagai sumber utama.** Jadi R1, R2, R4 baru perlu dijawab saat aliran Kafka
+benar-benar direncanakan; yang menentukan sekarang hanya R5 dan R6. Pertanyaan:
 
 | # | Pertanyaan | Asumsi sementara |
 |--:|---|---|
 | R1 | **Isi aliran Kafka**: baris log mentah per layanan (format sama dengan file sekarang) atau event yang sudah terstruktur? Siapa produsennya (Fluent Bit/Vector/aplikasi)? Nama topik? | Baris log mentah, satu topik per layanan, dikirim pengumpul log klaster |
 | R2 | **Seberapa realtime**: angka di layar boleh terlambat berapa (detik/menit)? | ≤ 10 detik |
-| R3 | **Hubungan dengan folder harian**: folder log harian (dan impor S3) tetap jadi sumber kebenaran, aliran Kafka hanya untuk "hari ini"? | Ya: aliran mengisi jendela berjalan; folder harian tetap di-ingest dan menggantikan data aliran untuk tanggal itu |
+| R3 | ~~Hubungan dengan folder harian?~~ **Terjawab 2026-10-06: folder log tetap sumber utama pembaruan**; Kafka hanya rencana ke depan | — |
 | R4 | **Akses Kafka**: alamat broker, autentikasi (SASL/TLS), bisa dijangkau dari server dashboard? | Belum diketahui; diperiksa saat deploy (seperti X2) |
 | R5 | **Command Center menggantikan Overview** atau halaman baru di samping 10 halaman yang ada? Untuk siapa (layar dinding/NOC atau pengguna biasa)? | Halaman baru, paling atas di sidebar; Overview tetap |
 | R6 | **Gaya tampilan** mengikuti gambar referensi untuk **seluruh** dashboard atau hanya Command Center? | Seluruh dashboard (token dan komponen bersama), susunan isi tiap halaman tetap |
 
 ---
 
-## 12. Usulan: Command Center dan aliran realtime (Kafka) — BELUM DISETUJUI
+## 12. Usulan: Command Center dan aliran realtime (Kafka) — Kafka DITUNDA (masa depan)
 
-Ditulis saat Tahap 12 atas permintaan pemilik; semua butir di bawah **ASUMSI** sampai R1–R6 (§11.2) dijawab.
+Ditulis saat Tahap 12 atas permintaan pemilik. **Keputusan 2026-10-06: folder log tetap sumber utama pembaruan;
+Kafka hanya untuk ke depan.** Command Center dibangun dulu di atas data folder (ingest seperti sekarang); butir
+aliran di bawah adalah rancangan untuk nanti dan tetap **ASUMSI** sampai R1, R2, R4 dijawab. Yang perlu dijaga dari
+sekarang: halaman Command Center mengambil datanya lewat satu modul (`api.js` + satu endpoint), supaya kelak
+sumbernya bisa ditambah aliran tanpa mengubah tampilan.
 
 - **Tetap satu proses pemilik DuckDB (K1).** Konsumen Kafka berjalan sebagai utas di proses server yang sama (seperti
   ingest dalam proses, Tahap 10), menulis per kelompok kecil (mis. tiap 2 detik atau 5.000 pesan) ke tabel
