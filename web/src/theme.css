@@ -167,7 +167,8 @@ code { color: var(--code-fg); }
 .muted { color: var(--muted); }
 .num { font-variant-numeric: tabular-nums; }
 .cap { text-transform: capitalize; }
-.sys { text-transform: lowercase; }   /* nama sistem tetap huruf kecil walau induknya dikapitalkan */
+.sys { text-transform: lowercase; }
+.nowrap { white-space: nowrap; word-break: normal !important; }   /* nama sistem di tabel: tidak dipecah di tengah kata */   /* nama sistem tetap huruf kecil walau induknya dikapitalkan */
 .sr-only {
   position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; border: 0;

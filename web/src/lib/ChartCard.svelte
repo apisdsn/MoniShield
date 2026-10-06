@@ -35,7 +35,7 @@
   import { onDestroy } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { theme } from '../theme.js';
-  import { num, dLabel, tWIB } from '../format.js';
+  import { num, dLabel, tWIB, cut } from '../format.js';
   import InfoTip from './InfoTip.svelte';
 
   /**
@@ -99,15 +99,22 @@
         color: v('--muted'), borderColor: v('--grid'),
         font: { family: 'Outfit, system-ui, sans-serif' },
         ...(type === 'doughnut' ? { cutout: '74%' } : {}),
+        // opsi pemanggil digabung per sumbu/legenda (mis. y logaritmik, legenda kanan), bukan menimpa gaya dasar
         scales: type === 'doughnut' ? {} : {
-          x: { grid: { color: v('--grid') }, ticks: { color: v('--muted'), maxRotation: 0, autoSkip: true, autoSkipPadding: 12,
-               ...(horizontal && fmtV ? { callback: (x) => fv(x) } : {}) } },
-          y: { grid: { color: v('--grid') }, ticks: { color: v('--muted'), ...(!horizontal && fmtV ? { callback: (x) => fv(x) } : {}) },
-               ...(horizontal ? {} : { beginAtZero: true }) },
-          ...(options.scales || {}),
+          x: { grid: { color: v('--grid') }, ...(options.scales?.x || {}),
+               ticks: { color: v('--muted'), maxRotation: 0, autoSkip: true, autoSkipPadding: 12,
+                        ...(horizontal && fmtV ? { callback: (x) => fv(x) } : {}), ...(options.scales?.x?.ticks || {}) } },
+          y: { grid: { color: v('--grid') }, ...(horizontal ? {} : { beginAtZero: true }), ...(options.scales?.y || {}),
+               ticks: { color: v('--muted'), ...(!horizontal && fmtV ? { callback: (x) => fv(x) } : {}),
+                        // batang horizontal: label kategori dipotong sesuai lebar kanvas (Chart.js tidak memotong; sisa teks hilang di tepi kiri)
+                        ...(horizontal ? { callback(val) { return cut(this.getLabelForValue(val), Math.max(14, Math.floor(this.chart.width * 0.45 / 6.4))); } } : {}),
+                        ...(options.scales?.y?.ticks || {}) } },
         },
         plugins: {
-          legend: { display: datasets.length > 1 || type === 'doughnut', labels: { color: v('--muted'), usePointStyle: true, pointStyle: 'circle', boxWidth: 8 } },
+          ...(options.plugins || {}),
+          legend: { display: datasets.length > 1 || type === 'doughnut', ...(options.plugins?.legend || {}),
+                    ...(options.plugins?.legend?.position === 'right' && innerWidth <= 560 ? { position: 'bottom' } : {}),
+                    labels: { color: v('--muted'), usePointStyle: true, pointStyle: 'circle', boxWidth: 8 } },
           tooltip: {
             backgroundColor: v('--tooltip-bg'), borderColor: v('--tooltip-line'), borderWidth: 1, padding: 10,
             titleColor: '#e2ecf3', bodyColor: '#e2ecf3',
@@ -116,7 +123,6 @@
               label: (c) => `${c.dataset.label ? c.dataset.label + ': ' : ''}${fv(type === 'doughnut' ? c.raw : horizontal ? c.parsed.x : c.parsed.y)}`,
             },
           },
-          ...(options.plugins || {}),
         },
         ...Object.fromEntries(Object.entries(options).filter(([k]) => !['scales', 'plugins'].includes(k))),
       },

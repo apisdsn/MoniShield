@@ -15,6 +15,7 @@
 
   /**
    * columns: [{key, label, type?, sort?, fmt?(row, lang), clip?, cls?(row), sev?(row) -> {level, text}, detail?(row) -> teks}]
+   *   status?: kunci kode status yang ditampilkan berwarna di depan teks sel (mis. '401 /path').
    *   type: 'text' (bawaan) | 'num' | 'ip' | 'ips' | 'status' | 'statuses' | 'sev' | 'time' | 'range' | 'dur' | 'pct' | 'bytes' | 'code' | 'tags'
    * Sumber statis: rows. Sumber server: folder + table (+ params), initial = {total, rows} dari respons halaman.
    */
@@ -132,6 +133,11 @@
       default: return String(v);
     }
   }
+  // salin baris log asli (DRD §4.3, U12)
+  async function copy(e, text) {
+    const b = e.currentTarget;
+    try { await navigator.clipboard.writeText(text); b.textContent = '✓'; setTimeout(() => (b.textContent = $t('table.copy')), 1500); } catch { /* izin ditolak */ }
+  }
   const numeric = (c) => ['num', 'dur', 'pct', 'bytes'].includes(c.type);
   const ariaSort = (c) => (sort === c.key ? (dir === 'asc' ? 'ascending' : 'descending') : c.sort ? 'none' : undefined);
   const uid = 'tb-' + Math.random().toString(36).slice(2, 9);
@@ -177,8 +183,11 @@
                 {:else if c.type === 'sev'}
                   {@const s = c.sev(row)}<SeverityTag level={s.level} text={s.text} />
                 {:else if c.detail}
-                  <details><summary>{show(row, c)}</summary><pre><span class="muted">{$t('table.raw_line')}</span>
-{c.detail(row)}</pre></details>
+                  <details><summary>{show(row, c)}</summary><div class="raw"><button class="cp" onclick={(e) => copy(e, c.detail(row))}
+                    aria-label={$t('table.copy_line')}>{$t('table.copy')}</button><pre><span class="muted">{$t('table.raw_line')}</span>
+{c.detail(row)}</pre></div></details>
+                {:else if c.status}
+                  <StatusCode code={row[c.status]} /> {show(row, c)}
                 {:else if c.clip}
                   <button class="clip" class:code={c.type === 'code'}>{show(row, c)}</button>
                 {:else if c.type === 'code'}
@@ -240,6 +249,11 @@
   .clip.code { font-family: var(--mono); font-size: 0.75rem; color: var(--code-fg); }
   .clip:focus, .clip:active { -webkit-line-clamp: unset; line-clamp: unset; outline: 2px solid var(--focus); outline-offset: 2px; }
   details summary { cursor: pointer; }
+  .raw { position: relative; }
+  .cp {
+    position: absolute; top: 14px; right: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--muted);
+    border-radius: 8px; font-size: 0.6875rem; padding: 2px 8px; cursor: pointer; min-height: 26px;
+  }
   details pre {
     white-space: pre-wrap; word-break: break-all; background: var(--pre-bg); border: 1px solid var(--line);
     padding: 10px; border-radius: 10px; margin: 8px 0 0;

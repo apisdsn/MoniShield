@@ -18,6 +18,8 @@
   import Login from './pages/Login.svelte';
   import ChangePassword from './pages/ChangePassword.svelte';
   import Placeholder from './pages/Placeholder.svelte';
+  import Overview from './pages/Overview.svelte';
+  import Service from './pages/Service.svelte';
 
   // ASUMSI (DRD §6.6 "praktis kosong"): folder dengan < 1.000 baris log diberi pita kuning (jumlah file rusak ikut
   // disebut). File rusak saja tidak cukup: folder penuh pun sering punya 1–3 file berbaris rusak.
@@ -252,7 +254,13 @@
         </EmptyState>
       {:else}
         {#key $route.tab + '/' + ($route.service || '')}
-          <Placeholder tab={$route.tab} {folder} {summary} {reloadKey} {onready} />
+          {#if $route.tab === 'overview'}
+            <Overview {folder} {summary} {reloadKey} {onready} />
+          {:else if $route.tab === 'layanan'}
+            <Service {folder} service={$route.service} {reloadKey} {onready} />
+          {:else}
+            <Placeholder tab={$route.tab} {folder} {summary} {reloadKey} {onready} />
+          {/if}
         {/key}
       {/if}
     </main>
