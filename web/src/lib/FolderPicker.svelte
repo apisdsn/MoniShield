@@ -56,13 +56,13 @@
 <style>
   .fp { display: flex; align-items: center; gap: 6px; min-width: 0; }
   select {
-    font-weight: 600; letter-spacing: 0.02em; color: var(--accent-text); padding: 0.55rem 1.1rem; cursor: pointer;
-    min-height: 2.75rem; max-width: 100%; min-width: 0; text-overflow: ellipsis;
+    font-weight: 600; letter-spacing: 0.02em; color: var(--accent-text); padding: 0.55rem 40px 0.55rem 18px; cursor: pointer;
+    min-height: 2.75rem; max-width: 100%; min-width: 0; text-overflow: ellipsis; background-image: var(--chev-accent);
   }
-  select:disabled { color: var(--muted); cursor: not-allowed; }
+  select:disabled { color: var(--muted); cursor: not-allowed; background-image: var(--chev); }
   .arrow { width: 2.25rem; height: 2.25rem; font-size: 0.7rem; color: var(--muted); }
   @media (max-width: 900px) {
-    select { font-size: 1rem; padding: 0.5rem 0.8rem; }
+    select { font-size: 1rem; padding: 0.5rem 38px 0.5rem 16px; background-position: right 14px center; }
     .arrow { display: none; }
   }
 </style>
