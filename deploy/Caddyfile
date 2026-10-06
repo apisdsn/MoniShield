@@ -1,0 +1,12 @@
+# Proxy HTTPS opsional (profil "proxy", TRD §7.1 ASUMSI T5). Sertifikat disediakan pemilik server di
+# DOCKER_CERT_DIR (cert.pem + key.pem). Lewati layanan ini bila server sudah punya reverse proxy.
+{
+	auto_https off
+	admin off
+}
+
+{$DOCKER_DOMAIN}:443 {
+	tls /certs/cert.pem /certs/key.pem
+	encode zstd gzip
+	reverse_proxy app:8000
+}

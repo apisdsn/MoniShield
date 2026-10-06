@@ -1,0 +1,103 @@
+# SIMPeL4 Dashboard (v2) — `docker compose up -d` (lihat docs/06-docker.md, TRD §7).
+# Rahasia TIDAK ditulis di sini: semuanya dari .env (yang tidak ikut git maupun image).
+#
+#   app       API + tampilan + ingest di dalam proses. SATU-SATUNYA pembuka DuckDB (TRD K1, §7.2).
+#   postgres  akun, sesi, audit (TRD K11); tanpa port ke luar.
+#   ingest    profil "job", sekali jalan: memicu ingest di app lewat HTTP (token mesin), menunggu, lalu keluar.
+#             Tanpa volume: tidak pernah membuka DuckDB sendiri.   docker compose run --rm ingest
+#   proxy     profil "proxy", opsional: HTTPS (Caddy) bila server belum punya reverse proxy (TRD §7.1 ASUMSI T5).
+name: simpel4
+
+x-image: &image simpel4-dashboard:2.0.0
+
+services:
+  app:
+    build:
+      context: .
+      secrets: [ca_bundle]   # CA proxy kantor (opsional) untuk mengunduh paket saat build; tidak masuk image
+    image: *image
+    restart: unless-stopped
+    env_file: .env
+    environment:   # mengalahkan .env: path di dalam container selalu ini, walau .env berisi path laptop
+      S4_BIND: 0.0.0.0:8000
+      S4_LOG_DIR: /logs
+      S4_DATA_DIR: /data
+      S4_CACHE_DIR: /cache
+      S4_INBOX_DIR: /inbox
+      S4_STATE_DIR: /data/state
+      S4_API_URL: ""
+      S4_AUTH_DATABASE_URL: postgresql+psycopg://simpel4:${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}@postgres:5432/simpel4
+      S4_TRUST_PROXY: "true"          # hanya terjangkau dari proxy (port terikat ke 127.0.0.1 host / jaringan compose)
+    volumes:
+      - ${DOCKER_LOG_DIR:?isi DOCKER_LOG_DIR di .env (folder log di host)}:/logs:ro
+      - s4-data:/data
+      - s4-cache:/cache
+      - s4-inbox:/inbox
+    ports:
+      - "127.0.0.1:${DOCKER_PORT:-8000}:8000"   # hanya host sendiri (untuk proxy di server); bukan port publik
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8000/api/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+
+  postgres:
+    image: postgres:17.6-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: simpel4
+      POSTGRES_DB: simpel4
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}
+    volumes:
+      - s4-pgdata:/var/lib/postgresql/data
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U simpel4 -d simpel4"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ingest:
+    image: *image
+    profiles: [job]
+    restart: "no"
+    env_file: .env
+    environment:
+      S4_API_URL: http://app:8000     # diisi -> perintah tidak pernah membuka DuckDB sendiri (gagal bila app tidak terjangkau)
+    command: ["python", "-m", "simpel4", "ingest"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      app: { condition: service_healthy }
+
+  proxy:
+    image: caddy:2.10.2-alpine
+    profiles: [proxy]
+    restart: unless-stopped
+    environment:
+      DOCKER_DOMAIN: ${DOCKER_DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DOCKER_CERT_DIR:-./deploy/certs}:/certs:ro
+    ports:
+      - "443:443"
+    depends_on:
+      app: { condition: service_healthy }
+
+secrets:
+  ca_bundle:
+    file: ${DOCKER_BUILD_CA:-/dev/null}   # kosong = tanpa CA tambahan
+
+volumes:
+  s4-data:     # simpel4.duckdb, berkas peta, CSV sementara — bisa dibangun ulang dari log
+  s4-cache:    # unduhan ip2asn, GeoLite2, Natural Earth, GeoNames (±190 MB) — bisa diunduh ulang
+  s4-inbox:    # folder log hasil impor S3 — log mentah, ikut dicadangkan
+  s4-pgdata:   # akun, sesi, audit — TIDAK tergantikan, wajib dicadangkan (pg_dump)

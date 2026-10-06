@@ -1,0 +1,21 @@
+# Hanya pyproject.toml, simpel4/, dan web/ (tanpa node_modules/dist) yang dibutuhkan build.
+# Rahasia, data, dan log TIDAK BOLEH masuk image.
+.env
+.env.*
+!.env.example
+config.toml
+data/
+.venv/
+**/__pycache__/
+*.egg-info/
+.pytest_cache/
+web/node_modules/
+web/dist/
+tests/
+tools/
+docs/
+deploy/
+*.log
+*.log.gz
+*.duckdb
+*.db

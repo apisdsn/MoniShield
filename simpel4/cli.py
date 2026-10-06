@@ -85,7 +85,7 @@ def _api(cfg, method, path, body=None):
     """Panggil API server lokal dengan token mesin. None bila server tidak berjalan."""
     import json, urllib.error, urllib.request
     host, _, port = cfg.bind.rpartition(':')
-    url = f"http://{'127.0.0.1' if host in ('', '0.0.0.0') else host}:{port}{path}"
+    url = (cfg.api_url.rstrip('/') or f"http://{'127.0.0.1' if host in ('', '0.0.0.0') else host}:{port}") + path
     req = urllib.request.Request(url, method=method, data=json.dumps(body or {}).encode() if method != 'GET' else None,
                                  headers={'Authorization': f'Bearer {cfg.job_token}', 'X-Requested-With': 'simpel4-cli', 'Content-Type': 'application/json'})
     try:
@@ -98,6 +98,8 @@ def _ingest_via_api(cfg, args):
     """Bila server berjalan, DuckDB dimiliki proses itu (TRD K1): ingest dipicu lewat API, bukan dibuka sendiri."""
     import time
     first = _api(cfg, 'GET', '/api/health')
+    if first is None and cfg.api_url:   # pemicu terpisah (Docker): tanpa server tidak ada DuckDB yang boleh dibuka di sini
+        print(f'server {cfg.api_url} tidak terjangkau; ingest tidak dijalankan', file=sys.stderr); return 2
     if first is None: return None
     if not cfg.job_token:
         print('server sedang berjalan tetapi S4_JOB_TOKEN kosong; isi di .env agar ingest bisa dipicu lewat API', file=sys.stderr); return 2
@@ -151,7 +153,9 @@ def cmd_import(cfg, args):
     from . import importer
     try: importer.parse_url(cfg, args.url)                 # daftar izin diperiksa sebelum apa pun menghubungi AWS
     except importer.ImportFail as e: print(f'ditolak: {e.message}', file=sys.stderr); return 2
-    if _api(cfg, 'GET', '/api/health') is not None:
+    up = _api(cfg, 'GET', '/api/health') is not None
+    if not up and cfg.api_url: print(f'server {cfg.api_url} tidak terjangkau; impor tidak dijalankan', file=sys.stderr); return 2
+    if up:
         if not cfg.job_token: print('server sedang berjalan tetapi S4_JOB_TOKEN kosong', file=sys.stderr); return 2
         code, body = _api(cfg, 'POST', '/api/admin/import', dict(url=args.url, dry_run=args.dry_run))
         if code != 202: print(f"ditolak: {body.get('error', {}).get('message', code)}", file=sys.stderr); return 2

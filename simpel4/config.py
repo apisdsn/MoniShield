@@ -24,6 +24,7 @@ class Config:
     state_dir: str = ''   # bawaan: data_dir
     inbox_dir: str = ''   # bawaan: data_dir/inbox
     bind: str = '127.0.0.1:8000'
+    api_url: str = ''     # alamat API untuk perintah baris (Docker: http://app:8000); kosong = dari bind. Diisi -> tidak pernah membuka DuckDB sendiri
     ingest_on_start: bool = True
     offline: bool = False  # jangan mengunduh apa pun (database IP, berkas peta); pakai yang sudah ada di cache
     cookie_secure: bool = True

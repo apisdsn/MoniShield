@@ -59,7 +59,7 @@ Ingest pertama 11 folder ±10–40 detik; setelah itu hanya folder yang baru ata
 |---|---|
 | `status` | konfigurasi efektif (tanpa rahasia), isi database, folder terakhir |
 | `ingest [--folder 2026-10-06] [--force] [--offline]` | masukkan folder log baru/berubah; juga bisa dari layar **Ingest & impor** (admin) |
-| `derive --all` | hitung ulang agregat tanpa membaca ulang log (mis. setelah mengganti `S4_ATTACK_RULES`) |
+| `derive --all` | hitung ulang agregat tanpa membaca ulang log (mis. setelah memperbarui aturan deteksi) |
 | `user list`, `user create` | kelola akun dari baris perintah |
 | `refdata [--offline]` | perbarui pemilik & lokasi IP dan berkas peta |
 | `import [--dry-run] s3://…/YYYY-MM-DD/` | impor folder log dari S3 (lihat bagian Impor dari S3) |
