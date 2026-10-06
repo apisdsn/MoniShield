@@ -1,7 +1,7 @@
 <!-- Peta asal request (DRD §7) dengan MapLibre GL. Tanpa permintaan ke domain luar: daratan/batas dari /map/*.geojson
      (dibuat ingest), label dari /map/labels.json, huruf Noto Sans dari /fonts (dibundel). 13 lapisan §7.3; preset
-     Indonesia/Dunia (fit bounds); titik per lokasi + pengelompokan < 40 px sampai zoom 7 (tanpa angka di peta: keputusan
-     pemilik 2026-10-06, angka ada di tooltip); busur per lokasi; titik
+     Indonesia/Dunia (fit bounds); titik per lokasi + pengelompokan < 40 px sampai zoom 7 (lingkaran kelompok
+     tanpa angka, keputusan pemilik 2026-10-06; angka di tooltip dan di label 6 lokasi terbesar); busur per lokasi; titik
      server; tooltip bergaya chart dengan "Lihat di tabel"; gerakan kooperatif (Ctrl + roda, dua jari); keyboard
      (panah, +/−, 0, Esc); atribusi selalu terlihat; ganti tema/bahasa/data tanpa kehilangan posisi.
      MapLibre dimuat terpisah (import dinamis) agar halaman lain tidak ikut membawanya. -->
@@ -32,7 +32,7 @@
     const byRank = [...pts].sort((a, b) => b.requests - a.requests);
     const rank = new Map(byRank.map((p, i) => [p, i + 1]));
     const loc = pts.map((p, i) => ({ type: 'Feature', id: i + 1, geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-      properties: { i, requests: p.requests, ips: p.ips, rank: rank.get(p), name: shortName(p) } }));
+      properties: { i, requests: p.requests, ips: p.ips, rank: rank.get(p), name: shortName(p), sub: `${num(p.ips, $lang)} IP · ${num(p.requests, $lang)} req` } }));
     const arcs = server ? pts.map((p) => {
       const [x0, y0, x1, y1] = [p.lon, p.lat, server.lon, server.lat];
       const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2 + Math.hypot(x1 - x0, y1 - y0) / 4;   // lengkung lama: kontrol di atas titik tengah
@@ -108,7 +108,9 @@
           paint: { 'text-color': c.fg, 'text-halo-color': c.halo, 'text-halo-width': 1.4 } },
         { id: 'lbl-top', type: 'symbol', source: 'top',   // 6 lokasi terbesar selalu berlabel (lama)
           // 6 terbesar: ditempatkan paling dulu (lapisan teratas) dan boleh pindah sisi; tidak menimpa label lain (§7.3)
-          layout: { 'text-field': ['get', 'name'], 'text-font': bold, 'text-size': 11,
+          // nama tebal + baris kecil "N IP · N req" (gaya label lama; diminta pemilik 2026-10-06)
+          layout: { 'text-field': ['format', ['get', 'name'], { 'text-font': ['literal', bold] }, '\n', {}, ['get', 'sub'], { 'font-scale': 0.85, 'text-font': ['literal', ['Noto Sans Regular']] }],
+            'text-font': bold, 'text-size': 12, 'text-line-height': 1.25,
             'text-variable-anchor': ['left', 'right', 'top', 'bottom', 'top-left', 'bottom-left', 'top-right', 'bottom-right'], 'text-radial-offset': 0.9,
             'text-justify': 'auto', 'text-padding': 3, 'symbol-sort-key': ['-', ['get', 'requests']] },
           paint: { 'text-color': c.fg, 'text-halo-color': c.halo, 'text-halo-width': 1.6 } },
@@ -197,7 +199,7 @@
     Object.assign(map._locale, uiText(l));
     map.cooperativeGestures.disable(); map.cooperativeGestures.enable();
     map.getCanvas().setAttribute('aria-label', label);
-    const d = features(points); map.getSource('loc')?.setData(d.loc); map.getSource('top')?.setData(d.top);   // nama negara (titik tanpa kota) mengikuti bahasa
+    const d = features(points); map.getSource('loc')?.setData(d.loc); map.getSource('top')?.setData(d.top);   // "N IP · N req" dan nama negara mengikuti bahasa
     tip = null;
   }
 
