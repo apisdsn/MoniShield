@@ -103,3 +103,29 @@ Halaman di atas target: tidak ada
   sehingga bisa dinaikkan tanpa mereset sandi.
 - Mesin uji adalah laptop, bukan server tujuan (spesifikasi server belum diketahui, PRD R13). Kelonggaran
   terhadap target sangat besar (puluhan kali), jadi kesimpulan tidak peka terhadap perbedaan mesin.
+
+## Lapisan HTTP (Tahap 11)
+
+`python3 tools/ukur.py --api` pada folder terbesar (2026-09-29), aplikasi sungguhan di dalam proses, median dari 5.
+Target PRD §5.1–§5.2: tiap endpoint halaman ≤ 300 ms dan ≤ 500 KB.
+
+| Endpoint | Waktu (ms) | Ukuran (KB) |
+|---|--:|--:|
+| `/api/meta` | 3,5 | 2,5 |
+| `/api/folders/{folder}` | 7,1 | 5,4 |
+| `overview` | 4,3 | 12,2 |
+| `map` | 32,3 | 68,5 |
+| `security` | 37,5 | 65,3 |
+| `rootcause` | 12,1 | 10,3 |
+| `availability` | 9,4 | 11,9 |
+| `pods` | 7,9 | 2,7 |
+| `business` | 6,7 | 4,9 |
+| `tracing` | 31,7 | 173,6 |
+| `services/{layanan}` (7 layanan) | 13,3 – 18,0 | 2,5 – 17,6 |
+| `/api/trends?last=all` | 4,1 | 2,6 |
+| `tables/flows?limit=500` | 55,6 | 159,3 |
+| `tables/trace?q=…` | 28,5 | 172,6 |
+
+Semua di bawah target. Batas pengukuran: 11 folder nyata, bukan setahun (query agregatnya sudah diukur pada 365
+folder di atas: 20,5 ms); tanpa jaringan dan tanpa proxy HTTPS.
+

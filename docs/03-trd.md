@@ -614,7 +614,7 @@ setiap selisih bisa dijelaskan. Semuanya masuk daftar **selisih yang diharapkan*
 
 | # | Inv. §8 | Lama | v2 | Angka yang berubah |
 |--:|---|---|---|---|
-| 1 | 6 | KPI dihitung dari daftar terpotong (error koneksi pod, retry, IP sumber unik, IP login gagal, serangan kritis, total request dan IP tujuan di Peta IP, chart jenis error koneksi) | Dihitung dari data lengkap (K4) | KPI itu, pada folder yang daftarnya melebihi batas (mis. error koneksi pod 09-30: 200 → 1.200) |
+| 1 | 6 | KPI dihitung dari daftar terpotong (error koneksi pod, retry, IP sumber unik, IP login gagal, serangan kritis, total request dan IP tujuan di Peta IP, chart jenis error koneksi, **tabel dan chart kinerja endpoint** yang dulu dipilih dari 150 endpoint tersibuk saja) | Dihitung dari data lengkap (K4) | KPI itu, pada folder yang daftarnya melebihi batas (mis. error koneksi pod 09-30: 200 → 1.200); isi 25 endpoint ber-P95 tertinggi di nginx pada 5 dari 11 folder (endpoint lambat yang jarang dipanggil kini ikut tampil) |
 | 2 | 7 | `err` nginx/FE = 5xx + baris error log, tetapi chart per jam (`herr`) hanya 5xx | `err` tetap jumlah keduanya, kini dengan rincian `err_http` dan `err_log`; **chart per jam memuat keduanya** sehingga jumlah per jam = KPI | `herr` nginx dan FE; KPI Error **tidak** berubah |
 | 3 | 8 | `crit` = error di ingress, warning di frontend | `error`, `crit`, `alert`, `emerg` = error di **keduanya**; level lain = warning | `err`/`warn` frontend bila ada baris `crit` (pada data sekarang: 0 baris, jadi tidak ada selisih) |
 | 4 | 9 | Donat level simpel-loop memakai tag aplikasi: event gagal 4xx terhitung `ERROR` padahal KPI menghitungnya warning | Donat memakai **tingkat efektif**, sama dengan aturan KPI: event gagal 5xx → `ERROR`, event gagal lainnya → `WARN`; baris lain memakai tagnya | `extra` simpel-loop (mis. 09-29: ERROR 9.614 → 0, WARN 0 → 9.614) |
@@ -678,7 +678,7 @@ tambahan untuk itu.
   (ingest sedang berjalan), 429 (terlalu banyak percobaan masuk), 503 (belum ada data).
 - Semua endpoint selain `/api/health` dan `/api/auth/login` butuh sesi. Endpoint data terbuka untuk kedua
   peran; `/api/admin/*` hanya admin (§8.3).
-- Cache: respons data membawa `ETag` = waktu ingest terakhir folder itu.
+- Cache: respons data membawa `ETag` = waktu ingest terakhir folder itu. (Tahap 11: header dikirim; jawaban 304 belum dibuat karena endpoint terlama 56 ms.)
 
 ### 5.2 Kerangka
 
@@ -836,7 +836,7 @@ difilter, dan diurut (DRD §4.3).
 |---|---|---|
 | `service` | nama layanan; wajib untuk tabel per layanan | — |
 | `module` | modul tujuan; hanya `flows` | semua |
-| `q` | teks filter, maks. 200 karakter; substring tanpa beda huruf besar/kecil pada kolom teks tabel itu | kosong |
+| `q` | teks filter, maks. 200 karakter; substring tanpa beda huruf besar/kecil pada kolom teks tabel itu, dan pada nama pemilik jaringan IP utama baris itu (seperti filter lama yang mencari seluruh teks baris) | kosong |
 | `sort` | salah satu kolom yang diizinkan untuk tabel itu | urutan lama |
 | `dir` | `asc` \| `desc` | `desc` |
 | `limit` | 1–500 | batas lama tabel itu |

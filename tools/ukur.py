@@ -2,10 +2,15 @@
 """Gerbang ukuran dan kinerja (TRD §9.7, PRD §5.1–§5.3).
 
   python3 tools/ukur.py [data/sim.duckdb] [--ingest] [--scrypt]
+  python3 tools/ukur.py --api [host:port] [--folder 2026-09-29]     # lapisan HTTP (Tahap 11)
 
 Mengukur: ukuran berkas dan per tabel; waktu query yang akan dipakai tiap halaman dashboard; (opsional)
 waktu ingest satu folder tambahan dan ingest tanpa perubahan; (opsional) biaya hash sandi.
 Query di bawah adalah yang akan dipakai API Tahap 11: semuanya membaca tabel agregat, bukan tabel mentah.
+
+--api mengukur tiap endpoint halaman lewat HTTP: waktu dan ukuran respons. Tanpa host: aplikasi dijalankan di dalam
+proses ini atas database nyata (server harus mati). Dengan host: server yang sedang berjalan; isi cookie sesi di
+variabel lingkungan S4_COOKIE (nilai cookie s4_session dari peramban yang sudah masuk).
 """
 import argparse, os, statistics, sys, time
 
@@ -69,13 +74,44 @@ def ukuran_tabel(con):
     return out
 
 
+def ukur_api(host, folder):
+    import json
+    sys.path.insert(0, os.path.join(V2, 'tools'))
+    if host:
+        import urllib.request
+        def get(path):
+            with urllib.request.urlopen(urllib.request.Request(f'http://{host}{path}', headers={'Cookie': 's4_session=' + os.environ['S4_COOKIE']})) as r: return r.read()
+    else:
+        import kesetaraan
+        tc = kesetaraan.klien_api(); get = lambda path: tc.get(path).content
+    folders = json.loads(get('/api/meta'))['folders']
+    folder = folder or max(folders, key=lambda f: f['lines'])['folder']
+    svc = [s['service'] for s in json.loads(get(f'/api/folders/{folder}'))['services']]
+    urls = ['/api/meta', f'/api/folders/{folder}'] + [f'/api/folders/{folder}/{h}' for h in ('overview', 'map', 'security', 'rootcause', 'availability', 'pods', 'business', 'tracing')]
+    urls += [f'/api/folders/{folder}/services/{s}' for s in svc] + ['/api/trends?last=all', f'/api/folders/{folder}/tables/flows?limit=500', f'/api/folders/{folder}/tables/trace?q=unauthorized']
+    print(f'# Endpoint lewat HTTP ({host or "dalam proses"}), folder {folder}; min / median dari 5 (ms), ukuran (KB); target <= 300 ms dan <= 500 KB')
+    gagal = []
+    for u in urls:
+        get(u); t = []
+        for _ in range(5):
+            a = time.perf_counter(); body = get(u); t.append((time.perf_counter() - a) * 1000)
+        md = statistics.median(t)
+        if md > 300 or len(body) > 500_000: gagal.append(u)
+        print(f'  {u:62} {min(t):6.1f} / {md:6.1f}  {len(body) / 1024:7.1f} KB')
+    print(f'Di atas target: {gagal or "tidak ada"}')
+    return 1 if gagal else 0
+
+
 def main():
     import duckdb
     ap = argparse.ArgumentParser()
     ap.add_argument('db', nargs='?', default=os.path.join(V2, 'data', 'sim.duckdb'))
     ap.add_argument('--ingest', action='store_true', help='ukur juga waktu ingest (memakai database nyata)')
     ap.add_argument('--scrypt', action='store_true', help='ukur biaya hash sandi')
+    ap.add_argument('--api', nargs='?', const='', default=None, metavar='HOST:PORT', help='ukur endpoint lewat HTTP (tanpa host: di dalam proses)')
+    ap.add_argument('--folder', help='folder untuk --api (bawaan: yang barisnya terbanyak)')
     a = ap.parse_args()
+    if a.api is not None: sys.exit(ukur_api(a.api, a.folder))
     con = duckdb.connect(a.db, read_only=True)
     folders = [str(r[0]) for r in con.execute('SELECT folder FROM folder_state ORDER BY folder').fetchall()]
     n = len(folders)
