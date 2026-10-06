@@ -5,12 +5,14 @@
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, delta, titleCase, bytes, dLabel } from '../format.js';
+  import { num, delta, titleCase, bytes } from '../format.js';
   import Kpi from '../lib/Kpi.svelte';
   import ChartCard from '../lib/ChartCard.svelte';
   import HBar from '../lib/HBar.svelte';
   import DataTable from '../lib/DataTable.svelte';
   import Alert from '../lib/Alert.svelte';
+  import SplitBar from '../lib/SplitBar.svelte';
+  import { build } from '../state.js';
   import Note from '../lib/Note.svelte';
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
@@ -45,6 +47,20 @@
   const hasNginx = $derived(svc.some((s) => s.service === NG && s.lines));
   const errSeries = $derived(Object.entries(page?.err_by_hour || {}));
   const hours = $derived([...new Set(errSeries.flatMap(([, pts]) => pts.map((p) => p[0])))].sort());
+  const ng = $derived(svc.find((s) => s.service === NG && s.lines) || null);
+  const link = (tab, service = null) => build({ tab, service, folder, module: null });
+  // kartu perhatian: temuan ringkas dari ringkasan folder, tiap butir menaut ke halaman terkait (gaya referensi)
+  const attention = $derived.by(() => {
+    const out = [];
+    if (summary?.attack_ip_count) out.push({ tone: 'err', title: $t('att.attack', { n: num(summary.attack_ip_count, $lang) }), text: $t('att.attack_text'), href: link('keamanan'), link: $t('att.to_security') });
+    const worst = [...svc].sort((a, b) => b.err - a.err)[0];
+    if (worst?.err) out.push({ tone: 'err', title: $t('att.errors', { svc: titleCase(worst.service), n: num(worst.err, $lang) }),
+      text: $t('kpi.error_info', { http: num(worst.err_http, $lang), log: num(worst.err_log, $lang) }), href: link('layanan', worst.service), link: $t('att.to_service') });
+    if (ng?.n5xx) out.push({ tone: 'warn', title: $t('att.n5xx', { n: num(ng.n5xx, $lang) }), text: $t('att.n5xx_text', { n: num(ng.requests, $lang) }), href: link('ketersediaan'), link: $t('att.to_availability') });
+    const rusak = (summary?.files || []).filter((f) => f.status === 'rusak').length;
+    if (rusak) out.push({ tone: 'warn', title: $t('att.corrupt', { n: num(rusak, $lang) }), text: $t('att.corrupt_text'), href: link('pod'), link: $t('att.to_pods') });
+    return out;
+  });
   const statusRows = $derived((summary?.files || []).reduce((m, f) => ((m[f.status] = (m[f.status] || 0) + 1), m), {}));
 </script>
 
@@ -62,26 +78,40 @@
 {:else}
   <div class="content" class:dim={busy}>
     <div class="kpis">
-      <Kpi label={$t('kpi.lines')} value={total('lines')} delta={d('lines', true)} />
-      <Kpi label={$t('kpi.error')} value={total('err')} tone="err" delta={d('err')} info={$t('kpi.error_info', { http: num(total('err_http'), $lang), log: num(total('err_log'), $lang) })} />
-      <Kpi label={$t('kpi.warning')} value={total('warn')} tone="warn" delta={d('warn')} />
-      <Kpi label={$t('kpi.files')} value={(summary?.files || []).length} />
-      <Kpi label={$t('kpi.files_empty')} value={(summary?.files || []).filter((f) => !f.lines).length} tone="muted" />
-      <Kpi label={$t('kpi.http')} value={hasNginx ? svc.find((s) => s.service === NG).requests : null} missing={$t('kpi.no_nginx')} />
+      <Kpi icon="lines" label={$t('kpi.lines')} value={total('lines')} delta={d('lines', true)}
+        sub={[{ tone: 'accent', text: $t('status.n_services', { n: svc.length }) }]} />
+      <Kpi icon="alert" label={$t('kpi.error')} value={total('err')} tone="err" delta={d('err')} info={$t('kpi.error_info', { http: num(total('err_http'), $lang), log: num(total('err_log'), $lang) })}
+        sub={[{ tone: 'err', text: $t('status.n_services_err', { n: svc.filter((s) => s.err).length }) }]} />
+      <Kpi icon="alert" label={$t('kpi.warning')} value={total('warn')} tone="warn" delta={d('warn')} />
+      <Kpi icon="file" label={$t('kpi.files')} value={(summary?.files || []).length}
+        sub={[{ tone: 'ok', text: `${$t('file.ok')} ${statusRows.ok || 0}` }, { tone: 'warn', text: `${$t('file.kosong')} ${statusRows.kosong || 0}` }, { tone: 'err', text: `${$t('file.rusak')} ${statusRows.rusak || 0}` }]} />
+      <Kpi icon="pulse" label={$t('kpi.http')} value={ng ? ng.requests : null} missing={$t('kpi.no_nginx')}
+        sub={ng ? [{ tone: 'warn', text: `4xx ${num(ng.n4xx, $lang)}` }, { tone: 'err', text: `5xx ${num(ng.n5xx, $lang)}` }] : null} />
+      <Kpi icon="shield" label={$t('status.attack_ips')} value={hasNginx ? summary?.attack_ip_count ?? 0 : null} tone={summary?.attack_ip_count ? 'err' : null} missing={$t('kpi.no_nginx')} />
     </div>
 
-    {#if summary?.attack_ip_count}
-      <Alert title={$t('placeholder.findings')}>
-        <li>{$t('placeholder.finding_attack', { n: num(summary.attack_ip_count, $lang), date: dLabel(folder, $lang) })}</li>
-      </Alert>
-    {/if}
+    <div class="grid top2">
+      {#if ng}
+        <section class="card" aria-label={$t('placeholder.http_split')}>
+          <header><h2>{$t('placeholder.http_split')}</h2><span class="chip">{$t('chip.folder')}</span></header>
+          <p class="big">{num(Math.floor(((ng.requests - ng.n5xx) / ng.requests) * 10000) / 100, $lang, 2)}%<span class="muted">{$t('placeholder.non_5xx')}</span></p>
+          <SplitBar label={$t('placeholder.http_split')} segments={[
+            { label: $t('placeholder.ok_resp'), value: ng.requests - ng.n4xx - ng.n5xx, tone: 'ok' },
+            { label: '4xx', value: ng.n4xx, tone: 'warn' }, { label: '5xx', value: ng.n5xx, tone: 'err' }]} />
+          <a class="btn accent full" href={link('ketersediaan')}>{$t('att.to_availability')} →</a>
+        </section>
+      {/if}
+      {#if attention.length}
+        <Alert title={$t('placeholder.attention')} items={attention} />
+      {/if}
+    </div>
 
     <div class="grid">
-      <ChartCard title={$t('placeholder.lines_per_service')} type="bar" labels={svc.map((s) => titleCase(s.service))}
+      <ChartCard chip={$t('chip.folder')} title={$t('placeholder.lines_per_service')} type="bar" labels={svc.map((s) => titleCase(s.service))}
         datasets={[{ label: $t('kpi.lines'), data: svc.map((s) => s.lines), colors: svc.map((_, i) => `--c${(i % 10) + 1}`) }]} />
       <ChartCard title={$t('placeholder.file_status')} type="doughnut" labels={Object.keys(statusRows).map((k) => $t(`file.${k}`))}
         datasets={[{ data: Object.values(statusRows) }]} />
-      <ChartCard title={$t('placeholder.err_per_hour')} type="line" timeAxis wide labels={hours}
+      <ChartCard chip={$t('chip.hourly')} title={$t('placeholder.err_per_hour')} type="line" timeAxis wide labels={hours}
         datasets={errSeries.map(([s, pts], i) => { const m = Object.fromEntries(pts); return { label: titleCase(s), data: hours.map((h) => m[h] || 0), color: `--c${(i % 10) + 1}` }; })} />
       <HBar title={$t('placeholder.err_per_service')} rows={svc.filter((s) => s.err).map((s) => ({ label: s.service, value: s.err }))} color="--err" valueLabel={$t('kpi.error')} />
 
@@ -96,7 +126,7 @@
         { key: 'status', label: $t('col.status'), fmt: (r) => $t(`file.${r.status}`) },
       ]} />
 
-      <DataTable title={$t('placeholder.messages')} {folder} table="messages" initial={page.tables.messages} columns={[
+      <DataTable chip={$t('chip.all_data')} title={$t('placeholder.messages')} {folder} table="messages" initial={page.tables.messages} columns={[
         { key: 'level', label: $t('col.level'), cls: (r) => r.level },
         { key: 'msg_key', label: $t('col.message'), detail: (r) => r.sample },
         { key: 'service', label: $t('col.service'), fmt: (r) => titleCase(r.service) },
@@ -122,5 +152,10 @@
   .content { transition: opacity 0.15s; }
   .content.dim { opacity: 0.6; }
   .foot { font-size: 0.75rem; margin-top: 18px; }
+  .top2 { margin-bottom: 18px; align-items: start; }
+  .top2 :global(.alert) { margin-bottom: 0; }
+  .big { font-size: 2.5rem; font-weight: 600; margin: 0 0 14px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .big .muted { font-size: 0.875rem; font-weight: 400; margin-left: 8px; }   /* dibulatkan ke bawah: 99,96 % tidak tampil sebagai 100 % */
+  .full { width: 100%; margin-top: 16px; min-height: 2.75rem; }
   :global(.note) + .content, :global(.note) { margin-bottom: 18px; }
 </style>

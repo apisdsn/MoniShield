@@ -14,9 +14,11 @@ def health(): return dict(ok=True)   # tanpa data, tanpa sesi
 @router.get('/meta')
 def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)):
     cfg = request.app.state.cfg
-    folders = [dict(folder=str(f), range_start=wib(a), range_end=wib(b), lines=lines, services=svc, files=files, files_empty=empty, files_corrupt=corrupt)
-               for f, a, b, lines, files, empty, corrupt, svc in cur.execute(
-                   """SELECT s.folder, s.range_start_utc, s.range_end_utc, s.lines, s.files, s.files_empty, s.files_corrupt,
+    # derived_at: kapan agregat folder terakhir diturunkan (penanda kesegaran data di tampilan, DRD §12)
+    folders = [dict(folder=str(f), range_start=wib(a), range_end=wib(b), lines=lines, services=svc, files=files, files_empty=empty, files_corrupt=corrupt,
+                    derived_at=wib(d))
+               for f, a, b, lines, files, empty, corrupt, d, svc in cur.execute(
+                   """SELECT s.folder, s.range_start_utc, s.range_end_utc, s.lines, s.files, s.files_empty, s.files_corrupt, s.derived_at,
                              (SELECT count(*) FROM agg_service a WHERE a.folder = s.folder)
                       FROM folder_state s ORDER BY s.folder DESC""").fetchall()]
     kota, prov, cc, lat, lon = cfg.server_fallback

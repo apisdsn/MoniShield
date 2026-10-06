@@ -70,7 +70,7 @@
   .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
   .logo i {
     width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-style: normal; font-weight: 700;
-    color: var(--accent-text); background: rgba(45, 212, 191, 0.08); box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.2);
+    color: var(--brand-fg); background: var(--brand-bg); box-shadow: 0 0 18px rgba(45, 212, 191, 0.25);
   }
   h1 { font-size: 1.25rem; font-weight: 600; }
   form { display: flex; flex-direction: column; gap: 6px; }

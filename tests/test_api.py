@@ -229,6 +229,7 @@ def test_meta(client):
     b = m['folders'][0]
     assert (b['lines'], b['services'], b['files'], b['files_empty'], b['files_corrupt']) == (38, 7, 7, 1, 1)
     assert (b['range_start'], b['range_end']) == ('2026-09-25 23:04', '2026-09-28 23:15')   # WIB; dari baris akses dan Spring (bukan error log)
+    assert len(b['derived_at']) == 16 and b['derived_at'][:2] == '20'                     # WIB 'YYYY-MM-DD HH:MM'
     assert m['server'] == dict(ip='103.170.104.228', city='Jakarta', region='Jakarta', cc='ID', lat=-6.2, lon=106.82)   # tanpa data IP: nilai cadangan
     assert m['hosts']['om-fe-inhouse-3000'] == 'https://simpel4.ombudsman.go.id' and m['dns_upstream'] == '10.88.1.100'
     assert m['ip_data'] == dict(owner=False, location=False, map=False) and any('MaxMind' in s for s in m['attribution'])

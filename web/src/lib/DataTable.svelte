@@ -19,7 +19,7 @@
    * Sumber statis: rows. Sumber server: folder + table (+ params), initial = {total, rows} dari respons halaman.
    */
   let { title, columns, rows = null, folder = null, table = null, params = {}, initial = null, limit = null,
-        bar = null, wide = true, maxHeight = 440, rowId = null, highlight = null } = $props();
+        bar = null, wide = true, maxHeight = 440, rowId = null, highlight = null, chip = null } = $props();
 
   const STEP = 100;
   const remote = $derived(!!table);
@@ -139,7 +139,7 @@
 
 <section class="card dt" class:wide aria-label={title}>
   <header>
-    <h2>{title}</h2>
+    <h2>{title}{#if chip}<span class="chip">{chip}</span>{/if}</h2>
     <div class="filter">
       <label class="sr-only" for="{uid}-q">{$t('table.filter_label', { title })}</label>
       <input id="{uid}-q" type="search" data-filter placeholder={$t('table.filter')} bind:value={q} oninput={onInput}
@@ -209,6 +209,7 @@
 </section>
 
 <style>
+  h2 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .filter { position: relative; display: flex; align-items: center; }
   .filter input {
     min-width: 220px; padding-left: 34px; padding-right: 34px;
@@ -221,7 +222,7 @@
   table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
   th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--row-line); vertical-align: top; }
   th {
-    color: var(--th-fg); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: capitalize;
+    color: var(--th-fg); font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.07em; text-transform: uppercase;
     position: sticky; top: 0; background: var(--th-bg); z-index: 2;
   }
   th.n, td.n { text-align: right; width: 1%; white-space: nowrap; padding-left: 16px; font-variant-numeric: tabular-nums; }

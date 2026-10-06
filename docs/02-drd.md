@@ -1119,7 +1119,7 @@ kartu; isi kolom tabel; batas top-N tampilan awal; teks temuan otomatis; tema ba
 
 ---
 
-## 12. Permintaan 2026-10-06: gaya referensi dan Command Center (belum diterapkan)
+## 12. Permintaan 2026-10-06: gaya referensi dan Command Center (gaya diterapkan di Tahap 12a)
 
 Pemilik mengirim gambar referensi (dashboard gelap bergaya "Fleet Overview") dan meminta modul **Command Center**
 realtime. Yang terlihat di referensi dan dampaknya ke dokumen ini:

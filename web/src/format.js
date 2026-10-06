@@ -94,6 +94,8 @@ export function delta(cur, prev, prevFolder, lang, { good = false, comparable = 
     kind: naik ? 'up' : 'down',
     tone: naik !== good ? 'bad' : 'good',
     text: `${naik ? '▲' : '▼'} ${Math.abs(p).toFixed(0)}% vs ${tgl}`,
+    short: `${naik ? '▲' : '▼'} ${Math.abs(p).toFixed(0)}%`,     // lencana di sebelah angka KPI (gaya referensi)
+    rest: `vs ${tgl}`,
     spoken: en ? `${naik ? 'up' : 'down'} ${Math.abs(p).toFixed(0)}% vs ${tgl}` : `${naik ? 'naik' : 'turun'} ${Math.abs(p).toFixed(0)}% dibanding ${tgl}`,
   };
 }

@@ -8,7 +8,7 @@
 
 <style>
   .tag {
-    display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
     font-size: 0.6875rem; font-weight: 600; white-space: nowrap; text-transform: capitalize;
   }
   .tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }

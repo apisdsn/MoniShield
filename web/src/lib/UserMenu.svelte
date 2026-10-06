@@ -32,6 +32,8 @@
   }
   function outside(e) { if (open && !btn?.contains(e.target) && !list?.contains(e.target)) open = false; }
   const link = (tab) => build({ ...route, tab, service: null });
+  // avatar inisial (gaya referensi): tanpa foto, tanpa layanan luar
+  const initials = $derived((me.display_name || me.username).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join(''));
 </script>
 
 <svelte:window onclick={outside} />
@@ -39,7 +41,7 @@
 <div class="um">
   <button bind:this={btn} class={extended ? 'icon-btn' : 'btn who'} aria-haspopup="menu" aria-expanded={open} aria-controls="user-menu"
     onclick={() => toggle()} onkeydown={btnKey} aria-label={extended ? $t('menu.more') : undefined}>
-    {#if extended}⋯{:else}<span class="name">{me.display_name || me.username}</span><span aria-hidden="true">▾</span>{/if}
+    {#if extended}⋯{:else}<span class="av" aria-hidden="true">{initials}</span><span class="name">{me.display_name || me.username}</span><span class="car" aria-hidden="true">▾</span>{/if}
   </button>
   {#if open}
     <!-- svelte-ignore a11y_interactive_supports_focus -->
@@ -72,7 +74,12 @@
 
 <style>
   .um { position: relative; }
-  .who { max-width: 200px; }
+  .who { max-width: 220px; padding-left: 5px; gap: 8px; }
+  .av {
+    width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
+    font-size: 0.75rem; font-weight: 700; color: var(--brand-fg); background: var(--brand-bg);
+  }
+  .car { color: var(--muted); font-size: 0.7rem; }
   .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .menu {
     position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; min-width: 240px; max-width: calc(100vw - 32px);

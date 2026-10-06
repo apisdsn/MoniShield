@@ -60,7 +60,8 @@ test('angka', () => {
 });
 
 test('perubahan vs folder sebelumnya (dlt lama: empat bentuk)', () => {
-  assert.deepEqual(delta(64, 100, '2026-10-05', 'id'), { kind: 'down', tone: 'good', text: '▼ 36% vs 5 Okt 2026', spoken: 'turun 36% dibanding 5 Okt 2026' });
+  assert.deepEqual(delta(64, 100, '2026-10-05', 'id'),
+    { kind: 'down', tone: 'good', text: '▼ 36% vs 5 Okt 2026', short: '▼ 36%', rest: 'vs 5 Okt 2026', spoken: 'turun 36% dibanding 5 Okt 2026' });
   assert.equal(delta(150, 100, '2026-10-05', 'id').tone, 'bad');                       // error naik = buruk
   assert.equal(delta(150, 100, '2026-10-05', 'id', { good: true }).tone, 'good');       // request naik = baik
   assert.equal(delta(100.2, 100, '2026-10-05', 'id').text, '≈ Sama dengan 5 Okt 2026');

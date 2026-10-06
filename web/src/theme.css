@@ -7,71 +7,77 @@
 @import '@fontsource/outfit/latin-700.css';
 @import '@fontsource/jetbrains-mono/latin-400.css';
 
-/* ------------------------------------------------------------------ §5.1–§5.4 tema gelap (bawaan, ASUMSI D2) */
+/* ------------------------------------------------------------------ tema gelap (bawaan, ASUMSI D2)
+   Gaya mengikuti gambar referensi pemilik (DRD §12, keputusan R6 2026-10-06): latar hitam-kehijauan netral, kartu
+   rata bergaris tipis, aksen teal, judul dan angka putih polos. Kontras diperiksa tools/cek_kontras.mjs (DRD §5.6). */
 :root {
-  --bg: #0a1120;
-  --bg2: #0d1628;
-  --card: #101b2e;
-  --card2: #0c1524;
-  --fg: #e2ecf3;
-  --muted: #7d8fa6;
-  --line: #1c2a40;
-  --line-strong: #5a7299;
+  --bg: #0b1015;
+  --bg2: #0f151b;
+  --card: #11171e;
+  --card2: #0d1318;
+  --fg: #e6edf3;
+  --muted: #8b98a6;
+  --line: #1c252e;
+  --line-strong: #56677a;
   --accent: #2dd4bf;
   --accent2: #22d3ee;
   --accent-text: #2dd4bf;
-  --violet: #8b5cf6;
+  --violet: #a78bfa;
   --err: #f43f5e;
   --warn: #f59e0b;
   --ok: #34d399;
   --ok-text: #34d399;
   --neutral: #7a8699;
-  --land: #1b2d4a;
-  --coast: #5a7299;
-  --glow: 0 0 0 1px rgba(45, 212, 191, 0.06), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --land: #1a2633;
+  --coast: #56677a;
+  --glow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 30px rgba(0, 0, 0, 0.35);
 
-  /* §5.2 turunan */
-  --side-bg: linear-gradient(180deg, #0b1424, #080e1a);
-  --nav-fg: #b6c4d4;
+  /* turunan */
+  --side-bg: #0d1318;
+  --nav-fg: #aeb9c5;
   --nav-hover: rgba(255, 255, 255, 0.04);
-  --nav-dot: #2a3a52;
-  --kpi-label: #c4d2e0;
-  --heading: #dbe7f0;
-  --th-fg: #9fb1c4;
-  --th-bg: #0f1a2c;
-  --code-fg: #c7d7e4;
-  --pre-bg: #08101d;
-  --row-hover: rgba(45, 212, 191, 0.03);
-  --row-line: rgba(148, 163, 184, 0.07);
+  --nav-dot: #2a3540;
+  --kpi-label: #c3ccd6;
+  --heading: #e6edf3;
+  --th-fg: #8b98a6;
+  --th-bg: #11171e;
+  --code-fg: #c9d4de;
+  --pre-bg: #0a0f14;
+  --row-hover: rgba(45, 212, 191, 0.035);
+  --row-line: rgba(255, 255, 255, 0.05);
   --badge-fg: #fda4af;
   --badge-bg: rgba(244, 63, 94, 0.12);
-  --title-grad: linear-gradient(90deg, #2dd4bf, #a5f3fc 55%, #e2e8f0);
-  --kpi-grad: linear-gradient(90deg, #2dd4bf, #67e8f9);
-  --card-bg: linear-gradient(160deg, rgba(20, 34, 56, 0.92), rgba(11, 20, 35, 0.92));
-  --card-border: rgba(148, 163, 184, 0.08);
-  --page-bg: radial-gradient(1200px 600px at 80% -10%, rgba(34, 211, 238, 0.07), transparent 60%),
-    radial-gradient(900px 500px at 10% 110%, rgba(139, 92, 246, 0.07), transparent 60%), var(--bg);
-  --tooltip-bg: rgba(8, 16, 29, 0.95);
+  --title-grad: linear-gradient(var(--fg), var(--fg));
+  --kpi-grad: linear-gradient(var(--fg), var(--fg));
+  --card-bg: linear-gradient(180deg, #121920, #10161d);
+  --card-border: rgba(255, 255, 255, 0.07);
+  --page-bg: radial-gradient(900px 420px at 70% -10%, rgba(45, 212, 191, 0.05), transparent 60%), var(--bg);
+  --tooltip-bg: rgba(10, 15, 20, 0.96);
   --tooltip-line: rgba(45, 212, 191, 0.3);
-  --grid: rgba(148, 163, 184, 0.08);
-  --scroll-thumb: #24344d;
-  --seg-on: linear-gradient(90deg, rgba(45, 212, 191, 0.25), rgba(34, 211, 238, 0.15));
+  --grid: rgba(255, 255, 255, 0.06);
+  --scroll-thumb: #26313c;
+  --seg-on: rgba(45, 212, 191, 0.14);
   --focus: var(--accent);
+  --icon-bg: rgba(255, 255, 255, 0.04);
+  --icon-border: rgba(255, 255, 255, 0.09);
+  --chip-bg: rgba(255, 255, 255, 0.04);
+  --brand-bg: linear-gradient(135deg, #2dd4bf, #14b8a6);
+  --brand-fg: #04201c;
 
-  /* §4.5 tag */
+  /* tag (§4.5) */
   --sev3-fg: #fda4af;
   --sev2-fg: #fcd34d;
   --sev1-fg: #cbd5e1;
   --sevok-fg: #6ee7b7;
 
-  /* §5.4 palet seri chart */
-  --c1: #2dd4bf; --c2: #8b5cf6; --c3: #22d3ee; --c4: #f472b6; --c5: #f59e0b;
+  /* palet seri chart (§5.4) */
+  --c1: #2dd4bf; --c2: #a78bfa; --c3: #22d3ee; --c4: #f472b6; --c5: #f59e0b;
   --c6: #34d399; --c7: #60a5fa; --c8: #f43f5e; --c9: #a3e635; --c10: #fb923c;
 
-  /* §5.5 tipografi dan bentuk */
+  /* tipografi dan bentuk (§5.5) */
   --font: 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --r-card: 20px;
+  --r-card: 16px;
   --r-box: 12px;
   --side-w: 236px;
   --touch: 44px;
@@ -80,14 +86,14 @@
 
 /* ------------------------------------------------------------------ tema terang */
 :root[data-theme='light'] {
-  --bg: #f3f6fb;
+  --bg: #f4f6f8;
   --bg2: #ffffff;
   --card: #ffffff;
-  --card2: #eef3fa;
-  --fg: #0f1b2d;
-  --muted: #5b6b80;
-  --line: #dbe3ee;
-  --line-strong: #8794a8;
+  --card2: #eef2f5;
+  --fg: #0f1720;
+  --muted: #5b6876;
+  --line: #e3e8ee;
+  --line-strong: #7b8794;
   --accent: #0d9488;
   --accent2: #0891b2;
   --accent-text: #0f766e;
@@ -96,35 +102,38 @@
   --warn: #b45309;
   --ok: #059669;
   --ok-text: #047857;
-  --land: #cfdff5;
-  --coast: #6f86ab;
-  --glow: 0 1px 2px rgba(15, 27, 45, 0.05), 0 8px 24px rgba(15, 27, 45, 0.06);
+  --land: #d9e3ec;
+  --coast: #7d8b99;
+  --glow: 0 1px 2px rgba(15, 23, 32, 0.05), 0 8px 24px rgba(15, 23, 32, 0.06);
 
   --side-bg: #ffffff;
-  --nav-fg: #44546a;
-  --nav-hover: rgba(15, 27, 45, 0.05);
-  --nav-dot: #c5d0de;
-  --kpi-label: #44546a;
+  --nav-fg: #3f4b58;
+  --nav-hover: rgba(15, 23, 32, 0.05);
+  --nav-dot: #c7d0d9;
+  --kpi-label: #3f4b58;
   --heading: var(--fg);
-  --th-fg: var(--muted);
-  --th-bg: #f6f8fc;
-  --code-fg: #44546a;
-  --pre-bg: #f6f8fc;
-  --row-line: rgba(15, 27, 45, 0.08);
+  --th-fg: #5b6876;
+  --th-bg: #ffffff;
+  --code-fg: #3f4b58;
+  --pre-bg: #f4f6f8;
+  --row-line: rgba(15, 23, 32, 0.07);
   --badge-fg: #be123c;
-  --title-grad: linear-gradient(90deg, #0d9488, #0891b2 55%, #1e3a8a);
-  --kpi-grad: linear-gradient(90deg, #0d9488, #0891b2);
   --card-bg: #ffffff;
-  --card-border: var(--line);
+  --card-border: #e3e8ee;
   --page-bg: var(--bg);
-  --grid: rgba(15, 27, 45, 0.08);
-  --scroll-thumb: #c5d0de;
-  --seg-on: rgba(13, 148, 136, 0.14);
+  --grid: rgba(15, 23, 32, 0.07);
+  --scroll-thumb: #c7d0d9;
+  --seg-on: rgba(13, 148, 136, 0.12);
   --focus: var(--accent-text);
+  --icon-bg: #f4f6f8;
+  --icon-border: #e3e8ee;
+  --chip-bg: #f4f6f8;
+  --brand-bg: linear-gradient(135deg, #0d9488, #0f766e);
+  --brand-fg: #ffffff;
 
   --sev3-fg: #be123c;
   --sev2-fg: #b45309;
-  --sev1-fg: #44546a;
+  --sev1-fg: #3f4b58;
   --sevok-fg: #047857;
 
   --c1: #0d9488; --c2: #7c3aed; --c3: #0891b2; --c4: #db2777; --c5: #b45309;
@@ -184,6 +193,9 @@ select, input[type='text'], input[type='search'], input[type='password'] {
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #04201c; font-weight: 600; }
 :root[data-theme='light'] .btn.primary { background: var(--accent-text); border-color: var(--accent-text); color: #fff; }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+/* tombol aksi beraksen (referensi "Open Incident Report →") */
+.btn.accent { border-color: color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent-text); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.btn.accent:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .icon-btn {
   display: inline-grid; place-items: center; width: var(--touch); height: var(--touch);
   border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg2); color: var(--fg); cursor: pointer;
@@ -206,10 +218,19 @@ select, input[type='text'], input[type='search'], input[type='password'] {
 .card, .kpi, .alert {
   background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-card); box-shadow: var(--glow);
 }
-.card { padding: 20px 22px; min-width: 0; }
+.card { padding: 18px 20px; min-width: 0; }
 .card.wide { grid-column: 1 / -1; }
 .card > header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; }
-.card h2 { font-size: 0.96875rem; font-weight: 500; color: var(--heading); text-transform: capitalize; }
+.card h2 { font-size: 0.9375rem; font-weight: 600; color: var(--heading); text-transform: capitalize; }
+
+/* Keping konteks di kanan judul kartu (mis. "per jam", "top 20") seperti referensi */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 8px; font-size: 0.71875rem;
+  color: var(--muted); background: var(--chip-bg); border: 1px solid var(--card-border); white-space: nowrap;
+}
+/* Titik status kecil dalam kalimat ringkas (● 2 gagal) */
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); vertical-align: middle; margin-right: 5px; flex: none; }
+.dot.ok { background: var(--ok); } .dot.err { background: var(--err); } .dot.warn { background: var(--warn); } .dot.accent { background: var(--accent); }
 
 /* Kode status dan level (DRD §5.3) */
 .s2 { color: var(--ok-text); }

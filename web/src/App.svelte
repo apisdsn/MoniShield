@@ -7,7 +7,7 @@
   import { lang, t } from './i18n.js';
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
   import { route, go, build, ADMIN } from './state.js';
-  import { dLabel, logRange, num, titleCase } from './format.js';
+  import { dLabel, logRange, num, titleCase, tWIB } from './format.js';
   import { APP_NAME } from './brand.js';
   import Sidebar from './lib/Sidebar.svelte';
   import Header from './lib/Header.svelte';
@@ -27,7 +27,7 @@
   let me = $state(null), meta = $state(null), summary = $state(null);
   let bootError = $state(null), expired = $state(false);
   let reloadKey = $state(0), pageReady = $state(true), announce = $state('');
-  let drawer = $state(false), menuBtn = $state(), h1 = $state();
+  let drawer = $state(false), menuBtn = $state(), h1 = $state();   // h1 = judul halaman di Header (fokus saat pindah tab)
   let lastFolder = null;
 
   // ---------------------------------------------------------------- masuk
@@ -132,15 +132,30 @@
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
     return $t(`tab.${r.tab}`);
   });
+  // baris kesegaran data di bawah kepala (U2 + pengganti "streaming · last event" referensi selama Kafka ditunda)
   const subtitle = $derived.by(() => {
     if (!isDataTab || !folder) return '';
-    if ($route.tab === 'tren') return $t('sub.trends');
+    if ($route.tab === 'tren') return $t('sub.trends', { n: num(folders.length, $lang) });
     const parts = [$t('sub.folder', { date: dLabel(folder, $lang) })];
     const rng = logRange(folderInfo?.range_start, folderInfo?.range_end, $lang);
     if (rng) parts.push($t('sub.contains', { range: rng }));
-    if (summary?.folder === folder) parts.push($t('sub.services', { n: summary.services.length }));
+    if (folderInfo?.derived_at) parts.push($t('sub.derived', { time: tWIB(folderInfo.derived_at, $lang) }));
     return parts.join(' · ');
   });
+  // baris status ringkas di bawah judul (gaya referensi DRD §12): jumlah layanan, error, warning, IP serangan
+  const status = $derived.by(() => {
+    if (!isDataTab || $route.tab === 'tren' || summary?.folder !== folder) return [];
+    const sv = $route.tab === 'layanan' ? summary.services.filter((x) => x.service === $route.service) : summary.services;
+    const sum = (k) => sv.reduce((a, x) => a + (x[k] || 0), 0);
+    const out = [];
+    if ($route.tab !== 'layanan') out.push({ tone: 'accent', n: num(summary.services.length, $lang), text: $t('status.services') });
+    else out.push({ tone: 'accent', n: num(sum('lines'), $lang), text: $t('status.lines') });
+    out.push({ tone: sum('err') ? 'err' : 'ok', n: num(sum('err'), $lang), text: $t('status.errors') });
+    out.push({ tone: sum('warn') ? 'warn' : 'ok', n: num(sum('warn'), $lang), text: $t('status.warnings') });
+    if ($route.tab !== 'layanan' && summary.attack_ip_count) out.push({ tone: 'err', n: num(summary.attack_ip_count, $lang), text: $t('status.attack_ips') });
+    return out;
+  });
+  const suffix = $derived(isDataTab && folder && $route.tab !== 'tren' ? dLabel(folder, $lang) : '');
   $effect(() => { document.title = screen === 'app' ? `${title} · ${APP_NAME}` : APP_NAME; });
   const sparse = $derived(isDataTab && $route.tab !== 'tren' && folderInfo && folderInfo.lines < SPARSE_LINES);
 
@@ -190,13 +205,15 @@
 {:else}
   <a class="skip" href="#main" onclick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>{$t('ui.skip')}</a>
   <aside id="side" class="side" class:open={drawer} aria-label={$t('nav.label')}>
-    <Sidebar route={{ ...$route, folder }} {summary} onpick={() => (drawer = false)} />
+    <Sidebar route={{ ...$route, folder }} {summary} ingest={meta?.ingest} onpick={() => (drawer = false)} />
   </aside>
   {#if drawer}<button class="backdrop" aria-label={$t('nav.close')} onclick={closeDrawer}></button>{/if}
 
   <div class="wrap" inert={drawer || undefined}>
     <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'tren' || !isDataTab}
-      onfolder={setFolder} onreload={reload} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn />
+      onfolder={setFolder} onreload={reload} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
+      {title} {suffix} {status} bind:titleEl={h1} />
+    {#if subtitle}<p class="sub"><span class="dot ok" aria-hidden="true"></span>{subtitle}</p>{/if}
 
     {#if $offline}
       <div class="band err" role="alert">
@@ -212,10 +229,6 @@
     {/if}
 
     <main id="main" tabindex="-1" aria-busy={!pageReady}>
-      <div class="head">
-        <h1 bind:this={h1} tabindex="-1">{title}</h1>
-        {#if subtitle}<p class="sub">{subtitle}</p>{/if}
-      </div>
       <p class="sr-only" aria-live="polite">{announce}</p>
 
       {#if sparse}
@@ -250,21 +263,15 @@
 <style>
   .skip {
     position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: 999px;
-    background: var(--accent); color: #04201c; font-weight: 600; text-decoration: none;
+    background: var(--accent); color: var(--brand-fg); font-weight: 600; text-decoration: none;
   }
   .skip:focus { top: 12px; }
   .side {
     position: fixed; inset: 0 auto 0 0; width: var(--side-w); background: var(--side-bg); border-right: 1px solid var(--line);
     display: flex; flex-direction: column; padding: 18px 12px; gap: 14px; z-index: 30;
   }
-  .wrap { margin-left: var(--side-w); padding: 0 34px 40px; max-width: calc(1560px + var(--side-w)); }
-  .head { margin: 14px 0 22px; }
-  h1 {
-    font-size: 2.375rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; text-transform: capitalize;
-    background: var(--title-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
-    width: fit-content; max-width: 100%; overflow-wrap: anywhere;
-  }
-  .sub { margin: 6px 0 0; color: var(--muted); font-size: 0.875rem; }
+  .wrap { margin-left: var(--side-w); padding: 0 28px 40px; max-width: calc(1560px + var(--side-w)); }
+  .sub { margin: 0 4px 16px; color: var(--muted); font-size: 0.78rem; text-align: right; }
   main:focus { outline: none; }
   .center { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
   .band {
@@ -284,7 +291,6 @@
     .side.open { transform: none; visibility: visible; transition: transform 0.15s, visibility 0s; }   /* terlihat seketika agar bisa difokus */
     .backdrop { display: block; position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, 0.45); border: 0; }
     .wrap { margin-left: 0; padding: 0 16px 32px; }
-    h1 { font-size: 1.75rem; }
-    .head { margin: 8px 0 16px; }
+    .sub { text-align: left; margin: -4px 0 14px; }
   }
 </style>

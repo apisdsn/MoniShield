@@ -64,8 +64,8 @@ async function login(page, user, pw) {
   cek('lencana Keamanan "14 IP"', /14 IP/.test(badge), badge.trim());
   const opts = await page.$$eval('#folder-select option', (o) => o.map((x) => x.textContent));
   cek('pemilih folder berisi 11 folder', opts.length === 11, opts[0]);
-  const sub = await page.textContent('.sub');
-  cek('subjudul memuat rentang waktu log', /berisi log .+WIB/.test(sub) && /\d+ layanan/.test(sub), sub);
+  const sub = await page.textContent('.sub'), st = await page.textContent('header .status');
+  cek('subjudul memuat rentang waktu log; baris status memuat jumlah layanan', /berisi log .+WIB/.test(sub) && /\d+\s+layanan/.test(st), `${sub} | ${st}`);
   cek('folder ada di alamat', /folder=2026-10-06/.test(page.url()), page.url());
   await page.click('aside a[href*="#/overview"]');
   await page.waitForSelector('.kpis .kpi');

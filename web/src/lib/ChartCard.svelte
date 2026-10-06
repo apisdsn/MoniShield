@@ -44,7 +44,7 @@
    * tooltipTitle(i): baris judul tooltip (mis. IP + pemilik). options: digabung ke opsi Chart.js.
    */
   let { title, type = 'bar', labels = [], datasets = [], wide = false, timeAxis = false, fmtV = null, tooltipTitle = null,
-        options = {}, info = null, valueLabel = null, actions = null } = $props();
+        options = {}, info = null, valueLabel = null, actions = null, chip = null } = $props();
 
   let canvas = $state();
   let asTable = $state(false);
@@ -137,6 +137,7 @@
     <header>
       <h2>{title}{#if info}<InfoTip text={info} />{/if}</h2>
       <div class="acts">
+        {#if chip}<span class="chip">{chip}</span>{/if}
         {#if actions}{@render actions()}{/if}
         <button class="btn sm" aria-pressed={asTable} onclick={() => (asTable = !asTable)}>{asTable ? $t('chart.as_chart') : $t('chart.as_table')}</button>
       </div>
