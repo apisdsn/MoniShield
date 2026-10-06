@@ -99,11 +99,41 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | Tanpa nginx: catatan "Analisis ketersediaan memakai log ingress nginx …" | DRD §6.6 | skrip (28 Sep) | ☑ |
 | 8 kombinasi bahasa × tema × lebar (kedua halaman) | U1–U3 | skrip | ☑ |
 
+## Pod (inv. §2.7, DRD §3.7) — Tahap 17 ☑
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| 5 KPI sama dengan lama; label "Pod dengan retry" (bukan "… retry 502") + keterangan (i) | inv. §2.7, B10 | `tools/uji_tahap17.cjs` (06 Okt, 29 Sep, 28 Sep) | ☑ |
+| Catatan "Nama pod diambil dari nama file log …" | inv. §2.7 | lihat | ☑ |
+| 2 chart: error per pod (15), sebaran request per pod (IP) (15) — data sama | inv. §2.7 | skrip | ☑ |
+| Kesehatan per pod: baris, error, warning, ukuran sama; status "Rusak" untuk file rusak (06 Okt: 3; lama "Ada Log"), status lain sama | inv. §2.7, B05 | skrip | ☑ |
+| Sebaran traffic per pod backend (porsi, 5xx, retry) dan restart — sama | inv. §2.7 | skrip | ☑ |
+
+## Bisnis (inv. §2.8, DRD §3.8) — Tahap 17 ☑
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| 11 KPI + perubahan vs folder sebelumnya sama dengan lama; 29 Sep: 12 / 108 / 35 / 12 / 314 / 18 / 55 / 813 / 32 / 389 | inv. §2.8 | skrip (29 Sep, 06 Okt, 28 Sep) | ☑ |
+| Log simpel-loop / report / appsmanager tidak ada → KPI "–" + "Log … tidak ada di folder ini", bukan 0 | DRD U16 | skrip (30 Sep: 9 KPI "–") | ☑ |
+| 5 chart (ringkasan, email, top aktivitas, login per jam, PDF per template) — data sama; label metrik dari kamus | inv. §2.8, DRD §6.3 | skrip | ☑ |
+| Tabel aktivitas (20 teratas; seri di batas boleh beda pilihan, aturan E2) dan PDF per template sama | inv. §2.8 | skrip | ☑ |
+
+## Pelacakan Request (inv. §2.9, DRD §3.9) — Tahap 17 ☑
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| KPI 1–3 sama dengan lama; 29 Sep: 60.665 / 22.638 / 37,3 % | inv. §2.9 | skrip (29 Sep, 06 Okt) | ☑ |
+| KPI gagal / IP / lambat dari SEMUA jejak (29 Sep: 3.245 → 3.479, 150 → 176, lambat 15 → 24) | TRD §4.4 butir 1, 9 | skrip (= API) | ☑ |
+| Catatan "… X % event tidak cocok …" sama dengan lama | inv. §2.9 | skrip | ☑ |
+| Tabel jejak: 300 pertama + "Menampilkan 300 dari 550"; setelah dimuat semua, setiap baris lama ada | inv. §2.9, B04 | skrip | ☑ |
+| URL jejak tampil sebagai teks (tanpa eksekusi), dipotong 200, UA di bawahnya | inv. §2.9 | skrip + lihat | ☑ |
+| Tanpa kecocokan (27 Sep) atau tanpa simpel-loop (30 Sep): catatan "Pelacakan butuh log om-be-simpel-loop dan ingress nginx …" (ASUMSI; lama 27 Sep menampilkan KPI nol) | DRD §6.6 | skrip | ☑ |
+| 8 kombinasi bahasa × tema × lebar (ketiga halaman) | U1–U3 | skrip | ☑ |
+
 ## Halaman berikutnya
 
 | Halaman | Acuan | Tahap |
 |---|---|:-:|
-| Pod, Bisnis, Pelacakan Request | inv. §2.7–§2.9, DRD §3.7–§3.9 | 17 |
 | Kelola user, Ingest & impor | DRD §3.11 | 18 |
 | Peta IP / Command Center | inv. §2.2, DRD §3.2, §7, §12 | 20, 22 |
 

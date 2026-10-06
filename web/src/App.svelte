@@ -18,6 +18,9 @@
   import Login from './pages/Login.svelte';
   import ChangePassword from './pages/ChangePassword.svelte';
   import Placeholder from './pages/Placeholder.svelte';
+  import Pods from './pages/Pods.svelte';
+  import Business from './pages/Business.svelte';
+  import Tracing from './pages/Tracing.svelte';
   import Overview from './pages/Overview.svelte';
   import Service from './pages/Service.svelte';
   import Trends from './pages/Trends.svelte';
@@ -268,6 +271,12 @@
             <Availability {folder} {reloadKey} {onready} />
           {:else if $route.tab === 'tren'}
             <Trends {reloadKey} {onready} />
+          {:else if $route.tab === 'pod'}
+            <Pods {folder} {summary} {reloadKey} {onready} />
+          {:else if $route.tab === 'bisnis'}
+            <Business {folder} {summary} {reloadKey} {onready} />
+          {:else if $route.tab === 'pelacakan'}
+            <Tracing {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} />
           {:else if $route.tab === 'layanan'}
             <Service {folder} service={$route.service} {reloadKey} {onready} />
           {:else}
