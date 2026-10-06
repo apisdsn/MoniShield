@@ -1135,6 +1135,7 @@ realtime. Yang terlihat di referensi dan dampaknya ke dokumen ini:
 | Penanda **"streaming · last event 2s ago"** dan tombol **Live** | Tidak ada pembaruan otomatis (A7, §6.8) | **Ditunda**: folder log tetap sumber utama (keputusan 2026-10-06); sementara diganti "data folder 6 Okt · di-ingest 17.51 WIB" |
 
 Ini menyimpang dari prinsip "tampilan lama dipertahankan" di awal dokumen, jadi butuh persetujuan pemilik (TRD R6).
-**ASUMSI**: gaya baru diterapkan pada token dan komponen bersama (satu tahap, sebelum halaman data dibangun ulang),
-susunan dan isi tiap halaman tetap menurut §3; Command Center menjadi halaman ke-11, paling atas di grup Analisis.
+**Diputuskan pemilik 2026-10-06**: gaya baru untuk **seluruh dashboard** (token dan komponen bersama; susunan dan isi
+tiap halaman tetap menurut §3). **Overview tetap**; Command Center adalah **layar peta dunia**. **ASUMSI**: tab "Peta IP"
+digabung ke Command Center di posisi yang sama di sidebar.
 

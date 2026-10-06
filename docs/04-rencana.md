@@ -42,7 +42,7 @@ belum terpasang (dipasang di Tahap 2); **disk bebas hanya 17 GB** (berpengaruh k
 | 10 | API: kerangka, login, peran, ingest dalam proses | 8 | — | ☑ 2026-10-06 |
 | 11 | API data semua halaman + uji kesetaraan E2 | 10 | X6 | ☑ 2026-10-06 |
 | 12 | Kerangka tampilan dan komponen bersama | 1, 11 | Q6, Q7, Q8 | ◐ 2026-10-06 sebagian: tinggal uji di ponsel sungguhan |
-| 12a | Gaya mengikuti referensi desain pemilik (token, ikon, kartu perhatian) | 12 | **R6** | ☐ baru |
+| 12a | Gaya mengikuti referensi desain pemilik (token, ikon, kartu perhatian) untuk seluruh dashboard | 12 | — (R6 terjawab) | ☐ baru |
 | 13 | Halaman Layanan dan Overview | 12 | — | ☐ |
 | 14 | Halaman Tren | 12 | Q4 | ☐ |
 | 15 | Halaman Keamanan | 12 | — | ☐ |
@@ -52,7 +52,7 @@ belum terpasang (dipasang di Tahap 2); **disk bebas hanya 17 GB** (berpengaruh k
 | 19 | Impor dari awalan S3 | 10, 18 | X2, X3 | ☐ |
 | 20 | Peta IP | 7, 13 | Q3, Q5, X7 | ☐ |
 | 21 | Deteksi serangan: aturan OWASP CRS, kategori CAPEC | 8, 15 | **S1** | ☐ |
-| 22 | Command Center (halaman) | 12a, 13, 15, 16, 20 | R5 | ☐ baru |
+| 22 | Command Center: layar peta dunia + KPI + yang perlu perhatian (menyerap tab Peta IP) | 12a, 13, 15, 16, 20 | — (R5 terjawab; ASUMSI penggabungan Peta IP) | ☐ baru |
 | 23 | Aliran realtime dari Kafka ke Command Center | 22 | R1, R2, R4 | ⏸ ditunda: Kafka untuk ke depan (keputusan 2026-10-06) |
 
 Setelah Tahap 21: `migrate/07-docker-compose.md` (bergantung X2, X3, X8; X2 belum diketahui pemilik dan
@@ -64,7 +64,7 @@ harus diperiksa di server: proxy/HTTPS yang ada, akses keluar, disk, memori) dan
 |---|---|---|
 
 
-| **R5, R6** Command Center (permintaan 2026-10-06, TRD §11.2, §12): halaman baru atau menggantikan Overview; gaya referensi untuk seluruh dashboard atau hanya Command Center. **Sudah diputuskan**: folder log tetap sumber utama pembaruan, Kafka hanya untuk ke depan (R3; R1, R2, R4 ditunda) | Halaman baru di atas Overview; gaya baru untuk seluruh dashboard | Tahap 12a dan 22 saja |
+| **Command Center** (TRD §11.2, §12) — **diputuskan 2026-10-06**: folder log tetap sumber utama, Kafka ditunda (R3); Overview tetap, Command Center = layar peta dunia (R5); gaya referensi untuk seluruh dashboard (R6). Yang masih ASUMSI: tab "Peta IP" digabung ke Command Center | Satu halaman peta saja; sidebar "Peta IP" menjadi "Command Center" di posisi yang sama | Tahap 20 dan 22: bila Peta IP tetap terpisah, Command Center memakai ulang komponen peta yang sama (tambahan kecil) |
 | **S1** deteksi serangan: (a) cara "di skrip" atau juga "di ingress"? (b) tampilan lama diganti atau berdampingan? (c) tingkat paranoia CRS? | (a) di skrip saja; cara di ingress diusulkan ke pengelola klaster. (b) Kategori CAPEC **menggantikan** kategori lama di tampilan; klasifikasi lama tetap disimpan untuk uji. (c) Tingkat paranoia 1 (paling sedikit salah-tuduh) | Tahap 21 saja. Bila ingress kelak menjalankan CRS, dashboard perlu parser log audit ModSecurity/Coraza: tahap baru |
 
 Semua pertanyaan lain hanya mengubah nilai bawaan atau satu komponen.
@@ -752,7 +752,7 @@ tidak ada di log, jadi tidak diperiksa. Ini bukan pengganti WAF.
 
 **Tujuan.** Permintaan pemilik 2026-10-06 (DRD §12): tampilan seperti gambar referensi, diterapkan pada token dan
 komponen bersama **sebelum** halaman data dibangun, supaya Tahap 13–20 tidak ditata dua kali.
-⚠ **Bergantung R6** (seluruh dashboard atau hanya Command Center).
+R6 terjawab: berlaku untuk **seluruh dashboard**.
 
 **File diubah**: `web/src/theme.css`, `lib/Sidebar.svelte` (ikon SVG dibundel), `lib/Kpi.svelte` (ikon + badge),
 `lib/Alert.svelte` → kartu perhatian bernomor dengan tautan, `App.svelte` (baris status ringkas di bawah judul).
@@ -764,8 +764,9 @@ kontras token baru dihitung (DRD §5.6); `grep` URL di `web/dist` tetap tanpa do
 
 ## Tahap 22 — Command Center (halaman)
 
-**Tujuan.** Satu layar berisi peta, KPI utama, kartu "yang perlu perhatian", dan ringkasan tiap halaman, memakai
-endpoint dan komponen yang sudah ada (TRD §12). Datanya dari folder log (sumber utama); diperbarui saat folder
+**Tujuan.** Layar **peta dunia** (R5): peta asal IP → server sebagai isi utama, dikelilingi KPI utama, kartu "yang
+perlu perhatian", dan pemilih modul; memakai endpoint dan komponen yang sudah ada (TRD §12). Overview tetap halaman
+terpisah. **ASUMSI**: menyerap tab "Peta IP" (Tahap 20 membangun komponen peta, tahap ini menjadikannya Command Center). Datanya dari folder log (sumber utama); diperbarui saat folder
 baru di-ingest atau tombol "Muat ulang", tanpa aliran realtime (Kafka ditunda).
 ⚠ **Bergantung R5**.
 

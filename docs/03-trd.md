@@ -1461,7 +1461,7 @@ Pertanyaan DRD Q3, Q6, Q7 masih terbuka; skema dan API di atas tidak bergantung 
 di satu layar, **realtime**) karena data kelak dialirkan lewat **Kafka**. Ini mengubah K1/A7 (ingest harian, tanpa
 pembaruan otomatis); usulan dan asumsinya di §12. **Pemilik menjawab (2026-10-06): Kafka hanya untuk ke depan;
 pembaruan tetap lewat folder log sebagai sumber utama.** Jadi R1, R2, R4 baru perlu dijawab saat aliran Kafka
-benar-benar direncanakan; yang menentukan sekarang hanya R5 dan R6. Pertanyaan:
+benar-benar direncanakan. R5 dan R6 sudah dijawab (lihat tabel). Pertanyaan:
 
 | # | Pertanyaan | Asumsi sementara |
 |--:|---|---|
@@ -1469,8 +1469,8 @@ benar-benar direncanakan; yang menentukan sekarang hanya R5 dan R6. Pertanyaan:
 | R2 | **Seberapa realtime**: angka di layar boleh terlambat berapa (detik/menit)? | ≤ 10 detik |
 | R3 | ~~Hubungan dengan folder harian?~~ **Terjawab 2026-10-06: folder log tetap sumber utama pembaruan**; Kafka hanya rencana ke depan | — |
 | R4 | **Akses Kafka**: alamat broker, autentikasi (SASL/TLS), bisa dijangkau dari server dashboard? | Belum diketahui; diperiksa saat deploy (seperti X2) |
-| R5 | **Command Center menggantikan Overview** atau halaman baru di samping 10 halaman yang ada? Untuk siapa (layar dinding/NOC atau pengguna biasa)? | Halaman baru, paling atas di sidebar; Overview tetap |
-| R6 | **Gaya tampilan** mengikuti gambar referensi untuk **seluruh** dashboard atau hanya Command Center? | Seluruh dashboard (token dan komponen bersama), susunan isi tiap halaman tetap |
+| R5 | ~~Command Center menggantikan Overview?~~ **Terjawab 2026-10-06: Overview tetap ada; Command Center adalah layar peta dunia** (peta asal IP → server sebagai isi utama, dengan KPI dan "yang perlu perhatian" di sekelilingnya). **ASUMSI**: tab "Peta IP" digabung ke Command Center (satu komponen peta, tidak ada dua halaman peta) | — |
+| R6 | ~~Gaya referensi untuk seluruh dashboard?~~ **Terjawab 2026-10-06: ya, seluruh dashboard** | — |
 
 ---
 
