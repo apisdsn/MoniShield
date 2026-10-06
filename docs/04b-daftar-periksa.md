@@ -158,6 +158,19 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | Kredensial sementara: tiga kolom sandi tanpa autocomplete, keterangan "memori server saja", bentuk salah ditolak, hapus; nilai tidak pernah tampil | DRD §3.11 | skrip | ☑ |
 | 8 kombinasi bahasa × tema × lebar (kedua layar) | U1–U3 | skrip | ☑ |
 
+## Command Center (DRD §12, TRD §12) — Tahap 22 ☑
+
+Menyerap tab Peta IP (ASUMSI DRD §12) di alamat yang sama (`#/peta?modul=`); bagian "Peta IP" di bawah tetap
+berlaku untuk peta dan tabel alurnya.
+
+| Butir | Acuan | Cara | Hasil |
+|---|---|---|:-:|
+| 6 KPI utama (request HTTP, 5xx, error semua layanan, error koneksi upstream, IP sumber serangan, IP login gagal) = angka halaman asalnya | TRD §12 | `pytest tests/test_api.py -k command` | ☑ |
+| Kartu "Yang perlu perhatian" bernomor: serangan, error koneksi upstream, 5xx, login gagal, file rusak; merah dulu; tautan "Buka …" ke halaman terkait | DRD §12 | uji API + lihat (06 Okt: 5 butir) | ☑ |
+| Peta selebar dan setinggi layar (permintaan pemilik), kartu perhatian di bawah peta; pemilih modul + 6 angka peta di atasnya | permintaan pemilik 2026-10-06 | lihat (1440 px: peta 1106 × 600 px) | ☑ |
+| Tanpa nginx (28 Sep): KPI request/5xx "–" + "Tidak ada log ingress nginx"; kartu perhatian tetap; catatan peta | DRD §6.6 | lihat | ☑ |
+| Dua bahasa, tanpa gulir mendatar di 390 px | U1–U3 | lihat + `uji_tahap20.cjs` | ☑ |
+
 ## Keamanan: deteksi OWASP CRS + CAPEC (TRD §4.6) — Tahap 21 ☑
 
 Tampilan bawaan (`S4_ATTACK_RULES=crs`). Bagian "Keamanan" di atas tetap berlaku untuk tampilan aturan lama
@@ -183,7 +196,7 @@ Tampilan bawaan (`S4_ATTACK_RULES=crs`). Bagian "Keamanan" di atas tetap berlaku
 | 13 lapisan §7.3; titik server di Jakarta berlabel; label lokasi terbesar nama + "N IP · N req"; kelompok < 40 px tanpa angka (keputusan pemilik) | DRD §7.3, §7.5 | skrip + lihat | ☑ |
 | Label negara → provinsi (zoom ≥ 4) → kabupaten (zoom ≥ 7) tanpa bertumpuk; kelompok pecah di zoom 8 | DRD §7.3, §7.5 | skrip | ☑ |
 | Roda mouse menggulir halaman + petunjuk "Tahan Ctrl…"; Ctrl + roda memperbesar; keyboard panah/+/−/0/Esc | DRD §7.6 | skrip | ☑ |
-| 390 px sentuh: 4:3 (min. 300 px), tombol 44 px, satu jari tidak menggeser peta, dua jari menggeser; tombol layar penuh | DRD §7.6, §8.2 | skrip (CDP sentuh) | ☑ |
+| 390 px sentuh: peta setinggi layar di Command Center (Tahap 22; sebelumnya 4:3), tombol 44 px, satu jari tidak menggeser peta, dua jari menggeser; tombol layar penuh | DRD §7.6, §8.2 | skrip (CDP sentuh) | ☑ |
 | Tooltip (lokasi, IP, request, modul) → "Lihat di tabel" mengisi filter tabel alur; Esc menutup | DRD §7.7 | skrip | ☑ |
 | Semua permintaan ke asal yang sama; internet diputus → peta, label, titik tetap tampil; atribusi MaxMind · GeoNames · Natural Earth selalu terlihat | DRD §7.2, §7.8 | skrip | ☑ |
 | Ganti tema/bahasa: warna dan nama negara berganti tanpa kehilangan posisi | DRD §7.1 | skrip | ☑ |
@@ -195,7 +208,7 @@ Tampilan bawaan (`S4_ATTACK_RULES=crs`). Bagian "Keamanan" di atas tetap berlaku
 
 | Halaman | Acuan | Tahap |
 |---|---|:-:|
-| Command Center (peta dunia, realtime) | DRD §12 | 22 |
+| Aliran realtime Command Center (Kafka, ditunda) | TRD §12 | 23 |
 
 Tiap tahap menambah bagiannya di sini dengan bentuk yang sama, dan skrip `tools/uji_tahapNN.cjs` bila halamannya
 punya padanan di dashboard lama.

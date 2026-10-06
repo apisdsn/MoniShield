@@ -38,7 +38,7 @@ const sama = (a, b) => Math.abs(a.lng - b.lng) < 1e-6 && Math.abs(a.lat - b.lat)
   const api = (u) => p.evaluate((u) => fetch(u).then((r) => r.json()), u);
 
   // ------------------------------------------------------------------ KPI + kalimat + titik server + label, berdampingan dengan lama
-  const kb = await p.$$eval('main .kpi', (e) => e.map((x) => [x.querySelector('.l').textContent.trim(), x.querySelector('.v').textContent.trim()]));
+  const kb = await p.$$eval('main .mapstats div', (e) => e.map((x) => [x.querySelector('dt').textContent.trim(), x.querySelector('dd').textContent.trim()]));   // Tahap 22: angka peta di ringkasan Command Center
   const lctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await lctx.route(/^https?:\/\//, (r) => r.abort()); await lctx.addInitScript(CHART_STUB);
   const lp = await lctx.newPage(); await lp.goto(LAMA);
@@ -84,7 +84,7 @@ const sama = (a, b) => Math.abs(a.lng - b.lng) < 1e-6 && Math.abs(a.lat - b.lat)
   await p.waitForLoadState('networkidle'); await siapPeta(p);
   const m1 = await M(p);
   const d1 = await api('/api/folders/2026-10-06/map?module=om-be-simpel-loop');
-  const kb1 = await p.$$eval('main .kpi .v', (e) => e.map((x) => x.textContent.trim()));
+  const kb1 = await p.$$eval('main .mapstats dd', (e) => e.map((x) => x.textContent.trim()));
   const modTabel = await p.$$eval('main section.card:has(table) tbody tr', (rs) => [...new Set(rs.map((r) => r.cells[2]?.innerText.trim()))]);
   const nTitik = await p.evaluate(() => { const m = document.querySelector('.mapwrap .map').__map; return m.querySourceFeatures('loc').filter((f) => !f.properties.cluster).length; });
   cek('pilih modul om-be-simpel-loop: KPI, tabel (hanya modul itu), dan data titik berganti; posisi dan zoom peta tetap',
@@ -237,8 +237,8 @@ const sama = (a, b) => Math.abs(a.lng - b.lng) < 1e-6 && Math.abs(a.lat - b.lat)
   const s1 = await M(mp);
   await geser([[r.x - 30, r.y], [r.x + 30, r.y]], [[r.x + 60, r.y], [r.x + 120, r.y]]);
   const s2 = await M(mp);
-  cek('390 px sentuh: peta 4:3 dengan tinggi minimum 300 px, tombol 44 px, satu jari tidak menggeser peta, dua jari menggeser; tanpa gulir mendatar',
-    Math.abs(ukur[1] - Math.max(0.75 * ukur[0], 300)) < 2 && ukur[2] === '44px' && /pan-x pan-y/.test(ukur[3]) && sama(s0, s1) && Math.abs(s2.lng - s1.lng) > 0.3 && ukur[4] <= 390,
+  cek('390 px sentuh: peta Command Center setinggi layar (100dvh − 220 px, min. 360 px; Tahap 22), tombol 44 px, tombol 44 px, satu jari tidak menggeser peta, dua jari menggeser; tanpa gulir mendatar',
+    Math.abs(ukur[1] - Math.max(844 - 220, 360)) < 2 && ukur[2] === '44px' && /pan-x pan-y/.test(ukur[3]) && sama(s0, s1) && Math.abs(s2.lng - s1.lng) > 0.3 && ukur[4] <= 390,
     `${Math.round(ukur[0])}×${Math.round(ukur[1])}, tombol ${ukur[2]}, touch-action ${ukur[3]}, lng ${s0.lng.toFixed(2)}/${s1.lng.toFixed(2)}/${s2.lng.toFixed(2)}`);
   await mp.screenshot({ path: `${OUT}/t20-peta-390.png`, fullPage: true });
   await mctx.close();
@@ -249,7 +249,7 @@ const sama = (a, b) => Math.abs(a.lng - b.lng) < 1e-6 && Math.abs(a.lat - b.lat)
     await p.evaluate(([l, th]) => { localStorage.setItem('lang', l); localStorage.setItem('theme', th); }, [lang, theme]);
     await p.goto(`${BASE}/#/peta?folder=2026-10-06`); await p.reload(); await p.waitForSelector('main .kpi'); await siapPeta(p);
     const st = await p.evaluate(() => [document.documentElement.scrollWidth, innerWidth, document.documentElement.lang, document.documentElement.dataset.theme,
-      [...document.querySelectorAll('main h2, main .kpi .l, main .legend, main th, main .note')].map((x) => x.textContent.trim()).join(' | ')]);
+      [...document.querySelectorAll('main h2, main .kpi .l, main .mapstats dt, main .legend, main th, main .note')].map((x) => x.textContent.trim()).join(' | ')]);
     const sisa = lang === 'en' ? (st[4].match(/\b(Peta|Lokasi|Negara|Modul|asal|tujuan|dari luar|Jaringan|perkiraan)\b/g) || []) : [];
     cek(`peta ${lang}/${theme}/${w}px: tanpa gulir mendatar, teks sesuai bahasa`, st[0] <= st[1] && st[2] === lang && st[3] === theme && !sisa.length,
       `lebar ${st[0]}/${st[1]}${sisa.length ? ', masih ID: ' + sisa.slice(0, 4).join(', ') : ''}`);

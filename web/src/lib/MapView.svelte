@@ -18,7 +18,7 @@
   import { num } from '../format.js';
 
   /** points: [{lat, lon, city, region, cc, ips, requests, modules: {modul: n}}] (urut naik); server: {ip, lat, lon, city, cc} */
-  let { points = [], server = null, preset = $bindable('id'), onpick = null, label = '', compact = false } = $props();
+  let { points = [], server = null, preset = $bindable('id'), onpick = null, label = '', compact = false, tall = false } = $props();   // tall: setinggi layar (Command Center)
   let box = $state(), wrap = $state(), map = null, ml = null, ready = $state(false), failed = $state(false);
   let tip = $state(null), full = $state(false);   // tip: {x, y, kind, ...}
 
@@ -232,7 +232,7 @@
 
 <svelte:window onkeydown={(e) => full && e.key === 'Escape' && toggleFull()} />
 
-<div class="mapwrap" class:compact class:full bind:this={wrap}>
+<div class="mapwrap" class:compact class:tall class:full bind:this={wrap}>
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="map" bind:this={box} role="application" aria-label={label} onkeydown={onkey}></div>
   {#if failed}<p class="fail muted">{$t('map.no_webgl')}</p>{/if}
@@ -292,9 +292,11 @@
   .sm { min-height: 32px; margin-top: 8px; padding: 0.3rem 0.8rem; font-size: 0.75rem; }
   .fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; font-size: 0.875rem; }
   .compact { aspect-ratio: 2.4 / 1; }
+  .mapwrap.tall { aspect-ratio: auto; height: calc(100vh - 300px); height: calc(100dvh - 300px); min-height: 440px; }
   .mapwrap :global(.maplibregl-cooperative-gesture-screen) { font-family: inherit; font-size: 1rem; background: rgba(0, 0, 0, 0.45); }
   @media (max-width: 900px) {
     .mapwrap { aspect-ratio: 4 / 3; min-height: 300px; }
+    .mapwrap.tall { aspect-ratio: auto; height: calc(100dvh - 220px); min-height: 360px; }
     .mb { width: 44px; height: 44px; }
     .fs { display: grid; }
     .mapwrap.full { position: fixed; inset: 0; z-index: 80; aspect-ratio: auto; border-radius: 0; min-height: 0; }

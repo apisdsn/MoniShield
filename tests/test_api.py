@@ -491,6 +491,26 @@ def test_modul_peta_menyaring_alur(user):
     assert sum(user.get(f'/api/folders/{B}/map', params=dict(module=x)).json()['kpi']['requests'] for x in m['modules']) == m['kpi']['requests']
 
 
+def test_command_center_menyusun_angka_halaman_lain(user):
+    """Tahap 22: Command Center tidak menghitung sendiri; tiap angka sama dengan halaman asalnya."""
+    c = user.get(f'/api/folders/{B}/command').json()
+    sec, av = user.get(f'/api/folders/{B}/security').json(), user.get(f'/api/folders/{B}/availability').json()
+    rc, peta = user.get(f'/api/folders/{B}/rootcause').json(), user.get(f'/api/folders/{B}/map').json()
+    assert c['scheme'] == sec['scheme'] and c['map'] == peta
+    k = c['kpi']
+    assert (k['requests'], k['n5xx'], k['upstream_errors']) == (av['kpi']['requests'], av['kpi']['n5xx'], rc['upstream_errors_total'])
+    assert (k['attack_ips'], k['login_fail_ips']) == (sec['kpi']['attack_ips'], sec['kpi']['login_fail_ips'])
+    per = {a['key']: a for a in c['attention']}
+    assert [a['tone'] for a in c['attention']] == sorted((a['tone'] for a in c['attention']), key=lambda x: x != 'err')   # merah dulu
+    if sec['kpi']['critical_hits']: assert per['attack_critical']['n'] == sec['kpi']['critical_hits'] and per['attack_critical']['tab'] == 'keamanan'
+    if k['n5xx']: assert per['n5xx']['n'] == k['n5xx'] and per['n5xx']['tab'] == 'ketersediaan'
+    if k['login_fail_ips']: assert per['login']['resets'] == sec['kpi']['resets']
+    assert all(set(a) >= {'key', 'tone', 'tab', 'n'} and a['n'] > 0 for a in c['attention'])
+    satu = user.get(f'/api/folders/{B}/command', params=dict(module=peta['modules'][0])).json()
+    assert satu['map']['module'] == peta['modules'][0] and satu['kpi'] == k                                       # modul hanya menyaring peta
+    assert user.get(f'/api/folders/{B}/command?module=tidak-ada').status_code == 404
+
+
 def test_endpoint_data_hanya_get(user):
     for u in (f'/api/folders/{B}/security', f'/api/folders/{B}/tables/c401', '/api/trends'):
         assert user.post(u, json={}, headers=X).status_code == 405

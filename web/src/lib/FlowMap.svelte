@@ -1,6 +1,8 @@
 <!-- Kartu "Peta IP Asal → IP Tujuan" + legenda + tabel alur + catatan (DRD §3.2, §7; inv. §2.2). Dipakai halaman
      Peta IP dan halaman layanan (terlipat). `data` = respons GET /api/folders/{folder}/map[?module=…]. Tabel alur
-     adalah pengganti peta (§7.9): tautan "Lewati peta" melompat ke sana; "Lihat di tabel" mengisi filternya. -->
+     adalah pengganti peta (§7.9): tautan "Lewati peta" melompat ke sana; "Lihat di tabel" mengisi filternya.
+     `aside` (Command Center, Tahap 22): kartu yang tampil di samping peta pada layar lebar, di bawahnya pada layar sempit;
+     `tall`: peta setinggi layar dan `aside` selalu di bawah peta (permintaan pemilik: peta Command Center selebar layar). -->
 <script>
   import { tick } from 'svelte';
   import { lang, t, countryName } from '../i18n.js';
@@ -9,7 +11,7 @@
   import DataTable from './DataTable.svelte';
   import Note from './Note.svelte';
 
-  let { data, folder, module = null, server = null } = $props();
+  let { data, folder, module = null, server = null, aside = null, tall = false } = $props();
   let preset = $state('id'), search = $state(null), seq = 0;
   const uid = `fm-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -24,6 +26,7 @@
   }
 </script>
 
+{#snippet mapCard()}
 <section class="card wide fm" aria-labelledby="{uid}-h">
   <header>
     <h2 id="{uid}-h">{$t('map.title')}</h2>
@@ -33,7 +36,7 @@
     </div>
   </header>
   <a class="skip" href="#{uid}-flows">{$t('map.skip')}</a>
-  <MapView points={data.points} {server} bind:preset onpick={pick} label={$t('map.aria')} />
+  <MapView points={data.points} {server} {tall} bind:preset onpick={pick} label={$t('map.aria')} />
   <div class="legend">
     <span><i class="dot loc"></i>{$t('map.lg.loc')}</span>
     <span><i class="dot srv"></i>{$t('map.lg.srv')}</span>
@@ -41,6 +44,8 @@
     <span class="muted">{$t('map.lg.sentence', { abroad: num(data.abroad_requests, $lang), unloc: num(data.unlocated_requests, $lang) })}</span>
   </div>
 </section>
+{/snippet}
+{#if aside}<div class="wide-slot side-row" class:stack={tall}>{@render mapCard()}{@render aside()}</div>{:else}{@render mapCard()}{/if}
 <div id="{uid}-flows" class="wide-slot">
   <DataTable title={$t('map.flows')} {folder} table="flows" params={module ? { module } : {}} initial={data.tables.flows} {search} columns={[
     { key: 'src', label: $t('map.col.src'), type: 'ip', sort: true },
@@ -70,5 +75,8 @@
   .dot.cl { width: 16px; height: 16px; background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 2px var(--accent); }
   .wide-slot { grid-column: 1 / -1; min-width: 0; }
   .small { font-size: 0.75rem; }
+  .side-row { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .side-row > :global(.card) { grid-column: auto; margin-bottom: 0; }
+  @media (min-width: 1200px) { .side-row:not(.stack) { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); } }
   @media (max-width: 900px) { .seg button { min-height: 38px; } }
 </style>

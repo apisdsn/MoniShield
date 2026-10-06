@@ -18,7 +18,7 @@
   import Pods from './pages/Pods.svelte';
   import Business from './pages/Business.svelte';
   import Tracing from './pages/Tracing.svelte';
-  import IpMap from './pages/IpMap.svelte';
+  import CommandCenter from './pages/CommandCenter.svelte';
   import AdminUsers from './pages/AdminUsers.svelte';
   import AdminIngest from './pages/AdminIngest.svelte';
   import Overview from './pages/Overview.svelte';
@@ -282,7 +282,7 @@
           {:else if $route.tab === 'tren'}
             <Trends {reloadKey} {onready} />
           {:else if $route.tab === 'peta'}
-            <IpMap {folder} server={meta?.server} {reloadKey} {onready} />
+            <CommandCenter {folder} server={meta?.server} {reloadKey} {onready} />
           {:else if $route.tab === 'pod'}
             <Pods {folder} {summary} {reloadKey} {onready} />
           {:else if $route.tab === 'bisnis'}

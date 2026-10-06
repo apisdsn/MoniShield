@@ -3,14 +3,78 @@
 Dashboard log SIMPeL4: FastAPI + DuckDB di server, Svelte di browser. Rancangan lengkap ada di `docs/`
 (PRD, DRD, TRD, rencana); folder log lama di folder induk tetap menjadi sumber utama.
 
-## Menjalankan
+## Cara menjalankan
+
+### 1. Prasyarat
+
+| Perangkat | Versi | Untuk |
+|---|---|---|
+| Python | 3.12 atau lebih baru | server (FastAPI + DuckDB) |
+| Node.js + npm | 20.19 atau lebih baru (diuji 22) | membangun tampilan (Svelte/Vite); tidak dibutuhkan saat server berjalan |
+| Folder log | `YYYY-MM-DD/<namespace>/<layanan>/…` | data; bawaan: folder induk `v2/` (mis. `../2026-10-06/`) |
+
+### 2. Siapkan konfigurasi
 
 ```sh
-cp .env.example .env && chmod 600 .env   # isi rahasia: S4_JWT_SECRET, S4_ADMIN_PASSWORD, dll.
-./run.sh                                  # memasang .venv bila belum ada, membangun tampilan, lalu `python -m simpel4 serve`
+cd v2
+cp .env.example .env && chmod 600 .env
 ```
 
-Perintah lain: `python -m simpel4 status`, `ingest`, `derive`, `forget`, `user`, `refdata`, `import` (lihat `--help`).
+Isi minimal di `.env`:
+
+| Variabel | Isi |
+|---|---|
+| `S4_JWT_SECRET` | rahasia acak ≥ 32 karakter, mis. hasil `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `S4_ADMIN_PASSWORD` | sandi admin pertama (≥ 12 karakter); wajib diganti saat masuk pertama |
+| `S4_COOKIE_SECURE` | `true` di server ber-HTTPS; **`false` hanya untuk mencoba di komputer sendiri** lewat `http://` |
+| `S4_LOG_DIR` | folder log, bila bukan folder induk `v2/` |
+| `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY` | opsional: lokasi IP di peta (GeoLite2, gratis). Tanpa ini, atau dengan `S4_OFFLINE=true`, peta tetap jalan tanpa lokasi baru |
+
+Pilihan lain (port, impor S3, aturan deteksi serangan, PostgreSQL untuk akun) dijelaskan di `.env.example`.
+
+### 3. Jalankan
+
+Cara singkat (memasang `.venv` bila belum ada, membangun tampilan bila sumbernya berubah, lalu menyalakan server):
+
+```sh
+./run.sh
+```
+
+Cara manual, langkah demi langkah:
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -e .                    # tambah ".[s3]" untuk impor S3, ".[test,s3]" untuk menjalankan uji
+(cd web && npm ci && npm run build)           # hasil di web/dist, dilayani server yang sama
+.venv/bin/python -m simpel4 ingest            # opsional: ingest awal (server juga ingest saat mulai, S4_INGEST_ON_START)
+.venv/bin/python -m simpel4 serve             # http://127.0.0.1:8000 (S4_BIND)
+```
+
+Buka `http://127.0.0.1:8000`, masuk sebagai `admin` dengan `S4_ADMIN_PASSWORD`, lalu ganti sandi.
+Ingest pertama 11 folder ±10–40 detik; setelah itu hanya folder yang baru atau berubah yang diproses.
+
+### 4. Pemakaian sehari-hari
+
+| Perintah (`.venv/bin/python -m simpel4 …`) | Fungsi |
+|---|---|
+| `status` | konfigurasi efektif (tanpa rahasia), isi database, folder terakhir |
+| `ingest [--folder 2026-10-06] [--force] [--offline]` | masukkan folder log baru/berubah; juga bisa dari layar **Ingest & impor** (admin) |
+| `derive --all` | hitung ulang agregat tanpa membaca ulang log (mis. setelah mengganti `S4_ATTACK_RULES`) |
+| `user list`, `user create` | kelola akun dari baris perintah |
+| `refdata [--offline]` | perbarui pemilik & lokasi IP dan berkas peta |
+| `import [--dry-run] s3://…/YYYY-MM-DD/` | impor folder log dari S3 (lihat bagian Impor dari S3) |
+| `forget YYYY-MM-DD` | hapus data satu folder dari database |
+
+Data ada di `data/` (`simpel4.duckdb`, berkas peta) dan `auth.db` di `S4_STATE_DIR`: **cadangkan `auth.db`**
+(akun, sesi, audit); `simpel4.duckdb` bisa dibangun ulang dari folder log. Server memakai satu proses: jangan
+menjalankan dua `serve` atau `ingest` bersamaan pada database yang sama (DuckDB mengunci berkasnya).
+
+### 5. Mengembangkan tampilan
+
+```sh
+.venv/bin/python -m simpel4 serve             # terminal 1: API di :8000
+cd web && npm run dev                         # terminal 2: Vite di :5173, permintaan /api diteruskan ke :8000
+```
 
 ## Uji
 
