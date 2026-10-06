@@ -20,9 +20,10 @@
    *   status?: kunci kode status yang ditampilkan berwarna di depan teks sel (mis. '401 /path').
    *   type: 'text' (bawaan) | 'num' | 'ip' | 'ips' | 'status' | 'statuses' | 'sev' | 'time' | 'range' | 'dur' | 'pct' | 'bytes' | 'code' | 'tags'
    * Sumber statis: rows. Sumber server: folder + table (+ params), initial = {total, rows} dari respons halaman.
+   * search = {text, seq}: isi filter dari luar (peta "Lihat di tabel").
    */
   let { title, columns, rows = null, folder = null, table = null, params = {}, initial = null, limit = null,
-        bar = null, wide = true, maxHeight = 440, rowId = null, highlight = null, chip = null, cell = null } = $props();
+        bar = null, wide = true, maxHeight = 440, rowId = null, highlight = null, chip = null, cell = null, search = null } = $props();
 
   const STEP = 100;
   const remote = $derived(!!table);
@@ -46,6 +47,15 @@
       r = [...r].sort((a, b) => (a[sort] > b[sort] ? m : a[sort] < b[sort] ? -m : 0));
     }
     return r;
+  });
+
+  // filter diisi dari luar (mis. peta "Lihat di tabel"): search = {text, seq}; seq berganti agar teks sama bisa dikirim ulang
+  let lastSearch = null;
+  $effect(() => {
+    const s = search;
+    if (!s || s === lastSearch) return;
+    lastSearch = s;
+    untrack(() => { q = s.text; qSent = s.text; shown = baseLimit; if (remote) load(); });
   });
 
   // ---------------------------------------------------------------- server

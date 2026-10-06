@@ -1,6 +1,5 @@
 <!-- Kerangka aplikasi (DRD §2, §6, §8, §9): masuk/ganti sandi wajib -> dashboard. Sidebar + baris alat lekat + isi.
-     Data dashboard tidak dimuat sebelum masuk (DRD §6.9). Halaman data dipasang per tab; sampai Tahap 13–20 semuanya
-     memakai Placeholder (halaman contoh komponen). -->
+     Data dashboard tidak dimuat sebelum masuk (DRD §6.9). Halaman data dipasang per tab (pages/*.svelte). -->
 <script>
   import { onMount, tick, untrack } from 'svelte';
   import { get } from 'svelte/store';
@@ -16,10 +15,10 @@
   import Toast, { toast } from './lib/Toast.svelte';
   import Login from './pages/Login.svelte';
   import ChangePassword from './pages/ChangePassword.svelte';
-  import Placeholder from './pages/Placeholder.svelte';
   import Pods from './pages/Pods.svelte';
   import Business from './pages/Business.svelte';
   import Tracing from './pages/Tracing.svelte';
+  import IpMap from './pages/IpMap.svelte';
   import AdminUsers from './pages/AdminUsers.svelte';
   import AdminIngest from './pages/AdminIngest.svelte';
   import Overview from './pages/Overview.svelte';
@@ -282,6 +281,8 @@
             <Availability {folder} {reloadKey} {onready} />
           {:else if $route.tab === 'tren'}
             <Trends {reloadKey} {onready} />
+          {:else if $route.tab === 'peta'}
+            <IpMap {folder} server={meta?.server} {reloadKey} {onready} />
           {:else if $route.tab === 'pod'}
             <Pods {folder} {summary} {reloadKey} {onready} />
           {:else if $route.tab === 'bisnis'}
@@ -289,9 +290,7 @@
           {:else if $route.tab === 'pelacakan'}
             <Tracing {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} />
           {:else if $route.tab === 'layanan'}
-            <Service {folder} service={$route.service} {reloadKey} {onready} />
-          {:else}
-            <Placeholder tab={$route.tab} {folder} {summary} {reloadKey} {onready} />
+            <Service {folder} service={$route.service} server={meta?.server} {reloadKey} {onready} />
           {/if}
         {/key}
       {/if}

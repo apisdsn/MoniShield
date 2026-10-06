@@ -11,8 +11,9 @@
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
   import ServiceCards from '../lib/ServiceCards.svelte';
+  import ServiceMap from '../lib/ServiceMap.svelte';
 
-  let { folder, service, reloadKey = 0, onready = null } = $props();
+  let { folder, service, server = null, reloadKey = 0, onready = null } = $props();
   let data = $state(null), busy = $state(false), error = $state(null);
   let seq = 0;
 
@@ -60,6 +61,7 @@
         {#each data.levels.slice(0, 4) as [lvl, n]}<Kpi label={lvl} value={n} tone="muted" />{/each}
       </div>
       <div class="grid">
+        <ServiceMap {folder} {service} {server} />
         <ServiceCards {data} {folder} />
       </div>
     {/if}

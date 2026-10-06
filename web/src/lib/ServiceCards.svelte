@@ -1,6 +1,6 @@
 <!-- Kartu 2–19 halaman layanan (DRD §3.10, inv. §2.10), dipakai juga bagian "Traffic HTTP seluruh sistem" di
      Overview (tanpa kartu pesan: withMsgs=false). Kartu yang datanya kosong tidak dirender (lama): API hanya
-     mengirim tabel yang berisi; chart dengan 0 titik tidak digambar ChartCard. Peta (kartu 1) menyusul Tahap 20.
+     mengirim tabel yang berisi; chart dengan 0 titik tidak digambar ChartCard. Peta (kartu 1) ada di lib/ServiceMap (terlipat).
      data = respons GET /api/folders/{folder}/services/{service}. Top 10 chart = 10 baris pertama tabel terkait,
      yang urutannya sama dengan urutan lama. -->
 <script>
