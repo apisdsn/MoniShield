@@ -1,14 +1,10 @@
 """Halaman Ketersediaan (TRD §5.3)."""
-from fastapi import APIRouter, Depends
 
-from .common import cursor, folder_param, require_user_ready, H, _all, _one, _no, _has
+from monishield.infrastructure.queries.sql import H, _all, _one, _no, _has
 from .tables import NG, first, services
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
-
-@router.get('/folders/{folder}/availability')
-def availability(folder: str = Depends(folder_param), cur=Depends(cursor)):
+def availability(cur, folder):
     if not _has(services(cur, folder), NG): return _no('no_nginx')
     req, n5 = cur.execute('SELECT requests, n5xx FROM agg_service WHERE folder = ? AND service = ?', [folder, NG]).fetchone()
     uk = _all(cur, f"SELECT {H.format('hour_wib')}, n, fail FROM agg_uk_hour WHERE folder = ? ORDER BY hour_wib", folder)

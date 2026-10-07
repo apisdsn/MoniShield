@@ -1,15 +1,12 @@
 """Halaman Keamanan (TRD §5.3)."""
 import re
 
-from fastapi import APIRouter, Depends, Request
 
 from monishield.domain import detect
-from .common import cursor, folder_param, require_user_ready, AM, H, _all, _has
+from monishield.infrastructure.queries.sql import AM, H, _all, _has
 from .tables import NG, SEV, SEV_SQL, cells, first, services
 
 CLOUD = re.compile(r'CLOUD|OCEAN|AMAZON|AWS|AZURE|MICROSOFT|HETZNER|OVH|LINODE|VULTR|ALIBABA|TENCENT|HOSTING|DATACENTER', re.I)  # lama: temuan 5
-
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
 
 # aturan CRS untuk Log4Shell (JNDI lookup, berkas 944): temuan khusus seperti temuan "Log4Shell / RCE" aturan lama
@@ -17,10 +14,9 @@ LOG4J = {r['id'] for r in detect.DATA['rules'] if 'log4' in r['msg'].lower()}
 LAMA_KRITIS = ('SQL Injection', 'XSS', 'Path Traversal / LFI')
 
 
-@router.get('/folders/{folder}/security')
-def security(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
+def security(cur, folder, cfg):
     """Keamanan. cfg.attack_rules = 'crs' (bawaan, Tahap 21): kategori CAPEC/keluarga dari aturan OWASP CRS; 'lama': aturan sistem lama."""
-    crs = request.app.state.cfg.attack_rules == 'crs'
+    crs = cfg.attack_rules == 'crs'
     U, I, HR = ('agg_crs_url', 'agg_crs_ip', 'agg_crs_hour') if crs else ('agg_attack_url', 'agg_attack_ip', 'agg_attack_hour')
     svc = services(cur, folder)
     atk = _all(cur, f"SELECT category, {'severity' if crs else SEV_SQL}, hits, top_ip, status_counts, upstreams, {'rules' if crs else '[]::INTEGER[]'} FROM {U} WHERE folder = ?", folder)

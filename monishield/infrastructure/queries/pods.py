@@ -1,14 +1,10 @@
 """Halaman Pod (TRD §5.3)."""
-from fastapi import APIRouter, Depends
 
-from .common import cursor, folder_param, require_user_ready, _one
+from monishield.infrastructure.queries.sql import _one
 from .tables import first
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
-
-@router.get('/folders/{folder}/pods')
-def pods(folder: str = Depends(folder_param), cur=Depends(cursor)):
+def pods(cur, folder):
     files, empty = cur.execute('SELECT count(*), count(*) FILTER (WHERE lines = 0) FROM ingest_file WHERE folder = ?', [folder]).fetchone()
     return dict(
         available=True,

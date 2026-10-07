@@ -9,29 +9,25 @@ Tidak ada yang dikirim ke layanan pihak ketiga: lokasi dan pemilik dari tabel ip
 import csv, io, ipaddress, re
 from urllib.parse import unquote_plus
 
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import Response
 
 from monishield.domain import detect
-from .common import ApiError, cursor, folder_param, require_user_ready, _all
+from monishield.infrastructure.queries.sql import _all, reject
 from .tables import NG, SEV_SQL, T, UTC
 
 MAX_REQ = 1000
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
 
 def _ip(ip):
-    if not re.fullmatch(r'[0-9A-Fa-f.:]{2,45}', ip or ''): raise ApiError(400, 'invalid_parameter', 'Parameter tidak sah: ip.')
+    if not re.fullmatch(r'[0-9A-Fa-f.:]{2,45}', ip or ''): raise reject(400, 'invalid_parameter', 'Parameter tidak sah: ip.')
     return ip
 
 
-def _schema(request):
-    return request.app.state.cfg.attack_rules == 'crs'
+def _schema(cfg):
+    return cfg.attack_rules == 'crs'
 
 
-@router.get('/folders/{folder}/ips/{ip}')
-def ip_profile(ip: str, request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
-    ip, crs = _ip(ip), _schema(request)
+def ip_profile(cur, folder, cfg, ip):
+    ip, crs = _ip(ip), _schema(cfg)
     I = 'agg_crs_ip' if crs else 'agg_attack_ip'
     info = cur.execute('SELECT asn, cc, org, is_private, city, region, country FROM ip_info WHERE ip = ?', [ip]).fetchone()
     # jejak di semua folder: request ingress, request serangan, login gagal/sukses
@@ -40,7 +36,7 @@ def ip_profile(ip: str, request: Request, folder: str = Depends(folder_param), c
     for f, n in _all(cur, f'SELECT folder::VARCHAR, hits FROM {I} WHERE ip = ?', ip): days.setdefault(f, {})['attacks'] = n
     for f, a, b in _all(cur, 'SELECT folder::VARCHAR, fail, ok FROM agg_login_ip WHERE ip = ?', ip): days.setdefault(f, {}).update(login_fail=a, login_ok=b)
     for f, n in _all(cur, 'SELECT folder::VARCHAR, sum(n) FROM agg_trace WHERE ip = ? GROUP BY 1', ip): days.setdefault(f, {})['traced'] = int(n)
-    if not days and not info: raise ApiError(404, 'not_found', 'IP tidak ditemukan di data mana pun.')
+    if not days and not info: raise reject(404, 'not_found', 'IP tidak ditemukan di data mana pun.')
     folders = [dict(folder=f, requests=d.get('requests', 0), attacks=d.get('attacks', 0), login_fail=d.get('login_fail', 0),
                     login_ok=d.get('login_ok', 0), traced=d.get('traced', 0)) for f, d in sorted(days.items(), reverse=True)]
 
@@ -89,15 +85,12 @@ def _excluded(cfg, ip, private, org):
     return None
 
 
-@router.get('/folders/{folder}/security/blocklist')
-def blocklist(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor),
-              format: str = Query('nginx'), days: int = Query(1, ge=1, le=90), min_severity: int = Query(1, ge=1, le=3),
-              min_hits: int = Query(1, ge=1, le=100000), lang: str = Query('id')):
+def blocklist(cur, folder, cfg, format='nginx', days=1, min_severity=1, min_hits=1, lang='id'):
     """Daftar blokir siap pakai (permintaan pemilik 2026-10-07, saran 6) dari IP sumber serangan `days` folder sampai
     folder ini: nginx (`deny`), anotasi ingress-nginx (`denylist-source-range`), teks satu IP per baris, atau JSON
     (pratinjau). IP privat, pemilik jaringan S4_BLOCKLIST_EXCLUDE_ORG, dan S4_BLOCKLIST_EXCLUDE dikecualikan."""
-    if format not in BLOCK_FORMATS: raise ApiError(400, 'invalid_parameter', f'format harus salah satu dari {", ".join(BLOCK_FORMATS)}.')
-    cfg, crs = request.app.state.cfg, _schema(request)
+    if format not in BLOCK_FORMATS: raise reject(400, 'invalid_parameter', f'format harus salah satu dari {", ".join(BLOCK_FORMATS)}.')
+    crs = _schema(cfg)
     I = 'agg_crs_ip' if crs else 'agg_attack_ip'
     msev = 'a.max_severity' if crs else f"list_max(list_transform(map_keys(a.cats), category -> {SEV_SQL}))"
     rows = _all(cur, f"""SELECT a.ip, sum(a.hits) AS hits, max({msev}) AS sev, count(DISTINCT a.folder) AS days, any_value(i.is_private), any_value(i.org),
@@ -128,13 +121,11 @@ def blocklist(request: Request, folder: str = Depends(folder_param), cur=Depends
     else:
         body = '\n'.join(ips) + '\n'
     ext = {'nginx': 'conf', 'ingress': 'yaml', 'txt': 'txt'}[format]
-    return Response(body, media_type='text/plain; charset=utf-8',
-                    headers={'Content-Disposition': f'attachment; filename="blokir-{folder}-{days}h.{ext}"', 'Cache-Control': 'no-store'})
+    return dict(file=body, media_type='text/plain; charset=utf-8', filename=f'blokir-{folder}-{days}h.{ext}')
 
 
-@router.get('/folders/{folder}/security/attack-ips.csv')
-def attack_ips_csv(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
-    crs = _schema(request)
+def attack_ips_csv(cur, folder, cfg):
+    crs = _schema(cfg)
     I = 'agg_crs_ip' if crs else 'agg_attack_ip'
     msev = 'a.max_severity' if crs else f"list_max(list_transform(map_keys(a.cats), category -> {SEV_SQL}))"
     rows = _all(cur, f"""SELECT a.ip, a.hits, array_to_string(list_sort(map_keys(a.cats)), ' | '), {msev}, i.country, i.asn, i.org,
@@ -144,5 +135,4 @@ def attack_ips_csv(request: Request, folder: str = Depends(folder_param), cur=De
     w = csv.writer(buf, lineterminator='\n')
     w.writerow(['ip', 'request_serangan', 'kategori', 'keparahan_maks', 'negara', 'asn', 'pemilik_jaringan', 'pertama_wib', 'terakhir_wib'])
     for r in rows: w.writerow([_safe(v) for v in r])
-    return Response(buf.getvalue(), media_type='text/csv; charset=utf-8',
-                    headers={'Content-Disposition': f'attachment; filename="ip-serangan-{folder}.csv"', 'Cache-Control': 'no-store'})
+    return dict(file=buf.getvalue(), media_type='text/csv; charset=utf-8', filename=f'ip-serangan-{folder}.csv')

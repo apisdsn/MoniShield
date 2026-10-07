@@ -1,14 +1,10 @@
 """Halaman Pelacakan Request (TRD §5.3)."""
-from fastapi import APIRouter, Depends
 
-from .common import cursor, folder_param, require_user_ready, SL, _all, _one, _no
+from monishield.infrastructure.queries.sql import SL, _all, _one, _no
 from .tables import cells, first, services
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
-
-@router.get('/folders/{folder}/tracing')
-def tracing(folder: str = Depends(folder_param), cur=Depends(cursor)):
+def tracing(cur, folder):
     corr = cur.execute('SELECT matched, total FROM agg_corr WHERE folder = ?', [folder]).fetchone()
     if not corr: return _no('no_simpel_loop' if SL not in services(cur, folder) else 'no_correlation')
     gagal = 'folder = ? AND status BETWEEN 400 AND 599'

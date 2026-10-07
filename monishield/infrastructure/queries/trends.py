@@ -2,20 +2,16 @@
 heatmap jam × hari (request ingress, error semua layanan)."""
 import datetime
 
-from fastapi import APIRouter, Depends, Request
 
-from .common import ApiError, cursor, require_user_ready, wib, _all
+from monishield.infrastructure.queries.sql import wib, _all, reject
 from .tables import NG
 
 TREND_BIZ = ('Laporan Dibuat', 'Registrasi Laporan', 'File Diunggah', 'Email Terkirim', 'OTP Diminta')
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
-
-@router.get('/trends')
-def trends(request: Request, cur=Depends(cursor)):
-    last = request.query_params.get('last', '30')
-    if last not in ('14', '30', '90', 'all'): raise ApiError(400, 'invalid_parameter', 'Parameter tidak sah: last.')
+def trends(cur, cfg, params):
+    last = params.get('last', '30')
+    if last not in ('14', '30', '90', 'all'): raise reject(400, 'invalid_parameter', 'Parameter tidak sah: last.')
     folders = [str(r[0]) for r in _all(cur, 'SELECT folder FROM folder_state ORDER BY folder')]
     if last != 'all': folders = folders[-int(last):]
     if not folders: return dict(folders=[], services=[], lines={}, err={}, warn={}, http={}, security={}, business={}, file_status={},
@@ -35,7 +31,7 @@ def trends(request: Request, cur=Depends(cursor)):
         out['file_status'][s][i] = 'rusak' if rusak else 'kosong' if not lines else 'ok'
         if s == NG: http['total'][i], http['n4xx'][i], http['n5xx'][i] = req, n4, n5
     sec = {k: kosong(0) for k in ('attack_requests', 'login_fail', 'resets')}
-    atk = 'agg_crs_url' if request.app.state.cfg.attack_rules == 'crs' else 'agg_attack_url'   # Tahap 21: aturan deteksi yang dipakai
+    atk = 'agg_crs_url' if cfg.attack_rules == 'crs' else 'agg_attack_url'   # Tahap 21: aturan deteksi yang dipakai
     for f, n in _all(cur, f'SELECT folder::VARCHAR, sum(hits) FROM {atk} WHERE folder >= ? GROUP BY 1', lo): sec['attack_requests'][pos[f]] = int(n)
     # lama: Σ login[*][1] dan [2] = hanya IP yang punya gagal/reset; sama dengan jumlah semua baris
     for f, a, b in _all(cur, 'SELECT folder::VARCHAR, sum(fail), sum(lock) FROM agg_login_ip WHERE folder >= ? GROUP BY 1', lo):

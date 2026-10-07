@@ -1,18 +1,14 @@
 """Halaman Layanan (TRD §5.3)."""
-from fastapi import APIRouter, Depends
 
-from .common import ApiError, cursor, folder_param, require_user_ready, SL, H, _all, _no
+from monishield.infrastructure.queries.sql import SL, H, _all, _no, reject
 from .map import MOD
 from .tables import NG, first
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
-
-@router.get('/folders/{folder}/services/{service}')
-def service_page(service: str, folder: str = Depends(folder_param), cur=Depends(cursor)):
+def service_page(cur, folder, service):
     r = cur.execute("""SELECT lines, err, warn, err_http, err_log, files, files_empty, files_corrupt, requests, n4xx, n5xx, ip_unique
                        FROM agg_service WHERE folder = ? AND service = ?""", [folder, service]).fetchone()
-    if not r: raise ApiError(404, 'not_found', 'Layanan tidak ditemukan.')
+    if not r: raise reject(404, 'not_found', 'Layanan tidak ditemukan.')
     kpi = dict(zip(('lines', 'err', 'warn', 'err_http', 'err_log', 'files', 'files_empty', 'files_corrupt', 'requests', 'n4xx', 'n5xx', 'ip_unique'), r))
     if not r[0]: return dict(**_no('empty'), service=service, kpi=kpi)
     corr = cur.execute('SELECT matched, total FROM agg_corr WHERE folder = ?', [folder]).fetchone() if service == SL else None

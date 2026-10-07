@@ -7,13 +7,11 @@ Tahap 24: KPI folder sebelumnya (perubahan ▲/▼), grafik per jam (request, 5x
 (pod restart, uptime gagal, PDF gagal, lonjakan JWT kedaluwarsa, layanan yang error-nya melonjak).
 2026-10-07: pembanding rata-rata folder sebanding (`baseline`), dipakai juga oleh notifikasi (monishield/alerts.py).
 """
-from fastapi import APIRouter, Depends, Request
 
-from .common import cursor, folder_param, require_user_ready, H, _all, _one
+from monishield.infrastructure.queries.sql import H, _all, _one
 from .map import ipmap
 from .tables import NG, SEV_SQL
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
 # ASUMSI (Tahap 24): ambang "lonjakan" dibanding folder sebelumnya = minimal 2× DAN bertambah minimal N
 JUMP_FACTOR, JUMP_MIN_ERR, JUMP_MIN_JWT = 2, 50, 20
@@ -68,9 +66,8 @@ def _jump(cur_n, prev_n, min_add):
     return prev_n is not None and cur_n >= JUMP_FACTOR * prev_n and cur_n - prev_n >= min_add
 
 
-@router.get('/folders/{folder}/command')
-def command(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
-    crs = request.app.state.cfg.attack_rules == 'crs'
+def command(cur, folder, cfg, module=None):
+    crs = cfg.attack_rules == 'crs'
     a = _kpi(cur, folder, crs)
     prev_f = cur.execute('SELECT max(folder) FROM folder_state WHERE folder < ?', [folder]).fetchone()[0]
     p = _kpi(cur, prev_f, crs) if prev_f else None
@@ -118,4 +115,4 @@ def command(request: Request, folder: str = Depends(folder_param), cur=Depends(c
                           comparable=dict(nginx=bool(a['ng_lines']) and p['ng_lines'] >= 0.5 * a['ng_lines'], all=p['lines'] >= 0.5 * a['lines'])) if p else None,
                 baseline=dict(window=base['window'], n_all=base['n_all'], n_nginx=base['n_nginx'], kpi=base['kpi'], folders=base['folders']),
                 by_hour=dict(hours=hours, requests=[req.get(h, 0) for h in hours], n5xx=[n5.get(h, 0) for h in hours], attacks=[atk.get(h, 0) for h in hours]),
-                attention=att, map=ipmap(request, folder, cur))
+                attention=att, map=ipmap(cur, folder, module))

@@ -441,7 +441,7 @@ def user(client):
 
 
 def test_semua_halaman_terbuka_untuk_user_dan_kecil(user):
-    from monishield.interfaces.api import tables
+    from monishield.infrastructure.queries import tables
     svc = [s['service'] for s in user.get(f'/api/folders/{B}').json()['services']]
     urls = [f'/api/folders/{f}/{h}' for f in (A, B) for h in HALAMAN] + [f'/api/folders/{B}/services/{s}' for s in svc] + ['/api/trends']
     urls += [f'/api/folders/{B}/tables/{t}' + (f'?service={NG}' if sp.per_service else '') for t, sp in tables.TABLES.items()]
@@ -635,7 +635,7 @@ def test_csv_ip_serangan(user):
     assert r.status_code == 200 and r.headers['content-type'].startswith('text/csv') and 'attachment' in r.headers['content-disposition']
     baris = r.text.strip().split('\n')
     assert baris[0].startswith('ip,request_serangan,kategori') and len(baris) - 1 == user.get(f'/api/folders/{B}/security').json()['kpi']['attack_ips']
-    from monishield.interfaces.api.ips import _safe
+    from monishield.infrastructure.queries.ips import _safe
     assert _safe('=HYPERLINK("x")') == "'=HYPERLINK(\"x\")" and _safe('-1') == "'-1" and _safe('AS123') == 'AS123' and _safe(None) == ''
 
 
@@ -740,7 +740,7 @@ def test_daftar_blokir_format_dan_pengecualian(client, monkeypatch):
     j = g(format='json').json()
     assert (j['count'], j['excluded']['list']) == (0, 1)
     monkeypatch.setattr(cfg, 'blocklist_exclude', '')
-    from monishield.interfaces.api import ips
+    from monishield.infrastructure.queries import ips
     assert ips._excluded(cfg, '10.1.2.3', False, None) == 'private' and ips._excluded(cfg, '103.1.1.1', False, 'IDNIC-OMBUDSMAN-AS-ID Ombudsman') == 'org'
     assert ips._excluded(cfg, '8.8.8.8', False, 'GOOGLE') is None
     assert g(format='exe').status_code == 400 and g(days=0).status_code == 400

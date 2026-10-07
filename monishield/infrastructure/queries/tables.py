@@ -6,9 +6,8 @@ masukan: semuanya dicocokkan dengan daftar di bawah, sisanya lewat parameter ter
 """
 import dataclasses, re
 
-from fastapi import APIRouter, Depends, Request
 
-from .common import ApiError, cursor, folder_param, ip_cell, require_user_ready
+from monishield.infrastructure.queries.sql import ip_cell, reject
 
 NG = 'nginx-ingress-controller'
 MAX_LIMIT, MAX_Q = 500, 200
@@ -173,28 +172,24 @@ def services(cur, folder): return {r[0]: r[1] for r in cur.execute('SELECT servi
 
 
 def _int(v, nama, lo, hi):
-    if not re.fullmatch(r'\d{1,6}', v) or not lo <= int(v) <= hi: raise ApiError(400, 'invalid_parameter', f'Parameter tidak sah: {nama}.')
+    if not re.fullmatch(r'\d{1,6}', v) or not lo <= int(v) <= hi: raise reject(400, 'invalid_parameter', f'Parameter tidak sah: {nama}.')
     return int(v)
 
 
-router = APIRouter(prefix='/api')
-
-
-@router.get('/folders/{folder}/tables/{table}')
-def table_page(table: str, request: Request, folder: str = Depends(folder_param), user=Depends(require_user_ready), cur=Depends(cursor)):
-    p = request.query_params
+def table_page(cur, folder, cfg, table, params):
+    p = params
     asing = set(p) - {'service', 'module', 'q', 'sort', 'dir', 'limit', 'offset'}
-    if asing: raise ApiError(400, 'invalid_parameter', 'Parameter tidak dikenal.')
-    scheme = request.app.state.cfg.attack_rules
+    if asing: raise reject(400, 'invalid_parameter', 'Parameter tidak dikenal.')
+    scheme = cfg.attack_rules
     t = table_of(table, scheme)
-    if not t: raise ApiError(404, 'not_found', 'Tabel tidak ditemukan.')
+    if not t: raise reject(404, 'not_found', 'Tabel tidak ditemukan.')
     service, module, q, sort, dir = p.get('service'), p.get('module'), p.get('q', ''), p.get('sort'), p.get('dir', 'desc')
-    if t.per_service and not service: raise ApiError(400, 'invalid_parameter', 'Parameter wajib: service.')
-    if service is not None and service not in services(cur, folder): raise ApiError(404, 'not_found', 'Layanan tidak ditemukan.')
-    if module is not None and (table != 'flows' or len(module) > 100): raise ApiError(400, 'invalid_parameter', 'Parameter tidak sah: module.')
-    if len(q) > MAX_Q: raise ApiError(400, 'invalid_parameter', 'Parameter tidak sah: q.')
-    if sort is not None and sort not in t.sort: raise ApiError(400, 'invalid_parameter', 'Parameter tidak sah: sort.')
-    if dir not in ('asc', 'desc'): raise ApiError(400, 'invalid_parameter', 'Parameter tidak sah: dir.')
+    if t.per_service and not service: raise reject(400, 'invalid_parameter', 'Parameter wajib: service.')
+    if service is not None and service not in services(cur, folder): raise reject(404, 'not_found', 'Layanan tidak ditemukan.')
+    if module is not None and (table != 'flows' or len(module) > 100): raise reject(400, 'invalid_parameter', 'Parameter tidak sah: module.')
+    if len(q) > MAX_Q: raise reject(400, 'invalid_parameter', 'Parameter tidak sah: q.')
+    if sort is not None and sort not in t.sort: raise reject(400, 'invalid_parameter', 'Parameter tidak sah: sort.')
+    if dir not in ('asc', 'desc'): raise reject(400, 'invalid_parameter', 'Parameter tidak sah: dir.')
     limit = _int(p['limit'], 'limit', 1, MAX_LIMIT) if 'limit' in p else None
     offset = _int(p['offset'], 'offset', 0, 999999) if 'offset' in p else 0
     return page(cur, table, folder, service=service, module=module or None, q=q, sort=sort, dir=dir, limit=limit, offset=offset, scheme=scheme)

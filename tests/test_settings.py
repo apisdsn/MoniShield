@@ -192,7 +192,7 @@ def test_pindahan_dari_basis_data_ke_env(cfg, envp, monkeypatch, s3):
 
 
 def test_pengecualian_daftar_blokir_dari_layar(client):
-    from monishield.interfaces.api import ips
+    from monishield.infrastructure.queries import ips
     assert client.put('/api/admin/config', json=dict(blocklist_exclude='36.66.1.0/24', blocklist_exclude_org='TELKOM'), headers=X).status_code == 200
     c = client.app.state.cfg
     assert ips._excluded(c, '36.66.1.9', False, '') == 'list' and ips._excluded(c, '8.8.8.8', False, 'PT TELKOM INDONESIA') == 'org'

@@ -6,27 +6,24 @@ Hanya membaca agregat dan tabel log folder itu; tidak ada yang dikirim ke luar.
 """
 import re
 
-from fastapi import APIRouter, Depends, Request
 
-from .common import ApiError, cursor, require_user_ready, _all
+from monishield.infrastructure.queries.sql import _all, reject
 from .tables import NG
 
 PER_TYPE = 5
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
 
 def _like(s):
     return '%' + s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
 
 
-@router.get('/search')
-def search(request: Request, cur=Depends(cursor)):
-    q = (request.query_params.get('q') or '').strip()
-    if not 2 <= len(q) <= 200: raise ApiError(400, 'invalid_parameter', 'Parameter tidak sah: q (2–200 karakter).')
-    folder = request.query_params.get('folder')
+def search(cur, params):
+    q = (params.get('q') or '').strip()
+    if not 2 <= len(q) <= 200: raise reject(400, 'invalid_parameter', 'Parameter tidak sah: q (2–200 karakter).')
+    folder = params.get('folder')
     if folder:
         if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', folder) or not cur.execute('SELECT 1 FROM folder_state WHERE folder = ?', [folder]).fetchone():
-            raise ApiError(404, 'not_found', 'Folder tidak ditemukan.')
+            raise reject(404, 'not_found', 'Folder tidak ditemukan.')
     else:
         folder = str(cur.execute('SELECT max(folder) FROM folder_state').fetchone()[0] or '')
         if not folder: return dict(q=q, folder=None, results=[])

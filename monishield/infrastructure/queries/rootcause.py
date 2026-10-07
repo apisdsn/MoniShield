@@ -1,16 +1,12 @@
 """Halaman Akar Masalah (TRD §5.3)."""
-from fastapi import APIRouter, Depends
 
-from .common import cursor, folder_param, require_user_ready, _all, _one
+from monishield.infrastructure.queries.sql import _all, _one
 from .tables import first, services
 
 JWT_OLD = ('1–24 Jam', '1–7 Hari', '> 7 Hari')
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
-
-@router.get('/folders/{folder}/rootcause')
-def rootcause(folder: str = Depends(folder_param), cur=Depends(cursor)):
+def rootcause(cur, folder):
     jwt, refresh = {}, {}
     for s, b, n in _all(cur, 'SELECT service, bucket, n FROM agg_jwt WHERE folder = ? ORDER BY service', folder):
         if b == 'Refresh Token Kedaluwarsa': refresh[s] = n     # TRD §4.4 butir 10: kini ditampilkan

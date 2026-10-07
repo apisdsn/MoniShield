@@ -1,14 +1,10 @@
 """Halaman Bisnis (TRD §5.3)."""
-from fastapi import APIRouter, Depends
 
-from .common import cursor, folder_param, require_user_ready, SL, AM, H, _all, _one
+from monishield.infrastructure.queries.sql import SL, AM, H, _all, _one
 from .tables import first, services
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
-
-@router.get('/folders/{folder}/business')
-def business(folder: str = Depends(folder_param), cur=Depends(cursor)):
+def business(cur, folder):
     svc = services(cur, folder)
     prev = _one(cur, 'SELECT max(folder) FROM folder_state WHERE folder < ?', folder)
     biz = lambda f: dict(cur.execute('SELECT metric, n FROM agg_biz WHERE folder = ?', [f]).fetchall())

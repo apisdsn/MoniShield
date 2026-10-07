@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, Request
 
 from monishield import __version__
 from monishield.infrastructure import refdata
-from .common import cursor, folder_param, public, require_user_ready, wib
+from monishield.infrastructure.queries.sql import wib
+from .common import cursor, folder_param, public, require_user_ready
 
 router = APIRouter(prefix='/api')
 

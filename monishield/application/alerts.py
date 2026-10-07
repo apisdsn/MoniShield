@@ -232,7 +232,7 @@ def _link(cfg, folder, tab='peta'):
 # ------------------------------------------------------------------ penilaian
 def folder_events(cur, cfg, folder, crs):
     """Kejadian untuk satu folder: [(event, key, judul, teks)]. Angka dari Command Center (agregat), tanpa IP."""
-    from monishield.interfaces.api import command
+    from monishield.infrastructure.queries import command
     a = command._kpi(cur, folder, crs)
     b = command.baseline(cur, folder, crs, a)
     lang, out = cfg['lang'], []

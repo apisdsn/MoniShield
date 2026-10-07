@@ -1,20 +1,16 @@
 """Halaman Peta IP (TRD §5.3)."""
-from fastapi import APIRouter, Depends, Request
 
-from .common import ApiError, cursor, folder_param, require_user_ready, _all, _no
+from monishield.infrastructure.queries.sql import _all, _no, reject
 from .tables import first
 
 MOD = "regexp_replace(upstream, '-\\d+$', '')"
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
-
-@router.get('/folders/{folder}/map')
-def ipmap(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
-    module = request.query_params.get('module') or None
+def ipmap(cur, folder, module=None):
+    module = module or None
     modules = [r[0] for r in _all(cur, f'SELECT DISTINCT {MOD} FROM agg_flow WHERE folder = ? ORDER BY 1', folder)]
     if not modules: return _no('no_nginx')
-    if module is not None and module not in modules: raise ApiError(404, 'not_found', 'Modul tidak ditemukan.')
+    if module is not None and module not in modules: raise reject(404, 'not_found', 'Modul tidak ditemukan.')
     src = f"""FROM agg_flow f LEFT JOIN ip_info i USING (ip) WHERE f.folder = $f AND (CAST($m AS VARCHAR) IS NULL OR {MOD} = $m)"""
     p = dict(f=folder, m=module)
     k = cur.execute(f"""SELECT count(DISTINCT f.ip), count(DISTINCT (i.lat, i.lon)) FILTER (WHERE i.lat IS NOT NULL), count(DISTINCT i.country) FILTER (WHERE i.lat IS NOT NULL),

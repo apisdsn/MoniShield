@@ -16,15 +16,15 @@ from monishield.application import alerts as alertsmod, settings
 from monishield.infrastructure import uploads as uploadmod
 from monishield.infrastructure import auth as authmod, config, db, kafka_in
 from monishield.domain import detect
-from monishield.interfaces.api import admin, availability, config_api, docs, kafka, notify, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing, search, trends, upload, users
+from monishield.domain.errors import Fail
+from monishield.interfaces.api import admin, config_api, docs, kafka, meta, notify, pages, session, upload, users
 from .common import ROLE_DEPS
 
 WORKERS = 1  # konstanta, bukan konfigurasi (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
-PAGES = (overview, command, ips, search, map, trends, security, rootcause, availability, pods, business, tracing, service)   # satu modul per halaman (TRD §5.3)
-ROUTERS = (meta.router, session.router, users.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, *(m.router for m in PAGES), tables.router)
+ROUTERS = (meta.router, session.router, users.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
 
 
 def _deps(dependant):
@@ -103,8 +103,9 @@ def create_app(cfg=None, env_path=None):
         d = exc.detail if isinstance(exc.detail, dict) else dict(code={404: 'not_found', 405: 'method_not_allowed'}.get(exc.status_code, 'error'), message=str(exc.detail))
         return _error(exc.status_code, d['code'], d['message'])
 
-    @app.exception_handler(authmod.AuthError)
-    async def auth_error(request, exc): return _error(exc.status, exc.code, exc.message)
+    @app.exception_handler(Fail)
+    async def domain_error(request, exc):   # galat domain/application (akun, kueri, impor, …) -> JSON yang sama dengan ApiError
+        return _error(exc.status, exc.code, exc.message)
 
     @app.exception_handler(RequestValidationError)
     async def bad_request(request, exc):  # nilai masukan tidak dipantulkan kembali
