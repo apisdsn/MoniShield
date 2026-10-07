@@ -29,6 +29,8 @@ const P = [
   [/: isi \.log dan \.log\.gz BERBEDA$/, ': .log and .log.gz contents DIFFER'], [/^\.log yang dipakai$/, 'the .log is used'],
   [/: (\S+) berbeda dari (\S+) yang sudah diproses$/, ': $1 differs from the $2 already processed'], [/^diproses ulang$/, 're-processed'],
   [/: GAGAL di-parse: /, ': FAILED to parse: '],
+  [/: berisi pesan galat alat ekspor log, bukan log \('([^']*)'\)$/, ": contains an error message from the log export tool, not logs ('$1')"],
+  [/^periksa pengiriman log ke S3$/, 'check the log delivery to S3'],
   [/^folder (\S+) juga ada di folder log lokal$/, 'folder $1 also exists in the local log folder'],
   [/^saat ingest versi lokal yang dipakai$/, 'the local version is used when ingesting'],
   // ringkasan job impor

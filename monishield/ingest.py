@@ -250,6 +250,8 @@ def _apply_file(con, f, k, res):
         return False
     _delete_file_rows(con, file_id); con.execute('DELETE FROM ingest_file WHERE file_id = ?', [file_id])
     status = 'kosong' if not s['lines'] else 'rusak' if s['corrupt_lines'] and not s['rows'] else 'ok'
+    if status == 'rusak' and _export_error(f['path']):   # ditemukan pada data S3 asli 2026-10-07
+        res['warnings'].append(f"{f['relpath']}: berisi pesan galat alat ekspor log, bukan log ('{EXPORT_ERROR}…'); periksa pengiriman log ke S3")
     con.execute('INSERT INTO ingest_file VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [file_id, f['relpath'], f['source_ext'], f['folder'], f['ns'], f['service'], f['pod'], f['size_bytes'], f['mtime_ns'], r['sha256'],
                  s['lines'], s['err'], s['warn'], s['corrupt_lines'], status, parse.RULES_VERSION, utcnow()])
@@ -257,6 +259,18 @@ def _apply_file(con, f, k, res):
     if s['counters']: con.executemany('INSERT INTO file_counter VALUES (?, ?, ?, ?)', [[file_id, *c] for c in s['counters']])
     res['files_parsed'] += 1
     return True
+
+
+EXPORT_ERROR = 'failed to get parse function'
+
+
+def _export_error(path):
+    """Berkas yang isinya pesan galat alat pengirim log (mis. 'failed to get parse function: unsupported log format'),
+    bukan log. Hanya 200 byte pertama dibaca (.log atau .log.gz)."""
+    import gzip
+    try:
+        with (gzip.open if path.endswith('.gz') else open)(path, 'rb') as fh: return fh.read(200).startswith(EXPORT_ERROR.encode())
+    except (OSError, EOFError): return False
 
 
 def checksums(con):

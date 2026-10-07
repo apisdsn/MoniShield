@@ -242,6 +242,18 @@ def test_berkas_nama_lama_dipindah(tmp_path):
     finally: con.close()
 
 
+def test_berkas_berisi_galat_ekspor_diberi_peringatan(env):
+    """Data S3 asli 2026-10-07: file log berisi satu baris galat alat ekspor ('failed to get parse function…'). Ditandai
+    rusak seperti biasa, ditambah peringatan yang menjelaskan sebabnya."""
+    cfg, con, root = env
+    d = os.path.join(root, '2026-01-09', 'ingress-nginx', 'nginx-ingress-controller'); os.makedirs(d)
+    with open(os.path.join(d, 'log_nginx-ingress-controller_pod-n_2026-01-09-00-00.log'), 'w') as fh:
+        fh.write('failed to get parse function: unsupported log format: "' + '\\x00' * 50 + '"')
+    r = go(cfg, con)
+    assert any("berisi pesan galat alat ekspor log" in w and 'nginx-ingress-controller' in w for w in r['warnings'])
+    assert q(con, "SELECT status FROM ingest_file WHERE folder = '2026-01-09'") == [('rusak',)]
+
+
 def test_hanya_satu_ingest_pada_satu_waktu(env):
     cfg, con, _ = env
     assert ingest._lock.acquire(blocking=False)
