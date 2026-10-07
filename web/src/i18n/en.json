@@ -483,6 +483,8 @@
  "nav.badge_attack": "{n} attack source IPs",
  "nav.badge_err": "{n} errors",
  "nav.close": "Close navigation",
+ "nav.collapse": "Collapse navigation",
+ "nav.expand": "Expand navigation",
  "nav.label": "Dashboard navigation",
  "nav.open": "Open navigation",
  "nav.services": "Services",

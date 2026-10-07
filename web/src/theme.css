@@ -83,6 +83,7 @@
   --r-card: 16px;
   --r-box: 12px;
   --side-w: 236px;
+  --side-w-c: 68px;   /* navigasi kiri diciutkan jadi lajur ikon */
   --touch: 44px;
   color-scheme: dark;
 }

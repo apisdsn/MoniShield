@@ -483,6 +483,8 @@
  "nav.badge_attack": "{n} IP sumber serangan",
  "nav.badge_err": "{n} error",
  "nav.close": "Tutup navigasi",
+ "nav.collapse": "Ciutkan navigasi",
+ "nav.expand": "Lebarkan navigasi",
  "nav.label": "Navigasi dashboard",
  "nav.open": "Buka navigasi",
  "nav.services": "Layanan",

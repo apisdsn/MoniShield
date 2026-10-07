@@ -8,6 +8,7 @@
   import { route, go, build, ADMIN } from './state.js';
   import { dLabel, logRange, num, sysName, tWIB } from './format.js';
   import { APP_NAME } from './brand.js';
+  import { load, save } from './store.js';
   import Sidebar from './lib/Sidebar.svelte';
   import Header from './lib/Header.svelte';
   import EmptyState from './lib/EmptyState.svelte';
@@ -37,7 +38,9 @@
   let me = $state(null), meta = $state(null), summary = $state(null);
   let bootError = $state(null), expired = $state(false);
   let reloadKey = $state(0), pageReady = $state(true), announce = $state('');
-  let drawer = $state(false), menuBtn = $state(), h1 = $state();   // h1 = judul halaman di Header (fokus saat pindah tab)
+  let drawer = $state(false), menuBtn = $state(), h1 = $state();
+  let collapsed = $state(load('side', 'open') === 'collapsed');   // navigasi kiri diciutkan (layar lebar), per browser
+  function toggleSide() { collapsed = !collapsed; save('side', collapsed ? 'collapsed' : 'open'); }   // h1 = judul halaman di Header (fokus saat pindah tab)
   let lastFolder = null;
 
   // ---------------------------------------------------------------- masuk
@@ -230,12 +233,12 @@
   <ChangePassword forced ondone={() => onlogin({ ...me, must_change_password: false })} onlogout={logout} />
 {:else}
   <a class="skip" href="#main" onclick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>{$t('ui.skip')}</a>
-  <aside id="side" class="side" class:open={drawer} aria-label={$t('nav.label')}>
-    <Sidebar route={{ ...$route, folder }} {summary} ingest={meta?.ingest} onpick={() => (drawer = false)} />
+  <aside id="side" class="side" class:open={drawer} class:collapsed aria-label={$t('nav.label')}>
+    <Sidebar route={{ ...$route, folder }} {summary} ingest={meta?.ingest} onpick={() => (drawer = false)} {collapsed} ontoggle={toggleSide} />
   </aside>
   {#if drawer}<button class="backdrop" aria-label={$t('nav.close')} onclick={closeDrawer}></button>{/if}
 
-  <div class="wrap" inert={drawer || undefined}>
+  <div class="wrap" class:collapsed inert={drawer || undefined}>
     <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'tren' || !isDataTab}
       onfolder={setFolder} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
       {title} sysTitle={$route.tab === 'layanan'} {suffix} {status} bind:titleEl={h1} />
@@ -332,6 +335,13 @@
   .band.info { background: color-mix(in srgb, var(--accent) 12%, var(--card)); box-shadow: inset 3px 0 0 var(--accent); }
   .band.warn { background: color-mix(in srgb, var(--warn) 14%, var(--card)); box-shadow: inset 3px 0 0 var(--warn); }
   .backdrop { display: none; }
+  @media (min-width: 901px) {
+    .side { transition: width 0.18s ease; }
+    .side.collapsed { width: var(--side-w-c); padding-inline: 10px; }
+    .wrap { transition: margin-left 0.18s ease; }
+    .wrap.collapsed { margin-left: var(--side-w-c); max-width: calc(1560px + var(--side-w-c)); }
+  }
+  @media (prefers-reduced-motion: reduce) { .side, .wrap { transition: none !important; } }
 
   @media (max-width: 900px) {
     .side {
