@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 
 import logs_mini
 from monishield.application import alerts
-from monishield.infrastructure import auth, config, db, ingest
+from monishield.domain import accounts
+from monishield.infrastructure import config, db, ingest
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
@@ -38,7 +39,7 @@ def sent(monkeypatch):
 @pytest.fixture
 def app_env(tmp_path, auth_url, monkeypatch):
     """Folder B + empat salinannya (rata-rata tersedia) + 2026-01-07 = B dengan error dilipatgandakan nanti."""
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     root = logs_mini.build(tmp_path / 'logs')
     for d in ('2026-01-03', '2026-01-04', '2026-01-05', '2026-01-06'): shutil.copytree(os.path.join(root, B), os.path.join(root, d))
     c = dataclasses.replace(config.Config(), log_dir=root, data_dir=str(tmp_path / 'data'), state_dir=str(tmp_path / 'state'), inbox_dir=str(tmp_path / 'inbox'),

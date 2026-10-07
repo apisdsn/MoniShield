@@ -5,7 +5,8 @@ import duckdb, pytest
 from fastapi.testclient import TestClient
 
 import logs_mini
-from monishield.infrastructure import auth, config, db, ingest
+from monishield.domain import accounts
+from monishield.infrastructure import config, db, ingest
 from monishield.interfaces.api import app as appmod, common
 from conftest import JWT_SECRET
 
@@ -30,7 +31,7 @@ def cfg(tmp_path_factory):
 @pytest.fixture
 def client(cfg, auth_url, monkeypatch):
     """Aplikasi baru dengan basis data akun kosong tiap uji (data log dipakai bersama, hanya dibaca)."""
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))   # hash murah agar uji cepat; biaya asli diukur di docs/04a
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))   # hash murah agar uji cepat; biaya asli diukur di docs/04a
     c = dataclasses.replace(cfg, auth_database_url=auth_url)
     with TestClient(appmod.create_app(c)) as tc:
         yield tc
@@ -105,7 +106,7 @@ def test_masuk_cookie_dan_wajib_ganti_sandi(client):
 
 
 def test_cookie_secure_bila_dikonfigurasi(cfg, auth_url, monkeypatch):
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     c = dataclasses.replace(cfg, auth_database_url=auth_url, cookie_secure=True)
     with TestClient(appmod.create_app(c), base_url='https://uji.local') as tc:
         assert '; secure' in masuk(tc).headers['set-cookie'].lower()
@@ -294,7 +295,7 @@ def test_ingest_lewat_api_dan_dashboard_tetap_terbuka(client):
 def test_salinan_duckdb_untuk_dbgate(cfg, auth_url, monkeypatch):
     """S4_DUCKDB_SNAPSHOT (docker compose + DbGate): salinan dibuat saat server mulai bila belum ada, lalu diperbarui tiap
     ingest selesai. Tanpa setelan itu tidak ada salinan sama sekali."""
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     c = dataclasses.replace(cfg, auth_database_url=auth_url, duckdb_snapshot=True)
     path = db.snapshot_path(c)
     try:
@@ -703,7 +704,7 @@ def test_swagger_untuk_user_biasa_tetapi_rute_admin_tetap_403(client):
 def test_command_rata_rata_folder_sebanding(tmp_path, auth_url, monkeypatch):
     """Empat salinan folder B (01-03..01-06) + B: rata-rata sebelum 01-06 = nilai B (folder A, baris < 50 %, tidak ikut)."""
     import shutil
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     root = logs_mini.build(tmp_path / 'logs')
     for d in ('2026-01-03', '2026-01-04', '2026-01-05', '2026-01-06'): shutil.copytree(os.path.join(root, B), os.path.join(root, d))
     c = dataclasses.replace(config.Config(), log_dir=root, data_dir=str(tmp_path / 'data'), state_dir=str(tmp_path / 'state'), inbox_dir=str(tmp_path / 'inbox'),

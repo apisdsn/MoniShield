@@ -117,9 +117,10 @@ def klien_api():
     """Aplikasi v2 di dalam proses (TestClient) atas database nyata, sudah masuk sebagai admin. Akun di SQLite sementara."""
     import dataclasses, tempfile
     from fastapi.testclient import TestClient
-    from monishield.infrastructure import auth, config
+    from monishield.domain import accounts
+    from monishield.infrastructure import config
     from monishield.interfaces.api import app as appmod
-    auth.SCRYPT = (10, 8, 1)   # hash murah: ini alat banding, bukan server
+    accounts.SCRYPT = (10, 8, 1)   # hash murah: ini alat banding, bukan server
     pw, x = 'sandi-pembanding-pertama', {'X-Requested-With': 'kesetaraan'}
     # attack_rules='lama': kesetaraan dibuktikan dengan aturan serangan sistem lama (Tahap 21: tampilan memakai CRS)
     c = dataclasses.replace(config.load(), auth_database_url='sqlite:///' + os.path.join(tempfile.mkdtemp(), 'auth.db'), ingest_on_start=False, attack_rules='lama',

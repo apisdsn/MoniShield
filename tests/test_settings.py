@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 import logs_mini
 from s3_tiruan import KEY_OK, S3Tiruan
+from monishield.domain import accounts
 from monishield.infrastructure import auth, config, envfile, importer
 from monishield.application import settings
 from monishield.interfaces.api import app as appmod, config_api
@@ -77,7 +78,7 @@ def envp(tmp_path):
 
 @pytest.fixture
 def client(cfg, envp, monkeypatch, s3):
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     for k in ('AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'MAXMIND_ACCOUNT_ID', 'MAXMIND_LICENSE_KEY'): monkeypatch.delenv(k, raising=False)
     with TestClient(appmod.create_app(cfg, env_path=envp)) as tc:
         assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
@@ -174,7 +175,7 @@ def test_env_tidak_bisa_ditulis(client, envp, monkeypatch):
 
 def test_pindahan_dari_basis_data_ke_env(cfg, envp, monkeypatch, s3):
     """Setelan lama (sebelum .env) di app_setting dipindah sekali ke .env saat server mulai, lalu dihapus dari basis data."""
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     a = auth.Auth(cfg.auth_url)
     a.setting_set('config', dict(maxmind_account_id=MM_ID, maxmind_license_key=MM_KEY, aws_access_key_id=''), 'admin')
     a.setting_set('s3_watch', dict(url='s3://simpel4-backup/k8s-logs/', minutes=15, enabled=True), 'admin')
@@ -232,7 +233,7 @@ def test_uji_maxmind(client, monkeypatch):
 
 
 def test_tanpa_sesi_ditolak(cfg, envp, monkeypatch, s3):
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     with TestClient(appmod.create_app(cfg, env_path=envp)) as tc:
         assert tc.get('/api/admin/config', headers=X).status_code == 401
         assert tc.put('/api/admin/config', json={}, headers=X).status_code == 401

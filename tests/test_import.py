@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 
 import logs_mini
 from s3_tiruan import KEY_OK, S3Tiruan
-from monishield.infrastructure import auth, config, db, envfile, importer, ingest
+from monishield.domain import accounts
+from monishield.infrastructure import config, db, envfile, importer, ingest
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
@@ -178,7 +179,7 @@ def test_kredensial_sementara_di_memori(cfg):
 # ------------------------------------------------------------------ API
 @pytest.fixture
 def client(cfg, auth_url, monkeypatch, s3):
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     c = dataclasses.replace(cfg, auth_database_url=auth_url)
     con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
     with TestClient(appmod.create_app(c)) as tc:
@@ -243,7 +244,7 @@ def test_api_kredensial_sementara(client, cfg, auth_url, s3):
 
 
 def test_kredensial_tempel_hilang_setelah_mulai_ulang(cfg, auth_url, monkeypatch, s3):
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     c = dataclasses.replace(cfg, auth_database_url=auth_url, aws_access_key_id='', aws_secret_access_key='')
     con = db.open(c.db_path); con.close()
     for i in range(2):
@@ -360,7 +361,7 @@ def test_awalan_pantau_diperiksa_terhadap_daftar_izin(cfg, watch, code):
 @pytest.fixture
 def wclient(cfg, auth_url, monkeypatch, s3):
     """S3 berisi folder 2026-01-02 (sudah ada di folder log lokal), 01-05, 01-06, 01-07, dan awalan bukan tanggal."""
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     b = s3.buckets['simpel4-backup']
     for f in ('2026-01-02', '2026-01-06', '2026-01-07'): b[obj('om-be-appsmanager', 'pod-a', folder=f)] = APPS
     b['k8s-logs/arsip-lama/x.log'] = b'x'
@@ -431,7 +432,7 @@ def test_penjadwal_memeriksa_sendiri(wclient):
 @pytest.fixture
 def plain(cfg, auth_url, monkeypatch, s3):
     """Tanpa S4_S3_WATCH di .env: sinkron hanya lewat alamat yang diisi admin di layar."""
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     b = s3.buckets['simpel4-backup']
     b[obj('om-be-appsmanager', 'pod-a', folder='2026-01-06')] = APPS
     c = dataclasses.replace(cfg, auth_database_url=auth_url, s3_watch_days=0)

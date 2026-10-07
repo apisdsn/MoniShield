@@ -5,8 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import logs_mini
-from monishield.infrastructure import auth, config, db, importer, ingest
-from monishield.application import upload
+from monishield.domain import accounts, uploads as upload_rules
+from monishield.infrastructure import config, db, importer, ingest
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
@@ -28,7 +28,7 @@ def cfg(tmp_path):
 
 
 def rencana(cfg, paths, folder=''):
-    return upload.plan(cfg, [dict(path=p, size=10) for p in paths], folder)
+    return upload_rules.plan(cfg, [dict(path=p, size=10) for p in paths], folder)
 
 
 def test_rencana_bentuk_jalur(cfg):
@@ -60,7 +60,7 @@ def test_rencana_ditolak(cfg, paths, folder, code):
 
 def test_rencana_batas(cfg):
     big = dataclasses.replace(cfg, import_max_object_mb=1)
-    with pytest.raises(importer.ImportFail) as e: upload.plan(big, [dict(path=f'{D}/ns/svc/a.log', size=2 * 2**20)])
+    with pytest.raises(importer.ImportFail) as e: upload_rules.plan(big, [dict(path=f'{D}/ns/svc/a.log', size=2 * 2**20)])
     assert e.value.code == 'object_too_large'
     few = dataclasses.replace(cfg, import_max_objects=1)
     with pytest.raises(importer.ImportFail) as e: rencana(few, [f'{D}/ns/svc/a.log', f'{D}/ns/svc/b.log'])
@@ -69,7 +69,7 @@ def test_rencana_batas(cfg):
 
 @pytest.fixture
 def client(cfg, auth_url, monkeypatch):
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     c = dataclasses.replace(cfg, auth_database_url=auth_url)
     con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
     with TestClient(appmod.create_app(c)) as tc:

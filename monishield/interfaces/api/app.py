@@ -12,7 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import alerts as alertsmod, settings, upload as uploadmod
+from monishield.application import alerts as alertsmod, settings
+from monishield.infrastructure import uploads as uploadmod
 from monishield.infrastructure import auth as authmod, config, db, kafka_in
 from monishield.domain import detect
 from monishield.interfaces.api import admin, availability, config_api, docs, kafka, notify, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing, search, trends, upload, users

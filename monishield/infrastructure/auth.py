@@ -12,17 +12,16 @@ DuckDB tetap hanya untuk analitik log dan harus bisa dibangun ulang tanpa kehila
 
 Dua peran: 'admin' dan 'user'. Pembatasan per modul ditunda (TRD §8.3).
 """
-import contextlib, datetime, hashlib, hmac, re, secrets, threading, time
+import contextlib, datetime, hmac, re, secrets, threading, time
 
 import jwt
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, create_engine, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-ROLES = ('admin', 'user')
-USERNAME = re.compile(r'[a-z0-9._-]{3,32}')
-PASSWORD_MIN, PASSWORD_MAX = 12, 128
-SCRYPT = (15, 8, 1)          # n = 2^15, r, p: ±76 ms di laptop pengembang (docs/04a-hasil-ukur.md); disimpan per akun
+from monishield.domain import accounts
+from monishield.domain.accounts import PASSWORD_MAX, ROLES, AuthError, check_password, check_username, hash_password, job_token_ok   # noqa: F401
+
 MAX_FAILED, LOCK_MINUTES = 5, 15
 IP_MAX_FAILED, IP_WINDOW_S = 20, 15 * 60   # pembatas per IP, di memori
 JWT_ALG, JWT_ISS, JWT_SECRET_MIN = 'HS256', 'monishield', 32
@@ -111,42 +110,8 @@ class AlertLog(Base):
     error: Mapped[str | None] = mapped_column(Text)
 
 
-# ------------------------------------------------------------------ pembantu
-class AuthError(Exception):
-    """Galat yang boleh ditampilkan ke pengguna. code = kode galat API, status = status HTTP."""
-
-    def __init__(self, code, message, status=400):
-        super().__init__(message); self.code, self.message, self.status = code, message, status
-
-
 def now(): return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)   # semua waktu UTC
 def iso(dt): return dt.isoformat(sep=' ') if dt else None
-
-
-def hash_password(password, salt=None, params=None):
-    """(hash, garam). params dibaca saat dipanggil, sehingga yang disimpan di hash_params selalu yang benar-benar dipakai."""
-    salt = salt or secrets.token_bytes(16)
-    n, r, p = params or SCRYPT
-    return hashlib.scrypt(password.encode('utf-8'), salt=salt, n=2 ** n, r=r, p=p, maxmem=2 ** 30, dklen=32), salt
-
-
-def check_username(username):
-    if not isinstance(username, str) or not USERNAME.fullmatch(username):
-        raise AuthError('invalid_username', 'Nama user harus 3–32 karakter: huruf kecil, angka, titik, garis bawah, atau strip.')
-    return username
-
-
-def check_password(password, username=''):
-    if not isinstance(password, str) or not PASSWORD_MIN <= len(password) <= PASSWORD_MAX:
-        raise AuthError('invalid_password', f'Sandi harus {PASSWORD_MIN}–{PASSWORD_MAX} karakter.')
-    if username and password.lower() == username.lower():
-        raise AuthError('invalid_password', 'Sandi tidak boleh sama dengan nama user.')
-    return password
-
-
-def job_token_ok(configured, presented):
-    """Token mesin (tugas ingest, pengirim tautan S3): perbandingan waktu-konstan; kosong = fitur mati."""
-    return bool(configured) and isinstance(presented, str) and hmac.compare_digest(configured.encode(), presented.encode())
 
 
 def redact_url(url):
@@ -291,7 +256,7 @@ class Auth:
         display_name = (display_name or username).strip()[:80] or username
         h, salt = hash_password(check_password(password, username))
         with self._tx() as s:
-            u = User(username=username, display_name=display_name, role=role, password_hash=h, password_salt=salt, hash_params=':'.join(map(str, SCRYPT)),
+            u = User(username=username, display_name=display_name, role=role, password_hash=h, password_salt=salt, hash_params=':'.join(map(str, accounts.SCRYPT)),
                      must_change_password=must_change, active=True, failed_logins=0, created_at=now(), created_by=by['username'] if by else None)
             s.add(u)
             try: s.flush()
@@ -337,7 +302,7 @@ class Auth:
     @staticmethod
     def _set_password(u, password, must_change):
         u.password_hash, u.password_salt = hash_password(password)
-        u.hash_params, u.must_change_password, u.failed_logins, u.locked_until = ':'.join(map(str, SCRYPT)), must_change, 0, None
+        u.hash_params, u.must_change_password, u.failed_logins, u.locked_until = ':'.join(map(str, accounts.SCRYPT)), must_change, 0, None
 
     def reset_password(self, user_id, by, ip=None):
         """Sandi sementara baru (dikembalikan SEKALI); semua sesi user dicabut; wajib diganti saat masuk."""

@@ -6,8 +6,9 @@ import httpx, pytest
 from fastapi.testclient import TestClient
 
 import logs_mini
-from monishield.infrastructure import auth, config, db, ingest, kafka_in
-from monishield.domain import parse
+from monishield.domain import accounts
+from monishield.infrastructure import config, db, ingest, kafka_in
+from monishield.domain import kafka_message, parse
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
@@ -37,29 +38,29 @@ def messages():
 
 # ------------------------------------------------------------------ pesan
 def test_pesan_rancher_dan_variasinya():
-    r, why = kafka_in.parse_message(rancher('ombudsman', 'om-be-report', 'om-be-report-7d9f-abcde', 'baris satu'))
+    r, why = kafka_message.parse_message(rancher('ombudsman', 'om-be-report', 'om-be-report-7d9f-abcde', 'baris satu'))
     assert why is None and (r['ns'], r['svc'], r['pod'], r['line'], r['t']) == ('ombudsman', 'om-be-report', 'om-be-report-7d9f-abcde', 'baris satu', T)
     # tanpa blok kubernetes: dari tag
     m = json.loads(rancher('ombudsman', 'om-be-report', 'om-be-report-7d9f-abcde', 'x')); m.pop('kubernetes')
-    assert kafka_in.parse_message(json.dumps(m))[0]['pod'] == 'om-be-report-7d9f-abcde'
+    assert kafka_message.parse_message(json.dumps(m))[0]['pod'] == 'om-be-report-7d9f-abcde'
     # waktu: milidetik, ISO, kosong -> stempel Kafka
     for t in (int(T.timestamp() * 1000), '2026-01-01T05:00:00Z', '2026-01-01T12:00:00+07:00'):
-        assert kafka_in.parse_message(rancher('a', 'b', 'c', 'x', time=t))[0]['t'] == T
-    assert kafka_in.parse_message(rancher('a', 'b', 'c', 'x', time=None), ts_ms=int(T.timestamp() * 1000))[0]['t'] == T
+        assert kafka_message.parse_message(rancher('a', 'b', 'c', 'x', time=t))[0]['t'] == T
+    assert kafka_message.parse_message(rancher('a', 'b', 'c', 'x', time=None), ts_ms=int(T.timestamp() * 1000))[0]['t'] == T
     # ditolak dengan alasan
-    assert kafka_in.parse_message(b'bukan json')[1] == 'bukan JSON'
-    assert kafka_in.parse_message(json.dumps(dict(stream='stdout')))[1] == "tanpa kolom 'log'"
-    assert kafka_in.parse_message(json.dumps(dict(log='x')))[1].startswith('tanpa kubernetes')
-    assert kafka_in.parse_message(rancher('..', 'svc', 'pod', 'x'))[1] == 'nama namespace/container/pod tidak sah'   # tidak bisa keluar dari kotak masuk
-    assert kafka_in.parse_message(rancher('ns', 'svc', 'a/../../etc', 'x'))[1] == 'nama namespace/container/pod tidak sah'
-    assert kafka_in.parse_message(rancher('ns', 'svc', 'pod', '   '))[1] == 'baris kosong'
+    assert kafka_message.parse_message(b'bukan json')[1] == 'bukan JSON'
+    assert kafka_message.parse_message(json.dumps(dict(stream='stdout')))[1] == "tanpa kolom 'log'"
+    assert kafka_message.parse_message(json.dumps(dict(log='x')))[1].startswith('tanpa kubernetes')
+    assert kafka_message.parse_message(rancher('..', 'svc', 'pod', 'x'))[1] == 'nama namespace/container/pod tidak sah'   # tidak bisa keluar dari kotak masuk
+    assert kafka_message.parse_message(rancher('ns', 'svc', 'a/../../etc', 'x'))[1] == 'nama namespace/container/pod tidak sah'
+    assert kafka_message.parse_message(rancher('ns', 'svc', 'pod', '   '))[1] == 'baris kosong'
 
 
 def test_nama_layanan_seperti_folder_s3():
-    assert kafka_in.service_of('om-be-appsmanager', 'om-be-appsmanager-bc95dc4fc-sx4f2') == 'om-be-appsmanager'
-    assert kafka_in.service_of('app', 'om-be-referensi-5b7c9-xk2pq') == 'om-be-referensi'                  # dari awalan pod
-    assert kafka_in.service_of('controller', 'ingress-nginx-controller-7d8f-abcde', 'ingress-nginx') == parse.NGINX_SVC
-    assert kafka_in.service_of('layanan-baru', 'layanan-baru-1') == 'layanan-baru'                          # tak dikenal: apa adanya
+    assert kafka_message.service_of('om-be-appsmanager', 'om-be-appsmanager-bc95dc4fc-sx4f2') == 'om-be-appsmanager'
+    assert kafka_message.service_of('app', 'om-be-referensi-5b7c9-xk2pq') == 'om-be-referensi'                  # dari awalan pod
+    assert kafka_message.service_of('controller', 'ingress-nginx-controller-7d8f-abcde', 'ingress-nginx') == parse.NGINX_SVC
+    assert kafka_message.service_of('layanan-baru', 'layanan-baru-1') == 'layanan-baru'                          # tak dikenal: apa adanya
 
 
 @pytest.mark.parametrize('wib,folder', [('2026-10-05 00:05:00', '2026-10-06'), ('2026-10-06 00:00:00', '2026-10-06'),
@@ -67,7 +68,7 @@ def test_nama_layanan_seperti_folder_s3():
 def test_tanggal_folder_seperti_ekspor_s3(wib, folder):
     """Folder D berisi log (D-1 00.00, D 00.00] WIB — seperti folder S3 ('folder 6 Okt berisi log 5 Okt 00.05–6 Okt 00.00 WIB')."""
     t = datetime.datetime.fromisoformat(wib).replace(tzinfo=datetime.timezone(datetime.timedelta(hours=7)))
-    assert kafka_in.folder_of(t) == folder
+    assert kafka_message.folder_of(t) == folder
 
 
 # ------------------------------------------------------------------ setara dengan S3
@@ -98,7 +99,7 @@ def test_hasil_ingest_sama_dengan_log_s3(tmp_path):
 # ------------------------------------------------------------------ di server
 @pytest.fixture
 def client(tmp_path, auth_url, monkeypatch):
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     c = dataclasses.replace(config.Config(), log_dir=str(tmp_path / 'logs'), data_dir=str(tmp_path / 'data'), state_dir=str(tmp_path / 'state'),
                             inbox_dir=str(tmp_path / 'inbox'), cache_dir=str(tmp_path / 'cache'), offline=True, ingest_on_start=False, cookie_secure=False,
                             admin_user='admin', admin_password=PW, jwt_secret=JWT_SECRET, auth_database_url=auth_url,

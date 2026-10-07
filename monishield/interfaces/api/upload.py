@@ -1,4 +1,4 @@
-"""Unggah folder log dari browser (monishield/upload.py). Admin saja (bukan token mesin), CSRF seperti rute ubah lain.
+"""Unggah folder log dari browser (aturan: monishield/domain/uploads.py, penyimpanan: monishield/infrastructure/uploads.py). Admin saja (bukan token mesin), CSRF seperti rute ubah lain.
   POST   /api/admin/upload                rencana: daftar {path, size} -> file yang diterima / dilewati + upload_id
   PUT    /api/admin/upload/{id}/{i}       isi satu file (badan mentah, dialirkan ke disk, ukuran harus sama dengan rencana)
   POST   /api/admin/upload/{id}/finish    pindah ke kotak masuk, lalu ingest folder-folder itu di latar
@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from monishield.infrastructure import importer
-from monishield.application import upload
+from monishield.domain import uploads as upload
 from .admin import _audit
 from .common import ApiError, require_admin
 
