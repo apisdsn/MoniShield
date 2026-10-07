@@ -852,9 +852,8 @@ Command Center), `lib/Header.svelte`, `state.js` (rute `ip/…`, `?cari=`), kamu
   berkas basis data (mengubahnya memutus konfigurasi yang sudah ada); SIMPeL4 tetap disebut sebagai sistem yang dipantau.
 - **Halaman login** (permintaan lanjutan pemilik, mengikuti gambar referensinya): perisai besar sebagai **latar di belakang
   form** (SVG di halaman, garis tepi teal tebal + isi gelap bernuansa teal, tidak transparan; 46 % lebar layar, maks.
-  620 px; ponsel 150 % lebar layar agar puncak dan ujungnya terlihat), ubin ikon teal (laptop + perisai bergembok), judul
-  **"SIMPeL4 MoniShield"** seperti di gambar (ASUMSI: hanya di login; nama aplikasi di tempat lain tetap "MoniShield"),
-  lalu form. **Tombol mata (tampilkan sandi) dihapus** atas permintaan pemilik; kamus `login.show/hide/tagline/welcome`
+  620 px; ponsel 150 % lebar layar agar puncak dan ujungnya terlihat), logo perisai "M" 60 px + judul **MoniShield**
+  (pilihan pemilik, tanpa kalimat keterangan), lalu form. **Tombol mata (tampilkan sandi) dihapus** atas permintaan pemilik; kamus `login.show/hide/tagline/welcome`
   ikut dihapus, `lib/ShieldArt.svelte` (versi sebelumnya) dihapus.
 
 **Verifikasi**: `pytest tests/test_api.py` 75 lulus; build + `cek_i18n` 740 kunci; browser: folder uji `2026-10-07`
