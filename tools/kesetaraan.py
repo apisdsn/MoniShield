@@ -337,7 +337,7 @@ def jalankan(db_path=None, acuan_path=None):
     import duckdb
     import ekstrak_dashboard
     acuan = json.load(open(acuan_path or os.path.join(V2, 'docs', '00-acuan.json'), encoding='utf-8'))
-    con = duckdb.connect(db_path or os.path.join(V2, 'data', 'simpel4.duckdb'), read_only=True)
+    con = duckdb.connect(db_path or os.path.join(V2, 'data', 'monishield.duckdb'), read_only=True)
     D = ekstrak_dashboard.load()
     return acuan, con, D, e1(con, acuan), e3(con, D), e4(con, acuan, D)
 

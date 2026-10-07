@@ -65,7 +65,7 @@ if __name__ == '__main__':
     ap.add_argument('--folders', type=int, default=365)
     ap.add_argument('--sumber', default='2026-09-29')
     ap.add_argument('--out', default=os.path.join(V2, 'data', 'sim.duckdb'))
-    ap.add_argument('--db', default=os.path.join(V2, 'data', 'simpel4.duckdb'))
+    ap.add_argument('--db', default=os.path.join(V2, 'data', 'monishield.duckdb'))
     a = ap.parse_args()
     r = jalankan(a.sumber, a.folders, a.out, a.db, log=lambda m: print(m, file=sys.stderr))
     print(f"{r['folder']} folder, {r['byte'] / 2**30:.2f} GB, salin {r['detik_salin']} dtk, derive {r['detik_derive']} dtk")

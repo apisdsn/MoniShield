@@ -3,6 +3,7 @@
      [☰] MoniShield [Folder ▾] [⋯] (bahasa, tema, muat ulang, isi menu user masuk ⋯); judul mengalir di bawahnya.
      Urutan DOM = urutan Tab: alat dulu, judul (h1, tabindex -1) sesudahnya; letak visual diatur grid. -->
 <script>
+  import Logo from './Logo.svelte';
   import { lang, t } from '../i18n.js';
   import { theme } from '../theme.js';
   import FolderPicker from './FolderPicker.svelte';
@@ -26,7 +27,7 @@
 <header class="top">
   <div class="bar">
     <button bind:this={menuBtn} class="icon-btn burger" onclick={onmenu} aria-expanded={drawerOpen} aria-controls="side" aria-label={$t('nav.open')}>☰</button>
-    <span class="brand" aria-hidden="true">{APP_NAME}</span>
+    <span class="brand" aria-hidden="true"><Logo size={24} />{APP_NAME}</span>
     <div class="tools">
       {#if folders?.length}
         <FolderPicker {folders} value={folder} disabled={folderDisabled} onchange={onfolder} />
@@ -93,7 +94,7 @@
       background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(8px);
     }
     .burger, .narrow-only { display: inline-grid; }
-    .brand { display: block; font-weight: 600; white-space: nowrap; }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; white-space: nowrap; }
     .wide-only { display: none; }
     .tools { flex: 1; justify-content: flex-end; gap: 8px; }
     .tools :global(.fp) { flex: 1; justify-content: flex-end; max-width: 60vw; }

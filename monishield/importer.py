@@ -28,7 +28,7 @@ class ImportFail(Exception):
 def parse_url(cfg, url):
     """Periksa tautan terhadap bentuk dan daftar izin. -> (bucket, awalan lengkap berakhiran '/', folder). Tanpa jaringan."""
     if not cfg.import_buckets:
-        raise ImportFail('import_disabled', 'Impor tidak diaktifkan di server: isi S4_IMPORT_BUCKETS (mis. {"simpel4-backup": ["k8s-logs/"]}).')
+        raise ImportFail('import_disabled', 'Impor tidak diaktifkan di server: isi S4_IMPORT_BUCKETS (mis. {"nama-bucket": ["k8s-logs/"]}).')
     if not isinstance(url, str) or len(url) > 1024 or CONTROL.search(url):
         raise ImportFail('invalid_url', 'Tautan harus berbentuk s3://<bucket>/<awalan>/<YYYY-MM-DD>/.')
     m = URL.fullmatch(url.strip())
@@ -159,7 +159,7 @@ def parse_watch(cfg, text=None):
         if parts and rules.DATE_DIR.fullmatch(parts[-1]):
             raise ImportFail('watch_is_date', f'Masukkan folder INDUK tanpa tanggal, mis. s3://{bucket}/{"/".join(parts[:-1])}/ (bukan folder {parts[-1]}).')
         if not cfg.import_buckets:
-            raise ImportFail('import_disabled', 'Impor tidak diaktifkan di server: isi S4_IMPORT_BUCKETS (mis. {"simpel4-backup": ["k8s-logs/"]}).')
+            raise ImportFail('import_disabled', 'Impor tidak diaktifkan di server: isi S4_IMPORT_BUCKETS (mis. {"nama-bucket": ["k8s-logs/"]}).')
         allowed = cfg.import_buckets.get(bucket)
         if allowed is None or not any(base.startswith(p) for p in allowed):
             raise ImportFail('watch_not_allowed', f's3://{bucket}/{base} tidak termasuk daftar izin server (S4_IMPORT_BUCKETS). Yang diizinkan: '

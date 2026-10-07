@@ -1,6 +1,6 @@
-# MoniShield (v2) — dashboard log SIMPeL4
+# MoniShield (v2) — dashboard log & keamanan
 
-Dashboard log SIMPeL4: FastAPI + DuckDB di server, Svelte di browser. Rancangan lengkap ada di `docs/`
+Dashboard log dan keamanan: FastAPI + DuckDB di server, Svelte di browser. Rancangan lengkap ada di `docs/`
 (PRD, DRD, TRD, rencana); folder log lama di folder induk tetap menjadi sumber utama.
 
 ## Cara menjalankan
@@ -72,7 +72,7 @@ Rincian (keputusan DuckDB, cron, keamanan, alamat internet yang dihubungi, cadan
 sinkronisasi dashboard pindah ke folder terbaru. Hanya file baru atau yang berubah yang diproses.
 
 **Folder baru di S3 diambil sendiri**: **Ingest & impor** → *Sinkron otomatis dari S3* → isi folder induk, mis.
-`s3://simpel4-backup/k8s-logs` → **Simpan & aktifkan**. Pemeriksaan pertama berjalan beberapa detik kemudian, lalu tiap
+`s3://nama-bucket/k8s-logs` → **Simpan & aktifkan**. Pemeriksaan pertama berjalan beberapa detik kemudian, lalu tiap
 jeda yang dipilih (bawaan 1 jam); folder tanggal yang baru diunduh dan di-ingest. Tombol **Sinkronkan data** di kepala
 halaman juga memeriksa S3 dulu, lalu folder log lokal. (Alternatif tanpa layar: `S4_S3_WATCH` di `.env`.)
 
@@ -99,8 +99,8 @@ ditandai *Diabaikan* agar sinkronisasi tidak memasukkannya lagi, dan bisa dikemb
 | `import [--dry-run] s3://…/YYYY-MM-DD/` | impor folder log dari S3 (lihat bagian Impor dari S3) |
 | `forget YYYY-MM-DD` | hapus data satu folder dari database |
 
-Data ada di `data/` (`simpel4.duckdb`, berkas peta) dan `auth.db` di `S4_STATE_DIR`: **cadangkan `auth.db`**
-(akun, sesi, audit); `simpel4.duckdb` bisa dibangun ulang dari folder log. Server memakai satu proses: jangan
+Data ada di `data/` (`monishield.duckdb`, berkas peta) dan `auth.db` di `S4_STATE_DIR`: **cadangkan `auth.db`**
+(akun, sesi, audit); `monishield.duckdb` bisa dibangun ulang dari folder log. Server memakai satu proses: jangan
 menjalankan dua `serve` atau `ingest` bersamaan pada database yang sama (DuckDB mengunci berkasnya).
 
 ### 5. Mengembangkan tampilan
@@ -122,7 +122,7 @@ Uji browser berdampingan dengan dashboard lama ada di `tools/uji_*.cjs` (Playwri
 ## Impor dari S3
 
 Admin (layar **Ingest & impor**) atau sistem luar ber-token mesin mengirim tautan awalan, mis.
-`s3://simpel4-backup/k8s-logs/2026-09-26/`. Server memeriksa tautan terhadap daftar izin, mendaftar objek,
+`s3://nama-bucket/k8s-logs/2026-09-26/`. Server memeriksa tautan terhadap daftar izin, mendaftar objek,
 mengunduh file log ke kotak masuk (`S4_INBOX_DIR`, bawaan `data/inbox/`), lalu menjalankan ingest folder itu.
 Tautan yang sama dikirim lagi tidak mengunduh ulang objek yang ukuran dan ETag-nya sama.
 
@@ -130,7 +130,7 @@ Tautan yang sama dikirim lagi tidak mengunduh ulang objek yang ukuran dan ETag-n
 
 ```sh
 pip install -e ".[s3]"                                        # boto3
-S4_IMPORT_BUCKETS={"simpel4-backup": ["k8s-logs/"]}           # daftar izin bucket -> awalan; {} = impor mati
+S4_IMPORT_BUCKETS={"nama-bucket": ["k8s-logs/"]}              # daftar izin bucket -> awalan; {} = impor mati
 S4_IMPORT_REGION=ap-southeast-3                               # Jakarta
 AWS_ACCESS_KEY_ID=…                                           # kunci akses baca-saja
 AWS_SECRET_ACCESS_KEY=…
@@ -143,7 +143,7 @@ ia hanya bisa diubah di konfigurasi server, tidak dari antarmuka. Batas bawaan: 
 **Sinkron otomatis tanpa tautan** (permintaan pemilik 2026-10-07): isi folder induknya di layar (lihat Pemakaian sehari-hari), atau di `.env` lalu mulai ulang server:
 
 ```sh
-S4_S3_WATCH=s3://simpel4-backup/k8s-logs/      # harus termasuk S4_IMPORT_BUCKETS; koma untuk lebih dari satu
+S4_S3_WATCH=s3://nama-bucket/k8s-logs/      # harus termasuk S4_IMPORT_BUCKETS; koma untuk lebih dari satu
 S4_S3_WATCH_MINUTES=60                         # 0 = hanya tombol "Periksa S3 sekarang" / cron
 S4_S3_WATCH_DAYS=30                            # hanya folder 30 hari terakhir (0 = seluruh riwayat)
 S4_S3_WATCH_MAX_FOLDERS=3                      # maks. folder baru per pemeriksaan, terbaru dulu
@@ -159,14 +159,14 @@ lagi (kembalikan dengan **Pulihkan**). Dari cron: `curl -X POST -H "Authorizatio
 Coba dulu tanpa mengunduh apa pun (membuktikan susunan objek sama dengan folder log lokal):
 
 ```sh
-python -m monishield import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/
+python -m monishield import --dry-run s3://nama-bucket/k8s-logs/2026-09-26/
 ```
 
 Dari sistem luar (otomatis, tanpa orang):
 
 ```sh
 curl -H "Authorization: Bearer $S4_JOB_TOKEN" -H "X-Requested-With: job" -H "Content-Type: application/json" \
-     -d '{"url": "s3://simpel4-backup/k8s-logs/2026-09-26/"}' https://<server>/api/admin/import      # 202 + job_id
+     -d '{"url": "s3://nama-bucket/k8s-logs/2026-09-26/"}' https://<server>/api/admin/import      # 202 + job_id
 curl -H "Authorization: Bearer $S4_JOB_TOKEN" https://<server>/api/admin/import/<job_id>           # status
 ```
 
@@ -186,14 +186,14 @@ Buat pengguna IAM khusus dashboard yang hanya bisa membaca awalan log, dan pakai
       "Sid": "DaftarAwalanLog",
       "Effect": "Allow",
       "Action": "s3:ListBucket",
-      "Resource": "arn:aws:s3:::simpel4-backup",
+      "Resource": "arn:aws:s3:::nama-bucket",
       "Condition": { "StringLike": { "s3:prefix": ["k8s-logs/*"] } }
     },
     {
       "Sid": "BacaObjekLog",
       "Effect": "Allow",
       "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::simpel4-backup/k8s-logs/*"
+      "Resource": "arn:aws:s3:::nama-bucket/k8s-logs/*"
     }
   ]
 }

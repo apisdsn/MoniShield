@@ -11,7 +11,7 @@ from .common import ApiError, public, require_user, require_user_ready
 
 router = APIRouter(prefix='/api')
 
-DESCRIPTION = """Dashboard log SIMPeL4. Semua waktu UTC kecuali disebut lain; folder log = tanggal WIB (YYYY-MM-DD).
+DESCRIPTION = """Dashboard log dan keamanan MoniShield. Semua waktu UTC kecuali disebut lain; folder log = tanggal WIB (YYYY-MM-DD).
 
 **Masuk**: buka halaman login MoniShield dengan akun yang sama; cookie sesi dipakai otomatis oleh halaman ini.
 Permintaan yang mengubah data (POST/PUT/PATCH/DELETE) wajib membawa header `X-Requested-With` (ditambahkan otomatis
@@ -34,9 +34,9 @@ PAGE = """<!doctype html>
 <html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>API · MoniShield</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/swagger/swagger-ui.css">
 <style>body{margin:0}.topbar{display:none}.mshead{display:flex;align-items:center;gap:12px;padding:12px 20px;background:#0b1015;color:#e6edf3;font:600 15px system-ui,sans-serif}
-.mshead a{color:#2dd4bf;margin-left:auto;font-weight:500;text-decoration:none}.mshead i{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;
-font-style:normal;font-size:12px;background:linear-gradient(135deg,#2dd4bf,#14b8a6);color:#04201c}</style></head>
-<body><div class="mshead"><i>MS</i>MoniShield API<a href="/">&larr; Dashboard</a></div><div id="swagger-ui"></div>
+.mshead a{color:#2dd4bf;margin-left:auto;font-weight:500;text-decoration:none}</style></head>
+<body><div class="mshead"><svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2l12 4.5v8.2c0 7.3-5 13.4-12 15.3C9 28.1 4 22 4 14.7V6.5z" fill="#2dd4bf"/>
+<path d="M10 21V11l6 6 6-6v10" fill="none" stroke="#04201c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>MoniShield API<a href="/">&larr; Dashboard</a></div><div id="swagger-ui"></div>
 <script src="/swagger/swagger-ui-bundle.js"></script><script src="/swagger/init.js"></script></body></html>"""
 
 

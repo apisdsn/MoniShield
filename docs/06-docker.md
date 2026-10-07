@@ -31,7 +31,7 @@ docker compose ps
 
 | Variabel `.env` | Wajib | Isi |
 |---|---|---|
-| `DOCKER_LOG_DIR` | ya | folder log di **host**, mis. `/srv/log-simpel4` (dipasang hanya-baca ke `/logs`) |
+| `DOCKER_LOG_DIR` | ya | folder log di **host**, mis. `/srv/log` (dipasang hanya-baca ke `/logs`) |
 | `POSTGRES_PASSWORD` | ya | acak, tidak perlu diingat |
 | `S4_JWT_SECRET` | ya | acak ≥ 32 karakter |
 | `S4_ADMIN_PASSWORD` | ya | sandi admin pertama; wajib diganti saat masuk pertama |
@@ -94,7 +94,7 @@ cron di host:
 ### Folder log tanpa menyalin ke server
 
 - **Sinkron otomatis dari S3**: isi `S4_IMPORT_BUCKETS` dan kunci AWS di `.env`, lalu di layar Ingest & impor isi folder induk
-  (mis. `s3://simpel4-backup/k8s-logs`) → Simpan & aktifkan (tersimpan di PostgreSQL, tabel `app_setting`). Alternatif: `S4_S3_WATCH` di `.env`.
+  (mis. `s3://nama-bucket/k8s-logs`) → Simpan & aktifkan (tersimpan di PostgreSQL, tabel `app_setting`). Alternatif: `S4_S3_WATCH` di `.env`.
   `app` memeriksa bucket tiap `S4_S3_WATCH_MINUTES` menit, mengunduh folder tanggal baru ke volume `s4-inbox`, lalu
   meng-ingest-nya. Pemeriksaan pertama 1 menit setelah container mulai. Cron dengan token mesin juga bisa memicunya:
   `curl -X POST -H "Authorization: Bearer $S4_JOB_TOKEN" -H "X-Requested-With: job" http://127.0.0.1:8000/api/admin/import/sync`.
@@ -160,14 +160,21 @@ Saat build saja: `registry-1.docker.io` / `production.cloudflare.docker.com` (im
 
 | Volume | Isi | Cadangkan? |
 |---|---|---|
-| `s4-pgdata` | akun, sesi, audit | **wajib**: `docker compose exec postgres pg_dump -U simpel4 simpel4 > akun.sql` |
+| `s4-pgdata` | akun, sesi, audit | **wajib**: `docker compose exec postgres pg_dump -U monishield monishield > akun.sql` |
 | `s4-inbox` | folder log hasil impor S3 | ya (log mentah) |
-| `s4-data` | `simpel4.duckdb`, salinan baca, berkas peta | tidak wajib: bisa dibangun ulang dari log |
+| `s4-data` | `monishield.duckdb`, salinan baca, berkas peta | tidak wajib: bisa dibangun ulang dari log |
 | `s4-cache` | database acuan ±190 MB | tidak: bisa diunduh ulang |
 | `s4-pgadmin`, `s4-dbgate` | setelan penampil | tidak |
 
 Pembaruan aplikasi: `git pull && docker compose build && docker compose up -d`. Skema DuckDB diterapkan ulang saat mulai
 (aman diulang).
+
+### Ganti nama 2026-10-07 (simpel4 → monishield)
+
+Pengguna dan basis data PostgreSQL di compose kini `monishield` (dulu `simpel4`), berkas DuckDB `monishield.duckdb`
+(dulu `simpel4.duckdb`; dipindah otomatis saat server mulai, tanpa ingest ulang), penerbit JWT `monishield` (sesi lama
+berakhir, cukup masuk lagi). Volume `s4-pgdata` yang dibuat versi sebelumnya masih berisi pengguna `simpel4`: karena
+belum dipasang di server, cukup buat ulang dengan `docker compose down -v` (akun di volume itu ikut terhapus).
 
 ## 9. Hasil verifikasi (2026-10-07, mesin pengembang, Docker 29.8.2, Compose 5.6.0)
 

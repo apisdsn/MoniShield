@@ -149,7 +149,7 @@
       <form class="wform" onsubmit={(e) => { e.preventDefault(); saveWatch(true); }} novalidate>
         <div class="wurl">
           <label for="w-url">{$t('imp.w.url')}</label>
-          <input id="w-url" class="url" type="text" autocomplete="off" spellcheck="false" placeholder="s3://simpel4-backup/k8s-logs/" bind:value={wUrl} />
+          <input id="w-url" class="url" type="text" autocomplete="off" spellcheck="false" placeholder={ov.allowed[0]?.replace('<YYYY-MM-DD>/', '') || 's3://nama-bucket/k8s-logs/'} bind:value={wUrl} />
         </div>
         <div class="wmin">
           <label for="w-min">{$t('imp.w.every')}</label>

@@ -3,7 +3,7 @@
 (a) muatan serangan yang dikenal per kategori -> kena, dengan CAPEC yang sesuai;
 (b) path nyata yang "bersih" menurut aturan lama -> tingkat salah-tuduh diukur dan dilaporkan (< 0,5 % pada tingkat paranoia 1);
 (c) request yang kena aturan lama -> dicatat mana yang juga kena CRS dan mana yang tidak (laporan, bukan syarat).
-(b) dan (c) memakai database nyata (data/simpel4.duckdb) bila ada; selain itu dilewati.
+(b) dan (c) memakai database nyata (data/monishield.duckdb) bila ada; selain itu dilewati.
 """
 import collections, json, os
 

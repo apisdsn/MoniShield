@@ -231,6 +231,17 @@ def test_salinan_baca_untuk_dbgate(env):
     assert con.execute('SELECT count(*) FROM duckdb_databases() WHERE NOT internal').fetchone() == (1,)   # salinan sudah dilepas
 
 
+def test_berkas_nama_lama_dipindah(tmp_path):
+    """data/simpel4.duckdb (nama aplikasi lama) dipakai sebagai monishield.duckdb tanpa ingest ulang."""
+    old = tmp_path / 'simpel4.duckdb'
+    con = duckdb.connect(str(old)); con.execute('CREATE TABLE penanda AS SELECT 42 AS x'); con.close()
+    cfg = dataclasses.replace(config.Config(), data_dir=str(tmp_path))
+    assert cfg.db_path.endswith('monishield.duckdb')
+    con = db.open(cfg.db_path)
+    try: assert con.execute('SELECT x FROM penanda').fetchone() == (42,) and not old.exists()
+    finally: con.close()
+
+
 def test_hanya_satu_ingest_pada_satu_waktu(env):
     cfg, con, _ = env
     assert ingest._lock.acquire(blocking=False)

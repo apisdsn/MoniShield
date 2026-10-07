@@ -7,7 +7,8 @@
   import { lang, t } from '../i18n.js';
   import { num, sysName } from '../format.js';
   import { TABS, build } from '../state.js';
-  import { APP_NAME, APP_MARK } from '../brand.js';
+  import { APP_NAME } from '../brand.js';
+  import Logo from './Logo.svelte';
   import Icon from './Icon.svelte';
   let { route, summary = null, ingest = null, onpick = null, collapsed = false, ontoggle = null } = $props();
   const tip = (s) => (collapsed ? s : undefined);
@@ -21,7 +22,7 @@
 </script>
 
 <div class="logo" class:c={collapsed}>
-  <i aria-hidden="true">{APP_MARK}</i><span class="name">{APP_NAME}</span>
+  <Logo size={32} glow /><span class="name">{APP_NAME}</span>
   {#if ontoggle}
     <button class="tog" onclick={ontoggle} aria-expanded={!collapsed} aria-controls="side"
       aria-label={$t(collapsed ? 'nav.expand' : 'nav.collapse')} title={$t(collapsed ? 'nav.expand' : 'nav.collapse')}>
@@ -78,10 +79,6 @@
   }
   .tog:hover { background: var(--nav-hover); color: var(--fg); border-color: var(--line); }
   .pip { display: none; }
-  .logo i {
-    width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; font-style: normal; font-weight: 700;
-    font-size: 0.8125rem; color: var(--brand-fg); background: var(--brand-bg); box-shadow: 0 0 18px rgba(45, 212, 191, 0.25);
-  }
   nav { display: flex; flex-direction: column; overflow-y: auto; flex: 1; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
   ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
   .grp { font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.08em; color: var(--muted); margin: 14px 10px 6px; text-transform: uppercase; }

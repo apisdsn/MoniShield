@@ -53,7 +53,7 @@ class Config:
     import_timeout_minutes: int = 30
     duckdb_snapshot: bool = False  # salinan baca DuckDB (data/snapshot/) tiap selesai ingest, untuk DbGate di docker compose
     import_extract: bool = True    # .log.gz hasil impor langsung diekstrak menjadi .log di kotak masuk (permintaan pemilik 2026-10-07)
-    s3_watch: str = ''              # awalan induk S3 yang dipantau, mis. s3://simpel4-backup/k8s-logs/ (koma untuk >1); kosong = mati
+    s3_watch: str = ''              # awalan induk S3 yang dipantau, mis. s3://nama-bucket/k8s-logs/ (koma untuk >1); kosong = mati
     s3_watch_minutes: int = 60      # jeda pemeriksaan otomatis (menit); 0 = hanya lewat tombol "Periksa S3 sekarang" / cron
     s3_watch_days: int = 30         # hanya folder bertanggal dalam N hari terakhir yang diambil otomatis (0 = semua riwayat)
     s3_watch_max_folders: int = 3   # folder baru maksimal per putaran (terbaru dulu); sisanya menyusul putaran berikutnya
@@ -63,7 +63,7 @@ class Config:
     aws_session_token: str = ''
 
     @property
-    def db_path(self): return os.path.join(self.data_dir, 'simpel4.duckdb')
+    def db_path(self): return os.path.join(self.data_dir, 'monishield.duckdb')
 
     @property
     def auth_url(self):

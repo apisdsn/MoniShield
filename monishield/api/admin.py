@@ -311,7 +311,7 @@ class ImportManager:
         bila aktif, pemeriksaan pertama berjalan beberapa detik kemudian."""
         url = (url or '').strip()
         if enabled:
-            if not url: raise ApiError(400, 'invalid_watch', 'Isi alamat folder induk S3, mis. s3://simpel4-backup/k8s-logs/.')
+            if not url: raise ApiError(400, 'invalid_watch', 'Isi alamat folder induk S3, mis. s3://nama-bucket/k8s-logs/.')
             try: importer.parse_watch(self.app.state.cfg, url)
             except importer.ImportFail as e: raise ApiError(400, e.code, e.message) from None
         if minutes not in WATCH_MINUTES: raise ApiError(400, 'invalid_parameter', f'Jeda harus salah satu dari {", ".join(map(str, WATCH_MINUTES))} menit.')
@@ -324,7 +324,7 @@ class ImportManager:
         cfg, w = self.app.state.cfg, self.watch_config()
         try: sources = importer.parse_watch(cfg, w['url']) if w['enabled'] else []
         except importer.ImportFail as e: raise ApiError(400, e.code, e.message) from None
-        if not sources: raise ApiError(400, 'watch_disabled', 'Sinkron S3 otomatis belum aktif: isi alamat folder induk S3 di kartu Impor dari S3 (mis. s3://simpel4-backup/k8s-logs/).')
+        if not sources: raise ApiError(400, 'watch_disabled', 'Sinkron S3 otomatis belum aktif: isi alamat folder induk S3 di kartu Impor dari S3 (mis. s3://nama-bucket/k8s-logs/).')
         if not importer.library_ok(): raise ApiError(400, 'no_s3_library', importer.NO_LIBRARY)
         if not self.creds.get()[0]: raise ApiError(400, 'no_credentials', importer.NO_CREDENTIALS)
         with self._lock:

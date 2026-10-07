@@ -421,7 +421,7 @@ def test_cookie_berisi_jwt_dan_jwt_palsu_ditolak(client):
     import jwt
     masuk(client)
     token = client.cookies.get('s4_session')
-    c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='simpel4')
+    c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')
     assert {'sub', 'sid', 'exp'} <= set(c)
     tc = TestClient(client.app)
     tc.cookies.set('s4_session', jwt.encode({**c, 'sub': '999'}, 'rahasia-penyerang-yang-panjang-sekali-32', algorithm='HS256'))

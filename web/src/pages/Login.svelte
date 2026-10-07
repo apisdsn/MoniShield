@@ -1,6 +1,7 @@
 <!-- Layar Masuk (DRD §3.11, §6.9): satu kartu di tengah, tanpa sidebar; bahasa dan tema bisa diganti di sini.
      Pesan gagal satu kalimat yang sama untuk nama maupun sandi salah; role="alert" dan fokus kembali ke sandi. -->
 <script>
+  import Logo from '../lib/Logo.svelte';
   import { tick } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { theme } from '../theme.js';
@@ -49,10 +50,7 @@
   </div>
   <main id="main" class="card login">
     <div class="brand">
-      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-        <path class="s" d="M16 2l12 4.5v8.2c0 7.3-5 13.4-12 15.3C9 28.1 4 22 4 14.7V6.5z" />
-        <path class="m" d="M10 21V11l6 6 6-6v10" />
-      </svg>
+      <Logo size={60} glow />
       <h1>{APP_NAME}</h1>
     </div>
     {#if expired}<p class="info" role="status">{$t('login.expired')}</p>{/if}
@@ -85,9 +83,6 @@
   @media (max-width: 600px) { .bgshield { width: 150vw; } }   /* ponsel: perisai lebih lebar dari kartu agar puncak/ujungnya terlihat */
   .login { position: relative; z-index: 1; width: 100%; max-width: 380px; padding: 28px 26px; }
   .brand { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; margin-bottom: 14px; }
-  .logo { width: 60px; height: 60px; filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) 35%, transparent)); }
-  .logo .s { fill: var(--accent); }
-  .logo .m { fill: none; stroke: var(--brand-fg); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
   h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: 0.01em; color: var(--heading); }
   form { display: flex; flex-direction: column; gap: 6px; }
   label { font-size: 0.8125rem; color: var(--kpi-label); margin-top: 8px; }

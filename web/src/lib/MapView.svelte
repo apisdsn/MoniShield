@@ -44,7 +44,7 @@
       arcs: { type: 'FeatureCollection', features: arcs }, max };
   }
   const srvFC = () => ({ type: 'FeatureCollection', features: server ? [{ type: 'Feature', geometry: { type: 'Point', coordinates: [server.lon, server.lat] },
-    properties: { name: `Server SIMPEL4\n${server.ip}` } }] : [] });
+    properties: { name: `${$t('map.server')}\n${server.ip}` } }] : [] });
   function labelFC(L) {
     const P = (x, y, props) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [x, y] }, properties: props });
     return {

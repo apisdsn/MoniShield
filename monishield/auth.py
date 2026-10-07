@@ -25,7 +25,7 @@ PASSWORD_MIN, PASSWORD_MAX = 12, 128
 SCRYPT = (15, 8, 1)          # n = 2^15, r, p: ±76 ms di laptop pengembang (docs/04a-hasil-ukur.md); disimpan per akun
 MAX_FAILED, LOCK_MINUTES = 5, 15
 IP_MAX_FAILED, IP_WINDOW_S = 20, 15 * 60   # pembatas per IP, di memori
-JWT_ALG, JWT_ISS, JWT_SECRET_MIN = 'HS256', 'simpel4', 32
+JWT_ALG, JWT_ISS, JWT_SECRET_MIN = 'HS256', 'monishield', 32
 
 
 # ------------------------------------------------------------------ model ORM

@@ -5,8 +5,8 @@
       "Group": "MoniShield",
       "Host": "postgres",
       "Port": 5432,
-      "MaintenanceDB": "simpel4",
-      "Username": "simpel4",
+      "MaintenanceDB": "monishield",
+      "Username": "monishield",
       "SSLMode": "prefer",
       "Comment": "PostgreSQL di jaringan compose. Sandi = POSTGRES_PASSWORD di .env (diminta saat pertama tersambung). Data log ada di DuckDB, bukan di sini: lihat lewat DbGate (--profile dbgate)."
     }

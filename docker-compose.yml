@@ -1,4 +1,4 @@
-# MoniShield (v2, dashboard log SIMPeL4) — `docker compose up -d` (lihat docs/06-docker.md, TRD §7).
+# MoniShield (v2, dashboard log & keamanan) — `docker compose up -d` (lihat docs/06-docker.md, TRD §7).
 # Rahasia TIDAK ditulis di sini: semuanya dari .env (yang tidak ikut git maupun image).
 #
 #   app       API + tampilan + ingest di dalam proses. SATU-SATUNYA pembuka DuckDB (TRD K1, §7.2).
@@ -31,7 +31,7 @@ services:
       S4_INBOX_DIR: /inbox
       S4_STATE_DIR: /data/state
       S4_API_URL: ""
-      S4_AUTH_DATABASE_URL: postgresql+psycopg://simpel4:${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}@postgres:5432/simpel4
+      S4_AUTH_DATABASE_URL: postgresql+psycopg://monishield:${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}@postgres:5432/monishield
       S4_TRUST_PROXY: "true"          # hanya terjangkau dari proxy (port terikat ke 127.0.0.1 host / jaringan compose)
       S4_DUCKDB_SNAPSHOT: ${S4_DUCKDB_SNAPSHOT:-true}   # salinan baca untuk DbGate; "false" bila DbGate tidak dipakai (hemat disk ±50 %)
     volumes:
@@ -58,14 +58,14 @@ services:
     image: postgres:17.6-bookworm
     restart: unless-stopped
     environment:
-      POSTGRES_USER: simpel4
-      POSTGRES_DB: simpel4
+      POSTGRES_USER: monishield
+      POSTGRES_DB: monishield
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}
     volumes:
       - s4-pgdata:/var/lib/postgresql/data
     security_opt: ["no-new-privileges:true"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U simpel4 -d simpel4"]
+      test: ["CMD-SHELL", "pg_isready -U monishield -d monishield"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -139,9 +139,9 @@ services:
       ENGINE_postgres: postgres@dbgate-plugin-postgres
       SERVER_postgres: postgres
       PORT_postgres: "5432"
-      USER_postgres: simpel4
+      USER_postgres: monishield
       PASSWORD_postgres: ${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}
-      DATABASE_postgres: simpel4
+      DATABASE_postgres: monishield
       READONLY_postgres: "1"
     volumes:
       # Hanya folder salinan (subpath): file DuckDB milik app tidak terlihat dari sini. Tidak bisa read-only: plugin DuckDB
@@ -163,7 +163,7 @@ secrets:
     file: ${DOCKER_BUILD_CA:-/dev/null}   # kosong = tanpa CA tambahan
 
 volumes:
-  s4-data:     # simpel4.duckdb, salinan baca snapshot/, berkas peta, CSV sementara — bisa dibangun ulang dari log
+  s4-data:     # monishield.duckdb, salinan baca snapshot/, berkas peta, CSV sementara — bisa dibangun ulang dari log
   s4-cache:    # unduhan ip2asn, GeoLite2, Natural Earth, GeoNames (±190 MB) — bisa diunduh ulang
   s4-inbox:    # folder log hasil impor S3 — log mentah, ikut dicadangkan
   s4-pgdata:   # akun, sesi, audit — TIDAK tergantikan, wajib dicadangkan (pg_dump)

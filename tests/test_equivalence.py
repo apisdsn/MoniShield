@@ -1,7 +1,7 @@
 """Uji kesetaraan v2 vs sistem lama atas folder log NYATA (TRD §9.3, PRD §6.2).
 
 E1 angka acuan, E2 isi daftar vs API, E3 pemilik jaringan IP, E4 daftar tertutup selisih yang diharapkan.
-Butuh: data/simpel4.duckdb hasil ingest, ../dashboard.html, dan docs/00-acuan.json (dibuat
+Butuh: data/monishield.duckdb hasil ingest, ../dashboard.html, dan docs/00-acuan.json (dibuat
 `python3 tools/acuan_lama.py`). Bila salah satu tidak ada, uji dilewati dengan keterangan.
 """
 import json, os, sys
@@ -10,7 +10,7 @@ import pytest
 
 V2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(V2, 'tools'))
-DB = os.path.join(V2, 'data', 'simpel4.duckdb')
+DB = os.path.join(V2, 'data', 'monishield.duckdb')
 ACUAN = os.path.join(V2, 'docs', '00-acuan.json')
 LAMA = os.path.join(os.path.dirname(V2), 'dashboard.html')
 

@@ -184,7 +184,7 @@ def test_token_mesin():
 # ------------------------------------------------------------------ JWT
 def test_isi_jwt_dan_tidak_memuat_rahasia(a, admin):
     token, user = a.login('admin', PW)
-    c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='simpel4')
+    c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')
     assert set(c) == {'iss', 'sub', 'sid', 'iat', 'exp'} and c['sub'] == str(user['user_id'])
     assert c['exp'] - c['iat'] == 12 * 3600                                       # umur maksimum sesi
     assert jwt.get_unverified_header(token)['alg'] == 'HS256'
@@ -196,7 +196,7 @@ def _palsu(claims, secret=JWT_SECRET, alg='HS256', **header): return jwt.encode(
 
 def test_jwt_palsu_ditolak(a, admin):
     token, user = a.login('admin', PW)
-    c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='simpel4')
+    c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')
     assert a.session_user(token)
     assert a.session_user(_palsu(c, 'rahasia-lain-yang-juga-panjang-sekali-32')) is None       # tanda tangan salah
     assert a.session_user(jwt.encode(c, None, algorithm='none')) is None                          # alg none
@@ -213,7 +213,7 @@ def test_jwt_sah_untuk_user_lain_ditolak(a, admin):
     """Token yang tanda tangannya sah tetapi `sub`-nya ditukar tidak boleh menjadi user lain."""
     b = a.create_user('budi', 'Budi', 'user', PW, by=admin)
     token, _ = a.login('budi', PW)
-    c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='simpel4')
+    c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')
     assert a.session_user(_palsu({**c, 'sub': str(admin['user_id'])})) is None
 
 
@@ -221,7 +221,7 @@ def test_jwt_tetap_bisa_dicabut(a, admin):
     """Alasan sesi diperiksa di basis data: JWT yang belum kedaluwarsa pun mati setelah keluar."""
     token, user = a.login('admin', PW)
     a.logout(token, user)
-    assert jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='simpel4')  # tanda tangan masih sah
+    assert jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')  # tanda tangan masih sah
     assert a.session_user(token) is None
 
 

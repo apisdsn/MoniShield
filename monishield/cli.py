@@ -248,7 +248,7 @@ def _date(s):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog='monishield', description='Dashboard log SIMPEL4 v2')
+    ap = argparse.ArgumentParser(prog='monishield', description='MoniShield v2: dashboard log dan keamanan')
     sub = ap.add_subparsers(dest='cmd', required=True)
     p = sub.add_parser('status', help='konfigurasi efektif dan keadaan data'); p.set_defaults(fn=cmd_status)
     p.add_argument('--folder', type=_date, help='rincian satu folder'); p.add_argument('--checksum', action='store_true', help='jumlah baris dan checksum tiap tabel')
