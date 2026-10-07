@@ -6,6 +6,7 @@
   import { theme } from '../theme.js';
   import { api } from '../api.js';
   import { APP_NAME } from '../brand.js';
+  import ShieldArt from '../lib/ShieldArt.svelte';
   let { expired = false, onlogin } = $props();
 
   let username = $state(''), password = $state(''), reveal = $state(false), busy = $state(false), error = $state(null);
@@ -43,12 +44,10 @@
       <button role="radio" aria-checked={$theme === 'dark'} onclick={() => theme.set('dark')} aria-label={$t('theme.dark')}>☾</button>
     </div>
   </div>
+  <div class="stage">
+  <div class="hero"><ShieldArt size={300} /></div>
   <main id="main" class="card login">
     <div class="brand">
-      <svg class="shield" viewBox="0 0 32 32" aria-hidden="true">
-        <path class="s" d="M16 2l12 4.5v8.2c0 7.3-5 13.4-12 15.3C9 28.1 4 22 4 14.7V6.5z" />
-        <path class="m" d="M10 21V11l6 6 6-6v10" />
-      </svg>
       <h1>{APP_NAME}</h1>
       <p class="tag">{$t('login.tagline')}</p>
     </div>
@@ -69,17 +68,22 @@
       <p class="muted hint">{$t('login.forgot')}</p>
     </form>
   </main>
+  </div>
 </div>
 
 <style>
   .screen { min-height: 100vh; display: grid; place-items: center; padding: 72px 16px 32px; position: relative; }
   .prefs { position: absolute; top: 16px; left: 16px; display: flex; gap: 8px; }
   .login { width: 100%; max-width: 380px; padding: 28px 26px; }
-  /* identitas aplikasi (Tahap 25): perisai + nama MoniShield + keterangan, di tengah atas kartu */
+  /* ilustrasi perisai (permintaan pemilik: jelas, tidak transparan): samping kartu di layar lebar, di atasnya di ponsel */
+  .stage { width: 100%; display: flex; align-items: center; justify-content: center; gap: 56px; }
+  .hero { flex: none; }
+  @media (max-width: 860px) {
+    .stage { flex-direction: column; gap: 18px; }
+    .hero :global(.art) { width: 150px; }
+  }
+  /* identitas aplikasi (Tahap 25): nama MoniShield + keterangan di atas kartu; perisainya = ilustrasi .hero */
   .brand { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; margin-bottom: 18px; }
-  .shield { width: 60px; height: 60px; filter: drop-shadow(0 0 16px rgba(45, 212, 191, 0.3)); }
-  .shield .s { fill: var(--accent); }
-  .shield .m { fill: none; stroke: var(--brand-fg); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
   h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: 0.01em; color: var(--heading); margin-top: 4px; }
   .tag { margin: 0; font-size: 0.8125rem; color: var(--muted); }
   .welcome { margin: 0 0 14px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 0.875rem; font-weight: 600; color: var(--fg); }
