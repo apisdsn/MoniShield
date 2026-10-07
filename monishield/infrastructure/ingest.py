@@ -5,7 +5,7 @@ Agregat diturunkan lewat derive_folder(), yang diisi tahap berikutnya.
 """
 import concurrent.futures, datetime, json, multiprocessing, os, shutil, threading, time
 
-from monishield.infrastructure import db, derive, refdata
+from monishield.infrastructure import db, derive, logfiles, refdata
 from monishield.domain import detect, parse, rules
 
 RAW_TABLES = list(parse.TABLES)
@@ -158,12 +158,12 @@ def _run(cfg, con, only_folder, force, workers, progress):
         args = [(f['path'], f['service'], f['out'], cfg.upstream_prefix, f['known_sha'], f['pair']) for f in todo]
         if n and len(todo) > 2:
             with concurrent.futures.ProcessPoolExecutor(n, mp_context=multiprocessing.get_context('spawn')) as pool:
-                futs = [pool.submit(parse.work, *a) for a in args]
+                futs = [pool.submit(logfiles.work, *a) for a in args]
                 for i, (f, fut) in enumerate(zip(todo, futs)):
                     f['res'] = fut.result(); progress(phase='parse', done=i + 1, total=len(todo), file=f['relpath'])
         else:
             for i, (f, a) in enumerate(zip(todo, args)):
-                f['res'] = parse.work(*a); progress(phase='parse', done=i + 1, total=len(todo), file=f['relpath'])
+                f['res'] = logfiles.work(*a); progress(phase='parse', done=i + 1, total=len(todo), file=f['relpath'])
 
         # 4. satu transaksi per folder, urut tanggal (baris termuat urut folder)
         by_folder = {}

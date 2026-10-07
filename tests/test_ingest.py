@@ -4,7 +4,7 @@ import dataclasses, os, shutil, threading
 import duckdb, pytest
 
 import logs_mini
-from monishield.infrastructure import config, db, ingest
+from monishield.infrastructure import config, db, ingest, logfiles
 from monishield.domain import parse
 
 A, B = '2026-01-01', '2026-01-02'
@@ -61,7 +61,7 @@ def test_kunci_file_id_line_no_unik(env):
 def test_ingest_dua_kali_sama(env, monkeypatch):
     cfg, con, _ = env
     go(cfg, con); before = ingest.checksums(con)
-    monkeypatch.setattr(parse, 'work', lambda *a: pytest.fail('file yang tidak berubah tidak boleh dibaca'))
+    monkeypatch.setattr(logfiles, 'work', lambda *a: pytest.fail('file yang tidak berubah tidak boleh dibaca'))
     r = go(cfg, con)
     assert (r['files_seen'], r['files_changed'], r['folders_changed']) == (9, 0, []) and ingest.checksums(con) == before
 

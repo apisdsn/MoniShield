@@ -5,11 +5,12 @@ tests/test_rules.py membandingkan modul ini dengan build_dashboard.py selama fil
 Catatan `# lama:NN` = nomor baris asal di build_dashboard.py.
 
 Yang sengaja berbeda dari aslinya hanya:
-- load_ip2asn() dan map_labels() menerima path berkas (aslinya memakai konstanta ROOT/.cache);
+- fetch(), load_ip2asn(), dan map_labels() (unduhan + pembacaan berkas) dipindah ke monishield/infrastructure/refdata.py
+  dan menerima path berkas (aslinya memakai konstanta ROOT/.cache); modul ini murni;
 - pola yang di sistem lama ditulis langsung di dalam parse() diberi nama di sini (isi polanya sama);
 - pod_name() dan split_relpath() adalah potongan build() yang dijadikan fungsi.
 """
-import bisect, collections, datetime, functools, gzip, io, ipaddress, json, os, re, socket, sys, time, urllib.request, zipfile
+import bisect, collections, datetime, functools, ipaddress, os, re, socket
 from urllib.parse import unquote_plus
 
 C = collections.Counter  # lama:11
@@ -147,17 +148,6 @@ def incidents(inc, gap_min=5):
 IP2ASN_URL = 'https://iptoasn.com/data/ip2asn-v4.tsv.gz'
 
 
-def load_ip2asn(path, max_age_days=7, url=IP2ASN_URL):  # beda dari lama: path berkas dan alamat jadi parameter
-    if not fetch([url], path, max_age_days): return None
-    starts, rows = [], []
-    with gzip.open(path, 'rt', errors='replace') as fh:
-        for line in fh:
-            a, b, asn, cc, org = line.rstrip('\n').split('\t')
-            if asn == '0': continue  # blok tidak ter-routing
-            starts.append(int(ipaddress.IPv4Address(a))); rows.append((int(ipaddress.IPv4Address(b)), int(asn), cc, org))
-    return starts, rows
-
-
 def ip_owner(ip, db):
     try: addr = ipaddress.ip_address(ip)
     except ValueError: return None
@@ -179,21 +169,6 @@ LAND_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/maste
 # (hasil resolve api-simpel4.ombudsman.go.id). Di v2 keduanya NILAI BAWAAN konfigurasi.
 SERVER_IP = '103.170.104.228'
 SERVER_FALLBACK = ['Jakarta', 'Jakarta', 'ID', -6.2, 106.82]
-
-
-def fetch(urls, path, max_age_days):
-    """Unduh ke .cache bila belum ada / sudah lama. Gagal unduh -> pakai file lama jika ada."""
-    if os.path.exists(path) and time.time() - os.path.getmtime(path) < max_age_days * 86400: return True
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    for url in urls:
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=60) as r, open(path + '.tmp', 'wb') as fh:
-                while chunk := r.read(1 << 20): fh.write(chunk)
-            os.replace(path + '.tmp', path); return True
-        except OSError as e:
-            print(f'Gagal unduh {url} ({e})', file=sys.stderr)
-    return os.path.exists(path)
 
 
 def ip_int(ip): return int.from_bytes(socket.inet_aton(ip), 'big')
@@ -233,23 +208,6 @@ def kab_name(n):
     n = re.sub(r'^(.*) Regency$', r'Kabupaten \1', n)
     n = re.sub(r'^(.*) City$', r'Kota \1', n)
     return n.replace('Kabupaten ', 'Kab. ')
-
-
-def map_labels(countries_file, geonames_file, countries_url=COUNTRIES_URL, geonames_url=GEONAMES_URL):  # beda dari lama: path & alamat jadi parameter
-    """c = [nama ID, nama EN, bujur, lintang, peringkat]; p / k = [nama, bujur, lintang] provinsi / kabupaten-kota."""
-    out = dict(c=[], p=[], k=[])
-    if fetch([countries_url], countries_file, 3650):
-        for f in json.load(open(countries_file))['features']:
-            p = f['properties']
-            out['c'].append([p['NAME_ID'], p['NAME'], round(p['LABEL_X'], 2), round(p['LABEL_Y'], 2), p['LABELRANK']])
-    if fetch([geonames_url], geonames_file, 3650):
-        with zipfile.ZipFile(geonames_file).open('ID.txt') as fh:
-            for line in io.TextIOWrapper(fh, 'utf-8'):
-                if '\tADM' not in line: continue
-                r = line.split('\t')
-                if r[7] == 'ADM1' and r[10] in PROV: out['p'].append([PROV[r[10]], float(r[5]), float(r[4])])
-                elif r[7] == 'ADM2': out['k'].append([kab_name(r[1]), float(r[5]), float(r[4])])
-    return out
 
 
 # ---------------------------------------------------------------- pemindaian file  (lama:505-516, potongan build())

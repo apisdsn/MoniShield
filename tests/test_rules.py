@@ -8,6 +8,7 @@ import csv, glob, gzip, itertools, json, os, re
 import pytest
 
 from monishield.domain import rules
+from monishield.infrastructure import refdata
 from conftest import ROOT, log_files
 
 NGINX_FOLDERS = ('2026-09-29', '2026-09-30', '2026-10-03', '2026-10-05', '2026-10-06')
@@ -149,7 +150,7 @@ def test_incidents_sama(old, real):
 def test_ip_owner_sama(old, real):
     path = os.path.join(CACHE, 'ip2asn-v4.tsv.gz')
     if not os.path.exists(path): pytest.skip('cache ip2asn tidak ada')
-    db = rules.load_ip2asn(path, max_age_days=10**6)  # umur tak terbatas: uji tidak boleh mengunduh
+    db = refdata.load_ip2asn(path, max_age_days=10**6)  # umur tak terbatas: uji tidak boleh mengunduh
     old_db = getattr(old, '_db_uji', None) or old.load_ip2asn(max_age_days=10**6)
     assert db == old_db
     ips = real['ips'] + ['10.0.0.1', '127.0.0.1', '192.168.1.1', '0.0.0.0', '255.255.255.255', '2001:db8::1', 'bukan-ip', '']
@@ -172,5 +173,5 @@ def test_geo_scan_sama(old, real):
 def test_map_labels_sama(old):
     files = os.path.join(CACHE, 'ne_110m_countries.geojson'), os.path.join(CACHE, 'geonames-ID.zip')
     if not all(map(os.path.exists, files)): pytest.skip('cache label peta tidak ada')
-    out = rules.map_labels(*files)
+    out = refdata.map_labels(*files)
     assert out == old.map_labels() and {k: len(v) for k, v in out.items()} == dict(c=177, p=38, k=514)

@@ -4,7 +4,7 @@ import collections, csv, datetime, glob, os
 
 import pytest
 
-from monishield.infrastructure import db
+from monishield.infrastructure import db, logfiles
 from monishield.domain import parse, rules
 from conftest import ROOT
 
@@ -26,7 +26,7 @@ def run(tmp_path, service, fixture=None, lines=None):
     if lines is not None:
         os.makedirs(tmp_path, exist_ok=True)
         src = str(tmp_path / 'in.log'); open(src, 'w', encoding='utf-8').write(''.join(l + '\n' for l in lines))
-    s = parse.parse_file(src, service, str(tmp_path / 'out'))
+    s = logfiles.parse_file(src, service, str(tmp_path / 'out'))
     return s, collections.defaultdict(list, read_tables(str(tmp_path / 'out')))
 
 
@@ -162,7 +162,7 @@ def test_gz_sama_dengan_log(tmp_path):
     import gzip, shutil
     src = os.path.join(FIX, 'om-be-simpel-loop.txt'); gz = str(tmp_path / 'x.log.gz')
     with open(src, 'rb') as a, gzip.open(gz, 'wb') as b: shutil.copyfileobj(a, b)
-    s1 = parse.parse_file(src, 'om-be-simpel-loop', str(tmp_path / 'a')); s2 = parse.parse_file(gz, 'om-be-simpel-loop', str(tmp_path / 'b'))
+    s1 = logfiles.parse_file(src, 'om-be-simpel-loop', str(tmp_path / 'a')); s2 = logfiles.parse_file(gz, 'om-be-simpel-loop', str(tmp_path / 'b'))
     assert s1 == s2 and read_tables(str(tmp_path / 'a')) == read_tables(str(tmp_path / 'b'))
 
 
@@ -190,7 +190,7 @@ def test_sama_dengan_parser_lama(old, tmp_path, folder, service):
     for i, f in enumerate(files):
         pod = rules.pod_name(service, os.path.basename(f)); s['_pod'] = pod; e0, w0, n = s['err'], s['warn'], 0
         for n, line in enumerate(open(f, errors='replace'), 1): old.parse(service, line, s)
-        new = parse.parse_file(f, service, str(tmp_path / str(i)))
+        new = logfiles.parse_file(f, service, str(tmp_path / str(i)))
         assert (new['lines'], new['err'], new['warn']) == (n, s['err'] - e0, s['warn'] - w0), os.path.basename(f)  # = D.files lama
         for k, key, c in new['counters']: counters[k, key] += c
         for table, rows in read_tables(str(tmp_path / str(i))).items():

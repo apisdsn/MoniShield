@@ -4,11 +4,10 @@ Ini parse() sistem lama dengan bentuk keluaran diganti: cabang, urutan pemeriksa
 lines/err/warn tetap; penjumlahan (Counter) dipindah ke SQL. Catatan `# lama:NN` = baris asal di
 build_dashboard.py. Satu-satunya perbedaan perilaku: level error log nginx (TRD §4.4 butir 3).
 
-Parser tidak tahu file_id maupun folder; ingest menambahkannya saat memuat CSV.
-
-  python -m monishield.domain.parse <file.log[.gz]> --out <dir> [--service <nama>]
+Parser tidak tahu file_id maupun folder; ingest menambahkannya saat memuat CSV. Murni (tanpa berkas): pembacaan file,
+sidik jari, dan penulisan CSV ada di monishield/infrastructure/logfiles.py.
 """
-import argparse, collections, csv, gzip, hashlib, json, os, sys
+import collections, json
 
 from monishield.domain import rules
 
@@ -37,25 +36,22 @@ NGX_ERR_LEVELS = ('error', 'crit', 'alert', 'emerg')
 
 
 class Out:
-    """Keluaran satu file: CSV per tabel (dibuat saat baris pertama) + penghitung."""
+    """Keluaran satu file: baris tabel mentah + penghitung. Bawaan menampung baris di memori (`data`); penulis CSV ada di
+    monishield/infrastructure/logfiles.py (CsvOut) yang hanya mengganti `_emit`."""
 
-    def __init__(self, out_dir, service, upstream_prefix='ombudsman-ombudsman-'):
-        self.dir, self.service, self.prefix = out_dir, service, upstream_prefix
+    def __init__(self, service, upstream_prefix='ombudsman-ombudsman-'):
+        self.service, self.prefix = service, upstream_prefix
         self.n = 0  # nomor baris yang sedang diproses (mulai 1)
         self.lines = self.err = self.warn = self.corrupt = 0
         self.counter = collections.Counter()  # (kind, key) -> n, menjadi file_counter
         self.rows = collections.Counter()
-        self._w, self._fh, self._seen, self.jr = {}, [], set(), {}
+        self._seen, self.jr, self.data = set(), {}, collections.defaultdict(list)
+
+    def _emit(self, table, values): self.data[table].append(values)
 
     def row(self, table, *vals):
-        if table not in self._w:
-            fh = open(os.path.join(self.dir, table + '.csv'), 'w', newline='', encoding='utf-8')
-            self._fh.append(fh)
-            # QUOTE_NOTNULL: None -> kosong tanpa kutip (NULL), '' -> "" (teks kosong); DuckDB membedakannya.
-            self._w[table] = csv.writer(fh, quoting=csv.QUOTE_NOTNULL, lineterminator='\n')
-            self._w[table].writerow(TABLES[table])
         assert len(vals) == len(TABLES[table]) - 1, table
-        self._w[table].writerow([self.n, *('true' if v is True else 'false' if v is False else v for v in vals)])
+        self._emit(table, [self.n, *('true' if v is True else 'false' if v is False else v for v in vals)])
         self.rows[table] += 1
 
     def msg(self, level, msg, raw):  # lama:107 add_msg
@@ -64,8 +60,7 @@ class Out:
         self._seen.add(k)
         self.row('log_message', self.service, level, k, raw.strip()[:600] if first else None)
 
-    def close(self):
-        for fh in self._fh: fh.close()
+    def close(self): pass
 
     def summary(self):
         return dict(lines=self.lines, err=self.err, warn=self.warn, corrupt_lines=self.corrupt,
@@ -181,56 +176,11 @@ PARSERS = {NGINX_SVC: parse_nginx, FE_SVC: parse_fe, SL_SVC: parse_sl, DNS_SVC: 
 def known_service(service): return service in PARSERS or service in SPRING_SVCS
 
 
-def parse_file(path, service, out_dir, upstream_prefix='ombudsman-ombudsman-'):
-    """Parse satu file log -> CSV di out_dir; mengembalikan ringkasan (lines, err, warn, corrupt_lines, counters, rows)."""
-    os.makedirs(out_dir, exist_ok=True)
-    o = Out(out_dir, service, upstream_prefix)
-    fn = PARSERS.get(service, parse_spring)
-    try:
-        with (gzip.open(path, 'rt', encoding='utf-8', errors='replace') if path.endswith('.gz')
-              else open(path, encoding='utf-8', errors='replace')) as fh:
-            for o.n, line in enumerate(fh, 1):
-                if line.startswith(CORRUPT_PREFIX): o.corrupt += 1
-                fn(line, o)
-        o.lines = o.n
-    finally:
-        o.close()
-    return dict(o.summary(), service=service, known_service=known_service(service))
-
-
-def hash_file(path):
-    """SHA-256 isi SETELAH didekompresi: pasangan x.log / x.log.gz yang identik bersidik jari sama."""
-    h = hashlib.sha256()
-    with (gzip.open(path, 'rb') if path.endswith('.gz') else open(path, 'rb')) as fh:
-        while chunk := fh.read(1 << 20): h.update(chunk)
-    return h.hexdigest()
-
-
-def work(path, service, out_dir, upstream_prefix, known_sha, pair_path):
-    """Satu file, dijalankan di subproses ingest: sidik jari, lalu parse hanya bila isinya berbeda dari known_sha.
-
-    Tidak menyentuh DuckDB (TRD K1/K2). Galat parse dikembalikan, bukan dilempar, agar file lain tetap masuk.
-    pair_path = pasangan .log.gz dari sebuah .log (bila ada): ikut di-hash untuk memeriksa apakah keduanya identik.
-    """
-    out = dict(sha256=None, pair_sha256=None, summary=None, error=None)
-    try:
-        out['sha256'] = hash_file(path)
-        if pair_path: out['pair_sha256'] = hash_file(pair_path)
-        if out['sha256'] != known_sha: out['summary'] = parse_file(path, service, out_dir, upstream_prefix)
-    except Exception as e:  # noqa: BLE001  (dilaporkan sebagai status 'gagal')
-        out['error'] = f'{type(e).__name__}: {e}'
-    return out
-
-
-def main(argv=None):
-    ap = argparse.ArgumentParser(prog='monishield.parse', description='Parse satu file log menjadi CSV per tabel')
-    ap.add_argument('file'); ap.add_argument('--out', required=True)
-    ap.add_argument('--service', help='bawaan: nama folder induk file')
-    a = ap.parse_args(argv)
-    s = parse_file(a.file, a.service or os.path.basename(os.path.dirname(os.path.abspath(a.file))), a.out)
-    json.dump(s, sys.stdout, ensure_ascii=False); print()
-    return 0
-
-
-if __name__ == '__main__':
-    sys.exit(main())
+def parse_lines(lines, out):
+    """Baris-baris satu file -> `out` (Out). Murni: pembacaan file ada di monishield/infrastructure/logfiles.py."""
+    fn = PARSERS.get(out.service, parse_spring)
+    for out.n, line in enumerate(lines, 1):
+        if line.startswith(CORRUPT_PREFIX): out.corrupt += 1
+        fn(line, out)
+    out.lines = out.n
+    return dict(out.summary(), service=out.service, known_service=known_service(out.service))

@@ -7,12 +7,12 @@ yang dikirim ke pihak mana pun** (PRD §5.4). Yang keluar hanya permintaan unduh
 - Lokasi (kota, provinsi, negara, koordinat): **MaxMind GeoLite2 City** varian CSV, butuh akun gratis
   (`MAXMIND_ACCOUNT_ID` + `MAXMIND_LICENSE_KEY` di .env). Keputusan pemilik 2026-10-06, menggantikan DB-IP.
 - Berkas peta: daratan + batas negara + batas provinsi Indonesia (Natural Earth, public domain) dan label
-  wilayah (Natural Earth + GeoNames, CC BY 4.0) lewat `rules.map_labels()`.
+  wilayah (Natural Earth + GeoNames, CC BY 4.0) lewat `map_labels()`.
 
 Tanpa kunci atau tanpa internet: semuanya dilewati dengan keterangan; ingest tetap selesai dan dicoba lagi
 pada ingest berikutnya. Tidak pernah diam-diam jatuh ke sumber lain.
 """
-import base64, csv, datetime, io, ipaddress, json, os, urllib.request, zipfile
+import base64, csv, datetime, gzip, io, ipaddress, json, os, sys, time, urllib.request, zipfile
 
 from monishield.domain import rules
 
@@ -21,6 +21,50 @@ ATTRIBUTION = ['Produk ini memuat data GeoLite2 buatan MaxMind, tersedia dari ht
                'IP ownership data from iptoasn.com', 'Nama wilayah: GeoNames (CC BY 4.0)', 'Peta dasar: Natural Earth']
 # Alamat sumber unduhan dan umur maksimal berkas diatur di konfigurasi (.env: S4_URL_*, S4_GEO_MAX_AGE_DAYS,
 # S4_ASN_MAX_AGE_DAYS, S4_MAP_MAX_AGE_DAYS); bawaannya alamat resmi. Lisensi GeoLite2 melarang memakai basis data usang.
+
+
+# ------------------------------------------------------------------ unduhan + pembacaan data referensi (dari sistem lama, lama:353-466)
+def load_ip2asn(path, max_age_days=7, url=rules.IP2ASN_URL):  # beda dari lama: path berkas dan alamat jadi parameter
+    if not fetch([url], path, max_age_days): return None
+    starts, rows = [], []
+    with gzip.open(path, 'rt', errors='replace') as fh:
+        for line in fh:
+            a, b, asn, cc, org = line.rstrip('\n').split('\t')
+            if asn == '0': continue  # blok tidak ter-routing
+            starts.append(int(ipaddress.IPv4Address(a))); rows.append((int(ipaddress.IPv4Address(b)), int(asn), cc, org))
+    return starts, rows
+
+
+def fetch(urls, path, max_age_days):
+    """Unduh ke .cache bila belum ada / sudah lama. Gagal unduh -> pakai file lama jika ada."""
+    if os.path.exists(path) and time.time() - os.path.getmtime(path) < max_age_days * 86400: return True
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=60) as r, open(path + '.tmp', 'wb') as fh:
+                while chunk := r.read(1 << 20): fh.write(chunk)
+            os.replace(path + '.tmp', path); return True
+        except OSError as e:
+            print(f'Gagal unduh {url} ({e})', file=sys.stderr)
+    return os.path.exists(path)
+
+
+def map_labels(countries_file, geonames_file, countries_url=rules.COUNTRIES_URL, geonames_url=rules.GEONAMES_URL):  # beda dari lama: path & alamat jadi parameter
+    """c = [nama ID, nama EN, bujur, lintang, peringkat]; p / k = [nama, bujur, lintang] provinsi / kabupaten-kota."""
+    out = dict(c=[], p=[], k=[])
+    if fetch([countries_url], countries_file, 3650):
+        for f in json.load(open(countries_file))['features']:
+            p = f['properties']
+            out['c'].append([p['NAME_ID'], p['NAME'], round(p['LABEL_X'], 2), round(p['LABEL_Y'], 2), p['LABELRANK']])
+    if fetch([geonames_url], geonames_file, 3650):
+        with zipfile.ZipFile(geonames_file).open('ID.txt') as fh:
+            for line in io.TextIOWrapper(fh, 'utf-8'):
+                if '\tADM' not in line: continue
+                r = line.split('\t')
+                if r[7] == 'ADM1' and r[10] in rules.PROV: out['p'].append([rules.PROV[r[10]], float(r[5]), float(r[4])])
+                elif r[7] == 'ADM2': out['k'].append([rules.kab_name(r[1]), float(r[5]), float(r[4])])
+    return out
 
 
 class _StripAuth(urllib.request.HTTPRedirectHandler):
@@ -133,7 +177,7 @@ def fill_ip_info(cfg, con, offline=False, log=print):
     if offline and not os.path.exists(asn_path):
         res['lewat'].append('pemilik: ip2asn belum diunduh dan mode luring')
     else:
-        db = rules.load_ip2asn(asn_path, max_age_days=10**6 if offline else cfg.asn_max_age_days, url=cfg.url_ip2asn)
+        db = load_ip2asn(asn_path, max_age_days=10**6 if offline else cfg.asn_max_age_days, url=cfg.url_ip2asn)
         if db is None:
             res['lewat'].append('pemilik: ip2asn tidak tersedia')
         else:
@@ -177,7 +221,7 @@ def _have(urls, path, age, offline, nama, log):
         if os.path.exists(path): return True
         log(f'{nama}: belum diunduh dan mode luring; dilewati')
         return False
-    if rules.fetch(urls, path, age): return True
+    if fetch(urls, path, age): return True
     log(f'{nama}: tidak tersedia')
     return False
 
@@ -227,7 +271,7 @@ def build_map_files(cfg, offline=False, log=print):
     countries = os.path.join(cache, 'ne_110m_countries.geojson')
     geonames = os.path.join(cache, 'geonames-ID.zip')
     if _have([cfg.url_countries], countries, age, offline, 'label negara', log) & _have([cfg.url_geonames], geonames, age, offline, 'label wilayah Indonesia', log):
-        labels = rules.map_labels(countries, geonames, cfg.url_countries, cfg.url_geonames)   # dipakai apa adanya dari sistem lama
+        labels = map_labels(countries, geonames, cfg.url_countries, cfg.url_geonames)   # dipakai apa adanya dari sistem lama
         if any(labels.values()):
             _write_json(os.path.join(out_dir, 'labels.json'), labels)
             res['labels.json'] = {k: len(v) for k, v in labels.items()}
