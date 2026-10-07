@@ -1,10 +1,10 @@
 #!/bin/sh
 # Jalankan SIMPeL4 Dashboard (v2) secara lokal: ./run.sh
-# Konfigurasi dan rahasia dibaca aplikasi dari v2/.env (lihat .env.example); skrip ini tidak membacanya.
+# Konfigurasi dan rahasia dibaca aplikasi dari .env (lihat .env.example); skrip ini tidak membacanya.
 set -eu
 cd "$(dirname "$0")"
 
-[ -f .env ] || { echo "v2/.env belum ada: salin .env.example ke .env, isi, lalu chmod 600 .env" >&2; exit 1; }
+[ -f .env ] || { echo ".env belum ada: salin .env.example ke .env, isi, lalu chmod 600 .env" >&2; exit 1; }
 [ -x .venv/bin/python ] || python3 -m venv .venv
 # Paket Python (termasuk boto3 untuk impor S3 dan kafka-python untuk log Kafka) dipasang saat .venv baru DAN setiap kali pyproject.toml berubah,
 # supaya dependensi yang ditambahkan belakangan ikut terpasang (dulu: hanya saat .venv belum ada).

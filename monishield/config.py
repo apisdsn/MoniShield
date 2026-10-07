@@ -8,7 +8,7 @@ import dataclasses, json, os, re, tomllib
 
 from . import rules
 
-V2_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+V2_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # akar proyek (dulu folder v2/ di repo dashboard-logging)
 DOTENV = os.path.join(V2_DIR, '.env')   # dibaca load(); layar Konfigurasi menulis ke sini (monishield/envfile.py)
 # rahasia -> nama variabel lingkungannya
 SECRETS = {'admin_password': 'S4_ADMIN_PASSWORD', 'job_token': 'S4_JOB_TOKEN', 'jwt_secret': 'S4_JWT_SECRET',
@@ -22,7 +22,7 @@ ALERT_EVENTS = ('spike', 'critical', 'ingest_failed', 'sync_failed', 'folder_mis
 
 @dataclasses.dataclass
 class Config:
-    log_dir: str = os.path.dirname(V2_DIR)  # folder induk v2/ = folder log sistem lama
+    log_dir: str = os.path.join(V2_DIR, 'logs')  # folder log YYYY-MM-DD/… (dulu: folder induk v2/ di repo dashboard-logging)
     data_dir: str = os.path.join(V2_DIR, 'data')
     cache_dir: str = ''   # bawaan: <log_dir>/.cache (cache sistem lama, agar tidak mengunduh ulang ±100 MB)
     state_dir: str = ''   # bawaan: data_dir
