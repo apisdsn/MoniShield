@@ -3,6 +3,7 @@
      sopan ke pembaca layar), peringatan; kartu impor S3 + sinkron otomatis (lib/ImportCard, Tahap 19); unggah folder dari komputer (lib/UploadCard); kelola folder log (lib/FolderManager: hapus/pulihkan); catatan audit (500 terbaru, 50 pertama tampil).
      Dashboard tetap bisa dipakai selama ingest (ingest berjalan di thread server, K1). -->
 <script>
+  import { srv, errText } from '../srv.js';
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -43,7 +44,7 @@
   async function start() {
     starting = true;
     try { await api.post('/api/admin/ingest', {}); watching = true; toast($t('ing.started')); }
-    catch (e) { toast(e.code === 'ingest_running' ? $t('ing.already') : e.message || $t('state.error_text')); }
+    catch (e) { toast(e.code === 'ingest_running' ? $t('ing.already') : $errText(e)); }
     finally { starting = false; await loadStatus(); loadAudit(); }
   }
 
@@ -78,14 +79,14 @@
           <div class="prog" role="progressbar" aria-label={$t('ing.title')} aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct ?? undefined} aria-valuetext={phase}>
             <div class="fill" class:indet={pct === null} style={pct !== null ? `width:${pct}%` : undefined}></div>
           </div>
-          <p class="muted ph">{phase}{#if st.started_by} · {$t('ing.by', { user: st.started_by })}{/if}</p>
+          <p class="muted ph">{phase}{#if st.started_by} · {$t('ing.by', { user: $srv(st.started_by) })}{/if}</p>
         {/if}
       </div>
-      {#if st.error}<p class="err" role="alert">{$t('ing.error')} {st.error}</p>{/if}
+      {#if st.error}<p class="err" role="alert">{$t('ing.error')} {$srv(st.error)}</p>{/if}
       {#if last?.warnings?.length}
         <details class="warns">
           <summary>{$t('ing.warnings', { n: num(last.warnings.length, $lang) })}</summary>
-          <ul>{#each last.warnings as w}<li><code>{w}</code></li>{/each}</ul>
+          <ul>{#each last.warnings as w}<li><code>{$srv(w)}</code></li>{/each}</ul>
         </details>
       {/if}
       <p class="muted small">{$t('ing.hint')}</p>
@@ -102,7 +103,7 @@
         { key: 'at', label: $t('col.time'), fmt: (r) => tWIB(utcToWib(r.at), $lang), cls: () => 'nowrap', sort: true },
         { key: 'username', label: 'User', fmt: (r) => r.username || '–', sort: true },
         { key: 'action', label: $t('ing.col.action'), type: 'code', sort: true },
-        { key: 'detail', label: $t('ing.col.detail'), fmt: (r) => r.detail || '', cls: () => 'small', minw: 220 },
+        { key: 'detail', label: $t('ing.col.detail'), fmt: (r) => $srv(r.detail || ''), cls: () => 'small', minw: 220 },
         { key: 'ip', label: 'IP', type: 'code', fmt: (r) => r.ip || '–' },
       ]} />
       {#if audit.total > AUDIT_MAX}<p class="muted small">{$t('ing.audit_more', { n: num(AUDIT_MAX, $lang), m: num(audit.total, $lang) })}</p>{/if}

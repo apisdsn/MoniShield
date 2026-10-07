@@ -4,6 +4,7 @@
      semua status selain gagal (butir 9). ASUMSI: tanpa satu pun request yang cocok (matched = 0) tampil catatan,
      bukan halaman berisi nol seperti lama (DRD §6.6). -->
 <script>
+  import { srv, errText } from '../srv.js';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num } from '../format.js';
@@ -61,12 +62,12 @@
         <HBar title={$t('trc.ip_chart')} rows={data.by_ip.map((r) => ({ label: r.ip, value: r.n, org: r.org }))} color="--err" valueLabel={$t('trc.kpi.failed')} />
       {/if}
       {#if data.by_error.length}
-        <HBar title={$t('trc.err_chart')} rows={data.by_error.map(([l, n]) => ({ label: l, value: n }))} color="--warn" valueLabel={$t('col.request')} />
+        <HBar title={$t('trc.err_chart')} rows={data.by_error.map(([l, n]) => ({ label: $srv(l), value: n }))} color="--warn" valueLabel={$t('col.request')} />
       {/if}
       <DataTable title={$t('trc.t.trace')} {folder} table="trace" initial={data.tables.trace} columns={[
         { key: 'client', label: 'IP', type: 'ip', sort: true },
         { key: 'status', label: $t('col.status'), type: 'status', sort: true },
-        { key: 'error', label: 'Error', cls: () => 'small', sort: true, minw: 150 },
+        { key: 'error', label: 'Error', fmt: (r) => $srv(r.error), cls: () => 'small', sort: true, minw: 150 },
         { key: 'url', label: $t('trc.col.url'), custom: true, minw: 320 },
         { key: 'n', label: $t('table.count'), type: 'num', sort: true },
         { key: 'max_ms', label: $t('trc.col.max'), type: 'dur', sort: true },

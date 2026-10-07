@@ -5,6 +5,7 @@
      Sinkron otomatis (permintaan pemilik 2026-10-07): bila S4_S3_WATCH diisi, server memeriksa folder induk S3 berkala
      dan mengambil folder tanggal yang baru tanpa tautan; bagian atas kartu menampilkan status + "Periksa S3 sekarang". -->
 <script>
+  import { srv, errText } from '../srv.js';
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -37,6 +38,22 @@
   }
   onMount(() => { load(); const iv = setInterval(() => { if (!syncing && !busy) load(); }, 30000); return () => { clearTimeout(timer); clearTimeout(syncTimer); clearInterval(iv); }; });
 
+  let wUrl = $state(''), wMin = $state(60), wBusy = $state(false), wErr = $state(null), wInit = false;
+  $effect(() => { if (ov?.watch && !wInit) { wInit = true; wUrl = ov.watch.url || ''; wMin = ov.watch.minutes || 60; } });
+  // nama pemicu dari server ('(sinkron S3 otomatis)', '(token mesin)') diterjemahkan; nama user apa adanya
+  const who = (by) => ({ '(sinkron S3 otomatis)': $t('imp.w.by_auto'), '(token mesin)': $t('imp.w.by_job') })[by] || $srv(by);
+
+  async function saveWatch(enabled) {
+    wErr = null; wBusy = true;
+    try {
+      await api.put('/api/admin/import/watch', { url: wUrl.trim(), minutes: Number(wMin), enabled });
+      toast(enabled ? $t('imp.w.saved') : $t('imp.w.disabled'));
+      window.dispatchEvent(new Event('monishield:watch-changed'));
+      await load();
+      if (enabled) setTimeout(load, 7000);   // pemeriksaan pertama ±5 detik setelah disimpan
+    } catch (e) { wErr = why(e); } finally { wBusy = false; }
+  }
+
   async function syncNow() {
     syncErr = null;
     try { await api.post('/api/admin/import/sync', {}); syncing = true; load(); }
@@ -44,8 +61,8 @@
   }
 
   // galat: bahasa Indonesia = pesan server apa adanya (memuat rincian, mis. awalan yang diizinkan); EN = kamus per kode
-  const why = (e) => (e.status === 0 ? $t('state.error_network') : $lang === 'en' && e.code ? $t(`imp.err.${e.code}`) : e.message || $t('state.error_text'));
-  const whyJob = (j) => ($lang === 'en' && j.result?.error?.code ? $t(`imp.err.${j.result.error.code}`) : j.result?.error?.message || j.message || '');
+  const why = (e) => $errText(e);
+  const whyJob = (j) => $errText(j.result?.error || j.message || '');
 
   async function start(dry) {
     confirm = false; fail = null; busy = true; job = null;
@@ -128,19 +145,39 @@
 
     <div class="watch" aria-labelledby="w-h">
       <h3 id="w-h">{$t('imp.w.title')}</h3>
+      <p class="muted small">{$t('imp.w.intro')}</p>
+      <form class="wform" onsubmit={(e) => { e.preventDefault(); saveWatch(true); }} novalidate>
+        <div class="wurl">
+          <label for="w-url">{$t('imp.w.url')}</label>
+          <input id="w-url" class="url" type="text" autocomplete="off" spellcheck="false" placeholder="s3://simpel4-backup/k8s-logs/" bind:value={wUrl} />
+        </div>
+        <div class="wmin">
+          <label for="w-min">{$t('imp.w.every')}</label>
+          <select id="w-min" bind:value={wMin}>
+            {#each w?.minute_options || [60] as m}<option value={m}>{m < 60 ? $t('imp.w.min', { n: m }) : $t('imp.w.hour', { n: m / 60 })}</option>{/each}
+          </select>
+        </div>
+        <div class="acts wacts">
+          <button class="btn primary" type="submit" disabled={wBusy || !wUrl.trim()}>{w?.enabled ? $t('imp.w.save') : $t('imp.w.enable')}</button>
+          {#if w?.enabled}<button class="btn" type="button" disabled={wBusy} onclick={() => saveWatch(false)}>{$t('imp.w.disable')}</button>{/if}
+        </div>
+      </form>
+      {#if wErr}<p class="err" role="alert">{wErr}</p>{/if}
+      {#if w?.problem}<p class="err small">{w.problem}</p>{/if}
       {#if w?.enabled}
-        <p class="small">{$t(w.minutes > 0 ? 'imp.w.on' : 'imp.w.manual', { m: num(w.minutes, $lang) })}
+        <p class="small on"><span class="dot ok" aria-hidden="true"></span>{$t('imp.w.on', { m: w.minutes < 60 ? $t('imp.w.min', { n: w.minutes }) : $t('imp.w.hour', { n: w.minutes / 60 }) })}
           {#each w.sources as s}<code>{s}</code>{' '}{/each}
           · {w.days ? $t('imp.w.days', { d: num(w.days, $lang) }) : $t('imp.w.alldays')} · {$t('imp.w.max', { n: num(w.max_folders, $lang) })}</p>
+        {#if !c.environment}<p class="warnline small">{$t('imp.w.cred_note')}</p>{/if}
         {#if w.last}
           {@const l = w.last}
-          <p class="small">{$t('imp.w.last', { time: tWIB(utcToWib(l.at), $lang), by: l.by })}:
+          <p class="small">{$t('imp.w.last', { time: tWIB(utcToWib(l.at), $lang), by: who(l.by) })}:
             {#if l.imported.length}{$t('imp.w.got', { n: num(l.imported.length, $lang), list: l.imported.join(', ') })}{:else}{$t('imp.w.none')}{/if}{#if l.rechecked.length}; {$t('imp.w.updated', { list: l.rechecked.join(', ') })}{/if}{#if l.waiting}; {$t('imp.w.waiting', { n: num(l.waiting, $lang) })}{/if}{#if l.failed.length}; <span class="errtxt">{$t('imp.w.failed', { list: l.failed.join(', ') })}</span>{/if}</p>
-          {#each l.errors as e}<p class="err small">{e}</p>{/each}
+          {#each l.errors as e}<p class="err small">{e.where ? `${e.where}: ` : ''}{$errText(e)}</p>{/each}
         {:else}<p class="muted small">{$t('imp.w.never')}</p>{/if}
-        {#if w.next_check && w.minutes > 0}<p class="muted small">{$t('imp.w.next', { time: tWIB(utcToWib(w.next_check), $lang) })}</p>{/if}
+        {#if w.next_check}<p class="muted small">{$t('imp.w.next', { time: tWIB(utcToWib(w.next_check), $lang) })}</p>{/if}
         <div class="acts">
-          <button class="btn primary" onclick={syncNow} disabled={syncing || busy || ov.running || !c.available}>{syncing ? $t('imp.w.running') : $t('imp.w.now')}</button>
+          <button class="btn" onclick={syncNow} disabled={syncing || busy || ov.running || !c.available}>{syncing ? $t('imp.w.running') : $t('imp.w.now')}</button>
         </div>
         <div aria-live="polite">
           {#if syncing}
@@ -150,7 +187,7 @@
           {#if syncErr}<p class="err" role="alert">{syncErr}</p>{/if}
         </div>
       {:else}
-        <Note wide={false}>{w?.problem || $t('imp.w.off')}</Note>
+        <p class="muted small">{$t('imp.w.off_short')}</p>
       {/if}
     </div>
 
@@ -180,13 +217,13 @@
           {#if res.dry_run}{$t('imp.res.dry', { n: num(res.take, $lang), size: MB(res.bytes), m: num(res.skipped, $lang) })}
           {:else}{$t('imp.res.done', { n: num(res.downloaded, $lang), size: MB(res.downloaded_bytes), m: num(res.skipped, $lang), folder: res.folder })}{#if res.extracted}{' '}{$t('imp.res.extracted', { n: num(res.extracted, $lang) })}{/if}{#if res.ingest}{' '}{$t('imp.res.ingest', { n: num(res.ingest.files_changed, $lang) })}{/if}{/if}
         </p>
-        {#each res.warnings || [] as w}<p class="warnline small">{w}</p>{/each}
+        {#each res.warnings || [] as w}<p class="warnline small">{$srv(w)}</p>{/each}
         <details class="objs">
           <summary>{$t('imp.objects', { n: num(res.objects.length, $lang) })}</summary>
           <ul>
             {#each res.objects as o}
               <li><span class={o.action === 'ambil' ? 'ok' : 'muted'}>{o.action === 'ambil' ? $t('imp.take') : $t('imp.skip')}</span>
-                <code>{o.rel}</code> <span class="muted">{MB(o.size)}{#if o.reason} · {o.reason}{/if}</span></li>
+                <code>{o.rel}</code> <span class="muted">{MB(o.size)}{#if o.reason} · {$srv(o.reason)}{/if}</span></li>
             {/each}
           </ul>
         </details>
@@ -203,9 +240,9 @@
     { key: 'files', label: $t('imp.col.objects'), type: 'num', fmt: (r) => (r.files == null ? '–' : num(r.files, $lang)) },
     { key: 'bytes', label: $t('col.size'), type: 'num', fmt: (r) => (r.bytes == null ? '–' : MB(r.bytes)) },
     { key: 'status', label: $t('col.status'), custom: true, sort: true },
-    { key: 'requested_by', label: $t('imp.col.by'), fmt: (r) => r.requested_by || '–' },
+    { key: 'requested_by', label: $t('imp.col.by'), fmt: (r) => $srv(r.requested_by) || '–' },
   ]}>
-    {#snippet cell(r)}{@const s = ST[r.status] || ST.gagal}<SeverityTag level={s[0]} text={$t(s[1])} />{#if r.message}<div class="muted small msg">{r.message}</div>{/if}{/snippet}
+    {#snippet cell(r)}{@const s = ST[r.status] || ST.gagal}<SeverityTag level={s[0]} text={$t(s[1])} />{#if r.message}<div class="muted small msg">{r.status === 'gagal' ? $errText(r.message) : $srv(r.message)}</div>{/if}{/snippet}
   </DataTable>
 {/if}
 
@@ -249,4 +286,11 @@
   .watch code { word-break: break-all; }
   .errtxt { color: var(--err); }
   .manual { margin-top: 20px; }
+  .wform { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 6px; }
+  .wurl { flex: 1 1 340px; min-width: 0; }
+  .wurl .url { margin-top: 0; max-width: none; }
+  .wform label { display: block; margin: 0 0 4px; }
+  .wmin select { min-height: var(--touch); border-radius: 12px; }
+  .wacts { margin-top: 0; }
+  .on { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
 </style>

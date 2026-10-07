@@ -143,20 +143,27 @@ def list_objects(s3, bucket, prefix, cap):
 
 
 # ------------------------------------------------------------------ pantau awalan induk (sinkron otomatis, permintaan pemilik 2026-10-07)
-def parse_watch(cfg):
-    """S4_S3_WATCH (satu atau beberapa s3://<bucket>/<awalan>/, dipisah koma) -> [(bucket, awalan)]. Diperiksa terhadap
-    daftar izin S4_IMPORT_BUCKETS yang sama dengan impor manual; tanpa jaringan."""
+def parse_watch(cfg, text=None):
+    """Folder induk yang dipantau (dari layar, atau S4_S3_WATCH; satu atau beberapa s3://<bucket>/<awalan>/, dipisah
+    koma; garis miring di akhir boleh tidak ada) -> [(bucket, awalan)]. Diperiksa terhadap daftar izin
+    S4_IMPORT_BUCKETS yang sama dengan impor manual; tanpa jaringan."""
     out = []
-    for u in (x for x in re.split(r'[,\s]+', cfg.s3_watch.strip()) if x):
+    text = cfg.s3_watch if text is None else text
+    for u in (x for x in re.split(r'[,\s]+', (text or '').strip()) if x):
         m = URL.fullmatch(u) if len(u) <= 1024 and not CONTROL.search(u) else None
         path = m.group(2).strip('/') if m else ''
         parts = path.split('/') if path else []
         if not m or '' in parts or '..' in parts or '.' in parts:
-            raise ImportFail('invalid_watch', f'S4_S3_WATCH: "{u[:100]}" harus berbentuk s3://<bucket>/<awalan>/ (folder induk berisi folder YYYY-MM-DD).')
+            raise ImportFail('invalid_watch', f'"{u[:100]}" harus berbentuk s3://<bucket>/<awalan>/ (folder induk berisi folder YYYY-MM-DD).')
         bucket, base = m.group(1), path + '/' if path else ''
+        if parts and rules.DATE_DIR.fullmatch(parts[-1]):
+            raise ImportFail('watch_is_date', f'Masukkan folder INDUK tanpa tanggal, mis. s3://{bucket}/{"/".join(parts[:-1])}/ (bukan folder {parts[-1]}).')
+        if not cfg.import_buckets:
+            raise ImportFail('import_disabled', 'Impor tidak diaktifkan di server: isi S4_IMPORT_BUCKETS (mis. {"simpel4-backup": ["k8s-logs/"]}).')
         allowed = cfg.import_buckets.get(bucket)
         if allowed is None or not any(base.startswith(p) for p in allowed):
-            raise ImportFail('watch_not_allowed', f'S4_S3_WATCH: s3://{bucket}/{base} tidak termasuk S4_IMPORT_BUCKETS.')
+            raise ImportFail('watch_not_allowed', f's3://{bucket}/{base} tidak termasuk daftar izin server (S4_IMPORT_BUCKETS). Yang diizinkan: '
+                                                  f'{", ".join(f"s3://{b}/{p}" for b, ps in sorted(cfg.import_buckets.items()) for p in ps)}.')
         if (bucket, base) not in out: out.append((bucket, base))
     return out
 

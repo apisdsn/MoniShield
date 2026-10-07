@@ -416,13 +416,71 @@ def test_sinkron_belum_diatur_dan_tanpa_kredensial(client, cfg):
 
 
 def test_penjadwal_memeriksa_sendiri(wclient):
-    import threading
+    """Setelan disimpan dari layar -> penjadwal dibangunkan dan memeriksa ±5 detik kemudian, tanpa tombol."""
     m = wclient.app.state.imports
-    m._stop = threading.Event()
-    t = threading.Thread(target=m._watch_loop, args=(0,), daemon=True); t.start()
+    r = wclient.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=5, enabled=True), headers=X)
+    assert r.status_code == 200 and r.json()['source'] == 'layar'
     for _ in range(400):
         if m.watch['last'] and not m.state['running']: break
         time.sleep(0.05)
-    m._stop.set(); t.join(5)
     assert m.watch['last']['by'] == '(sinkron S3 otomatis)' and m.watch['last']['imported'] == ['2026-01-06', '2026-01-07']
-    assert not t.is_alive() and m.watch['next_check']
+    assert wclient.get('/api/admin/import').json()['watch']['next_check']
+
+
+@pytest.fixture
+def plain(cfg, auth_url, monkeypatch, s3):
+    """Tanpa S4_S3_WATCH di .env: sinkron hanya lewat alamat yang diisi admin di layar."""
+    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    b = s3.buckets['simpel4-backup']
+    b[obj('om-be-appsmanager', 'pod-a', folder='2026-01-06')] = APPS
+    c = dataclasses.replace(cfg, auth_database_url=auth_url, s3_watch_days=0)
+    con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
+    return c
+
+
+def masuk_admin(tc):
+    assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
+    assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+
+
+@pytest.mark.parametrize('url,code', [('s3://simpel4-backup/k8s-logs/2026-01-06/', 'watch_is_date'), ('s3://bucket-lain/x/', 'watch_not_allowed'),
+                                      ('simpel4-backup/k8s-logs', 'invalid_watch'), ('', 'invalid_watch')])
+def test_alamat_dari_layar_diperiksa(plain, url, code):
+    with TestClient(appmod.create_app(plain)) as tc:
+        masuk_admin(tc)
+        r = tc.put('/api/admin/import/watch', json=dict(url=url, minutes=60, enabled=True), headers=X)
+        assert (r.status_code, r.json()['error']['code']) == (400, code)
+
+
+def test_alamat_dari_layar_tersimpan_dan_dipakai(plain, s3):
+    with TestClient(appmod.create_app(plain)) as tc:
+        masuk_admin(tc)
+        w = tc.get('/api/admin/import').json()['watch']
+        assert (w['enabled'], w['source'], w['url']) == (False, None, '')
+        assert tc.post('/api/admin/import/sync', headers=X).json()['error']['code'] == 'watch_disabled'
+        r = tc.put('/api/admin/import/watch', json=dict(url='s3://simpel4-backup/k8s-logs', minutes=60, enabled=True), headers=X)   # tanpa "/" akhir
+        assert r.status_code == 200, r.text
+        w = r.json()
+        assert (w['enabled'], w['sources'], w['source'], w['minutes'], w['updated_by']) == (True, [WATCH], 'layar', 60, 'admin')
+        assert 'import.watch' in {x['action'] for x in tc.get('/api/admin/audit').json()['rows']}
+        assert tc.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=7, enabled=True), headers=X).status_code == 400   # jeda di luar pilihan
+    # setelan bertahan setelah server dimulai ulang (basis data akun), lalu pemeriksaan memakai alamat itu
+    with TestClient(appmod.create_app(plain)) as tc:
+        assert tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X).status_code == 200   # sandi sudah diganti di atas
+        assert tc.get('/api/admin/import').json()['watch']['sources'] == [WATCH]
+        assert tc.post('/api/admin/import/sync', headers=X).status_code == 202
+        tc.app.state.imports.wait(60)
+        assert tc.get('/api/admin/import').json()['watch']['last']['imported'] == [D, '2026-01-06']
+        # dimatikan dari layar: mengalahkan .env, tombol ditolak
+        assert tc.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=60, enabled=False), headers=X).json()['enabled'] is False
+        assert tc.post('/api/admin/import/sync', headers=X).json()['error']['code'] == 'watch_disabled'
+
+
+def test_user_biasa_tidak_boleh_mengatur_sinkron(plain):
+    with TestClient(appmod.create_app(plain)) as tc:
+        masuk_admin(tc)
+        assert tc.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='sandi-awal-rina-123'), headers=X).status_code == 201
+        u = TestClient(tc.app)
+        u.post('/api/auth/login', json=dict(username='rina', password='sandi-awal-rina-123'), headers=X)
+        u.post('/api/me/password', json=dict(old_password='sandi-awal-rina-123', new_password='sandi-baru-rina-123'), headers=X)
+        assert u.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=60, enabled=True), headers=X).status_code == 403

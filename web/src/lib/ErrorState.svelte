@@ -1,8 +1,9 @@
 <!-- Gagal (DRD §6.7): kalimat untuk pengguna + "Coba lagi"; rincian teknis di bawah "Detail". role="alert". -->
 <script>
+  import { srv, errText } from '../srv.js';
   import { t } from '../i18n.js';
   let { title = null, message = null, error = null, onretry = null, compact = false } = $props();
-  const detail = $derived(error ? `${error.status || ''} ${error.code || ''} ${error.message || ''}`.trim() : '');
+  const detail = $derived(error ? `${error.status || ''} ${error.code || ''} ${$errText(error)}`.trim() : '');
 </script>
 
 <div class={compact ? 'inline' : 'card wide box'} role="alert">

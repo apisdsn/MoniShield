@@ -4,6 +4,7 @@
      log utama TIDAK pernah dihapus (hanya dibaca) — folder itu ditandai "diabaikan" agar sinkronisasi tidak
      memasukkannya lagi. "Pulihkan" -> POST …/restore, lalu sinkronisasi memasukkannya kembali. -->
 <script>
+  import { srv, errText } from '../srv.js';
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -16,7 +17,7 @@
   let { onchanged = null } = $props();
   let rows = $state.raw(null), target = $state(null), open = $state(false), delInbox = $state(true), busy = $state(false);
 
-  async function load() { try { rows = (await api.get('/api/admin/folders')).rows; } catch (e) { toast(e.message); } }
+  async function load() { try { rows = (await api.get('/api/admin/folders')).rows; } catch (e) { toast($errText(e)); } }
   onMount(load);
 
   function ask(r) { target = r; delInbox = true; open = true; }
@@ -26,12 +27,12 @@
       const r = await api.post(`/api/admin/folders/${target.folder}/delete`, { delete_inbox: delInbox });
       toast($t(r.ignored ? 'fm.done_ignored' : 'fm.done', { date: dLabel(target.folder, $lang) }));
       open = false; await load(); onchanged?.();
-    } catch (e) { toast(e.status === 409 ? $t('fm.busy') : e.message); }
+    } catch (e) { toast(e.status === 409 ? $t('fm.busy') : $errText(e)); }
     finally { busy = false; }
   }
   async function restore(r) {
     try { await api.post(`/api/admin/folders/${r.folder}/restore`, {}); toast($t('fm.restored', { date: dLabel(r.folder, $lang) })); await load(); onchanged?.(); }
-    catch (e) { toast(e.message); }
+    catch (e) { toast($errText(e)); }
   }
 </script>
 

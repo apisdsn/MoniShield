@@ -44,6 +44,14 @@
   let lastFolder = null;
 
   // ---------------------------------------------------------------- masuk
+  // /api/docs (Swagger) mengarahkan ke sini dengan ?next=/api/docs bila belum masuk: sesudah masuk (dan ganti sandi
+  // awal) kembali ke sana. Hanya alamat dalam daftar ini yang diikuti (bukan pengalihan terbuka).
+  const NEXT = ['/api/docs'];
+  function goNext() {
+    const n = new URLSearchParams(location.search).get('next');
+    if (!NEXT.includes(n)) return false;
+    location.replace(n); return true;
+  }
   async function boot() {
     bootError = null;
     try {
@@ -53,6 +61,7 @@
       bootError = e; return;
     }
     if (me.must_change_password) { screen = 'force-password'; return; }
+    if (goNext()) return;
     await loadMeta();
     if (meta) screen = 'app';
   }
@@ -63,7 +72,7 @@
   function onlogin(u) {
     me = u; expired = false;
     if (u.must_change_password) screen = 'force-password';
-    else loadMeta().then(() => meta && (screen = 'app'));   // kembali ke alamat yang tadi diminta: alamat tidak diubah
+    else if (!goNext()) loadMeta().then(() => meta && (screen = 'app'));   // kembali ke alamat yang tadi diminta: alamat tidak diubah
   }
   // peran/nama bisa diubah admin kapan saja: dibaca ulang tiap pindah tab dan muat ulang ("pada permintaan berikutnya")
   async function refreshMe() {

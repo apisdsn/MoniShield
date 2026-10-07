@@ -3,6 +3,7 @@
      memeriksa daftar file (yang bukan log dilewati, batas ukuran sama dengan impor S3) -> ringkasan -> "Unggah": file
      dikirim satu per satu (3 sekaligus) dengan kemajuan -> server memindah ke kotak masuk dan menjalankan ingest. -->
 <script>
+  import { srv, errText } from '../srv.js';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num, bytes } from '../format.js';
@@ -13,7 +14,7 @@
   let input = $state(), files = $state.raw([]), folder = $state(''), plan = $state.raw(null), err = $state(null);
   let busy = $state(false), sent = $state(0), total = $state(0), done = $state.raw(null), ctl = null;
 
-  const why = (e) => (e.status === 0 ? $t('state.error_network') : $lang === 'en' && e.code ? $t(`imp.err.${e.code}`) : e.message || $t('state.error_text'));
+  const why = (e) => $errText(e);
   const MB = (n) => bytes(n ?? 0, $lang);
 
   async function pick() {
@@ -81,7 +82,7 @@
       {#if plan.skipped_count}
         <details class="objs">
           <summary>{$t('up.skipped_list', { n: num(plan.skipped_count, $lang) })}</summary>
-          <ul>{#each plan.skipped as s}<li><code>{s.path}</code> <span class="muted">· {s.reason}</span></li>{/each}</ul>
+          <ul>{#each plan.skipped as s}<li><code>{s.path}</code> <span class="muted">· {$srv(s.reason)}</span></li>{/each}</ul>
         </details>
       {/if}
       {#if uploading}

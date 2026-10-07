@@ -3,6 +3,7 @@
      dengan sebabnya): menghapus atau menonaktifkan diri sendiri, menghapus/menurunkan/menonaktifkan admin aktif
      terakhir. Sandi sementara hasil reset ditampilkan SEKALI dan tidak disimpan di mana pun. -->
 <script>
+  import { errText as srvErr } from '../srv.js';
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -30,7 +31,7 @@
   const isMe = (u) => u.username === me.username;
   // galat server per kode -> kamus (pesan server berbahasa Indonesia); kode lain: pesan server apa adanya
   const errText = (e) => (e.status === 0 ? $t('state.error_network') : ['invalid_username', 'invalid_password', 'username_taken', 'last_admin', 'self_delete', 'not_found', 'invalid_role'].includes(e.code)
-    ? $t(`adm.err.${e.code}`, { n: PW_MIN }) : e.message || $t('state.error_text'));
+    ? $t(`adm.err.${e.code}`, { n: PW_MIN }) : $srvErr(e));
 
   // ---------------------------------------------------------------- dialog
   let dlg = $state(null);            // {kind: 'add' | 'edit' | 'reset' | 'reset-done' | 'deactivate' | 'delete', user?}

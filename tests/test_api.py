@@ -670,3 +670,30 @@ def test_keterangan_aturan_crs(user):
 def test_endpoint_data_hanya_get(user):
     for u in (f'/api/folders/{B}/security', f'/api/folders/{B}/tables/c401', '/api/trends'):
         assert user.post(u, json={}, headers=X).status_code == 405
+
+
+# ------------------------------------------------------------------ dokumentasi API (Swagger, permintaan pemilik 2026-10-07)
+def test_swagger_hanya_setelah_masuk(client):
+    r = client.get('/api/docs', follow_redirects=False)
+    assert (r.status_code, r.headers['location']) == (303, '/?next=/api/docs')          # belum masuk -> halaman login
+    assert client.get('/api/openapi.json').status_code == 401
+    masuk(client)                                                                         # admin baru: wajib ganti sandi dulu
+    assert client.get('/api/docs', follow_redirects=False).status_code == 303
+    assert kode(client.get('/api/openapi.json')) == 'must_change_password'
+    admin(client)
+    r = client.get('/api/docs')
+    assert r.status_code == 200 and '/swagger/swagger-ui-bundle.js' in r.text and '/swagger/init.js' in r.text
+    assert "script-src" not in r.headers['content-security-policy'] and "default-src 'self'" in r.headers['content-security-policy']   # tanpa CDN
+    assert '<script>' not in r.text                                                       # tanpa skrip sebaris (CSP)
+    s = client.get('/api/openapi.json').json()
+    assert s['info']['title'] == 'MoniShield API' and {'session', 'jobToken'} <= set(s['components']['securitySchemes'])
+    assert {'/api/admin/ingest', '/api/folders/{folder}', '/api/admin/import/watch', '/api/admin/upload'} <= set(s['paths'])
+    assert '/api/docs' not in s['paths'] and '/api/openapi.json' not in s['paths']
+
+
+def test_swagger_untuk_user_biasa_tetapi_rute_admin_tetap_403(client):
+    admin(client)
+    buat_user(client, 'rina', 'user', 'sandi-awal-rina-123')
+    u = sebagai(client, 'rina', 'sandi-awal-rina-123')
+    assert u.get('/api/docs').status_code == 200 and u.get('/api/openapi.json').status_code == 200
+    assert u.get('/api/admin/users').status_code == 403

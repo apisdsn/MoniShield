@@ -2,6 +2,7 @@
      akun, requestId, atau potongan URL -> GET /api/search?q=…&folder=… (folder yang sedang dipilih). Hasil dikelompokkan
      per jenis; Enter / klik membuka halaman tujuan dengan filter tabelnya terisi (?cari=…). Semua teks hasil = teks biasa. -->
 <script>
+  import { srv, errText } from '../srv.js';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num } from '../format.js';
@@ -60,7 +61,7 @@
     role="combobox" aria-expanded={!!flat.length} aria-controls="gs-list" aria-activedescendant={flat.length ? `gs-${active}` : undefined} />
   <p class="muted hint">{$t('gs.hint')}</p>
   <div id="gs-list" role="listbox" aria-label={$t('gs.results')} aria-busy={busy}>
-    {#if error}<p class="err">{error.message}</p>
+    {#if error}<p class="err">{$errText(error)}</p>
     {:else if res && !flat.length}<p class="muted">{$t('gs.none', { q: res.q })}</p>{/if}
     {#each groups as [kind, list]}
       <p class="grp">{$t(`gs.type.${kind}`)}</p>

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__, auth as authmod, config, db, detect, upload as uploadmod
-from . import (admin, availability, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing,
+from . import (admin, availability, docs, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing,
                search, trends, upload, users)
 from .common import ROLE_DEPS
 
@@ -21,7 +21,7 @@ CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:;
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
 PAGES = (overview, command, ips, search, map, trends, security, rootcause, availability, pods, business, tracing, service)   # satu modul per halaman (TRD §5.3)
-ROUTERS = (meta.router, session.router, users.router, admin.router, upload.router, *(m.router for m in PAGES), tables.router)
+ROUTERS = (meta.router, session.router, users.router, admin.router, upload.router, docs.router, *(m.router for m in PAGES), tables.router)
 
 
 def _deps(dependant):

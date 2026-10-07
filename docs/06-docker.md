@@ -93,13 +93,19 @@ cron di host:
 
 ### Folder log tanpa menyalin ke server
 
-- **Sinkron otomatis dari S3**: isi `S4_S3_WATCH` (+ `S4_IMPORT_BUCKETS`, kunci AWS) di `.env`, lalu `docker compose up -d`.
+- **Sinkron otomatis dari S3**: isi `S4_IMPORT_BUCKETS` dan kunci AWS di `.env`, lalu di layar Ingest & impor isi folder induk
+  (mis. `s3://simpel4-backup/k8s-logs`) → Simpan & aktifkan (tersimpan di PostgreSQL, tabel `app_setting`). Alternatif: `S4_S3_WATCH` di `.env`.
   `app` memeriksa bucket tiap `S4_S3_WATCH_MINUTES` menit, mengunduh folder tanggal baru ke volume `s4-inbox`, lalu
   meng-ingest-nya. Pemeriksaan pertama 1 menit setelah container mulai. Cron dengan token mesin juga bisa memicunya:
   `curl -X POST -H "Authorization: Bearer $S4_JOB_TOKEN" -H "X-Requested-With: job" http://127.0.0.1:8000/api/admin/import/sync`.
 - **Unggah dari browser**: layar Ingest & impor → Unggah folder log. File masuk ke `s4-inbox` lalu di-ingest. Reverse proxy
   di depan `app` harus mengizinkan badan permintaan sebesar file log terbesar (nginx: `client_max_body_size 1024m;`;
   Caddy dari profil `proxy` tidak membatasi).
+
+### Dokumentasi API
+
+Swagger UI di `https://<server>/api/docs` (skema: `/api/openapi.json`), hanya setelah masuk dengan akun dashboard yang
+sama. Aset Swagger UI disalin ke image saat build (`web/dist/swagger/`, dari `swagger-ui-dist`); tidak ada CDN.
 
 ## 5. Melihat isi database
 

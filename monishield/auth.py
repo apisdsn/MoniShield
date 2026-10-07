@@ -89,6 +89,15 @@ class ImportJob(Base):
     finished_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
 
 
+class AppSetting(Base):
+    """Setelan yang diubah admin dari layar (mis. sinkron S3 otomatis). Nilai JSON; bukan rahasia."""
+    __tablename__ = 'app_setting'
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    updated_by: Mapped[str | None] = mapped_column(String(40))
+
+
 # ------------------------------------------------------------------ pembantu
 class AuthError(Exception):
     """Galat yang boleh ditampilkan ke pengguna. code = kode galat API, status = status HTTP."""
@@ -203,6 +212,21 @@ class Auth:
 
     def job_list(self, limit=20):
         with self._tx() as s: return [self._job(j) for j in s.scalars(select(ImportJob).order_by(ImportJob.job_id.desc()).limit(limit))]
+
+    # ---------------------------------------------------------------- setelan dari layar
+    def setting_get(self, key):
+        """-> nilai (hasil json.loads) atau None bila belum pernah disimpan."""
+        import json
+        with self._tx() as s:
+            r = s.get(AppSetting, key)
+            return dict(value=json.loads(r.value), updated_at=iso(r.updated_at), updated_by=r.updated_by) if r else None
+
+    def setting_set(self, key, value, by=None):
+        import json
+        with self._tx() as s:
+            r = s.get(AppSetting, key)
+            if r is None: r = AppSetting(key=key); s.add(r)
+            r.value, r.updated_at, r.updated_by = json.dumps(value, ensure_ascii=False), now(), (by or '')[:40] or None
 
     # ---------------------------------------------------------------- user
     @staticmethod

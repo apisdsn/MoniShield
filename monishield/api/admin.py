@@ -102,8 +102,13 @@ def ingest_status(request: Request, who=Depends(require_admin_or_job)):
     finally: cur.close()
     last_run = r and dict(started_at=str(r[0].replace(microsecond=0)), finished_at=str(r[1].replace(microsecond=0)), status=r[2], files_seen=r[3], files_changed=r[4],
                           warnings=json.loads(r[5]) if r[5] else [])
+    m = request.app.state.imports
+    last = m.watch.get('last') or {}
+    s3 = dict(enabled=bool(m.watch_sources()[0]), running=bool(m.state['running'] and m.state.get('mode') == 'sync'), phase=m.state['phase'],
+              done=m.state['done'], total=m.state['total'], last_at=last.get('at'), last_imported=last.get('imported', []) + last.get('rechecked', []),
+              last_errors=last.get('errors', []))   # untuk tombol Sinkronkan data di kepala halaman
     return dict(request.app.state.ingest.state, last_run=last_run, new_folders=_new_folders(request),
-                snapshot_error=getattr(request.app.state, 'snapshot_error', None))
+                snapshot_error=getattr(request.app.state, 'snapshot_error', None), s3=s3)
 
 
 def _snapshot(app, cur):
@@ -190,7 +195,7 @@ def folder_delete(folder: str, request: Request, body: DeleteBody = DeleteBody()
         hapus_inbox = body.delete_inbox and os.path.isdir(inbox)
         if hapus_inbox: shutil.rmtree(inbox)
         # masih ada di disk, atau sinkron S3 otomatis aktif (folder akan diunduh lagi dari S3): dicatat "diabaikan"
-        sisa = _on_disk(cfg, cfg.log_dir, folder) or _on_disk(cfg, cfg.inbox_dir, folder) or bool(cfg.s3_watch)
+        sisa = _on_disk(cfg, cfg.log_dir, folder) or _on_disk(cfg, cfg.inbox_dir, folder) or request.app.state.imports.watch_config()['enabled']
         if sisa:
             cur.execute('INSERT OR REPLACE INTO folder_ignored VALUES (?, ?, ?)', [folder, admin['username'], datetime.datetime.now(datetime.UTC).replace(tzinfo=None)])
         return n, hapus_inbox, sisa
@@ -274,24 +279,52 @@ class ImportManager:
             return True
         except importer.ImportFail as e:
             self._keep(job, dict(error=dict(code=e.code, message=e.message)))
-            auth.job_finish(job, 'gagal', message=e.message)
+            auth.job_finish(job, 'gagal', message=f'[{e.code}] {e.message}')   # kode di depan: tampilan menerjemahkannya (EN)
         except Exception as e:  # noqa: BLE001  galat dilaporkan lewat status job; tanpa rahasia (pesan boto tidak memuat kunci)
             self._keep(job, dict(error=dict(code='import_failed', message=f'{type(e).__name__}: {e}'[:500])))
-            auth.job_finish(job, 'gagal', message=f'{type(e).__name__}: {e}'[:500])
+            auth.job_finish(job, 'gagal', message=f'[import_failed] {type(e).__name__}: {e}'[:500])
         return False
 
     # -------------------------------------------------------------- sinkron otomatis dari awalan induk S3 (S4_S3_WATCH)
+    def watch_config(self):
+        """Setelan sinkron yang berlaku: yang disimpan admin dari layar (app_setting 's3_watch') mengalahkan .env.
+        -> dict(url, minutes, enabled, source='layar'|'env'|None, updated_at, updated_by)"""
+        cfg = self.app.state.cfg
+        try: st = self.app.state.auth.setting_get('s3_watch')
+        except Exception: st = None   # noqa: BLE001  basis data akun belum siap (mis. saat mulai): pakai .env
+        if st:
+            v = st['value']
+            return dict(url=v.get('url', ''), minutes=int(v.get('minutes') or cfg.s3_watch_minutes), enabled=bool(v.get('enabled')) and bool(v.get('url')),
+                        source='layar', updated_at=st['updated_at'], updated_by=st['updated_by'])
+        return dict(url=cfg.s3_watch, minutes=cfg.s3_watch_minutes, enabled=bool(cfg.s3_watch), source='env' if cfg.s3_watch else None,
+                    updated_at=None, updated_by=None)
+
     def watch_sources(self):
-        """-> (daftar s3://… yang dipantau, pesan galat konfigurasi atau None)."""
-        try: return [f's3://{b}/{p}' for b, p in importer.parse_watch(self.app.state.cfg)], None
+        """-> (daftar s3://… yang dipantau, pesan galat konfigurasi atau None). Kosong bila sinkron dimatikan."""
+        w = self.watch_config()
+        if not w['enabled']: return [], None
+        try: return [f's3://{b}/{p}' for b, p in importer.parse_watch(self.app.state.cfg, w['url'])], None
         except importer.ImportFail as e: return [], e.message
 
+    def set_watch(self, url, minutes, enabled, by):
+        """Simpan setelan dari layar (diperiksa dulu terhadap daftar izin, tanpa jaringan) lalu bangunkan penjadwal:
+        bila aktif, pemeriksaan pertama berjalan beberapa detik kemudian."""
+        url = (url or '').strip()
+        if enabled:
+            if not url: raise ApiError(400, 'invalid_watch', 'Isi alamat folder induk S3, mis. s3://simpel4-backup/k8s-logs/.')
+            try: importer.parse_watch(self.app.state.cfg, url)
+            except importer.ImportFail as e: raise ApiError(400, e.code, e.message) from None
+        if minutes not in WATCH_MINUTES: raise ApiError(400, 'invalid_parameter', f'Jeda harus salah satu dari {", ".join(map(str, WATCH_MINUTES))} menit.')
+        self.app.state.auth.setting_set('s3_watch', dict(url=url, minutes=minutes, enabled=bool(enabled)), by)
+        self._kick_loop()
+        return self.watch_config()
+
     def sync(self, by):
-        """Periksa awalan S4_S3_WATCH sekarang, di thread latar: folder tanggal yang belum dikenal diimpor + di-ingest."""
-        cfg = self.app.state.cfg
-        try: sources = importer.parse_watch(cfg)
+        """Periksa folder induk S3 sekarang, di thread latar: folder tanggal yang belum dikenal diimpor + di-ingest."""
+        cfg, w = self.app.state.cfg, self.watch_config()
+        try: sources = importer.parse_watch(cfg, w['url']) if w['enabled'] else []
         except importer.ImportFail as e: raise ApiError(400, e.code, e.message) from None
-        if not sources: raise ApiError(400, 'watch_disabled', 'Sinkron S3 otomatis belum diatur: isi S4_S3_WATCH (mis. s3://simpel4-backup/k8s-logs/) di .env server.')
+        if not sources: raise ApiError(400, 'watch_disabled', 'Sinkron S3 otomatis belum aktif: isi alamat folder induk S3 di kartu Impor dari S3 (mis. s3://simpel4-backup/k8s-logs/).')
         if not importer.library_ok(): raise ApiError(400, 'no_s3_library', importer.NO_LIBRARY)
         if not self.creds.get()[0]: raise ApiError(400, 'no_credentials', importer.NO_CREDENTIALS)
         with self._lock:
@@ -325,7 +358,7 @@ class ImportManager:
             for bucket, base in sources:
                 try: folders = [f for f in importer.list_folders(s3, bucket, base) if f not in seen]
                 except Exception as e:  # noqa: BLE001
-                    res['errors'].append(f's3://{bucket}/{base}: {importer._s3_error(e).message}'); continue
+                    x = importer._s3_error(e); res['errors'].append(dict(code=x.code, where=f's3://{bucket}/{base}', message=x.message)); continue
                 seen.update(folders)
                 take, again, waiting = importer.pick(folders, known, from_s3, today, cfg.s3_watch_days, cfg.s3_watch_recheck_days, cfg.s3_watch_max_folders)
                 res['sources'].append(dict(source=f's3://{bucket}/{base}', folders=len(folders), new=len(take) + waiting))
@@ -333,7 +366,7 @@ class ImportManager:
                 todo += [(bucket, base, f, False) for f in take]
                 for f in again:   # hasil sinkron yang masih baru: diunduh lagi hanya bila ada objek baru/berubah
                     try: p = importer.run(cfg, f's3://{bucket}/{base}{f}/', self.creds, dry_run=True)
-                    except importer.ImportFail as e: res['errors'].append(f'{f}: {e.message}'); continue
+                    except importer.ImportFail as e: res['errors'].append(dict(code=e.code, where=f, message=e.message)); continue
                     if p['take'] or any(o.get('extract_local') for o in p['objects']): todo.append((bucket, base, f, True))
             for i, (bucket, base, f, again) in enumerate(todo):
                 self.state.update(phase='unduh', done=i, total=len(todo))
@@ -342,30 +375,42 @@ class ImportManager:
                 ok = self._job(job, f's3://{bucket}/{base}{f}/', False)
                 (res['failed'] if not ok else res['rechecked'] if again else res['imported']).append(f)
         except Exception as e:  # noqa: BLE001
-            res['errors'].append(importer._s3_error(e).message if not isinstance(e, importer.ImportFail) else e.message)
+            x = e if isinstance(e, importer.ImportFail) else importer._s3_error(e)
+            res['errors'].append(dict(code=x.code, where=None, message=x.message))
         finally:
             self.watch['last'] = res
             self.state.update(running=False, phase=None, job_id=None)
 
-    def start_watch(self):
-        """Penjadwal: pemeriksaan pertama 1 menit setelah server mulai, lalu tiap S4_S3_WATCH_MINUTES."""
-        cfg = self.app.state.cfg
-        if not cfg.s3_watch or cfg.s3_watch_minutes <= 0: return
-        self._stop = threading.Event()
-        threading.Thread(target=self._watch_loop, args=(60,), name='s3-watch', daemon=True).start()
+    def start_watch(self, first=60):
+        """Penjadwal (selalu hidup; membaca setelan tiap putaran): pemeriksaan pertama `first` detik setelah server mulai,
+        lalu tiap `minutes`. Setelan diubah dari layar -> dibangunkan, pemeriksaan berikutnya ±5 detik lagi."""
+        self._kick, self._stopped = threading.Event(), False
+        threading.Thread(target=self._watch_loop, args=(first,), name='s3-watch', daemon=True).start()
+
+    def _kick_loop(self):
+        if getattr(self, '_kick', None): self._kick.set()
 
     def _watch_loop(self, delay):
-        while True:
+        by = '(sinkron S3 otomatis)'
+        while not self._stopped:
+            w = self.watch_config()
+            if not w['enabled'] or w['minutes'] <= 0:
+                self.watch['next_check'] = None
+                self._kick.wait(300); self._kick.clear(); delay = 5
+                continue
             self.watch['next_check'] = _now(delay)
-            if self._stop.wait(delay): return
-            delay = self.app.state.cfg.s3_watch_minutes * 60
-            try: self.sync('(sinkron S3 otomatis)')
+            if self._kick.wait(delay):   # setelan berubah / server berhenti
+                self._kick.clear(); delay = 5
+                continue
+            delay = w['minutes'] * 60
+            try: self.sync(by)
             except ApiError as e:
                 if e.status_code == 409: delay = 300   # impor manual sedang berjalan: coba lagi 5 menit lagi
-                else: self.watch['last'] = dict(at=_now(), by='(sinkron S3 otomatis)', sources=[], imported=[], rechecked=[], failed=[], waiting=0, errors=[e.detail['message']])
+                else: self.watch['last'] = dict(at=_now(), by=by, sources=[], imported=[], rechecked=[], failed=[], waiting=0, errors=[dict(code=e.detail['code'], where=None, message=e.detail['message'])])
 
     def stop_watch(self):
-        if getattr(self, '_stop', None): self._stop.set()
+        self._stopped = True
+        self._kick_loop()
 
     def _keep(self, job, r):
         self.plans[job] = r
@@ -373,6 +418,15 @@ class ImportManager:
 
     def wait(self, timeout=None):
         if self.thread: self.thread.join(timeout)
+
+
+WATCH_MINUTES = (5, 15, 30, 60, 180, 360, 720, 1440)
+
+
+class WatchBody(BaseModel):
+    url: str = ''
+    minutes: int = 60
+    enabled: bool = True
 
 
 class ImportBody(BaseModel):
@@ -389,7 +443,9 @@ class CredBody(BaseModel):
 def _import_view(request):
     m, cfg = request.app.state.imports, request.app.state.cfg
     sources, problem = m.watch_sources()
-    watch = dict(enabled=bool(sources), sources=sources, problem=problem, minutes=cfg.s3_watch_minutes, days=cfg.s3_watch_days,
+    w = m.watch_config()
+    watch = dict(enabled=bool(sources), sources=sources, problem=problem, url=w['url'], minutes=w['minutes'], source=w['source'],
+                 updated_at=w['updated_at'], updated_by=w['updated_by'], minute_options=WATCH_MINUTES, days=cfg.s3_watch_days,
                  max_folders=cfg.s3_watch_max_folders, **m.watch)
     return dict(enabled=bool(cfg.import_buckets), library=importer.library_ok(), allowed=importer.allowed_examples(cfg), region=cfg.import_region,
                 credentials=m.creds.status(), running=m.state['running'], state=m.state, watch=watch)
@@ -400,6 +456,14 @@ def start_import(request: Request, body: ImportBody = ImportBody(), who=Depends(
     job = request.app.state.imports.start(body.url, body.dry_run, who['username'])
     _audit(request, who, 'import.start', f"#{job} {body.url[:300]}{' (coba)' if body.dry_run else ''}")
     return dict(job_id=job)
+
+
+@router.put('/import/watch')
+def set_watch(body: WatchBody, request: Request, admin=Depends(require_admin)):
+    """Atur sinkron S3 otomatis dari layar: alamat folder induk (s3://bucket/awalan/), jeda, aktif/mati. Admin saja."""
+    w = request.app.state.imports.set_watch(body.url, body.minutes, body.enabled, admin['username'])
+    _audit(request, admin, 'import.watch', f"{'aktif' if w['enabled'] else 'mati'}: {w['url'][:300]} tiap {w['minutes']} menit")
+    return _import_view(request)['watch']
 
 
 @router.post('/import/sync', status_code=202)

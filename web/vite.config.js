@@ -2,6 +2,7 @@
 // v2 di 127.0.0.1:8000; /api dan /map diteruskan ke sana sehingga cookie sesi tetap satu asal.
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const api = 'http://127.0.0.1:8000';
 
@@ -16,8 +17,22 @@ const noExternalLinks = {
   renderChunk: (code) => ({ code: LINKS.reduce((c, [a, b]) => c.replaceAll(a, b), code), map: null }),
 };
 
+// Dokumentasi API (/api/docs, permintaan pemilik 2026-10-07): Swagger UI dilayani dari server sendiri (CSP 'self', tanpa
+// CDN), disalin dari swagger-ui-dist saat build ke dist/swagger/. Komentar sourceMappingURL dibuang (peta tidak disalin).
+const SWAGGER = 'node_modules/swagger-ui-dist/';
+const swaggerAssets = {
+  name: 'monishield-swagger-assets',
+  closeBundle() {
+    mkdirSync('dist/swagger', { recursive: true });
+    for (const f of ['swagger-ui-bundle.js', 'swagger-ui.css']) {
+      writeFileSync(`dist/swagger/${f}`, readFileSync(SWAGGER + f, 'utf8').replace(/\n?\/[*/]# sourceMappingURL=\S+( \*\/)?\s*$/, '\n'));
+    }
+    copyFileSync(SWAGGER + 'LICENSE', 'dist/swagger/LICENSE.txt');
+  },
+};
+
 export default defineConfig({
-  plugins: [svelte(), noExternalLinks],
+  plugins: [svelte(), noExternalLinks, swaggerAssets],
   // chunkSizeWarningLimit: MapLibre ±1 MB, chunk terpisah yang dimuat hanya saat peta dibuka
   build: { outDir: 'dist', emptyOutDir: true, chunkSizeWarningLimit: 1100, sourcemap: false },
   server: { proxy: { '/api': api, '/map': api } },

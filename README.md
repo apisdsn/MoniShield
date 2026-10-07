@@ -71,9 +71,14 @@ Rincian (keputusan DuckDB, cron, keamanan, alamat internet yang dihubungi, cadan
 (ikon folder di kepala halaman). Lencana angka di tombol itu menunjukkan jumlah folder baru yang belum masuk; setelah
 sinkronisasi dashboard pindah ke folder terbaru. Hanya file baru atau yang berubah yang diproses.
 
-**Folder baru di S3 diambil sendiri** bila `S4_S3_WATCH` diisi (lihat Impor dari S3): server memeriksa bucket tiap
-`S4_S3_WATCH_MINUTES` menit (bawaan 60) dan meng-ingest folder tanggal yang baru. Ingin sekarang juga: **Ingest & impor**
-→ **Periksa S3 sekarang**.
+**Folder baru di S3 diambil sendiri**: **Ingest & impor** → *Sinkron otomatis dari S3* → isi folder induk, mis.
+`s3://simpel4-backup/k8s-logs` → **Simpan & aktifkan**. Pemeriksaan pertama berjalan beberapa detik kemudian, lalu tiap
+jeda yang dipilih (bawaan 1 jam); folder tanggal yang baru diunduh dan di-ingest. Tombol **Sinkronkan data** di kepala
+halaman juga memeriksa S3 dulu, lalu folder log lokal. (Alternatif tanpa layar: `S4_S3_WATCH` di `.env`.)
+
+**Dokumentasi API (Swagger)**: menu user → **Dokumentasi API**, atau buka `/api/docs`. Masuk dengan akun yang sama
+dengan halaman login (belum masuk → diarahkan ke login lalu kembali); "Try it out" memakai sesi itu dan tetap tunduk pada
+peran. Skema mentah: `/api/openapi.json`.
 
 **Unggah dari komputer**: **Ingest & impor** → **Unggah folder log** → **Pilih folder…** (folder `YYYY-MM-DD`, induknya,
 atau isi satu tanggal + isi tanggalnya) → **Unggah**. Hanya `.log`/`.log.gz` yang dikirim (batas ukuran sama dengan
@@ -135,7 +140,7 @@ Daftar izin adalah **satu-satunya** pembatas antara layar impor dan bucket lain 
 ia hanya bisa diubah di konfigurasi server, tidak dari antarmuka. Batas bawaan: 500 objek, 1 GB per objek,
 5 GB per impor, 30 menit (`S4_IMPORT_MAX_*`, `S4_IMPORT_TIMEOUT_MINUTES`).
 
-**Sinkron otomatis tanpa tautan** (permintaan pemilik 2026-10-07): isi folder induknya, lalu mulai ulang server.
+**Sinkron otomatis tanpa tautan** (permintaan pemilik 2026-10-07): isi folder induknya di layar (lihat Pemakaian sehari-hari), atau di `.env` lalu mulai ulang server:
 
 ```sh
 S4_S3_WATCH=s3://simpel4-backup/k8s-logs/      # harus termasuk S4_IMPORT_BUCKETS; koma untuk lebih dari satu

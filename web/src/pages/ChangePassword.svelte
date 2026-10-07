@@ -1,6 +1,7 @@
 <!-- Ganti sandi (DRD §3.11): aturan ditulis sebelum mengetik; galat per kolom di bawah kolomnya (aria-describedby).
      forced = wajib (masuk pertama / setelah reset): tampil sendirian, tanpa "Batal"; satu-satunya jalan lain "Keluar". -->
 <script>
+  import { srv, errText } from '../srv.js';
   import { t } from '../i18n.js';
   import { api } from '../api.js';
   import { toast } from '../lib/Toast.svelte';
@@ -27,7 +28,7 @@
       ondone();
     } catch (err) {
       if (err.code === 'wrong_password') errs = { old: $t('pw.wrong') };
-      else if (err.code === 'invalid_password') errs = { nw: err.message };
+      else if (err.code === 'invalid_password') errs = { nw: $errText(err) };
       else general = err.status === 0 ? $t('state.error_network') : $t('state.error_text');
     } finally {
       busy = false;
