@@ -7,6 +7,7 @@
   import { theme } from '../theme.js';
   import FolderPicker from './FolderPicker.svelte';
   import UserMenu from './UserMenu.svelte';
+  import GlobalSearch from './GlobalSearch.svelte';
   import Icon from './Icon.svelte';
   import { APP_NAME } from '../brand.js';
   let { me, route, folders, folder, folderDisabled = false, onfolder, onreload, onlogout, onmenu, drawerOpen = false,
@@ -28,6 +29,7 @@
     <div class="tools">
       {#if folders?.length}
         <FolderPicker {folders} value={folder} disabled={folderDisabled} onchange={onfolder} />
+        <GlobalSearch {folder} />
       {/if}
       <div class="wide-only">
         <div class="seg" role="radiogroup" aria-label={$t('ui.language')} tabindex="-1" onkeydown={(e) => segKey(e, ['id', 'en'], $lang, (v) => lang.set(v))}>

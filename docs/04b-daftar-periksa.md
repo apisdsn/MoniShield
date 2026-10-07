@@ -158,6 +158,20 @@ Butir umum untuk **setiap** halaman dan setiap kombinasi:
 | Kredensial sementara: tiga kolom sandi tanpa autocomplete, keterangan "memori server saja", bentuk salah ditolak, hapus; nilai tidak pernah tampil | DRD §3.11 | skrip | ☑ |
 | 8 kombinasi bahasa × tema × lebar (kedua layar) | U1–U3 | skrip | ☑ |
 
+## Penyajian tambahan (saran 1–9) — Tahap 24 ☑
+
+| Butir | Cara | Hasil |
+|---|---|:-:|
+| Command Center: ▲/▼ vs folder sebelumnya (hanya bila sebanding), grafik per jam (request; 5xx & serangan) | uji API + lihat 30 Sep (▼ 81 % request, ▲ 731 % 5xx) | ☑ |
+| Butir perhatian baru: uptime gagal, error layanan melonjak, restart, PDF gagal, JWT melonjak; tautan ke halaman/layanan terkait | uji API + lihat (30 Sep: "Error nginx-ingress-controller melonjak") | ☑ |
+| Profil IP dari sel IP mana pun dan dari pencarian; jejak semua folder; request + kategori + aturan CRS | lihat 34.19.127.176 (51 request, 6 serangan, 2 folder) | ☑ |
+| Unduh daftar IP serangan (CSV), aman dibuka di spreadsheet | unduhan `ip-serangan-2026-10-06.csv` 4 baris; uji `_safe` | ☑ |
+| Kolom "Aturan CRS" dengan keterangan aturan | lihat (944150 · Potential Remote Command Execution: Log4j / Log4shell) | ☑ |
+| Pencarian global (Ctrl+K / 🔍): IP, akun, requestId, URL → halaman + filter terisi | uji API + lihat | ☑ |
+| Tren: kelengkapan data (tanggal hilang, file rusak, ingest terakhir) + heatmap jam × tanggal (Request/Error, tabel) | lihat | ☑ |
+| Ringkasan PDF 1 halaman A4 (tema terang, peta, KPI, perhatian) | PDF Chromium | ☑ |
+| 390 px tanpa gulir mendatar (Command Center, Tren, profil IP); dua bahasa | lihat + `cek_i18n` | ☑ |
+
 ## Command Center (DRD §12, TRD §12) — Tahap 22 ☑
 
 Menyerap tab Peta IP (ASUMSI DRD §12) di alamat yang sama (`#/peta?modul=`); bagian "Peta IP" di bawah tetap

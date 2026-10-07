@@ -19,6 +19,7 @@
   import Business from './pages/Business.svelte';
   import Tracing from './pages/Tracing.svelte';
   import CommandCenter from './pages/CommandCenter.svelte';
+  import IpProfile from './pages/IpProfile.svelte';
   import AdminUsers from './pages/AdminUsers.svelte';
   import AdminIngest from './pages/AdminIngest.svelte';
   import Overview from './pages/Overview.svelte';
@@ -144,6 +145,7 @@
     const r = $route;
     if (r.tab === 'overview') return $t('title.overview');
     if (r.tab === 'layanan') return sysName(r.service);
+    if (r.tab === 'ip') return $t('ipp.title', { ip: r.service });
     if (r.tab === 'sandi') return $t('pw.title');
     if (r.tab === 'admin/user') return $t('menu.users');
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
@@ -251,7 +253,7 @@
       {#if sparse}
         <div class="band warn" role="note">
           <span>{$t('band.sparse', { n: num(folderInfo.lines, $lang), m: num(folderInfo.files_corrupt, $lang) })}</span>
-          <a href={build({ ...$route, tab: 'pod', service: null, folder })}>{$t('band.to_pods')}</a>
+          <a href={build({ ...$route, tab: 'pod', service: null, folder, q: null })}>{$t('band.to_pods')}</a>
         </div>
       {/if}
 
@@ -289,6 +291,8 @@
             <Business {folder} {summary} {reloadKey} {onready} />
           {:else if $route.tab === 'pelacakan'}
             <Tracing {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} />
+          {:else if $route.tab === 'ip'}
+            <IpProfile {folder} ip={$route.service} {reloadKey} {onready} />
           {:else if $route.tab === 'layanan'}
             <Service {folder} service={$route.service} server={meta?.server} {reloadKey} {onready} />
           {/if}

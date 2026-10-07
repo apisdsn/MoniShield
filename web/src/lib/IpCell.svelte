@@ -1,9 +1,11 @@
 <!-- Sel IP + pemilik jaringan (DRD §4.4): IP tebal monospace; baris "AS<asn> · <cc> · <org>" 11 px (dipotong 2
      baris, lengkap saat diklik/fokus); tag "Jaringan Ombudsman"; IP privat -> "Jaringan Internal (IP Privat)".
-     Tombol salin muncul saat hover/fokus (U12). Tidak ada tautan ke layanan pencari IP (privasi). -->
+     Tombol salin muncul saat hover/fokus (U12). Tidak ada tautan ke layanan pencari IP (privasi).
+     Tahap 24: IP menaut ke profil IP di dashboard ini (#/ip/<ip>, folder yang sama), bukan ke layanan luar. -->
 <script>
   import { t } from '../i18n.js';
   import SeverityTag from './SeverityTag.svelte';
+  import { route, build } from '../state.js';
   let { ip, more = 0 } = $props();       // ip: {ip, asn?, cc?, org?} dari API, atau teks
   const cell = $derived(typeof ip === 'string' ? { ip } : ip || {});
   const privat = $derived(/^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(cell.ip || ''));
@@ -15,7 +17,7 @@
 </script>
 
 <div class="ipc">
-  <span class="ip"><b>{cell.ip ?? '–'}</b>{#if more}<span class="more"> +{more}</span>{/if}
+  <span class="ip">{#if cell.ip}<a class="lnk" href={build({ tab: 'ip', service: cell.ip, folder: $route.folder })} title={$t('ipp.open', { ip: cell.ip })}><b>{cell.ip}</b></a>{:else}<b>–</b>{/if}{#if more}<span class="more"> +{more}</span>{/if}
     {#if cell.ip}<button class="cp" onclick={copy} aria-label={$t('ip.copy', { ip: cell.ip })} title={$t('ip.copy', { ip: cell.ip })}>{copied ? '✓' : '⧉'}</button>{/if}
   </span>
   {#if cell.org}
@@ -31,6 +33,8 @@
   .ip { display: inline-flex; align-items: center; gap: 6px; }
   b { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }   /* IPv4 tidak dipecah */
   .more { color: var(--muted); font-size: 0.6875rem; }
+  .lnk { color: inherit; text-decoration: none; }
+  .lnk:hover b, .lnk:focus-visible b { color: var(--accent-text); text-decoration: underline; }
   .cp {
     opacity: 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0 4px;
     min-width: 24px; min-height: 24px; font-size: 0.8rem;

@@ -7,6 +7,7 @@
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num } from '../format.js';
+  import { route } from '../state.js';
   import Kpi from '../lib/Kpi.svelte';
   import ChartCard from '../lib/ChartCard.svelte';
   import HBar from '../lib/HBar.svelte';
@@ -155,7 +156,7 @@
       <DataTable title={$t('sec.t.urls')} {folder} table="attack-urls" initial={T['attack-urls']} maxHeight={560} columns={[
         { key: 'category', label: $t('col.category'), custom: true, sort: true, minw: 150 },
         { key: 'method_path', label: $t('col.url'), custom: true, minw: 340 },
-        ...(crs ? [{ key: 'rules', label: $t('sec.col.rules'), custom: true, minw: 90 }] : []),
+        ...(crs ? [{ key: 'rules', label: $t('sec.col.rules'), custom: true, minw: 200 }] : []),
         { key: 'hits', label: $t('col.hits'), type: 'num', sort: true },
         { key: 'top_ip', label: 'IP', type: 'ip', more: (r) => r.ip_count - 1 },
         { key: 'status_counts', label: $t('col.status'), custom: true },
@@ -165,13 +166,17 @@
       ]}>
         {#snippet cell(r, c)}
           {#if c.key === 'category'}<span title={crs ? capecId(r.category) : undefined}><SeverityTag level={r.severity} text={cat(r.category)} /></span>{#if crs}<div class="muted small">{capecId(r.category)}</div>{/if}
-          {:else if c.key === 'rules'}<div class="small mono">{#each r.rules as id}<div>{id}</div>{/each}</div>
+          {:else if c.key === 'rules'}<div class="small">{#each r.rules as id}<div class="rule" title={data.rule_msgs?.[id] || ''}><span class="mono">{id}</span>{#if data.rule_msgs?.[id]}<span class="muted"> · {data.rule_msgs[id]}</span>{/if}</div>{/each}</div>
           {:else if c.key === 'method_path'}<AttackUrl methodPath={r.method_path} upstreams={r.upstreams} ua={r.ua} {hosts} />
           {:else if c.key === 'status_counts'}<StatusCode counts={r.status_counts} />{#if r.severity >= 2 && has2xx(r.status_counts)}<div class="WARN small">{$t('sec.verify_2xx')}</div>{/if}
           {:else if c.key === 'upstreams'}<div class="small">{#each r.upstreams as u}<div class="nowrap">{u}</div>{/each}</div>{/if}
         {/snippet}
       </DataTable>
 
+      {#if T['attack-ips'].total}
+        <p class="dl wide-row"><a class="btn" href={`/api/folders/${encodeURIComponent(folder)}/security/attack-ips.csv`} download>{$t('sec.csv', { n: num(T['attack-ips'].total, $lang) })}</a>
+          <span class="muted small">{$t('sec.csv_note')}</span></p>
+      {/if}
       <DataTable title={$t('sec.t.ips')} {folder} table="attack-ips" initial={T['attack-ips']} maxHeight={560} columns={[
         { key: 'ip', label: 'IP', type: 'ip', sort: true },
         { key: 'hits', label: $t('col.hits'), type: 'num', sort: true },
@@ -186,7 +191,7 @@
       </DataTable>
 
       {#if T.accounts.total}
-        <DataTable title={$t('sec.t.accounts')} {folder} table="accounts" initial={T.accounts} maxHeight={560} columns={[
+        <DataTable title={$t('sec.t.accounts')} {folder} table="accounts" initial={T.accounts} search={$route.q ? { text: $route.q, seq: $route.q, scroll: true } : null} maxHeight={560} columns={[
           { key: 'account', label: $t('sec.col.account'), cls: () => 'strong', sort: true, minw: 170 },
           { key: 'fail', label: $t('sec.col.fail'), type: 'num', cls: () => 'WARN', sort: true },
           { key: 'lock', label: $t('sec.col.reset'), type: 'num', cls: (r) => (r.lock ? 'ERROR' : ''), sort: true },
@@ -235,6 +240,9 @@
   .content { transition: opacity 0.15s; }
   .content.dim { opacity: 0.6; }
   .foot { font-size: 0.75rem; margin-top: 18px; }
+  .wide-row { grid-column: 1 / -1; margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .wide-row .small { font-size: 0.75rem; }
+  .rule { overflow-wrap: anywhere; }
   :global(.small) { font-size: 0.75rem; }
   :global(td.strong) { font-weight: 600; }
   .tagrow { margin: 2px 0; white-space: nowrap; }

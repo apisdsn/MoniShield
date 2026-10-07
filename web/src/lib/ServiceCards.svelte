@@ -11,7 +11,7 @@
   import DataTable from './DataTable.svelte';
   import MessagesTable from './MessagesTable.svelte';
 
-  let { data, folder, withMsgs = true } = $props();
+  let { data, folder, withMsgs = true, search = null } = $props();   // search: filter tabel endpoint dari pencarian global (Tahap 24)
 
   const svc = $derived(data.service);
   const T = $derived(data.tables || {});
@@ -65,7 +65,7 @@
 {/if}
 <!-- 10 top endpoint / domain gagal resolve -->
 {#if T.endpoints}
-  <DataTable wide={false} title={dns ? $t('svc.domains') : $t('svc.endpoints')} {folder} table="endpoints" {params} initial={T.endpoints} bar="n"
+  <DataTable wide={false} title={dns ? $t('svc.domains') : $t('svc.endpoints')} {folder} table="endpoints" {params} initial={T.endpoints} {search} bar="n"
     columns={[{ key: 'key', label: dns ? $t('col.domain') : $t('col.endpoint'), sort: true }, { key: 'n', label: $t('table.count'), type: 'num', sort: true }]} />
 {/if}
 <!-- 11 endpoint dengan status 4xx/5xx -->

@@ -199,5 +199,13 @@ def classify(method, path, ua, pl=1):
     return dict(rules=sorted(hits), capec=capec, attack=attack, severity=max(LEVEL.get(h[1], 1) for h in hits.values()), score=score)
 
 
+MSG = {r['id']: r['msg'] for r in DATA['rules']}
+
+
+def rule_msgs(ids):
+    """{id: pesan aturan CRS (bahasa Inggris, apa adanya dari rilis)} untuk ID yang diberikan."""
+    return {str(i): MSG[i] for i in sorted(set(ids)) if i in MSG}
+
+
 def capec_name(cid, lang='id'):
     return CAPEC['capec'].get(str(cid), {}).get(lang, f'CAPEC-{cid}')

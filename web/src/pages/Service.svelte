@@ -5,6 +5,7 @@
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num } from '../format.js';
+  import { route } from '../state.js';
   import Kpi from '../lib/Kpi.svelte';
   import Note from '../lib/Note.svelte';
   import SeverityTag from '../lib/SeverityTag.svelte';
@@ -62,7 +63,7 @@
       </div>
       <div class="grid">
         <ServiceMap {folder} {service} {server} hasFlows={data.has_flows} />
-        <ServiceCards {data} {folder} />
+        <ServiceCards {data} {folder} search={$route.q ? { text: $route.q, seq: $route.q, scroll: true } : null} />
       </div>
     {/if}
   </div>

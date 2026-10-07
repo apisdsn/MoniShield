@@ -31,7 +31,7 @@
     if (e.key === 'ArrowUp' && !open) { e.preventDefault(); toggle(true); }
   }
   function outside(e) { if (open && !btn?.contains(e.target) && !list?.contains(e.target)) open = false; }
-  const link = (tab) => build({ ...route, tab, service: null });
+  const link = (tab) => build({ ...route, tab, service: null, q: null });
   // avatar inisial (gaya referensi): tanpa foto, tanpa layanan luar
   const initials = $derived((me.display_name || me.username).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join(''));
 </script>

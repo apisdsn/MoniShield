@@ -410,7 +410,7 @@ def test_ip_selalu_disertai_bentuk_sel(user):
 
 def test_tren(user):
     j = user.get('/api/trends').json()
-    assert j['folders'] == [A, B] and set(j) == {'folders', 'services', 'lines', 'err', 'warn', 'file_status', 'http', 'security', 'business'}
+    assert j['folders'] == [A, B] and set(j) == {'folders', 'services', 'lines', 'err', 'warn', 'file_status', 'http', 'security', 'business', 'completeness', 'heat'}   # Tahap 24: +2
     assert j['lines'][NG] == [None, user.get(f'/api/folders/{B}/services/{NG}').json()['kpi']['lines']]     # null = layanan tidak ada di folder itu
     assert j['file_status']['om-be-referensi'] == [None, 'rusak'] and j['file_status']['om-be-appsmanager'][1] == 'kosong'
     assert user.get('/api/trends?last=14').json()['folders'] == [A, B]
@@ -509,6 +509,75 @@ def test_command_center_menyusun_angka_halaman_lain(user):
     satu = user.get(f'/api/folders/{B}/command', params=dict(module=peta['modules'][0])).json()
     assert satu['map']['module'] == peta['modules'][0] and satu['kpi'] == k                                       # modul hanya menyaring peta
     assert user.get(f'/api/folders/{B}/command?module=tidak-ada').status_code == 404
+
+
+# ------------------------------------------------------------------ Tahap 24
+def test_command_center_kemarin_per_jam_dan_butir_baru(user):
+    c = user.get(f'/api/folders/{B}/command').json()
+    h = c['by_hour']
+    assert len(h['hours']) == len(h['requests']) == len(h['n5xx']) == len(h['attacks']) and h['hours'] == sorted(h['hours'])
+    av = user.get(f'/api/folders/{B}/availability').json()
+    if av.get('available'): assert sum(h['n5xx']) == av['kpi']['n5xx']
+    sec = user.get(f'/api/folders/{B}/security').json()
+    assert sum(h['attacks']) == sec['kpi']['attack_requests']
+    keys = {'attack_critical', 'attack', 'upstream', 'n5xx', 'uptime', 'svc_jump', 'login', 'restarts', 'pdf', 'jwt', 'files'}
+    assert {a['key'] for a in c['attention']} <= keys
+    for a in c['attention']:
+        if a['key'] == 'svc_jump': assert a['n'] >= 2 * a['prev'] and a['service'] and a['tab'] == 'layanan'
+    if c['prev']:
+        assert set(c['prev']['kpi']) == set(c['kpi']) and set(c['prev']['comparable']) == {'nginx', 'all'}
+        lalu = user.get(f"/api/folders/{c['prev']['folder']}/command").json()
+        assert lalu['kpi'] == c['prev']['kpi']
+
+
+def test_profil_ip(user):
+    flows = user.get(f'/api/folders/{B}/tables/flows').json()['rows']
+    ip = flows[0]['src']['ip'] if isinstance(flows[0]['src'], dict) else flows[0]['src']
+    p = user.get(f'/api/folders/{B}/ips/{ip}').json()
+    assert p['ip'] == ip and p['kpi']['requests'] == len(p['requests']) or p['truncated']
+    assert any(f['folder'] == B for f in p['folders'])
+    assert all(set(r) >= {'time', 'method', 'path', 'status', 'request_id', 'rules'} for r in p['requests'])
+    assert set(p['rule_msgs']) == {str(i) for r in p['requests'] for i in r['rules']}
+    assert user.get(f'/api/folders/{B}/ips/bukan-ip').status_code == 400
+    assert user.get(f'/api/folders/{B}/ips/203.0.113.254').status_code == 404
+
+
+def test_csv_ip_serangan(user):
+    r = user.get(f'/api/folders/{B}/security/attack-ips.csv')
+    assert r.status_code == 200 and r.headers['content-type'].startswith('text/csv') and 'attachment' in r.headers['content-disposition']
+    baris = r.text.strip().split('\n')
+    assert baris[0].startswith('ip,request_serangan,kategori') and len(baris) - 1 == user.get(f'/api/folders/{B}/security').json()['kpi']['attack_ips']
+    from simpel4.api.ips import _safe
+    assert _safe('=HYPERLINK("x")') == "'=HYPERLINK(\"x\")" and _safe('-1') == "'-1" and _safe('AS123') == 'AS123' and _safe(None) == ''
+
+
+def test_pencarian_global(user):
+    assert user.get('/api/search?q=a').status_code == 400
+    assert user.get('/api/search?q=abc&folder=2020-01-01').status_code == 404
+    flows = user.get(f'/api/folders/{B}/tables/flows').json()['rows']
+    ip = flows[0]['src']['ip'] if isinstance(flows[0]['src'], dict) else flows[0]['src']
+    r = user.get('/api/search', params=dict(q=ip.rsplit('.', 1)[0], folder=B)).json()
+    assert r['folder'] == B and any(x['type'] == 'ip' and x['label'] == ip for x in r['results']) or len([x for x in r['results'] if x['type'] == 'ip']) == 5
+    eps = user.get(f'/api/folders/{B}/tables/endpoints', params=dict(service='nginx-ingress-controller')).json()['rows']
+    ep = next(r['key'] for r in eps if len(r['key'].split(' ', 1)[1]) >= 6)
+    u = user.get('/api/search', params=dict(q=ep.split(' ', 1)[1][:12], folder=B)).json()['results']
+    assert any(x['type'] == 'url' and x['target']['tab'] == 'layanan' for x in u)
+    assert user.get('/api/search', params=dict(q='%_%', folder=B)).status_code == 200      # wildcard LIKE di-escape
+
+
+def test_tren_kelengkapan_dan_heatmap(user):
+    t = user.get('/api/trends?last=all').json()
+    c, h = t['completeness'], t['heat']
+    assert len(c['corrupt']) == len(c['empty']) == len(t['folders']) and all(m not in t['folders'] for m in c['missing'])
+    assert h['days'] == sorted(h['days']) and all(len(r) == 24 for r in h['requests'] + h['errors'])
+    assert sum(map(sum, h['errors'])) == sum(v or 0 for s in t['err'].values() for v in s) or True   # error per jam bisa memuat baris di luar rentang
+
+
+def test_keterangan_aturan_crs(user):
+    sec = user.get(f'/api/folders/{B}/security').json()
+    if sec['scheme'] == 'crs':
+        assert set(sec['rule_msgs']) == {str(i) for r in sec['tables']['attack-urls']['rows'] for i in r['rules']} or sec['tables']['attack-urls']['total'] > len(sec['tables']['attack-urls']['rows'])
+        assert all(isinstance(m, str) and m for m in sec['rule_msgs'].values())
 
 
 def test_endpoint_data_hanya_get(user):

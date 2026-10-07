@@ -4,7 +4,7 @@
      100 berikutnya" (B04). Header lekat; angka rata kanan; urut per kolom (U11, aria-sort); sel panjang terbuka
      saat diklik/fokus. > 4 kolom: kartu baris di ≤ 560 px, gulir mendatar dengan kolom pertama terkunci di 561–900 px. -->
 <script>
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api, tablePath } from '../api.js';
   import { num, tWIB, tRange, durMs, pct, bytes } from '../format.js';
@@ -20,7 +20,7 @@
    *   status?: kunci kode status yang ditampilkan berwarna di depan teks sel (mis. '401 /path').
    *   type: 'text' (bawaan) | 'num' | 'ip' | 'ips' | 'status' | 'statuses' | 'sev' | 'time' | 'range' | 'dur' | 'pct' | 'bytes' | 'code' | 'tags'
    * Sumber statis: rows. Sumber server: folder + table (+ params), initial = {total, rows} dari respons halaman.
-   * search = {text, seq}: isi filter dari luar (peta "Lihat di tabel").
+   * search = {text, seq, scroll?}: isi filter dari luar (peta "Lihat di tabel"; pencarian global: scroll = gulir ke tabel).
    */
   let { title, columns, rows = null, folder = null, table = null, params = {}, initial = null, limit = null,
         bar = null, wide = true, maxHeight = 440, rowId = null, highlight = null, chip = null, cell = null, search = null } = $props();
@@ -50,12 +50,13 @@
   });
 
   // filter diisi dari luar (mis. peta "Lihat di tabel"): search = {text, seq}; seq berganti agar teks sama bisa dikirim ulang
-  let lastSearch = null;
+  let lastSearch = null, rootEl = $state();
   $effect(() => {
     const s = search;
     if (!s || s === lastSearch) return;
     lastSearch = s;
     untrack(() => { q = s.text; qSent = s.text; shown = baseLimit; if (remote) load(); });
+    if (s.scroll) tick().then(() => rootEl?.scrollIntoView({ block: 'start' }));
   });
 
   // ---------------------------------------------------------------- server
@@ -155,7 +156,7 @@
   const uid = 'tb-' + Math.random().toString(36).slice(2, 9);
 </script>
 
-<section class="card dt" class:wide aria-label={title}>
+<section class="card dt" class:wide aria-label={title} bind:this={rootEl}>
   <header>
     <h2>{title}{#if chip}<span class="chip">{chip}</span>{/if}</h2>
     <div class="filter">

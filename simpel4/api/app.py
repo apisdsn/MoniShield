@@ -12,15 +12,15 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__, auth as authmod, config, db, detect
-from . import (admin, availability, business, command, map, meta, overview, pods, rootcause, security, service, session, tables, tracing,
-               trends, users)
+from . import (admin, availability, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing,
+               search, trends, users)
 from .common import ROLE_DEPS
 
 WORKERS = 1  # konstanta, bukan konfigurasi (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
-PAGES = (overview, command, map, trends, security, rootcause, availability, pods, business, tracing, service)   # satu modul per halaman (TRD §5.3)
+PAGES = (overview, command, ips, search, map, trends, security, rootcause, availability, pods, business, tracing, service)   # satu modul per halaman (TRD §5.3)
 ROUTERS = (meta.router, session.router, users.router, admin.router, *(m.router for m in PAGES), tables.router)
 
 

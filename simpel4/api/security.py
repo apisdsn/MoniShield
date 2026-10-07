@@ -51,6 +51,7 @@ def security(request: Request, folder: str = Depends(folder_param), cur=Depends(
     return dict(
         available=True, nginx=_has(svc, NG), appsmanager=_has(svc, AM),
         scheme='crs' if crs else 'lama',
+        rule_msgs=detect.rule_msgs(rid for r in atk for rid in r[6]) if crs else {},   # Tahap 24: keterangan kolom Aturan CRS
         crs=dict(version=detect.DATA['version'], paranoia=detect.PARANOIA, rules=len(detect.rules(detect.PARANOIA)), threshold=detect.THRESHOLD) if crs else None,
         kpi=dict(attack_requests=sum(r[2] for r in atk), attack_ips=len(aip), critical_hits=sum(r[2] for r in atk if r[1] == 3),
                  attack_urls_2xx=sum(1 for r in atk if r[1] >= 2 and ok2(r[4])), login_fail_ips=len(login),

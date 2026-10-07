@@ -14,7 +14,7 @@
                  ketersediaan: 'pulse', pod: 'box', bisnis: 'briefcase', pelacakan: 'route' };
   const ingestTone = $derived(ingest?.running ? 'accent' : ingest?.last_status === 'ok' ? 'ok' : ingest?.last_status ? 'err' : '');
 
-  const href = (patch) => build({ ...route, ...patch, ...(patch.tab !== 'layanan' ? { service: null } : {}) });
+  const href = (patch) => build({ ...route, ...patch, q: null, ...(patch.tab !== 'layanan' ? { service: null } : {}) });
   const active = (tab, service = null) => (route.tab === tab && (tab !== 'layanan' || route.service === service) ? 'page' : undefined);
 </script>
 

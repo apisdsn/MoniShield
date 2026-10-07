@@ -143,6 +143,7 @@
           container: box, style: style(LF, d, colors(), l), bounds: PRESETS[preset], fitBoundsOptions: { padding: 12 },
           maxZoom: 10, minZoom: 0.5, renderWorldCopies: false, dragRotate: false, pitchWithRotate: false, touchPitch: false,
           cooperativeGestures: true, attributionControl: false, locale: uiText(l), maxPitch: 0,
+          canvasContextAttributes: { preserveDrawingBuffer: tall },   // Command Center: kanvas ikut tercetak di ringkasan PDF (Tahap 24)
         });
         box.__map = map;   // dibaca alat uji (tools/uji_tahap20.cjs): posisi, zoom, fitur yang tergambar
         map.touchZoomRotate.disableRotation();
