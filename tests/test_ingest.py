@@ -1,7 +1,7 @@
 """Ingest bertahap dan aman diulang (TRD §9.4), atas folder log buatan kecil (logs_mini)."""
 import dataclasses, os, shutil, threading
 
-import pytest
+import duckdb, pytest
 
 import logs_mini
 from monishield import config, db, ingest, parse
@@ -182,6 +182,19 @@ def test_terhenti_di_tengah_transaksi_lalu_bersih(env, monkeypatch):
     con2.close()
 
 
+def test_dimatikan_paksa_dibersihkan_pada_ingest_berikutnya(env):
+    """kill -9 / container dimatikan di tengah ingest (diuji di docker, Langkah 7): `finally` tidak jalan, jadi baris
+    ingest_run tertinggal 'berjalan' dan CSV sementara tertinggal. Ingest berikutnya menandai run itu gagal dan menghapus sisanya."""
+    cfg, con, _ = env
+    go(cfg, con)
+    con.execute("INSERT INTO ingest_run VALUES (90, now(), NULL, 'berjalan', NULL, NULL, NULL)")
+    sisa = os.path.join(cfg.data_dir, 'tmp', 'run-90'); os.makedirs(sisa); open(os.path.join(sisa, '0'), 'w').write('203.0.113.9,budi@contoh.go.id')
+    r = go(cfg, con)
+    assert r['status'] == 'ok' and not os.path.exists(sisa)
+    st, msg, selesai = q(con, 'SELECT status, message, finished_at FROM ingest_run WHERE run_id = 90')[0]
+    assert st == 'gagal' and 'terputus' in msg and selesai is not None
+
+
 def test_sequence_tertinggal_tidak_membuat_duplicate_key(env):
     """Laporan pemilik 2026-10-07: 'Duplicate key "run_id: 28"'. Sequence DuckDB bisa tertinggal dari baris yang tersimpan
     (mis. setelah proses dihentikan paksa). Ingest harus tetap jalan dengan nomor baru yang belum dipakai."""
@@ -195,6 +208,27 @@ def test_sequence_tertinggal_tidak_membuat_duplicate_key(env):
     assert q(con, 'SELECT min(file_id) FROM ingest_file WHERE folder = ?', '2026-01-09')[0][0] > fids
     assert q(con, 'SELECT count(*), count(DISTINCT file_id) FROM ingest_file')[0] == q(con, 'SELECT count(*), count(*) FROM ingest_file')[0]
     assert go(cfg, con)['run_id'] == runs + 2
+
+
+def test_salinan_baca_untuk_dbgate(env):
+    """Langkah 7: DbGate (docker compose) membuka SALINAN DuckDB, bukan file milik server (K1). Salinan berisi data yang sama,
+    terbuka read-only selagi server tetap memegang file aslinya, dan diganti utuh pada pembaruan berikutnya."""
+    cfg, con, root = env
+    go(cfg, con)
+    path = db.snapshot(con, cfg)
+    assert path == db.snapshot_path(cfg) and not os.path.exists(path + '.tmp')
+    ro = duckdb.connect(path, read_only=True)
+    try: assert ingest.checksums(ro) == ingest.checksums(con)
+    finally: ro.close()
+    open(path + '.tmp', 'wb').write(b'sisa salinan yang terputus')   # salinan terputus sebelumnya tidak mengganggu
+    open(path + '.wal', 'wb').write(b'wal penampil atas salinan lama')  # tidak boleh diputar ke salinan baru
+    shutil.copytree(os.path.join(root, B), os.path.join(root, '2026-01-09'))
+    go(cfg, con); db.snapshot(con, cfg)
+    ro = duckdb.connect(path, read_only=True)
+    try: assert ro.execute("SELECT count(*) FROM folder_state WHERE folder = '2026-01-09'").fetchone() == (1,) and ingest.checksums(ro) == ingest.checksums(con)
+    finally: ro.close()
+    assert not os.path.exists(path + '.wal')
+    assert con.execute('SELECT count(*) FROM duckdb_databases() WHERE NOT internal').fetchone() == (1,)   # salinan sudah dilepas
 
 
 def test_hanya_satu_ingest_pada_satu_waktu(env):

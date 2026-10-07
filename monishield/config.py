@@ -51,6 +51,7 @@ class Config:
     import_max_object_mb: int = 1024
     import_max_total_mb: int = 5120
     import_timeout_minutes: int = 30
+    duckdb_snapshot: bool = False  # salinan baca DuckDB (data/snapshot/) tiap selesai ingest, untuk DbGate di docker compose
     import_extract: bool = True    # .log.gz hasil impor langsung diekstrak menjadi .log di kotak masuk (permintaan pemilik 2026-10-07)
     aws_access_key_id: str = ''
     aws_secret_access_key: str = ''

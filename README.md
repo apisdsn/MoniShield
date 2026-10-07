@@ -53,6 +53,18 @@ python3 -m venv .venv
 Buka `http://127.0.0.1:8000`, masuk sebagai `admin` dengan `S4_ADMIN_PASSWORD`, lalu ganti sandi.
 Ingest pertama 11 folder ±10–40 detik; setelah itu hanya folder yang baru atau berubah yang diproses.
 
+### 3b. Atau dengan Docker (server)
+
+```sh
+cp .env.example .env && chmod 600 .env        # isi DOCKER_LOG_DIR, POSTGRES_PASSWORD, S4_JWT_SECRET, S4_ADMIN_PASSWORD, S4_JOB_TOKEN
+docker compose build && docker compose up -d  # app + PostgreSQL, http://127.0.0.1:8000
+docker compose run --rm ingest                # ingest sekali jalan (untuk cron harian)
+docker compose --profile pgadmin up -d        # opsional: pgAdmin  http://127.0.0.1:5050 (akun, sesi, audit)
+docker compose --profile dbgate up -d         # opsional: DbGate   http://127.0.0.1:5051 (data log DuckDB + PostgreSQL)
+```
+
+Rincian (keputusan DuckDB, cron, keamanan, alamat internet yang dihubungi, cadangan): `docs/06-docker.md`.
+
 ### 4. Pemakaian sehari-hari
 
 **Folder log baru?** Salin foldernya (`YYYY-MM-DD/…`) ke folder log, lalu admin cukup menekan tombol **Sinkronkan data**

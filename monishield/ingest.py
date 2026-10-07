@@ -113,8 +113,20 @@ def run(cfg, con=None, folder=None, force=False, workers=None, progress=None):
         _lock.release()
 
 
+def _cleanup_killed(cfg, con):
+    """Proses yang dimatikan paksa (kill -9, container dihentikan) tidak sempat menjalankan `finally`: baris ingest_run
+    tertinggal 'berjalan' dan CSV sementara (berisi IP/email dari log) tertinggal di data/tmp. Dipanggil di awal ingest,
+    saat kunci ingest dipegang, jadi tidak ada run lain yang sedang memakai keduanya."""
+    con.execute("UPDATE ingest_run SET finished_at = ?, status = 'gagal', message = ? WHERE status = 'berjalan'",
+                [utcnow(), json.dumps(['terputus: proses berhenti sebelum ingest selesai; data folder yang belum selesai tidak berubah'])])
+    tmp = os.path.join(cfg.data_dir, 'tmp')
+    for d in os.listdir(tmp) if os.path.isdir(tmp) else []:
+        if d.startswith('run-'): shutil.rmtree(os.path.join(tmp, d), ignore_errors=True)
+
+
 def _run(cfg, con, only_folder, force, workers, progress):
     t0 = time.time()
+    _cleanup_killed(cfg, con)
     run_id = _next_id(con, 'seq_run_id', 'ingest_run', 'run_id')
     con.execute("INSERT INTO ingest_run VALUES (?, ?, NULL, 'berjalan', NULL, NULL, NULL)", [run_id, utcnow()])
     tmp = os.path.join(cfg.data_dir, 'tmp', f'run-{run_id}')

@@ -6,6 +6,11 @@
 #   ingest    profil "job", sekali jalan: memicu ingest di app lewat HTTP (token mesin), menunggu, lalu keluar.
 #             Tanpa volume: tidak pernah membuka DuckDB sendiri.   docker compose run --rm ingest
 #   proxy     profil "proxy", opsional: HTTPS (Caddy) bila server belum punya reverse proxy (TRD §7.1 ASUMSI T5).
+#   pgadmin   profil "pgadmin", opsional: melihat PostgreSQL (akun, sesi, audit, riwayat impor) di http://127.0.0.1:5050.
+#             docker compose --profile pgadmin up -d        (data LOG ada di DuckDB, bukan PostgreSQL; lihat docs/06-docker.md)
+#   dbgate    profil "dbgate", opsional: melihat data LOG (DuckDB) di http://127.0.0.1:5051. Membuka SALINAN baca
+#             (/data/snapshot, diperbarui app tiap ingest selesai), bukan file milik app — DuckDB hanya boleh dibuka satu proses.
+#             docker compose --profile dbgate up -d
 name: monishield
 
 x-image: &image monishield:2.0.0
@@ -28,6 +33,7 @@ services:
       S4_API_URL: ""
       S4_AUTH_DATABASE_URL: postgresql+psycopg://simpel4:${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}@postgres:5432/simpel4
       S4_TRUST_PROXY: "true"          # hanya terjangkau dari proxy (port terikat ke 127.0.0.1 host / jaringan compose)
+      S4_DUCKDB_SNAPSHOT: ${S4_DUCKDB_SNAPSHOT:-true}   # salinan baca untuk DbGate; "false" bila DbGate tidak dipakai (hemat disk ±50 %)
     volumes:
       - ${DOCKER_LOG_DIR:?isi DOCKER_LOG_DIR di .env (folder log di host)}:/logs:ro
       - s4-data:/data
@@ -92,12 +98,74 @@ services:
     depends_on:
       app: { condition: service_healthy }
 
+  pgadmin:
+    image: dpage/pgadmin4:9.8
+    profiles: [pgadmin]
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-}   # wajib; pgAdmin menolak mulai bila kosong
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-}
+      PGADMIN_CONFIG_SERVER_MODE: "True"                 # wajib masuk dengan email/sandi di atas
+      PGADMIN_CONFIG_UPGRADE_CHECK_ENABLED: "False"      # tidak menghubungi internet untuk cek versi
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
+      PGADMIN_DISABLE_POSTFIX: "true"
+      PGADMIN_LISTEN_ADDRESS: 0.0.0.0                    # bawaannya [::]; gagal di jaringan docker tanpa IPv6
+      PGADMIN_CONFIG_ALLOW_SPECIAL_EMAIL_DOMAINS: "['local', 'internal', 'lan', 'test']"   # email login boleh admin@server.local
+    volumes:
+      - ./deploy/pgadmin/servers.json:/pgadmin4/servers.json:ro   # server MoniShield terdaftar otomatis
+      - s4-pgadmin:/var/lib/pgadmin
+    ports:
+      - "127.0.0.1:${DOCKER_PGADMIN_PORT:-5050}:80"     # hanya dari host ini (pakai tunnel SSH bila dari komputer lain)
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  dbgate:
+    image: dbgate/dbgate:6.6.4
+    profiles: [dbgate]
+    restart: unless-stopped
+    # Tanpa LOGIN/PASSWORD DbGate terbuka TANPA login -> tolak mulai. (Bukan ${VAR:?} agar `docker compose up` tanpa profil
+    # ini tetap jalan walau DBGATE_* kosong.)
+    entrypoint: ["sh", "-c", "[ -n \"$$LOGIN\" ] && [ $${#PASSWORD} -ge 12 ] || { echo 'isi DBGATE_LOGIN dan DBGATE_PASSWORD (min. 12 karakter) di .env' >&2; exit 1; }; exec docker-entrypoint.sh /home/dbgate-docker/entrypoint.sh"]
+    environment:
+      LOGIN: ${DBGATE_LOGIN:-}
+      PASSWORD: ${DBGATE_PASSWORD:-}
+      CONNECTIONS: duckdb,postgres
+      LABEL_duckdb: MoniShield — data log (DuckDB, salinan baca)
+      ENGINE_duckdb: duckdb@dbgate-plugin-duckdb
+      FILE_duckdb: /snapshot/monishield.duckdb
+      READONLY_duckdb: "1"
+      LABEL_postgres: MoniShield — akun & audit (PostgreSQL)
+      ENGINE_postgres: postgres@dbgate-plugin-postgres
+      SERVER_postgres: postgres
+      PORT_postgres: "5432"
+      USER_postgres: simpel4
+      PASSWORD_postgres: ${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}
+      DATABASE_postgres: simpel4
+      READONLY_postgres: "1"
+    volumes:
+      # Hanya folder salinan (subpath): file DuckDB milik app tidak terlihat dari sini. Tidak bisa read-only: plugin DuckDB
+      # DbGate 6.6 selalu membuka berkas mode tulis (mengabaikan READONLY_), jadi gagal di mount :ro. READONLY_duckdb
+      # menutup penyuntingan dari tampilan; apa pun yang tertulis hanya mengenai salinan, yang diganti utuh tiap ingest.
+      - type: volume
+        source: s4-data
+        target: /snapshot
+        volume: { subpath: snapshot }
+      - s4-dbgate:/root/.dbgate
+    ports:
+      - "127.0.0.1:${DOCKER_DBGATE_PORT:-5051}:3000"    # hanya dari host ini (pakai tunnel SSH bila dari komputer lain)
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      app: { condition: service_healthy }              # app membuat salinan pertama saat mulai
+
 secrets:
   ca_bundle:
     file: ${DOCKER_BUILD_CA:-/dev/null}   # kosong = tanpa CA tambahan
 
 volumes:
-  s4-data:     # simpel4.duckdb, berkas peta, CSV sementara — bisa dibangun ulang dari log
+  s4-data:     # simpel4.duckdb, salinan baca snapshot/, berkas peta, CSV sementara — bisa dibangun ulang dari log
   s4-cache:    # unduhan ip2asn, GeoLite2, Natural Earth, GeoNames (±190 MB) — bisa diunduh ulang
   s4-inbox:    # folder log hasil impor S3 — log mentah, ikut dicadangkan
   s4-pgdata:   # akun, sesi, audit — TIDAK tergantikan, wajib dicadangkan (pg_dump)
+  s4-pgadmin:  # setelan pgAdmin (sandi server yang disimpan, preferensi) — boleh hilang
+  s4-dbgate:   # setelan DbGate (riwayat kueri, preferensi) — boleh hilang

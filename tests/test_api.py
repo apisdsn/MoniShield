@@ -1,7 +1,7 @@
 """Kerangka API (TRD §5.1–§5.2, §5.5–§5.6, §8, §9.5–§9.6): masuk, sesi, peran, CSRF, header, validasi, ingest dalam proses."""
 import dataclasses, os, time, urllib.parse
 
-import pytest
+import duckdb, pytest
 from fastapi.testclient import TestClient
 
 import logs_mini
@@ -289,6 +289,29 @@ def test_ingest_lewat_api_dan_dashboard_tetap_terbuka(client):
     assert lr['finished_at'] >= lr['started_at']
     assert client.get(f'/api/folders/{B}').json()['services'][0]['lines'] == 11
     assert 'ingest.start' in [x['action'] for x in client.get('/api/admin/audit').json()['rows']]
+
+
+def test_salinan_duckdb_untuk_dbgate(cfg, auth_url, monkeypatch):
+    """S4_DUCKDB_SNAPSHOT (docker compose + DbGate): salinan dibuat saat server mulai bila belum ada, lalu diperbarui tiap
+    ingest selesai. Tanpa setelan itu tidak ada salinan sama sekali."""
+    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    c = dataclasses.replace(cfg, auth_database_url=auth_url, duckdb_snapshot=True)
+    path = db.snapshot_path(c)
+    try:
+        with TestClient(appmod.create_app(c)) as tc:
+            assert os.path.exists(path)
+            sebelum = os.stat(path).st_mtime_ns
+            admin(tc)
+            assert tc.post('/api/admin/ingest', json=dict(force=True), headers=X).status_code == 202
+            tc.app.state.ingest.wait(60)
+            st = tc.get('/api/admin/ingest/status').json()
+            assert st['error'] is None and st['snapshot_error'] is None and os.stat(path).st_mtime_ns > sebelum
+        ro = duckdb.connect(path, read_only=True)
+        try: assert ro.execute('SELECT count(*) FROM folder_state').fetchone() == (2,)
+        finally: ro.close()
+    finally:
+        if os.path.exists(path): os.remove(path)
+    with TestClient(appmod.create_app(dataclasses.replace(c, duckdb_snapshot=False))): assert not os.path.exists(path)
 
 
 def test_sinkronisasi_mendeteksi_folder_baru(client, cfg):

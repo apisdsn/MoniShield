@@ -55,6 +55,10 @@ def create_app(cfg=None):
             raise RuntimeError(f'S4_JWT_SECRET wajib diisi (minimal {authmod.JWT_SECRET_MIN} karakter acak); lihat .env.example')
         app.state.auth = authmod.Auth(cfg.auth_url, cfg.jwt_secret, cfg.session_idle_minutes, cfg.session_max_hours)
         app.state.auth.bootstrap_admin(cfg.admin_user, cfg.admin_password)
+        if cfg.duckdb_snapshot and not os.path.exists(db.snapshot_path(cfg)):   # DbGate langsung punya salinan, tanpa menunggu ingest
+            cur = app.state.con.cursor()
+            try: admin._snapshot(app, cur)
+            finally: cur.close()
         if cfg.ingest_on_start: app.state.ingest.start(by='(mulai server)')
         yield
         app.state.imports.wait(timeout=600)

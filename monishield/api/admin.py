@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
-from .. import importer, ingest, rules
+from .. import db, importer, ingest, rules
 from .common import DATE, ApiError, client_ip, require_admin, require_admin_or_job
 
 router = APIRouter(prefix='/api/admin')
@@ -48,6 +48,7 @@ class IngestManager:
             r = ingest.run(self.app.state.cfg, cur, folder=folder, force=force, progress=self._progress)
             self.state['last'] = {k: r[k] for k in ('run_id', 'status', 'files_seen', 'files_changed', 'files_parsed', 'files_removed', 'files_failed',
                                                     'folders_changed', 'folders_recorrelated', 'warnings', 'seconds')}
+            _snapshot(self.app, cur)
         except ingest.Busy: self.state['error'] = 'Ingest lain sedang berjalan.'
         except Exception as e:  # noqa: BLE001  galat dilaporkan lewat status, proses API tetap hidup
             self.state['error'] = f'{type(e).__name__}: {e}'
@@ -95,7 +96,15 @@ def ingest_status(request: Request, who=Depends(require_admin_or_job)):
     finally: cur.close()
     last_run = r and dict(started_at=str(r[0].replace(microsecond=0)), finished_at=str(r[1].replace(microsecond=0)), status=r[2], files_seen=r[3], files_changed=r[4],
                           warnings=json.loads(r[5]) if r[5] else [])
-    return dict(request.app.state.ingest.state, last_run=last_run, new_folders=_new_folders(request))
+    return dict(request.app.state.ingest.state, last_run=last_run, new_folders=_new_folders(request),
+                snapshot_error=getattr(request.app.state, 'snapshot_error', None))
+
+
+def _snapshot(app, cur):
+    """Perbarui salinan baca DuckDB untuk DbGate (bila S4_DUCKDB_SNAPSHOT). Gagal -> dicatat di status, ingest tetap sukses."""
+    if not app.state.cfg.duckdb_snapshot: return
+    try: db.snapshot(cur, app.state.cfg); app.state.snapshot_error = None
+    except Exception as e: app.state.snapshot_error = f'{type(e).__name__}: {e}'   # noqa: BLE001
 
 
 def _new_folders(request):
@@ -177,7 +186,7 @@ def folder_delete(folder: str, request: Request, body: DeleteBody = DeleteBody()
         if sisa:
             cur.execute('INSERT OR REPLACE INTO folder_ignored VALUES (?, ?, ?)', [folder, admin['username'], datetime.datetime.now(datetime.UTC).replace(tzinfo=None)])
         return n, hapus_inbox, sisa
-    n, hapus_inbox, sisa = _exclusive(request, kerja)
+    n, hapus_inbox, sisa = _exclusive(request, lambda cur: (kerja(cur), _snapshot(request.app, cur))[0])
     if not n and not hapus_inbox and not sisa: raise ApiError(404, 'not_found', 'Folder tidak ditemukan.')
     _audit(request, admin, 'folder.delete', f"folder={folder} ({n} file data{'; kotak masuk dihapus' if hapus_inbox else ''}{'; diabaikan' if sisa else ''})")
     return dict(folder=folder, files=n, inbox_deleted=hapus_inbox, ignored=sisa)
