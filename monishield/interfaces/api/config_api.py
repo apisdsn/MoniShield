@@ -34,6 +34,17 @@ class ConfigBody(BaseModel):
     maxmind_license_key: str | None = None
     blocklist_exclude: str | None = None
     blocklist_exclude_org: str | None = None
+    # kartu Kafka (Rancher cluster logging -> Kafka); kolom yang tidak disebut di sini dibuang diam-diam oleh pydantic
+    kafka_enabled: bool | None = None
+    kafka_brokers: str | None = None
+    kafka_topic: str | None = None
+    kafka_group: str | None = None
+    kafka_security: str | None = None
+    kafka_sasl_mechanism: str | None = None
+    kafka_username: str | None = None
+    kafka_password: str | None = None
+    kafka_offset_reset: str | None = None
+    kafka_ingest_minutes: str | int | None = None
     clear: list[str] = []
 
 

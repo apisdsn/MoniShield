@@ -250,3 +250,25 @@ def test_alamat_dan_batas_dari_env():
     for env in ({'S4_GEO_MAX_AGE_DAYS': '60'}, {'S4_URL_MAXMIND': 'https://x/tanpa-edisi'}, {'S4_URL_LAND': 'ftp://x'}):
         with pytest.raises(SystemExit): config.load(env=env, dotenv=False)
     assert settings.GROUPS['alerts'][0] == 'alert_telegram'
+
+
+def test_isian_kafka_dari_layar_tersimpan_ke_env(client, envp):
+    """Kartu Kafka di Konfigurasi mengirim kafka_* ke PUT /api/admin/config (badan sama dengan AdminConfig.svelte kfBody):
+    harus tertulis ke .env dan langsung berlaku; sandi SASL tidak pernah dikembalikan."""
+    body = dict(kafka_enabled=True, kafka_brokers='127.0.0.1:9, 127.0.0.2:9', kafka_topic='k8s-logs', kafka_group='monishield',
+                kafka_security='sasl_plaintext', kafka_sasl_mechanism='SCRAM-SHA-512', kafka_username='monishield', kafka_password='sandiKafkaRahasia1',
+                kafka_offset_reset='latest', kafka_ingest_minutes='15')
+    r = client.put('/api/admin/config', json=body, headers=X)
+    assert r.status_code == 200, r.text
+    assert 'sandiKafkaRahasia1' not in r.text and r.json()['kafka']['kafka_password'] == dict(set=True, source='file', env='KAFKA_PASSWORD')
+    text = open(envp).read()
+    for line in ('S4_KAFKA_TOPIC=k8s-logs', 'S4_KAFKA_SECURITY=sasl_plaintext', 'S4_KAFKA_INGEST_MINUTES=15', 'KAFKA_PASSWORD='): assert line in text, line
+    c = client.app.state.cfg
+    assert (c.kafka_enabled, c.kafka_brokers, c.kafka_sasl_mechanism, c.kafka_password, c.kafka_ingest_minutes) == \
+        (True, '127.0.0.1:9, 127.0.0.2:9', 'SCRAM-SHA-512', 'sandiKafkaRahasia1', 15)
+    r = client.put('/api/admin/config', json=dict(kafka_security='sasl_ssl', kafka_password=''), headers=X)   # sandi kosong = tetap
+    assert r.status_code == 200 and client.app.state.cfg.kafka_password == 'sandiKafkaRahasia1'
+    r = client.put('/api/admin/config', json=dict(kafka_brokers='bukan broker'), headers=X)
+    assert r.status_code == 400 and 'host:port' in r.json()['error']['message']
+    r = client.put('/api/admin/config', json=dict(kafka_enabled=False), headers=X)   # sakelar dari layar (bool JSON)
+    assert r.status_code == 200 and client.app.state.cfg.kafka_enabled is False and 'S4_KAFKA_ENABLED=false' in open(envp).read()
