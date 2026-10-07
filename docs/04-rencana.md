@@ -850,11 +850,12 @@ Command Center), `lib/Header.svelte`, `state.js` (rute `ip/…`, `?cari=`), kamu
   (`web/public/favicon.svg`), judul FastAPI, README, Dockerfile/compose (image `monishield:2.0.0`, proyek compose
   `monishield`), contoh konfigurasi, DRD Q8. **Tidak** diubah: paket Python `simpel4`, awalan variabel `S4_`, nama
   berkas basis data (mengubahnya memutus konfigurasi yang sudah ada); SIMPeL4 tetap disebut sebagai sistem yang dipantau.
-- **Halaman login** (permintaan lanjutan pemilik): identitas di tengah atas kartu = perisai "M" 60 px + nama **MoniShield**
-  besar + keterangan "Pemantauan log dan keamanan SIMPeL4" / "SIMPeL4 log and security monitoring", lalu "Masuk ke akun Anda".
-  Ditambah ilustrasi perisai besar `lib/ShieldArt.svelte` (SVG dibundel, opasitas penuh, warna token tema; lingkar radar,
-  simpul jaringan, garis denyut, huruf M): 300 px di samping kartu pada layar lebar, 150 px di atas kartu di ponsel;
-  perisai kecil di kartu dihapus agar tidak dobel.
+- **Halaman login** (permintaan lanjutan pemilik, mengikuti gambar referensinya): perisai besar sebagai **latar di belakang
+  form** (SVG di halaman, garis tepi teal tebal + isi gelap bernuansa teal, tidak transparan; 46 % lebar layar, maks.
+  620 px; ponsel 150 % lebar layar agar puncak dan ujungnya terlihat), ubin ikon teal (laptop + perisai bergembok), judul
+  **"SIMPeL4 MoniShield"** seperti di gambar (ASUMSI: hanya di login; nama aplikasi di tempat lain tetap "MoniShield"),
+  lalu form. **Tombol mata (tampilkan sandi) dihapus** atas permintaan pemilik; kamus `login.show/hide/tagline/welcome`
+  ikut dihapus, `lib/ShieldArt.svelte` (versi sebelumnya) dihapus.
 
 **Verifikasi**: `pytest tests/test_api.py` 75 lulus; build + `cek_i18n` 740 kunci; browser: folder uji `2026-10-07`
 (salinan 26 Sep di `data/inbox`, folder log asli tidak disentuh) → lencana "1" → klik → "Sinkronisasi selesai: 1 folder
