@@ -65,6 +65,7 @@
       {#if me.role === 'admin'}
         <a role="menuitem" href={link('admin/user')} onclick={() => close(false)}>{$t('menu.users')}</a>
         <a role="menuitem" href={link('admin/ingest')} onclick={() => close(false)}>{$t('menu.ingest')}</a>
+        <a role="menuitem" href={link('admin/notifikasi')} onclick={() => close(false)}>{$t('menu.alerts')}</a>
       {/if}
       <a role="menuitem" href="/api/docs" target="_blank" rel="noopener" onclick={() => close(false)}>{$t('menu.api_docs')}</a>
       <div class="sep" role="separator"></div>

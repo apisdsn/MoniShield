@@ -76,6 +76,19 @@ sinkronisasi dashboard pindah ke folder terbaru. Hanya file baru atau yang berub
 jeda yang dipilih (bawaan 1 jam); folder tanggal yang baru diunduh dan di-ingest. Tombol **Sinkronkan data** di kepala
 halaman juga memeriksa S3 dulu, lalu folder log lokal. (Alternatif tanpa layar: `S4_S3_WATCH` di `.env`.)
 
+**Notifikasi**: menu user → **Notifikasi** → centang Telegram / Discord / Email, isi kredensialnya (token bot + chat ID,
+URL webhook, atau server SMTP), **Simpan**, lalu **Kirim uji**. Dikirim saat: lonjakan (≥ 2× rata-rata 7 folder sebanding),
+serangan kritis, ingest gagal, sinkron S3 bermasalah, folder log hari ini belum datang (jam bisa diatur), dan — bila
+dicentang — ringkasan tiap folder baru. Pesan hanya berisi angka dan tautan, **tanpa alamat IP**; kredensial tidak pernah
+ditampilkan lagi setelah disimpan.
+
+**Pembanding**: Command Center membandingkan angka dengan **rata-rata 7 folder sebelumnya** yang lengkap (bisa diganti ke
+"Folder sebelumnya"); bila belum ada 3 folder lengkap, otomatis memakai folder sebelumnya.
+
+**Daftar blokir**: Keamanan → **Daftar blokir…** → format nginx (`deny`), ingress-nginx (`denylist-source-range`), atau
+teks; rentang 1/7/30 folder; keparahan minimal → **Unduh** / **Salin**. IP privat, jaringan sendiri
+(`S4_BLOCKLIST_EXCLUDE_ORG`, bawaan OMBUDSMAN), dan `S4_BLOCKLIST_EXCLUDE` tidak pernah masuk. Periksa dulu sebelum dipasang.
+
 **Dokumentasi API (Swagger)**: menu user → **Dokumentasi API**, atau buka `/api/docs`. Masuk dengan akun yang sama
 dengan halaman login (belum masuk → diarahkan ke login lalu kembali); "Try it out" memakai sesi itu dan tetap tunduk pada
 peran. Skema mentah: `/api/openapi.json`.

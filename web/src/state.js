@@ -7,7 +7,7 @@
 import { writable, get } from 'svelte/store';
 
 export const TABS = ['overview', 'peta', 'tren', 'keamanan', 'akar-masalah', 'ketersediaan', 'pod', 'bisnis', 'pelacakan'];
-export const ADMIN = ['admin/user', 'admin/ingest'];
+export const ADMIN = ['admin/user', 'admin/ingest', 'admin/notifikasi'];
 const OTHER = ['sandi', ...ADMIN];
 
 export function parse(hash) {

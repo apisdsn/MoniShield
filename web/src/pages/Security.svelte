@@ -4,6 +4,7 @@
      CRS, kolom "Aturan" berisi ID CRS, catatan kaki menyebut CRS + versi + bagian request yang diperiksa;
      'lama' -> tampilan aturan sistem lama (uji kesetaraan). Semua teks data dirender sebagai teks. -->
 <script>
+  import BlocklistDialog from '../lib/BlocklistDialog.svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num } from '../format.js';
@@ -106,6 +107,7 @@
   // catatan kejadian "<waktu> sukses dari <ip>" (data lama, kalimat Indonesia) -> dua bahasa
   const noteText = (n) => { const m = /^(.+) sukses dari (.+)$/.exec(n); return m ? $t('sec.note_ok_from', { time: m[1], ip: m[2] }) : n; };   // waktu apa adanya (WIB, seperti lama)
   const accountsOf = (r) => new Set(r.accounts.map((u) => u.split('@')[0])).size;
+  let blOpen = $state(false);   // dialog daftar blokir (2026-10-07)
 </script>
 
 {#if error && !data}
@@ -175,7 +177,9 @@
 
       {#if T['attack-ips'].total}
         <p class="dl wide-row"><a class="btn" href={`/api/folders/${encodeURIComponent(folder)}/security/attack-ips.csv`} download>{$t('sec.csv', { n: num(T['attack-ips'].total, $lang) })}</a>
+          <button class="btn" onclick={() => (blOpen = true)}>{$t('bl.open')}</button>
           <span class="muted small">{$t('sec.csv_note')}</span></p>
+        <BlocklistDialog {folder} bind:open={blOpen} />
       {/if}
       <DataTable title={$t('sec.t.ips')} {folder} table="attack-ips" initial={T['attack-ips']} maxHeight={560} columns={[
         { key: 'ip', label: 'IP', type: 'ip', sort: true },

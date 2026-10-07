@@ -153,6 +153,9 @@ Hanya `app`, dan hanya saat ingest (refdata), dengan masa simpan di cache. `S4_O
 | `download.geonames.org` | `ID.zip` (nama wilayah Indonesia) | label wilayah memakai berkas lama |
 | endpoint S3 (bila impor S3 dipakai) | folder log `s3://…` | impor gagal dengan pesan; data lain tidak terpengaruh |
 
+Notifikasi (bila diaktifkan di layar Notifikasi): `api.telegram.org`, `discord.com`, dan/atau server SMTP kantor. Isi pesan
+hanya angka ringkasan + tautan dashboard, tanpa alamat IP pengguna.
+
 Saat build saja: `registry-1.docker.io` / `production.cloudflare.docker.com` (image dasar), `registry.npmjs.org`, dan
 `pypi.org` + `files.pythonhosted.org`.
 

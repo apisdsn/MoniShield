@@ -23,6 +23,7 @@
   import IpProfile from './pages/IpProfile.svelte';
   import AdminUsers from './pages/AdminUsers.svelte';
   import AdminIngest from './pages/AdminIngest.svelte';
+  import AdminAlerts from './pages/AdminAlerts.svelte';
   import Overview from './pages/Overview.svelte';
   import Service from './pages/Service.svelte';
   import Trends from './pages/Trends.svelte';
@@ -168,6 +169,7 @@
     if (r.tab === 'sandi') return $t('pw.title');
     if (r.tab === 'admin/user') return $t('menu.users');
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
+    if (r.tab === 'admin/notifikasi') return $t('menu.alerts');
     return $t(`tab.${r.tab}`);
   });
   // baris kesegaran data di bawah kepala (U2 + pengganti "streaming · last event" referensi selama Kafka ditunda)
@@ -286,6 +288,8 @@
         <AdminUsers {me} onme={refreshMe} />
       {:else if $route.tab === 'admin/ingest'}
         <AdminIngest onfinished={reload} />
+      {:else if $route.tab === 'admin/notifikasi'}
+        <AdminAlerts />
       {:else if !folders.length}
         <EmptyState title={$t('state.no_data')} text={me.role === 'admin' ? '' : $t('state.no_data_user')}>
           {#if me.role === 'admin'}<a class="btn primary" href={build({ tab: 'admin/ingest', service: null })}>{$t('menu.ingest')}</a>{/if}

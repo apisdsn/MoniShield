@@ -181,7 +181,7 @@ code { color: var(--code-fg); }
 
 /* Kontrol (DRD §4.8) */
 button, input, select, textarea { font: inherit; color: inherit; }
-select, input[type='text'], input[type='search'], input[type='password'] {
+select, input[type='text'], input[type='search'], input[type='password'], input[type='number'], input[type='email'], input[type='url'] {
   font-size: 0.8125rem;
   padding: 0.5625rem 0.875rem;
   min-height: 2.5rem;

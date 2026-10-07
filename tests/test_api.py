@@ -697,3 +697,49 @@ def test_swagger_untuk_user_biasa_tetapi_rute_admin_tetap_403(client):
     u = sebagai(client, 'rina', 'sandi-awal-rina-123')
     assert u.get('/api/docs').status_code == 200 and u.get('/api/openapi.json').status_code == 200
     assert u.get('/api/admin/users').status_code == 403
+
+
+# ------------------------------------------------------------------ pembanding rata-rata (permintaan pemilik 2026-10-07, saran 5)
+def test_command_rata_rata_folder_sebanding(tmp_path, auth_url, monkeypatch):
+    """Empat salinan folder B (01-03..01-06) + B: rata-rata sebelum 01-06 = nilai B (folder A, baris < 50 %, tidak ikut)."""
+    import shutil
+    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    root = logs_mini.build(tmp_path / 'logs')
+    for d in ('2026-01-03', '2026-01-04', '2026-01-05', '2026-01-06'): shutil.copytree(os.path.join(root, B), os.path.join(root, d))
+    c = dataclasses.replace(config.Config(), log_dir=root, data_dir=str(tmp_path / 'data'), state_dir=str(tmp_path / 'state'), inbox_dir=str(tmp_path / 'inbox'),
+                            cache_dir=str(tmp_path / 'cache'), offline=True, ingest_on_start=False, cookie_secure=False, admin_user='admin', admin_password=PW,
+                            jwt_secret=JWT_SECRET, auth_database_url=auth_url)
+    con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
+    with TestClient(appmod.create_app(c)) as tc:
+        admin(tc)
+        r = tc.get('/api/folders/2026-01-06/command').json()
+        b, k = r['baseline'], r['kpi']
+        assert (b['window'], b['n_all'], b['folders'][:2]) == (7, 4, ['2026-01-05', '2026-01-04'])
+        assert all(b['kpi'][x] == k[x] for x in ('errors', 'login_fail_ips')) and b['kpi']['requests'] == k['requests']
+        b2 = tc.get(f'/api/folders/{B}/command').json()['baseline']
+        assert b2['n_all'] == 0 and b2['kpi']['errors'] is None          # kurang dari 3 folder sebanding: tidak ada rata-rata
+
+
+# ------------------------------------------------------------------ daftar blokir (permintaan pemilik 2026-10-07, saran 6)
+def test_daftar_blokir_format_dan_pengecualian(client, monkeypatch):
+    admin(client)
+    g = lambda **q: client.get(f'/api/folders/{B}/security/blocklist', params=q)
+    j = g(format='json').json()
+    assert (j['count'], j['ips'][0]['ip'], j['criteria']['folder_from'], j['criteria']['days']) == (1, '34.19.127.199', B, 1)
+    r = g(format='nginx')
+    assert r.status_code == 200 and 'deny 34.19.127.199;' in r.text and r.text.startswith('# MoniShield') and 'attachment' in r.headers['content-disposition']
+    assert 'denylist-source-range: "34.19.127.199/32"' in g(format='ingress').text
+    assert g(format='txt').text == '34.19.127.199\n'
+    assert '# MoniShield — block list' in g(format='nginx', lang='en').text
+    assert g(format='json', min_severity=3).json()['count'] == 1 and g(format='json', min_hits=10**5).json()['count'] == 0
+    assert g(format='json', days=7).json()['criteria']['folder_from'] == '2025-12-27'
+    # pengecualian: daftar IP/CIDR, pemilik jaringan, IP privat
+    cfg = client.app.state.cfg
+    monkeypatch.setattr(cfg, 'blocklist_exclude', '10.0.0.0/8, 34.19.127.0/24')
+    j = g(format='json').json()
+    assert (j['count'], j['excluded']['list']) == (0, 1)
+    monkeypatch.setattr(cfg, 'blocklist_exclude', '')
+    from monishield.api import ips
+    assert ips._excluded(cfg, '10.1.2.3', False, None) == 'private' and ips._excluded(cfg, '103.1.1.1', False, 'IDNIC-OMBUDSMAN-AS-ID Ombudsman') == 'org'
+    assert ips._excluded(cfg, '8.8.8.8', False, 'GOOGLE') is None
+    assert g(format='exe').status_code == 400 and g(days=0).status_code == 400

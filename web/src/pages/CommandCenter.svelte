@@ -14,6 +14,7 @@
   import { theme } from '../theme.js';
   import { num, delta, dLabel, sysName } from '../format.js';
   import { APP_NAME } from '../brand.js';
+  import { load as loadPref, save as savePref } from '../store.js';
   import { route, go, build } from '../state.js';
   import Kpi from '../lib/Kpi.svelte';
   import Alert from '../lib/Alert.svelte';
@@ -48,18 +49,29 @@
 
   // perubahan vs folder sebelumnya; KPI berbasis ingress dibandingkan hanya bila log ingress kemarin sebanding (aturan Overview)
   const NGX = new Set(['requests', 'n5xx', 'upstream_errors', 'attack_ips']);
+  // pembanding (permintaan pemilik 2026-10-07): rata-rata folder sebanding (bawaan) atau folder sebelumnya; per browser
+  let cmp = $state(loadPref('cc_cmp', 'avg') === 'prev' ? 'prev' : 'avg');
+  const setCmp = (v) => { cmp = v; savePref('cc_cmp', v); };
   const d = (key, good = false) => {
-    const p = data?.prev, v = data?.kpi[key];
-    if (!p || v === null || v === undefined || p.kpi[key] === null) return null;
+    const v = data?.kpi[key], b = data?.baseline;
+    if (v === null || v === undefined) return null;
+    const avgN = b ? (NGX.has(key) ? b.n_nginx : b.n_all) : 0;
+    if (cmp === 'avg' && b && b.kpi[key] !== null && b.kpi[key] !== undefined)
+      return delta(v, b.kpi[key], null, $lang, { good, label: $t('cc.cmp.avg_label', { n: avgN, v: num(b.kpi[key], $lang) }) });
+    const p = data?.prev;
+    if (!p || p.kpi[key] === null) return null;
     return delta(v, p.kpi[key], p.folder, $lang, { good, comparable: p.comparable[NGX.has(key) ? 'nginx' : 'all'] });
   };
+  const avgMissing = $derived(cmp === 'avg' && data?.baseline && data.baseline.n_all < 3);
 
   // butir perhatian: kunci + angka dari server, kalimat dari kamus, tautan ke halaman asalnya
   const items = $derived((data?.attention || []).map((a) => {
     const p = { n: num(a.n, $lang), ips: num(a.ips ?? 0, $lang), resets: num(a.resets ?? 0, $lang), kind: a.kind ?? '', upstream: a.upstream ?? '',
                 top: num(a.top ?? 0, $lang), total: num(a.total ?? 0, $lang), templates: num(a.templates ?? 0, $lang), prev: num(a.prev ?? 0, $lang),
                 date: a.prev_folder ? dLabel(a.prev_folder, $lang) : '', service: sysName(a.service ?? '') };
-    const text = a.key === 'n5xx' && !a.upstream ? $t('cc.a.n5xx.text_plain') : a.key === 'login' && !a.resets ? $t('cc.a.login.text_none') : $t(`cc.a.${a.key}.text`, p);
+    if (a.basis === 'avg') p.days = num(a.days ?? 0, $lang);
+    const text = a.key === 'n5xx' && !a.upstream ? $t('cc.a.n5xx.text_plain') : a.key === 'login' && !a.resets ? $t('cc.a.login.text_none')
+      : a.basis === 'avg' ? $t(`cc.a.${a.key}.text_avg`, p) : $t(`cc.a.${a.key}.text`, p);
     const svc = a.tab === 'layanan';
     return { title: $t(`cc.a.${a.key}.title`, p), text, tone: a.tone, link: $t('cc.open', { page: svc ? p.service : $t(`tab.${a.tab}`) }),
              href: build({ tab: a.tab, service: svc ? a.service : null, folder, module: null }) };
@@ -100,7 +112,15 @@
     <div class="ccbar no-print">
       <button class="btn" onclick={printSummary} disabled={printing}><Icon name="file" size={16} /> {$t('cc.print.button')}</button>
       <span class="muted small">{$t('cc.print.hint')}</span>
+      <span class="cmp">
+        <span class="muted small" id="cmp-l">{$t('cc.cmp.label')}</span>
+        <span class="seg" role="radiogroup" aria-labelledby="cmp-l">
+          <button role="radio" aria-checked={cmp === 'avg'} onclick={() => setCmp('avg')}>{$t('cc.cmp.avg', { n: data?.baseline?.window ?? 7 })}</button>
+          <button role="radio" aria-checked={cmp === 'prev'} onclick={() => setCmp('prev')}>{$t('cc.cmp.prev')}</button>
+        </span>
+      </span>
     </div>
+    {#if avgMissing}<p class="muted small cmpnote no-print">{$t('cc.cmp.not_enough', { n: data.baseline.n_all })}</p>{/if}
     <div class="kpis cc">
       <Kpi icon="pulse" label={$t('cc.kpi.requests')} value={k.requests} missing={$t('cc.no_nginx')} delta={d('requests', true)} />
       <Kpi icon="alert" label={$t('cc.kpi.n5xx')} value={k.n5xx} tone={k.n5xx ? 'err' : null} missing={$t('cc.no_nginx')} delta={d('n5xx')} />
@@ -153,6 +173,8 @@
 <style>
   .content { transition: opacity 0.15s; }
   .content.dim { opacity: 0.6; }
+  .cmp { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .cmpnote { margin: -6px 0 10px; text-align: right; }
   .ccbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 12px; margin: -4px 0 12px; }
   .ccbar .btn { display: inline-flex; align-items: center; gap: 6px; }
   .small { font-size: 0.75rem; }

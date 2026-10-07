@@ -98,6 +98,19 @@ class AppSetting(Base):
     updated_by: Mapped[str | None] = mapped_column(String(40))
 
 
+class AlertLog(Base):
+    """Notifikasi yang dikirim / gagal (monishield/alerts.py). `key` mencegah kiriman ganda untuk kejadian yang sama."""
+    __tablename__ = 'alert_log'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    event: Mapped[str] = mapped_column(String(40), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
 # ------------------------------------------------------------------ pembantu
 class AuthError(Exception):
     """Galat yang boleh ditampilkan ke pengguna. code = kode galat API, status = status HTTP."""
@@ -227,6 +240,22 @@ class Auth:
             r = s.get(AppSetting, key)
             if r is None: r = AppSetting(key=key); s.add(r)
             r.value, r.updated_at, r.updated_by = json.dumps(value, ensure_ascii=False), now(), (by or '')[:40] or None
+
+    # ---------------------------------------------------------------- riwayat notifikasi
+    def alert_seen(self, key):
+        """Sudah ada kiriman BERHASIL untuk kunci ini (ke saluran mana pun)?"""
+        with self._tx() as s:
+            return s.scalar(select(func.count()).select_from(AlertLog).where(AlertLog.key == key, AlertLog.ok.is_(True))) > 0
+
+    def alert_add(self, key, event, channel, ok, summary=None, error=None):
+        with self._tx() as s:
+            s.add(AlertLog(at=now(), key=key[:120], event=event[:40], channel=channel[:20], ok=bool(ok), summary=(summary or '')[:500] or None,
+                           error=(error or '')[:500] or None))
+
+    def alert_list(self, limit=30):
+        with self._tx() as s:
+            return [dict(at=iso(a.at), event=a.event, channel=a.channel, ok=a.ok, summary=a.summary, error=a.error)
+                    for a in s.scalars(select(AlertLog).order_by(AlertLog.id.desc()).limit(limit))]
 
     # ---------------------------------------------------------------- user
     @staticmethod

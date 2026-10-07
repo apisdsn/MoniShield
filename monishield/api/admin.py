@@ -55,9 +55,11 @@ class IngestManager:
             self.state['last'] = {k: r[k] for k in ('run_id', 'status', 'files_seen', 'files_changed', 'files_parsed', 'files_removed', 'files_failed',
                                                     'folders_changed', 'folders_recorrelated', 'warnings', 'seconds')}
             _snapshot(self.app, cur)
+            self.app.state.alerts.after_ingest(r)   # notifikasi (thread latar; tidak menahan ingest)
         except ingest.Busy: self.state['error'] = 'Ingest lain sedang berjalan.'
         except Exception as e:  # noqa: BLE001  galat dilaporkan lewat status, proses API tetap hidup
             self.state['error'] = f'{type(e).__name__}: {e}'
+            self.app.state.alerts.after_ingest(None, self.state['error'])
         finally:
             cur.close(); self.state.update(running=False, phase=None)
 
@@ -380,6 +382,7 @@ class ImportManager:
         finally:
             self.watch['last'] = res
             self.state.update(running=False, phase=None, job_id=None)
+            self.app.state.alerts.after_sync(res)
 
     def start_watch(self, first=60):
         """Penjadwal (selalu hidup; membaca setelan tiap putaran): pemeriksaan pertama `first` detik setelah server mulai,

@@ -3,12 +3,13 @@
 GET /api/folders/{folder}/ips/{ip}          satu IP: pemilik & lokasi (database offline), angka di folder ini, jejaknya di
                                             semua folder, dan request-nya di folder ini (ingress nginx, paling banyak 1.000).
 GET /api/folders/{folder}/security/attack-ips.csv   IP sumber serangan folder ini sebagai CSV (untuk daftar blokir WAF).
+GET /api/folders/{folder}/security/blocklist        daftar blokir siap pakai: nginx / ingress-nginx / teks / json (2026-10-07).
 Tidak ada yang dikirim ke layanan pihak ketiga: lokasi dan pemilik dari tabel ip_info.
 """
-import csv, io, re
+import csv, io, ipaddress, re
 from urllib.parse import unquote_plus
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
 from .. import detect
@@ -70,6 +71,65 @@ def _safe(v):
     """Sel CSV aman dibuka di spreadsheet: teks yang diawali = + - @ diberi petik (cegah injeksi rumus)."""
     s = '' if v is None else str(v)
     return "'" + s if s[:1] in ('=', '+', '-', '@', '\t', '\r') else s
+
+
+BLOCK_FORMATS = ('nginx', 'ingress', 'txt', 'json')
+
+
+def _excluded(cfg, ip, private, org):
+    """Alasan IP ini tidak boleh masuk daftar blokir, atau None. Mencegah memblokir jaringan sendiri."""
+    try: a = ipaddress.ip_address(ip)
+    except ValueError: return 'invalid'
+    if private or a.is_private or a.is_loopback or a.is_link_local or a.is_reserved or a.is_multicast: return 'private'
+    if cfg.blocklist_exclude_org and org and re.search(cfg.blocklist_exclude_org, org, re.I): return 'org'
+    for net in (x.strip() for x in cfg.blocklist_exclude.split(',') if x.strip()):
+        try:
+            if a in ipaddress.ip_network(net, strict=False): return 'list'
+        except ValueError: continue
+    return None
+
+
+@router.get('/folders/{folder}/security/blocklist')
+def blocklist(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor),
+              format: str = Query('nginx'), days: int = Query(1, ge=1, le=90), min_severity: int = Query(1, ge=1, le=3),
+              min_hits: int = Query(1, ge=1, le=100000), lang: str = Query('id')):
+    """Daftar blokir siap pakai (permintaan pemilik 2026-10-07, saran 6) dari IP sumber serangan `days` folder sampai
+    folder ini: nginx (`deny`), anotasi ingress-nginx (`denylist-source-range`), teks satu IP per baris, atau JSON
+    (pratinjau). IP privat, pemilik jaringan S4_BLOCKLIST_EXCLUDE_ORG, dan S4_BLOCKLIST_EXCLUDE dikecualikan."""
+    if format not in BLOCK_FORMATS: raise ApiError(400, 'invalid_parameter', f'format harus salah satu dari {", ".join(BLOCK_FORMATS)}.')
+    cfg, crs = request.app.state.cfg, _schema(request)
+    I = 'agg_crs_ip' if crs else 'agg_attack_ip'
+    msev = 'a.max_severity' if crs else f"list_max(list_transform(map_keys(a.cats), category -> {SEV_SQL}))"
+    rows = _all(cur, f"""SELECT a.ip, sum(a.hits) AS hits, max({msev}) AS sev, count(DISTINCT a.folder) AS days, any_value(i.is_private), any_value(i.org),
+                                any_value(i.country), max(a.last_wib)
+                         FROM {I} a LEFT JOIN ip_info i USING (ip)
+                         WHERE a.folder BETWEEN ?::DATE - (? - 1) * INTERVAL 1 DAY AND ?::DATE GROUP BY a.ip
+                         HAVING max({msev}) >= ? AND sum(a.hits) >= ? ORDER BY hits DESC, a.ip""", folder, days, folder, min_severity, min_hits)
+    take, skipped = [], {'private': 0, 'org': 0, 'list': 0, 'invalid': 0}
+    for ip, hits, sev, nd, private, org, cc, last in rows:
+        why = _excluded(cfg, ip, private, org)
+        if why: skipped[why] += 1
+        else: take.append(dict(ip=ip, hits=hits, severity=sev, days=nd, org=org, country=cc, last=str(last) if last else None))
+    first = cur.execute('SELECT (?::DATE - (? - 1) * INTERVAL 1 DAY)::DATE', [folder, days]).fetchone()[0]
+    crit = dict(folder_from=str(first), folder_to=folder, days=days, min_severity=min_severity, min_hits=min_hits, scheme='crs' if crs else 'lama')
+    if format == 'json':
+        return dict(criteria=crit, count=len(take), excluded=skipped, ips=take[:500])
+    en = lang == 'en'
+    head = [f"MoniShield — {'block list' if en else 'daftar blokir'} {crit['folder_from']}..{folder} ({len(take)} IP)",
+            (f"criteria: severity >= {min_severity}, requests >= {min_hits}; excluded: {sum(skipped.values())} (private/own network/exclude list)" if en else
+             f"kriteria: keparahan >= {min_severity}, request >= {min_hits}; dikecualikan: {sum(skipped.values())} (privat/jaringan sendiri/daftar kecuali)"),
+            ('review before applying' if en else 'periksa dulu sebelum dipasang')]
+    ips = sorted((x['ip'] for x in take), key=lambda v: ipaddress.ip_address(v))
+    if format == 'nginx':
+        body = '\n'.join([f'# {h}' for h in head] + [f'deny {ip};' for ip in ips]) + '\n'
+    elif format == 'ingress':
+        cidrs = ','.join(f'{ip}/32' if ':' not in ip else f'{ip}/128' for ip in ips)
+        body = '\n'.join([f'# {h}' for h in head] + ['metadata:', '  annotations:', f'    nginx.ingress.kubernetes.io/denylist-source-range: "{cidrs}"']) + '\n'
+    else:
+        body = '\n'.join(ips) + '\n'
+    ext = {'nginx': 'conf', 'ingress': 'yaml', 'txt': 'txt'}[format]
+    return Response(body, media_type='text/plain; charset=utf-8',
+                    headers={'Content-Disposition': f'attachment; filename="blokir-{folder}-{days}h.{ext}"', 'Cache-Control': 'no-store'})
 
 
 @router.get('/folders/{folder}/security/attack-ips.csv')

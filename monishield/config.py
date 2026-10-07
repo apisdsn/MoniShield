@@ -53,6 +53,8 @@ class Config:
     import_timeout_minutes: int = 30
     duckdb_snapshot: bool = False  # salinan baca DuckDB (data/snapshot/) tiap selesai ingest, untuk DbGate di docker compose
     import_extract: bool = True    # .log.gz hasil impor langsung diekstrak menjadi .log di kotak masuk (permintaan pemilik 2026-10-07)
+    blocklist_exclude: str = ''              # IP/CIDR yang tidak pernah masuk daftar blokir (koma), mis. IP kantor, pemantau uptime
+    blocklist_exclude_org: str = 'OMBUDSMAN'   # pemilik jaringan (regex, abaikan besar/kecil) yang tidak pernah diblokir; kosong = tidak ada
     s3_watch: str = ''              # awalan induk S3 yang dipantau, mis. s3://nama-bucket/k8s-logs/ (koma untuk >1); kosong = mati
     s3_watch_minutes: int = 60      # jeda pemeriksaan otomatis (menit); 0 = hanya lewat tombol "Periksa S3 sekarang" / cron
     s3_watch_days: int = 30         # hanya folder bertanggal dalam N hari terakhir yang diambil otomatis (0 = semua riwayat)

@@ -89,12 +89,14 @@ export const pct = (x, lang, digits = 1) =>
  * Perubahan vs folder sebelumnya (lama: dlt). Mengembalikan {kind, text, tone} atau null.
  * kind: 'up' | 'down' | 'same' | 'new' | 'incomplete'; tone: 'bad' | 'good' | null (warna bukan satu-satunya penanda: teks selalu ada).
  * `good`: naik itu baik. `comparable`: baris log folder sebelumnya >= 50 % folder ini (dihitung pemanggil).
+ * `label`: nama pembanding selain tanggal folder (rata-rata N hari, 2026-10-07).
  */
-export function delta(cur, prev, prevFolder, lang, { good = false, comparable = true } = {}) {
+export function delta(cur, prev, prevFolder, lang, { good = false, comparable = true, label = null } = {}) {
   if (prev === null || prev === undefined) return null;
-  const en = lang === 'en', tgl = dLabel(prevFolder, lang);
+  const en = lang === 'en', tgl = label || dLabel(prevFolder, lang);   // label: pembanding selain folder, mis. "rata-rata 7 hari"
+  if (label && !comparable) return null;
   if (!comparable) return { kind: 'incomplete', tone: null, text: en ? `${tgl} log incomplete, not compared` : `Log ${tgl} tidak lengkap, tidak dibandingkan` };
-  if (!prev) return cur ? { kind: 'new', tone: null, text: en ? `New (${tgl}: 0)` : `Baru (${tgl}: 0)` } : null;
+  if (!prev) return cur ? { kind: 'new', tone: null, text: en ? `New (${tgl}: 0)` : `Baru (${tgl}: 0)`, short: en ? 'New' : 'Baru', rest: `${tgl}: 0` } : null;
   const p = ((cur - prev) / prev) * 100;
   if (Math.abs(p) < 0.5) return { kind: 'same', tone: null, text: en ? `≈ Same as ${tgl}` : `≈ Sama dengan ${tgl}` };
   const naik = p > 0;
