@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 import logs_mini
 from monishield.domain import accounts, uploads as upload_rules
-from monishield.infrastructure import config, db, importer, ingest
+from monishield.infrastructure import config, db, importer, ingest, logfolders
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
@@ -28,7 +28,7 @@ def cfg(tmp_path):
 
 
 def rencana(cfg, paths, folder=''):
-    return upload_rules.plan(cfg, [dict(path=p, size=10) for p in paths], folder)
+    return upload_rules.plan(cfg, [dict(path=p, size=10) for p in paths], folder, in_log_dir=logfolders.LogFolders(cfg).in_log_dir)
 
 
 def test_rencana_bentuk_jalur(cfg):

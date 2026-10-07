@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 
 import logs_mini
 from monishield.domain import accounts
-from monishield.infrastructure import config, db, ingest, kafka_in
+from monishield.application import kafka_service
+from monishield.infrastructure import config, db, inbox as inboxmod, ingest
 from monishield.domain import kafka_message, parse
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
@@ -77,8 +78,8 @@ def test_hasil_ingest_sama_dengan_log_s3(tmp_path):
     s3 = tmp_path / 's3'
     for ns, svc, pod in PODS: logs_mini.write(logs_mini.log_path(str(s3), B, ns, svc, pod), logs_mini.lines(svc))
     inbox = tmp_path / 'kafka'
-    feed = kafka_in.KafkaFeed(type('A', (), {'state': type('S', (), {'cfg': config.Config()})()})())
-    sp = kafka_in.Spool(str(inbox))
+    feed = kafka_service.KafkaFeed(type('Ctx', (), {'cfg': config.Config()})())
+    sp = inboxmod.Spool(str(inbox))
     feed.handle(messages(), sp)
     assert feed.flush(sp) == {B: sum(len(logs_mini.lines(s).splitlines()) for _, s, _ in PODS)}
     for ns, svc, pod in PODS:
@@ -123,7 +124,7 @@ def test_status_ingest_dan_folder_muncul(client):
     feed = client.app.state.kafka
     s = client.get('/api/admin/kafka', headers=X).json()
     assert (s['configured'], s['enabled'], s['state'], s['topic']) == (True, False, 'mati', 'k8s-logs')
-    sp = kafka_in.Spool(client.app.state.cfg.inbox_dir)
+    sp = inboxmod.Spool(client.app.state.cfg.inbox_dir)
     feed.handle(messages() + [(b'{"stream":"stdout"}', None, 0, 999)], sp); feed.flush(sp)
     s = client.get('/api/admin/kafka', headers=X).json()
     assert s['received'] == len(messages()) + 1 and s['skipped'] == 1 and s['last_skip']['reason'] == "tanpa kolom 'log'"
@@ -166,7 +167,7 @@ def serve(app):
 def test_peta_realtime_tanpa_alamat_ip(client):
     feed = client.app.state.kafka
     assert client.get('/api/live/map', headers=X).status_code == 204          # konsumen tidak berjalan
-    sp = kafka_in.Spool(client.app.state.cfg.inbox_dir)
+    sp = inboxmod.Spool(client.app.state.cfg.inbox_dir)
     feed.handle(messages(), sp); feed.flush(sp); client.post('/api/admin/kafka/ingest', headers=X); tunggu_ingest(client)
     con = client.app.state.con.cursor()
     con.execute("UPDATE ip_info SET lat = -6.2, lon = 106.8, is_private = false WHERE ip = '103.176.97.213'")   # ingest luring tidak punya lokasi
@@ -183,7 +184,7 @@ def test_peta_realtime_tanpa_alamat_ip(client):
                 if raw.startswith('data: ') and '"live"' in raw:
                     got.append(json.loads(raw[6:]))
                     feed.handle([(rancher('ingress-nginx', 'nginx-ingress-controller', 'pod-n', line, t=datetime.datetime.now(datetime.timezone.utc)), None, 0, 1)] * 3,
-                                kafka_in.Spool(client.app.state.cfg.inbox_dir))
+                                inboxmod.Spool(client.app.state.cfg.inbox_dir))
                 elif raw.startswith('data: '):
                     got.append(json.loads(raw[6:])); break
     finally: stop.set(); srv.should_exit = True

@@ -4,9 +4,10 @@ Nilai bawaan = perilaku sistem lama. Setiap kunci bisa diatur lewat lingkungan/.
 (daftar dan kamus ditulis sebagai JSON). Pengecualian nama: kredensial pihak lain memakai nama standarnya
 (MAXMIND_*, AWS_*). Rahasia hanya dari lingkungan/.env dan tidak pernah dicetak.
 """
-import dataclasses, json, os, re, tomllib
+import dataclasses, os, re, tomllib
 
 from monishield.domain.config_model import ALERT_EVENTS, SECRETS, Config, env_name   # noqa: F401  (dipakai ulang lewat modul ini)
+from monishield.domain.config_model import cast as _cast
 
 V2_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # akar proyek (dulu folder v2/ di repo dashboard-logging)
 DOTENV = os.path.join(V2_DIR, '.env')   # dibaca load(); layar Konfigurasi menulis ke sini (monishield/envfile.py)
@@ -27,19 +28,6 @@ def read_dotenv(path):
             else: v = re.split(r'(^|\s+)#', v, maxsplit=1)[0].strip()                  # tanpa kutip: buang komentar di ujung
             out[k.strip()] = v
     return out
-
-
-def _cast(value, default):
-    if isinstance(default, bool):
-        if value.strip().lower() in ('1', 'true', 'yes', 'ya'): return True
-        if value.strip().lower() in ('0', 'false', 'no', 'tidak', ''): return False
-        raise ValueError('harus true atau false')
-    if isinstance(default, int): return int(value)
-    if isinstance(default, (list, dict)):
-        v = json.loads(value)
-        if not isinstance(v, type(default)): raise ValueError(f'harus JSON berbentuk {type(default).__name__}')
-        return v
-    return value
 
 
 def load(env=None, dotenv=None):

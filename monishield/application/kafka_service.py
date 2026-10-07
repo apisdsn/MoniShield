@@ -1,4 +1,8 @@
-"""Log dari Kafka (permintaan pemilik 2026-10-07: "apakah bisa dibuat seperti logging existing?").
+"""Layanan log dari Kafka: konsumen di thread latar (KafkaFeed) + kejadian peta realtime (LiveHub). Adapter: klien Kafka
+monishield/infrastructure/kafka_client.py, kotak masuk monishield/infrastructure/inbox.py; aturan pesan
+monishield/domain/kafka_message.py.
+
+Log dari Kafka (permintaan pemilik 2026-10-07: "apakah bisa dibuat seperti logging existing?").
 
 Rancher (cluster logging -> Kafka, fluentd) mengirim satu pesan JSON per baris log container:
     {"log": "<baris asli>", "stream": "stdout", "tag": "kubernetes.var.log.containers.<pod>_<ns>_<container>-<id>.log",
@@ -19,69 +23,28 @@ Realtime (animasi peta): baris nginx-ingress diteruskan ke `LiveHub` -> SSE /api
 koordinat lokasi (dari basis data IP lokal/offline, tabel ip_info) + modul, BUKAN alamat IP. IP yang belum dikenal
 (belum pernah di-ingest) tidak digambar sampai ingest berikutnya mengisi lokasinya.
 """
-import collections, datetime, json, os, re, threading, time
+import collections, datetime, re, threading, time
 
 from monishield.domain import parse
-from monishield.domain.kafka_message import KafkaFail, configured, folder_of, parse_message, relpath  # noqa: F401
+from monishield.domain.errors import Busy, Fail
+from monishield.domain.kafka_message import configured, folder_of, parse_message
 
-MARK = '.kafka-feed.json'          # penanda folder kotak masuk yang diisi Kafka
 FLUSH_SECONDS, FLUSH_LINES = 5, 20000
 RECENT = 50
-
-
-def library_ok():
-    import importlib.util
-    return importlib.util.find_spec('kafka') is not None
-
-
-NO_LIBRARY = ('Konsumen Kafka butuh paket kafka-python yang belum terpasang di server. Jalankan: .venv/bin/pip install -e ".[kafka]" '
-              '(image Docker sudah memuatnya), lalu mulai ulang server.')
-
-
-class Spool:
-    """Penampung baris per file; flush() menambahkannya ke file di kotak masuk."""
-
-    def __init__(self, inbox):
-        self.inbox, self.buf, self.n = inbox, collections.defaultdict(list), 0
-
-    def add(self, rec):
-        f = folder_of(rec['t'])
-        self.buf[relpath(rec, f)].append(rec['line']); self.n += 1
-        return f
-
-    def flush(self):
-        """-> {folder: baris ditulis}."""
-        out = collections.Counter()
-        for rel, lines in self.buf.items():
-            path = os.path.join(self.inbox, rel)
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, 'a', encoding='utf-8', newline='\n') as fh: fh.write('\n'.join(lines) + '\n')
-            out[rel.split(os.sep, 1)[0]] += len(lines)
-        for f, n in out.items():
-            mp = os.path.join(self.inbox, f, MARK)
-            try: m = json.load(open(mp, encoding='utf-8'))
-            except (OSError, ValueError): m = dict(lines=0)
-            m.update(lines=m.get('lines', 0) + n, updated=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'))
-            with open(mp, 'w', encoding='utf-8') as fh: json.dump(m, fh)
-        self.buf.clear(); self.n = 0
-        return dict(out)
 
 
 # ------------------------------------------------------------------ realtime: lokasi IP -> browser (tanpa IP)
 class LiveHub:
     """Kumpulan kejadian per detik: {(lat, lon, modul): n}. Pembaca (SSE) mengambil yang lebih baru dari nomor terakhirnya."""
 
-    def __init__(self, app):
-        self.app, self._lock, self.seq, self.ring = app, threading.Lock(), 0, collections.deque(maxlen=120)
+    def __init__(self, ctx):
+        self.ctx, self._lock, self.seq, self.ring = ctx, threading.Lock(), 0, collections.deque(maxlen=120)
         self.geo, self.geo_at, self.cur, self.cur_sec = {}, 0, collections.Counter(), None
 
     def _geo(self):
         if time.time() - self.geo_at > 300:
             self.geo_at = time.time()
-            try:
-                c = self.app.state.con.cursor()
-                try: self.geo = {ip: (round(la, 3), round(lo, 3)) for ip, la, lo in c.execute('SELECT ip, lat, lon FROM ip_info WHERE lat IS NOT NULL AND NOT coalesce(is_private, false)').fetchall()}
-                finally: c.close()
+            try: self.geo = self.ctx.warehouse.ip_locations()
             except Exception: pass   # noqa: BLE001  basis data sedang dipakai ingest: coba lagi nanti
         return self.geo
 
@@ -113,64 +76,12 @@ class LiveHub:
 
 
 # ------------------------------------------------------------------ konsumen
-def _client_kwargs(cfg):
-    kw = dict(bootstrap_servers=[x.strip() for x in cfg.kafka_brokers.split(',') if x.strip()], security_protocol=cfg.kafka_security.upper(),
-              client_id='monishield', request_timeout_ms=30000, bootstrap_timeout_ms=10000)
-    if cfg.kafka_security.upper().startswith('SASL'):
-        kw.update(sasl_mechanism=cfg.kafka_sasl_mechanism.upper(), sasl_plain_username=cfg.kafka_username, sasl_plain_password=cfg.kafka_password)
-    if cfg.kafka_ca_file: kw['ssl_cafile'] = cfg.kafka_ca_file
-    return kw
-
-
-def _err(e):
-    """Galat pustaka -> pesan yang bisa dibaca (tanpa sandi)."""
-    n = type(e).__name__
-    if n in ('NoBrokersAvailable', 'KafkaConnectionError') or (n == 'KafkaTimeoutError' and 'bootstrap' in str(e)): return KafkaFail('kafka_unreachable', f'Broker Kafka tidak terjangkau dari server ({n}). Periksa alamat broker dan firewall.', 502)
-    if 'Authentication' in n or 'SaslAuthentication' in n: return KafkaFail('kafka_auth', 'Kafka menolak nama pengguna/sandi SASL.', 502)
-    if n in ('TopicAuthorizationFailedError', 'GroupAuthorizationFailedError'): return KafkaFail('kafka_denied', f'Kafka menolak akses ({n}).', 502)
-    return KafkaFail('kafka_error', f'Kafka: {n}: {str(e)[:200]}', 502)
-
-
-def peek(cfg, n=10):
-    """Ambil n pesan TERAKHIR topic (tanpa grup konsumen, tanpa commit) untuk "Cek pesan" di layar."""
-    if not configured(cfg): raise KafkaFail('kafka_not_configured', 'Isi alamat broker dan topic Kafka dulu.')
-    if not library_ok(): raise KafkaFail('no_kafka_library', NO_LIBRARY)
-    from kafka import KafkaConsumer, TopicPartition
-    try:
-        c = KafkaConsumer(enable_auto_commit=False, group_id=None, consumer_timeout_ms=4000, **_client_kwargs(cfg))
-    except Exception as e: raise _err(e) from None   # noqa: BLE001
-    try:
-        parts = c.partitions_for_topic(cfg.kafka_topic)
-        if not parts: raise KafkaFail('kafka_no_topic', f'Topic "{cfg.kafka_topic}" tidak ada (atau belum pernah menerima pesan).', 404)
-        tps = [TopicPartition(cfg.kafka_topic, p) for p in sorted(parts)]
-        c.assign(tps)
-        end, beg = c.end_offsets(tps), c.beginning_offsets(tps)
-        for tp in tps: c.seek(tp, max(beg[tp], end[tp] - n))
-        got, t0 = [], time.time()
-        while time.time() - t0 < 6 and sum(1 for _ in got) < n * len(tps):
-            batch = c.poll(timeout_ms=800)
-            if not batch and all(c.position(tp) >= end[tp] for tp in tps): break
-            for recs in batch.values(): got.extend(recs)
-        got.sort(key=lambda r: r.timestamp or 0)
-        out = []
-        for r in got[-n:]:
-            rec, why = parse_message(r.value, r.timestamp)
-            out.append(dict(partition=r.partition, offset=r.offset, at=datetime.datetime.fromtimestamp((r.timestamp or 0) / 1000, datetime.timezone.utc).isoformat(timespec='seconds'),
-                            raw=(r.value or b'')[:2000].decode('utf-8', 'replace'), ok=rec is not None, reason=why,
-                            target=relpath(rec, folder_of(rec['t'])) if rec else None))
-        total = sum(end[tp] - beg[tp] for tp in tps)
-        return dict(topic=cfg.kafka_topic, partitions=len(tps), messages_retained=total, messages=out)
-    except KafkaFail: raise
-    except Exception as e: raise _err(e) from None   # noqa: BLE001
-    finally: c.close()
-
-
 class KafkaFeed:
     """Konsumen di thread latar milik proses server (ingest tetap satu pemilik DuckDB, TRD K1)."""
 
-    def __init__(self, app):
-        self.app, self.thread, self._stop = app, None, threading.Event()
-        self.live = LiveHub(app)
+    def __init__(self, ctx):
+        self.ctx, self.thread, self._stop = ctx, None, threading.Event()
+        self.live = LiveHub(ctx)
         self.recent = collections.deque(maxlen=RECENT)
         self._reset_stats()
 
@@ -181,9 +92,10 @@ class KafkaFeed:
 
     # -------------------------------------------------------------- kendali
     def start(self):
-        cfg = self.app.state.cfg
+        cfg = self.ctx.cfg
         if not (cfg.kafka_enabled and configured(cfg)): self.stats['state'] = 'mati'; return
-        if not library_ok(): self.stats.update(state='galat', error=NO_LIBRARY); return
+        kc = self.ctx.kafka_client
+        if not kc.library_ok(): self.stats.update(state='galat', error=kc.no_library); return
         if self.thread and self.thread.is_alive(): return
         self._stop = threading.Event()
         self.thread = threading.Thread(target=self._loop, name='kafka', daemon=True)
@@ -197,18 +109,28 @@ class KafkaFeed:
     def restart(self):
         self.stop(); self._reset_stats(); self.start()
 
+    def running(self): return bool(self.thread and self.thread.is_alive())
+
+    def peek(self, n=10):
+        """"Cek pesan": n pesan TERAKHIR dari topic (tanpa grup konsumen; tidak menggeser posisi baca)."""
+        return self.ctx.kafka_client.peek(self.ctx.cfg, n)
+
+    def ingest_now(self):
+        if not self.pending: raise Fail('kafka_nothing', 'Belum ada baris baru dari Kafka sejak ingest terakhir.', 400)
+        if not self.maybe_ingest(force=True): raise Busy('Ingest lain sedang berjalan; coba lagi sebentar.')
+
     def live_folder(self): return folder_of(datetime.datetime.now(datetime.timezone.utc))
 
     def status(self):
-        cfg = self.app.state.cfg
-        return dict(configured=configured(cfg), enabled=cfg.kafka_enabled, library=library_ok(), brokers=cfg.kafka_brokers, topic=cfg.kafka_topic,
+        cfg = self.ctx.cfg
+        return dict(configured=configured(cfg), enabled=cfg.kafka_enabled, library=self.ctx.kafka_client.library_ok(), brokers=cfg.kafka_brokers, topic=cfg.kafka_topic,
                     group=cfg.kafka_group, security=cfg.kafka_security, ingest_minutes=cfg.kafka_ingest_minutes, live_folder=self.live_folder(),
                     pending=sorted(self.pending), recent=list(self.recent)[::-1], **self.stats)
 
     # -------------------------------------------------------------- inti (dapat diuji tanpa broker)
     def handle(self, records, spool):
         """records: [(value, timestamp_ms, partition, offset)]."""
-        prefix = self.app.state.cfg.upstream_prefix
+        prefix = self.ctx.cfg.upstream_prefix
         for value, ts, part, off in records:
             self.stats['received'] += 1
             rec, why = parse_message(value, ts)
@@ -236,8 +158,8 @@ class KafkaFeed:
         """Ingest berkala folder yang bertambah (lewat IngestManager: satu pemilik DuckDB). -> True bila dimulai."""
         now = now or time.time()
         last = getattr(self, '_last_ingest', 0)
-        if not self.pending or (not force and now - last < self.app.state.cfg.kafka_ingest_minutes * 60): return False
-        ing = self.app.state.ingest
+        if not self.pending or (not force and now - last < self.ctx.cfg.kafka_ingest_minutes * 60): return False
+        ing = self.ctx.ingest
         if ing.state['running']: return False
         folders = sorted(self.pending)
         try: ing.start(folders[0] if len(folders) == 1 else None, False, '(kafka)')
@@ -250,27 +172,24 @@ class KafkaFeed:
 
     # -------------------------------------------------------------- thread
     def _loop(self):
-        from kafka import KafkaConsumer
-        cfg, wait = self.app.state.cfg, 5
-        spool = Spool(cfg.inbox_dir)
+        cfg, kc, wait = self.ctx.cfg, self.ctx.kafka_client, 5
+        spool = self.ctx.inbox(cfg.inbox_dir)
         while not self._stop.is_set():
             c = None
             try:
                 self.stats.update(state='menyambung', error=None)
-                c = KafkaConsumer(cfg.kafka_topic, group_id=cfg.kafka_group, enable_auto_commit=False, auto_offset_reset=cfg.kafka_offset_reset,
-                                  max_poll_records=2000, **_client_kwargs(cfg))
+                c = kc.consumer(cfg)
                 self.stats.update(state='berjalan', since=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(timespec='seconds'))
                 wait, last_flush = 5, time.time()
                 while not self._stop.is_set():
-                    batch = c.poll(timeout_ms=1000)
-                    for recs in batch.values(): self.handle([(r.value, r.timestamp, r.partition, r.offset) for r in recs], spool)
+                    for recs in c.poll(timeout_ms=1000): self.handle(recs, spool)
                     if spool.n and (spool.n >= FLUSH_LINES or time.time() - last_flush >= FLUSH_SECONDS):
                         self.flush(spool); c.commit(); last_flush = time.time()
                     elif not spool.n: last_flush = time.time()
                     self.maybe_ingest()
                 if spool.n: self.flush(spool); c.commit()
             except Exception as e:   # noqa: BLE001  broker mati / sandi salah: status + coba lagi berkala
-                f = _err(e)
+                f = kc.error(e)
                 self.stats.update(state='galat', error=f'[{f.code}] {f.message}')
                 self._stop.wait(wait); wait = min(wait * 2, 120)
             finally:

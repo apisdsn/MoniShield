@@ -17,9 +17,10 @@ def _date_ok(s):
     except ValueError: return False
 
 
-def plan(cfg, files, folder=''):
+def plan(cfg, files, folder='', in_log_dir=lambda folder: False):
     """files: [{path, size}] dari browser -> (diterima [{i, rel, folder, size}], dilewati [{path, reason}]).
-    Jalur tidak aman / di luar batas -> ImportFail untuk seluruh unggahan; file yang bukan log hanya dilewati."""
+    Jalur tidak aman / di luar batas -> ImportFail untuk seluruh unggahan; file yang bukan log hanya dilewati.
+    in_log_dir(folder): folder tanggal itu sudah ada di folder log utama (diperiksa pemanggil di disk)."""
     if folder and not _date_ok(folder): raise ImportFail('invalid_date', 'Tanggal folder harus YYYY-MM-DD yang sah.')
     if not isinstance(files, list) or not files: raise ImportFail('nothing_to_upload', 'Tidak ada file yang dipilih.')
     if len(files) > cfg.import_max_objects * 4:
@@ -37,7 +38,7 @@ def plan(cfg, files, folder=''):
         else: skip.append(dict(path=path, reason='tidak ada folder tanggal (YYYY-MM-DD) di jalurnya; isi tanggal folder')); continue
         if not rules.split_relpath(os.path.join(*rel)):
             skip.append(dict(path=path, reason='bukan <tanggal>/<namespace>/<layanan>/<file>')); continue
-        if os.path.isdir(os.path.join(cfg.log_dir, rel[0])):
+        if in_log_dir(rel[0]):
             skip.append(dict(path=path, reason=f'folder {rel[0]} sudah ada di folder log utama (yang itu yang dipakai)')); continue
         r = '/'.join(rel)
         if r in seen: skip.append(dict(path=path, reason='ganda')); continue

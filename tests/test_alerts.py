@@ -5,9 +5,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 import logs_mini
-from monishield.application import alerts
-from monishield.domain import accounts
-from monishield.infrastructure import config, db, ingest
+from monishield.application import alert_service
+from monishield.domain import accounts, alerts
+from monishield.infrastructure import config, db, ingest, notify_channels
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
@@ -23,7 +23,7 @@ B = '2026-01-02'
 def sent(monkeypatch):
     """Tangkap semua kiriman HTTP (Telegram/Discord) dan SMTP."""
     box = []
-    monkeypatch.setattr(alerts, '_post_json', lambda url, payload: box.append(('http', url, payload)) or 200)
+    monkeypatch.setattr(notify_channels, '_post_json', lambda url, payload: box.append(('http', url, payload)) or 200)
 
     class FakeSMTP:
         def __init__(self, host, port, timeout=None, **kw): box.append(('smtp-open', host, port))
@@ -32,7 +32,7 @@ def sent(monkeypatch):
         def starttls(self, context=None): box.append(('smtp-starttls',))
         def login(self, u, p): box.append(('smtp-login', u, p == SMTP_PW))
         def send_message(self, m): box.append(('smtp-send', m['Subject'], m['To'], m.get_content()))
-    monkeypatch.setattr(alerts.smtplib, 'SMTP', FakeSMTP)
+    monkeypatch.setattr(notify_channels.smtplib, 'SMTP', FakeSMTP)
     return box
 
 
@@ -116,7 +116,7 @@ def test_gagal_kirim_dilaporkan_tanpa_kredensial(app_env, monkeypatch):
     tc, _, _ = app_env
     setel(tc)
     def tolak(url, payload): raise alerts.AlertFail('ditolak HTTP 401')
-    monkeypatch.setattr(alerts, '_post_json', tolak)
+    monkeypatch.setattr(notify_channels, '_post_json', tolak)
     r = tc.post('/api/admin/alerts/test', json=dict(channel='telegram'), headers=X)
     assert r.status_code == 502 and 'HTTP 401' in r.json()['error']['message'] and TOKEN not in r.text
     assert tc.get('/api/admin/alerts').json()['history'][0]['ok'] is False
@@ -129,7 +129,7 @@ def test_lonjakan_dan_serangan_kritis_tanpa_alamat_ip(app_env, sent):
     try:
         con.execute("UPDATE agg_service SET err = err + 500 WHERE folder = '2026-01-06'")   # lonjakan error vs rata-rata 01-02..01-05
         cfg = alerts.load(tc.app.state.cfg)
-        ev = {e[0]: e for e in alerts.folder_events(con, cfg, '2026-01-06', True)}
+        ev = {e[0]: e for e in alerts.folder_events(cfg, '2026-01-06', tc.app.state.warehouse.folder_facts('2026-01-06', True))}
     finally: con.close()
     assert set(ev) == {'spike', 'critical'}
     _, key, title, text = ev['spike']
@@ -138,14 +138,14 @@ def test_lonjakan_dan_serangan_kritis_tanpa_alamat_ip(app_env, sent):
     assert 'IP' in text and '34.19.127.199' not in text and '#/keamanan?folder=2026-01-06' in text
     # kirim: semua saluran aktif, sekali per kunci
     cfg = alerts.load(tc.app.state.cfg)
-    r = alerts.deliver(tc.app.state.auth, cfg, ev['spike'][1], 'spike', ev['spike'][2], ev['spike'][3])
+    r = alert_service.deliver(tc.app.state, cfg, ev['spike'][1], 'spike', ev['spike'][2], ev['spike'][3])
     assert r == dict(telegram=None, discord=None, email=None)
-    assert alerts.deliver(tc.app.state.auth, cfg, ev['spike'][1], 'spike', 'x', 'y') == {}
+    assert alert_service.deliver(tc.app.state, cfg, ev['spike'][1], 'spike', 'x', 'y') == {}
     for x in sent: assert '34.19.127.199' not in json.dumps(x)
     # bahasa Inggris
     tc.put('/api/admin/alerts', json=dict(lang='en'), headers=X)
     con = tc.app.state.con.cursor()
-    try: ev = {e[0]: e for e in alerts.folder_events(con, alerts.load(tc.app.state.cfg), '2026-01-06', True)}
+    try: ev = {e[0]: e for e in alerts.folder_events(alerts.load(tc.app.state.cfg), '2026-01-06', tc.app.state.warehouse.folder_facts('2026-01-06', True))}
     finally: con.close()
     assert ev['spike'][2] == 'Spike in folder 2026-01-06' and 'Errors (all services)' in ev['spike'][3]
 
@@ -197,8 +197,8 @@ def test_post_json_sungguhan_ke_server_lokal(monkeypatch):
     base = f'http://127.0.0.1:{srv.server_address[1]}'
     try:
         monkeypatch.setenv('NO_PROXY', '127.0.0.1')
-        assert alerts._post_json(base + '/ok', dict(a=1)) == 200 and got == [dict(a=1)]
-        with pytest.raises(alerts.AlertFail, match='HTTP 401'): alerts._post_json(base + '/tolak', {})
+        assert notify_channels._post_json(base + '/ok', dict(a=1)) == 200 and got == [dict(a=1)]
+        with pytest.raises(alerts.AlertFail, match='HTTP 401'): notify_channels._post_json(base + '/tolak', {})
     finally: srv.shutdown(); srv.server_close()
 
 

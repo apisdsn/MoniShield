@@ -11,6 +11,7 @@ sama, isi lama dikembalikan.
 """
 import os, re, threading
 
+from monishield.domain.settings import SettingsFail
 from monishield.infrastructure import config
 
 _LOCK = threading.Lock()
@@ -82,3 +83,25 @@ def update(path, changes):
             with open(path, 'r+', encoding='utf-8') as fh: fh.seek(0); fh.write(old); fh.truncate()
             raise EnvFileFail('Isi .env hasil tulis tidak terbaca sama; perubahan dibatalkan.')
         return sorted(changes)
+
+
+class EnvStore:
+    """Port EnvStore untuk layar Konfigurasi: membaca/menulis satu file .env + melihat variabel lingkungan proses.
+    Nilai ditulis dengan nama variabelnya (S4_…, AWS_…); pemanggil tidak tahu format file."""
+
+    def __init__(self, path): self.path = path
+
+    def values(self):
+        try: return config.read_dotenv(self.path)
+        except SystemExit: return {}
+
+    def environ(self): return os.environ
+
+    def exists(self): return os.path.exists(self.path)
+
+    def writable(self): return writable(self.path)   # dicari saat dipanggil (bisa diganti di uji)
+
+    def write(self, changes):
+        """{NAMA: nilai Python | None (baris dinonaktifkan)} -> daftar nama yang berubah. Gagal -> SettingsFail."""
+        try: return update(self.path, {k: None if v is None else fmt(v) for k, v in changes.items()})
+        except EnvFileFail as e: raise SettingsFail(str(e)) from None

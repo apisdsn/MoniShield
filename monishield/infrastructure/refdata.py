@@ -12,9 +12,10 @@ yang dikirim ke pihak mana pun** (PRD §5.4). Yang keluar hanya permintaan unduh
 Tanpa kunci atau tanpa internet: semuanya dilewati dengan keterangan; ingest tetap selesai dan dicoba lagi
 pada ingest berikutnya. Tidak pernah diam-diam jatuh ke sumber lain.
 """
-import base64, csv, datetime, gzip, io, ipaddress, json, os, sys, time, urllib.request, zipfile
+import base64, csv, datetime, gzip, io, ipaddress, json, os, sys, time, urllib.error, urllib.request, zipfile
 
 from monishield.domain import rules
+from monishield.domain.errors import Fail
 
 # Atribusi yang wajib tampil di setiap peta (lisensi GeoLite2 dan CC BY 4.0).
 ATTRIBUTION = ['Produk ini memuat data GeoLite2 buatan MaxMind, tersedia dari https://www.maxmind.com',
@@ -297,3 +298,21 @@ MAP_FILES = ('land.geojson', 'borders-country.geojson', 'borders-province-id.geo
 
 def map_ready(cfg):
     return all(os.path.exists(os.path.join(cfg.data_dir, 'map', f)) for f in MAP_FILES)
+
+
+# ------------------------------------------------------------------ uji kunci MaxMind (layar Konfigurasi)
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k): return None   # 302 = kunci diterima; tautan unduhan tidak diikuti
+
+
+def probe_maxmind(cfg):
+    """HEAD tautan unduhan GeoLite2 dengan kunci tersimpan: hanya otorisasi, tidak mengunduh. Gagal -> Fail (502)."""
+    auth = base64.b64encode(f'{cfg.maxmind_account_id}:{cfg.maxmind_license_key}'.encode()).decode()
+    req = urllib.request.Request(cfg.url_maxmind.format('GeoLite2-City-CSV'), method='HEAD',
+                                 headers={'Authorization': 'Basic ' + auth, 'User-Agent': 'monishield/2.0'})
+    try:
+        with urllib.request.build_opener(_NoRedirect).open(req, timeout=20) as r: code = r.status
+    except urllib.error.HTTPError as e: code = e.code
+    except OSError as e: raise Fail('maxmind_unreachable', f'MaxMind tidak terjangkau dari server ({type(e).__name__}).', 502) from None
+    if code in (401, 403): raise Fail('maxmind_denied', f'MaxMind menolak kunci ({code}): periksa Account ID dan License key.', 502)
+    if code not in (200, 302, 303, 307): raise Fail('maxmind_error', f'MaxMind menjawab {code}.', 502)

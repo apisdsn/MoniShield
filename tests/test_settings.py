@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 import logs_mini
 from s3_tiruan import KEY_OK, S3Tiruan
 from monishield.domain import accounts
-from monishield.infrastructure import auth, config, envfile, importer
-from monishield.application import settings
-from monishield.interfaces.api import app as appmod, config_api
+from monishield.infrastructure import auth, config, envfile, importer, refdata
+from monishield.domain import alerts, settings
+from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
 X = {'X-Requested-With': 'uji'}
@@ -222,7 +222,7 @@ def test_uji_maxmind(client, monkeypatch):
             seen.append((req.get_method(), req.full_url, req.get_header('Authorization')))
             raise urllib.error.HTTPError(req.full_url, self.code, 'x', {}, None)
     for code, status, err in ((302, 200, None), (401, 502, 'maxmind_denied'), (500, 502, 'maxmind_error')):
-        monkeypatch.setattr(config_api.urllib.request, 'build_opener', lambda *a, c=code: Opener(c))
+        monkeypatch.setattr(refdata.urllib.request, 'build_opener', lambda *a, c=code: Opener(c))
         r = client.post('/api/admin/config/test', json=dict(kind='maxmind'), headers=X)
         assert r.status_code == status, (code, r.text)
         if err: assert r.json()['error']['code'] == err
@@ -246,7 +246,6 @@ def test_alamat_dan_batas_dari_env():
                          'S4_URL_MAXMIND': 'https://mm.kantor.go.id/{}.zip', 'S4_GEO_MAX_AGE_DAYS': '14', 'S4_UPLOAD_SESSION_HOURS': '2'}, dotenv=False)
     assert (c.url_ip2asn, c.telegram_api, c.url_maxmind, c.geo_max_age_days, c.upload_session_hours) == \
         ('https://cermin.kantor.go.id/ip2asn-v4.tsv.gz', 'https://tg-proxy.kantor.go.id', 'https://mm.kantor.go.id/{}.zip', 14, 2)
-    from monishield.application import alerts
     assert alerts.load(c)['channels']['telegram']['api'] == 'https://tg-proxy.kantor.go.id'
     for env in ({'S4_GEO_MAX_AGE_DAYS': '60'}, {'S4_URL_MAXMIND': 'https://x/tanpa-edisi'}, {'S4_URL_LAND': 'ftp://x'}):
         with pytest.raises(SystemExit): config.load(env=env, dotenv=False)

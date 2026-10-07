@@ -1,4 +1,4 @@
-"""Log dari Kafka (monishield/kafka_in.py).
+"""Log dari Kafka (monishield/application/kafka_service.py).
   GET  /api/admin/kafka          status konsumen: tersambung?, pesan diterima/ditulis/dilewati per layanan, 50 pesan terakhir
   POST /api/admin/kafka/peek     "Cek pesan": n pesan TERAKHIR dari topic (tanpa grup konsumen; tidak menggeser posisi baca)
   POST /api/admin/kafka/ingest   ingest sekarang (tanpa menunggu jeda S4_KAFKA_INGEST_MINUTES)
@@ -11,9 +11,9 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
-from monishield.infrastructure import kafka_in
+from monishield.domain.errors import Fail
 from .admin import _audit
-from .common import ApiError, require_admin, require_user_ready
+from .common import require_admin, require_user_ready
 
 router = APIRouter()
 
@@ -29,19 +29,16 @@ class PeekBody(BaseModel):
 
 @router.post('/api/admin/kafka/peek')
 def kafka_peek(request: Request, body: PeekBody = PeekBody(), admin=Depends(require_admin)):
-    try: r = kafka_in.peek(request.app.state.cfg, max(1, min(50, body.n)))
-    except kafka_in.KafkaFail as e:
-        _audit(request, admin, 'kafka.peek', f'gagal ({e.code})')
-        raise ApiError(e.status, e.code, e.message) from None
+    try: r = request.app.state.kafka.peek(max(1, min(50, body.n)))
+    except Fail as e:
+        _audit(request, admin, 'kafka.peek', f'gagal ({e.code})'); raise
     _audit(request, admin, 'kafka.peek', f"{r['topic']}: {len(r['messages'])} pesan")
     return r
 
 
 @router.post('/api/admin/kafka/ingest')
 def kafka_ingest(request: Request, admin=Depends(require_admin)):
-    feed = request.app.state.kafka
-    if not feed.pending: raise ApiError(400, 'kafka_nothing', 'Belum ada baris baru dari Kafka sejak ingest terakhir.')
-    if not feed.maybe_ingest(force=True): raise ApiError(409, 'ingest_running', 'Ingest lain sedang berjalan; coba lagi sebentar.')
+    request.app.state.kafka.ingest_now()
     _audit(request, admin, 'kafka.ingest', 'ingest folder dari Kafka')
     return dict(started=True)
 
@@ -49,7 +46,7 @@ def kafka_ingest(request: Request, admin=Depends(require_admin)):
 @router.get('/api/live/map')
 async def live_map(request: Request, user=Depends(require_user_ready)):
     feed = request.app.state.kafka
-    if not (feed.thread and feed.thread.is_alive()): return Response(status_code=204)   # EventSource tidak menyambung ulang
+    if not feed.running(): return Response(status_code=204)   # EventSource tidak menyambung ulang
 
     async def events():
         seq, _ = feed.live.since(10 ** 12)          # mulai dari sekarang
@@ -63,6 +60,6 @@ async def live_map(request: Request, user=Depends(require_user_ready)):
             else:
                 idle += 1
                 if idle % 15 == 0: yield ': ping\n\n'
-            if not (feed.thread and feed.thread.is_alive()): yield 'event: end\ndata: {}\n\n'; break
+            if not feed.running(): yield 'event: end\ndata: {}\n\n'; break
             await asyncio.sleep(1)
     return StreamingResponse(events(), media_type='text/event-stream', headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})

@@ -1,8 +1,11 @@
-"""Notifikasi ke Telegram, Discord, dan email (permintaan pemilik 2026-10-07: "cukup isi kredensialnya").
+"""Aturan notifikasi (murni): setelan, pemeriksaan isian, teks dua bahasa, dan penilaian kejadian per folder.
+Pengiriman: monishield/infrastructure/notify_channels.py; penjadwalan: monishield/application/alert_service.py.
+
+Notifikasi ke Telegram, Discord, dan email (permintaan pemilik 2026-10-07: "cukup isi kredensialnya").
 
 Setelan (saluran + kredensialnya, kejadian yang dikirim, bahasa, alamat dashboard) ada di .env (S4_ALERT_*, S4_SMTP_*,
 TELEGRAM_BOT_TOKEN, DISCORD_WEBHOOK_URL, SMTP_PASSWORD, S4_DASHBOARD_URL); layar Konfigurasi -> Notifikasi menulis ke sana
-(monishield/settings.py). Kredensial (token bot, URL webhook, sandi SMTP) TIDAK pernah dikirim balik ke browser; hanya
+(monishield/application/settings_service.py). Kredensial (token bot, URL webhook, sandi SMTP) TIDAK pernah dikirim balik ke browser; hanya
 "sudah diisi".
 
 ATURAN PROYEK: alamat IP pengguna tidak boleh dikirim ke layanan pihak ketiga. Pesan disusun dari angka agregat (jumlah
@@ -18,15 +21,14 @@ Kejadian:
   summary         ringkasan tiap folder baru (bawaan mati)
 Satu kejadian dikirim sekali per kunci (mis. 'spike:2026-10-06'); dicatat di tabel alert_log (riwayat di layar).
 """
-import datetime, json, re, smtplib, ssl, threading, urllib.error, urllib.parse, urllib.request
-from email.message import EmailMessage
+import json, re, urllib.parse
 
-from monishield.infrastructure import config
+from monishield.domain.config_model import ALERT_EVENTS
+from monishield.domain.errors import Fail
 
 TELEGRAM_API = 'https://api.telegram.org'   # bawaan; alamat yang dipakai = S4_TELEGRAM_API (cfg.telegram_api)
 DISCORD_HOSTS = ('discord.com', 'discordapp.com', 'ptb.discord.com', 'canary.discord.com')
-TIMEOUT = 15
-EVENTS = config.ALERT_EVENTS
+EVENTS = ALERT_EVENTS
 DEFAULT = dict(
     channels=dict(telegram=dict(enabled=False, bot_token='', chat_id=''),
                   discord=dict(enabled=False, webhook_url=''),
@@ -46,9 +48,10 @@ def scrub(text):
     return _IP.sub('[IP]', text)
 
 
-class AlertFail(Exception):
-    pass
+class AlertFail(Fail):
+    def __init__(self, message, code='invalid_alerts', status=400): super().__init__(code, message, status)
 
+    def __str__(self): return self.message
 
 # ------------------------------------------------------------------ setelan
 def load(cfg):
@@ -145,62 +148,6 @@ def validate(cfg):
         raise AlertFail('Email aktif tetapi server SMTP / port / pengirim / penerima belum lengkap.')
 
 
-# ------------------------------------------------------------------ kirim
-def _post_json(url, payload):
-    req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={'Content-Type': 'application/json', 'User-Agent': 'MoniShield'})
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r: return r.status
-    except urllib.error.HTTPError as x:
-        raise AlertFail(f'ditolak HTTP {x.code}') from None
-    except (urllib.error.URLError, OSError) as x:
-        raise AlertFail(f'tidak terjangkau ({type(getattr(x, "reason", x)).__name__})') from None
-
-
-def send_telegram(ch, title, text):
-    _post_json(f"{ch.get('api') or TELEGRAM_API}/bot{ch['bot_token']}/sendMessage",
-               dict(chat_id=ch['chat_id'], text=f'{title}\n\n{text}'[:4000], disable_web_page_preview=True))
-
-
-def send_discord(ch, title, text):
-    _post_json(ch['webhook_url'], dict(content=f'**{title}**\n{text}'[:1990], allowed_mentions=dict(parse=[])))
-
-
-def send_email(ch, title, text):
-    m = EmailMessage()
-    m['Subject'], m['From'], m['To'] = title, ch['sender'], ', '.join(x.strip() for x in ch['to'].split(',') if x.strip())
-    m.set_content(text)
-    try:
-        ctx = ssl.create_default_context()
-        cls = smtplib.SMTP_SSL if ch['security'] == 'ssl' else smtplib.SMTP
-        kw = dict(context=ctx) if ch['security'] == 'ssl' else {}
-        with cls(ch['host'], ch['port'], timeout=TIMEOUT, **kw) as s:
-            if ch['security'] == 'starttls': s.starttls(context=ctx)
-            if ch['username']: s.login(ch['username'], ch['password'])
-            s.send_message(m)
-    except smtplib.SMTPAuthenticationError:
-        raise AlertFail('SMTP menolak nama pengguna / sandi') from None
-    except (smtplib.SMTPException, OSError) as x:
-        raise AlertFail(f'SMTP gagal ({type(x).__name__})') from None
-
-
-SENDERS = dict(telegram=send_telegram, discord=send_discord, email=send_email)
-
-
-def deliver(auth, cfg, key, event, title, text, channels=None, force=False):
-    """Kirim ke semua saluran aktif (atau `channels`). Sudah pernah berhasil untuk `key` -> dilewati (kecuali force).
-    -> {saluran: None (berhasil) | pesan galat}. Galat tidak pernah memuat kredensial."""
-    if not force and auth.alert_seen(key): return {}
-    title, text = scrub(title), scrub(text)
-    out = {}
-    for name, ch in cfg['channels'].items():
-        if (channels and name not in channels) or (not channels and not ch['enabled']): continue
-        try: SENDERS[name](ch, title, text); out[name] = None
-        except AlertFail as e: out[name] = str(e)
-        except Exception as e: out[name] = type(e).__name__   # noqa: BLE001
-        auth.alert_add(key, event, name, out[name] is None, summary=title, error=out[name])
-    return out
-
-
 # ------------------------------------------------------------------ teks (dua bahasa; nama metrik dari kamus kecil ini)
 T = dict(
     id=dict(spike='Lonjakan di folder {d}', critical='Serangan kritis di folder {d}', ingest_failed='Ingest gagal',
@@ -230,11 +177,10 @@ def _link(cfg, folder, tab='peta'):
 
 
 # ------------------------------------------------------------------ penilaian
-def folder_events(cur, cfg, folder, crs):
-    """Kejadian untuk satu folder: [(event, key, judul, teks)]. Angka dari Command Center (agregat), tanpa IP."""
-    from monishield.infrastructure.queries import command
-    a = command._kpi(cur, folder, crs)
-    b = command.baseline(cur, folder, crs, a)
+def folder_events(cfg, folder, facts):
+    """Kejadian untuk satu folder: [(event, key, judul, teks)]. facts = angka agregat folder (tanpa IP), dari gudang data:
+    dict(kpi=<KPI Command Center>, base=<pembanding rata-rata>, ngx_keys=<kunci KPI ingress>, crit_cats=[kategori teratas])."""
+    a, b, ngx_keys = facts['kpi'], facts['base'], facts['ngx_keys']
     lang, out = cfg['lang'], []
     vals = dict(a['kpi'], atk_req=a['atk_req'])
     avgs = dict(b['kpi'], atk_req=b['atk_req'])
@@ -243,16 +189,13 @@ def folder_events(cur, cfg, folder, crs):
         v, m = vals.get(k), avgs.get(k)
         if v is None or m is None: continue
         if v >= fac * m and v - m >= add:
-            n = b['n_nginx'] if k in command.NGX_KEYS or k == 'atk_req' else b['n_all']
+            n = b['n_nginx'] if k in ngx_keys or k == 'atk_req' else b['n_all']
             fac_txt = f'; ×{v / m:.1f}' if m else ''
             lines.append(f"• {_t(cfg, k)}: {_num(v, lang)} ({_t(cfg, 'avg', n=n, v=_num(m, lang))}{fac_txt})")
     if lines and cfg['events']['spike']:
         out.append(('spike', f'spike:{folder}', _t(cfg, 'spike', d=folder), '\n'.join(lines) + _link(cfg, folder)))
     if a['crit_req'] and cfg['events']['critical']:
-        U = 'agg_crs_url' if crs else 'agg_attack_url'
-        cats = [r[0] for r in cur.execute(f"""SELECT category, sum(hits) h FROM {U} WHERE folder = ? AND {'severity' if crs else '1'} = 3
-                                               GROUP BY 1 ORDER BY h DESC LIMIT 3""", [folder]).fetchall()] if crs else []
-        text = _t(cfg, 'crit', n=_num(a['crit_req'], lang), ips=_num(a['kpi']['attack_ips'], lang), cats=', '.join(cats) or '-')
+        text = _t(cfg, 'crit', n=_num(a['crit_req'], lang), ips=_num(a['kpi']['attack_ips'], lang), cats=', '.join(facts['crit_cats']) or '-')
         out.append(('critical', f'critical:{folder}', _t(cfg, 'critical', d=folder), text + _link(cfg, folder, 'keamanan')))
     if cfg['events']['summary']:
         rows = [f"• {_t(cfg, k)}: {_num(vals[k], lang)}" for k in ('requests', 'n5xx', 'errors', 'atk_req', 'attack_ips', 'login_fail_ips') if vals.get(k) is not None]
@@ -260,75 +203,31 @@ def folder_events(cur, cfg, folder, crs):
     return out
 
 
-class Notifier:
-    """Dipanggil IngestManager / ImportManager sesudah pekerjaan selesai, dan penjadwal tiap jam (folder belum datang).
-    Semua pengiriman di thread latar: ingest dan layar tidak pernah menunggu Telegram/SMTP."""
+def ingest_failed(cfg, result, error):
+    """Kejadian ingest gagal -> (key, judul, teks) atau None."""
+    if not ((error or (result and result.get('files_failed'))) and cfg['events']['ingest_failed']): return None
+    rid = (result or {}).get('run_id', '?')
+    text = '\n'.join(x for x in [_t(cfg, 'run', id=rid), error or '', _t(cfg, 'failed_files', n=result['files_failed']) if result and result.get('files_failed') else ''] if x)
+    return f'ingest_failed:{rid}', _t(cfg, 'ingest_failed'), text
 
-    def __init__(self, app):
-        self.app, self._lock = app, threading.Lock()
 
-    def _cfg(self): return load(self.app.state.cfg)
+def sync_failed(cfg, res):
+    """Kejadian sinkron S3 bermasalah -> (key, judul, teks) atau None."""
+    if not cfg['events']['sync_failed'] or not (res.get('errors') or res.get('failed')): return None
+    lines = [f"• {e.get('where') + ': ' if e.get('where') else ''}{e.get('message', '')}" for e in res.get('errors', [])]
+    if res.get('failed'): lines.append(_t(cfg, 'folders', list=', '.join(res['failed'])))
+    return f"sync_failed:{res.get('at')}", _t(cfg, 'sync_failed'), '\n'.join(lines)
 
-    def _bg(self, fn, *a):
-        threading.Thread(target=self._safe, args=(fn, *a), name='alerts', daemon=True).start()
 
-    def _safe(self, fn, *a):
-        with self._lock:
-            try: fn(*a)
-            except Exception: pass   # noqa: BLE001  notifikasi tidak boleh menjatuhkan server; galat kirim tercatat di alert_log
+def folder_missing(cfg, now_wib, newest):
+    """Folder bertanggal hari ini (WIB) belum ada setelah `missing_hour` -> (key, judul, teks) atau None."""
+    if not cfg['events']['folder_missing'] or now_wib.hour < int(cfg['missing_hour']): return None
+    today = now_wib.date().isoformat()
+    if newest is None or str(newest) >= today: return None
+    return f'folder_missing:{today}', _t(cfg, 'folder_missing', d=today), _t(cfg, 'newest', d=str(newest))
 
-    def active(self, cfg): return cfg and any(c['enabled'] for c in cfg['channels'].values())
 
-    def after_ingest(self, result, error=None): self._bg(self._after_ingest, result, error)
+def active(cfg): return bool(cfg) and any(c['enabled'] for c in cfg['channels'].values())
 
-    def _after_ingest(self, result, error):
-        cfg = self._cfg()
-        if not self.active(cfg): return
-        auth = self.app.state.auth
-        if (error or (result and result.get('files_failed'))) and cfg['events']['ingest_failed']:
-            rid = (result or {}).get('run_id', '?')
-            text = '\n'.join(x for x in [_t(cfg, 'run', id=rid), error or '', _t(cfg, 'failed_files', n=result['files_failed']) if result and result.get('files_failed') else ''] if x)
-            deliver(auth, cfg, f'ingest_failed:{rid}', 'ingest_failed', _t(cfg, 'ingest_failed'), text)
-        if error or not result: return
-        changed = sorted(result.get('folders_changed') or [])
-        if not changed: return
-        cur = self.app.state.con.cursor()
-        try:
-            newest = str(cur.execute('SELECT max(folder) FROM folder_state').fetchone()[0])
-            floor = (datetime.date.fromisoformat(newest) - datetime.timedelta(days=2)).isoformat()
-            crs = self.app.state.cfg.attack_rules == 'crs'
-            for f in (x for x in changed if x >= floor):   # folder lama yang di-ingest ulang tidak memicu notifikasi
-                for ev, key, title, text in folder_events(cur, cfg, f, crs): deliver(auth, cfg, key, ev, title, text)
-        finally: cur.close()
 
-    def after_sync(self, res): self._bg(self._after_sync, res)
-
-    def _after_sync(self, res):
-        cfg = self._cfg()
-        if not self.active(cfg) or not cfg['events']['sync_failed'] or not (res.get('errors') or res.get('failed')): return
-        lines = [f"• {e.get('where') + ': ' if e.get('where') else ''}{e.get('message', '')}" for e in res.get('errors', [])]
-        if res.get('failed'): lines.append(_t(cfg, 'folders', list=', '.join(res['failed'])))
-        deliver(self.app.state.auth, cfg, f"sync_failed:{res.get('at')}", 'sync_failed', _t(cfg, 'sync_failed'), '\n'.join(lines))
-
-    def check_missing(self, now_utc=None):
-        """Folder bertanggal hari ini (WIB) belum ada setelah `missing_hour` -> sekali per hari."""
-        cfg = self._cfg()
-        if not self.active(cfg) or not cfg['events']['folder_missing']: return None
-        wib = (now_utc or datetime.datetime.now(datetime.timezone.utc)) + datetime.timedelta(hours=7)
-        if wib.hour < int(cfg['missing_hour']): return None
-        today = wib.date().isoformat()
-        cur = self.app.state.con.cursor()
-        try: newest = cur.execute('SELECT max(folder) FROM folder_state').fetchone()[0]
-        finally: cur.close()
-        if newest is None or str(newest) >= today: return None
-        return deliver(self.app.state.auth, cfg, f'folder_missing:{today}', 'folder_missing', _t(cfg, 'folder_missing', d=today), _t(cfg, 'newest', d=str(newest)))
-
-    def start(self):
-        self._stop = threading.Event()
-        def loop():
-            while not self._stop.wait(3600):
-                self._safe(self.check_missing)
-        threading.Thread(target=loop, name='alerts-hourly', daemon=True).start()
-
-    def stop(self):
-        if getattr(self, '_stop', None): self._stop.set()
+TEST_NEEDS = dict(telegram=('bot_token', 'chat_id'), discord=('webhook_url',), email=('host', 'sender', 'to'))

@@ -244,3 +244,30 @@ def _extract_in_inbox(cfg, folder, rows):
         r['stored'], r['stored_size'] = r['rel'][:-3], _gunzip(src, src[:-3], r['rel'], cfg.import_max_object_mb * 2**20 * EXTRACT_RATIO)
     _manifest_update(base, rows)
     return len(rows)
+
+
+# ------------------------------------------------------------------ port S3Gateway (dipakai monishield/application/import_service.py)
+class S3Gateway:
+    """Akses S3 untuk lapisan application: kredensial (memori proses + .env), unduh awalan, daftar folder tanggal, uji
+    koneksi. Fungsi modul dicari saat dipanggil (uji bisa mengganti `library_ok`, `ENDPOINT`)."""
+
+    def __init__(self, cfg):
+        self.cfg, self.creds = cfg, Credentials(cfg)
+
+    def library_ok(self): return library_ok()
+
+    def ready(self):
+        """Pustaka + kredensial ada; bila tidak -> ImportFail (400) dengan petunjuknya."""
+        if not library_ok(): raise ImportFail('no_s3_library', NO_LIBRARY, 400)
+        if not self.creds.get()[0]: raise ImportFail('no_credentials', NO_CREDENTIALS, 400)
+
+    def run(self, url, dry_run=False, progress=None): return run(self.cfg, url, self.creds, dry_run=dry_run, progress=progress)
+
+    def list_folders(self, bucket, base): return list_folders(_client(self.cfg, self.creds.get()[0]), bucket, base)
+
+    def probe(self, bucket, prefix):
+        """Daftar satu objek (uji koneksi). Galat -> ImportFail."""
+        try: _client(self.cfg, self.creds.get()[0]).list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=1)
+        except Exception as e: raise _s3_error(e) from None   # noqa: BLE001
+
+    def error(self, e): return e if isinstance(e, ImportFail) else _s3_error(e)

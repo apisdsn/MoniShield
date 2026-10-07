@@ -12,10 +12,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import alerts as alertsmod, settings
-from monishield.infrastructure import uploads as uploadmod
-from monishield.infrastructure import auth as authmod, config, db, kafka_in
+from monishield.application import alert_service, import_service, ingest_service, kafka_service, settings_service
 from monishield.domain import detect
+from monishield.infrastructure import auth as authmod, config, db, envfile, importer, inbox, kafka_client, logfolders, notify_channels, refdata, uploads, warehouse
 from monishield.domain.errors import Fail
 from monishield.interfaces.api import admin, config_api, docs, kafka, meta, notify, pages, session, upload, users
 from .common import ROLE_DEPS
@@ -44,6 +43,26 @@ def check_roles(routers):
     return routes
 
 
+def wire(state, cfg, env_path):
+    """Akar komposisi: adapter infrastruktur + layanan application di `state` (= ctx layanan; lihat
+    monishield/application/ports.py). Koneksi DuckDB (state.con) dan akun (state.auth) dibuka saat server mulai."""
+    state.cfg, state.settings_pending, state.snapshot_error = cfg, [], None
+    state.env = envfile.EnvStore(env_path)
+    state.warehouse = warehouse.DuckWarehouse(state)
+    state.logfolders = logfolders.LogFolders(cfg)
+    state.s3 = importer.S3Gateway(cfg)
+    state.channels = notify_channels.Channels()
+    state.kafka_client = kafka_client.KafkaClient()
+    state.inbox = inbox.Spool
+    state.uploads = uploads.Uploads(cfg)
+    state.maxmind = refdata.probe_maxmind
+    state.ingest = ingest_service.IngestService(state)
+    state.imports = import_service.ImportService(state)
+    state.alerts = alert_service.Notifier(state)
+    state.kafka = kafka_service.KafkaFeed(state)
+    return state
+
+
 def _error(status, code, message): return JSONResponse(dict(error=dict(code=code, message=message)), status_code=status)
 
 
@@ -62,11 +81,8 @@ def create_app(cfg=None, env_path=None):
             raise RuntimeError(f'S4_JWT_SECRET wajib diisi (minimal {authmod.JWT_SECRET_MIN} karakter acak); lihat .env.example')
         app.state.auth = authmod.Auth(cfg.auth_url, cfg.jwt_secret, cfg.session_idle_minutes, cfg.session_max_hours)
         app.state.auth.bootstrap_admin(cfg.admin_user, cfg.admin_password)
-        settings.migrate(app)   # setelan lama di basis data akun -> .env (sekali)
-        if cfg.duckdb_snapshot and not os.path.exists(db.snapshot_path(cfg)):   # DbGate langsung punya salinan, tanpa menunggu ingest
-            cur = app.state.con.cursor()
-            try: admin._snapshot(app, cur)
-            finally: cur.close()
+        settings_service.migrate(app.state)   # setelan lama di basis data akun -> .env (sekali)
+        app.state.ingest.snapshot(missing_only=True)   # DbGate langsung punya salinan, tanpa menunggu ingest
         if cfg.ingest_on_start: app.state.ingest.start(by='(mulai server)')
         app.state.imports.start_watch()
         app.state.alerts.start()
@@ -81,13 +97,8 @@ def create_app(cfg=None, env_path=None):
         app.state.con.close()
 
     app = FastAPI(title='MoniShield', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
-    app.state.cfg, app.state.env_path, app.state.settings_pending = cfg, env_path, []
+    wire(app.state, cfg, env_path)
     detect.use(cfg)   # tingkat paranoia CRS untuk derive lewat API (Tahap 21)
-    app.state.ingest = admin.IngestManager(app)
-    app.state.imports = admin.ImportManager(app)
-    app.state.uploads = uploadmod.Uploads(cfg)
-    app.state.alerts = alertsmod.Notifier(app)
-    app.state.kafka = kafka_in.KafkaFeed(app)
     check_roles(ROUTERS)
     for r in ROUTERS: app.include_router(r)
 

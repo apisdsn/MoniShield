@@ -4,7 +4,7 @@ lingkungan / .env / config.toml dilakukan pemuat di monishield/infrastructure/co
 Setiap kolom bisa diatur lewat lingkungan/.env sebagai S4_<NAMA> (daftar dan kamus ditulis sebagai JSON). Pengecualian
 nama: kredensial pihak lain memakai nama standarnya (MAXMIND_*, AWS_*, TELEGRAM_BOT_TOKEN, …). Rahasia tidak pernah dicetak.
 """
-import dataclasses, os
+import dataclasses, json, os
 
 from monishield.domain import rules
 
@@ -128,3 +128,17 @@ class Config:
 
 
 def env_name(key): return SECRETS.get(key) or 'S4_' + key.upper()
+
+
+def cast(value, default):
+    """Teks dari .env / layar -> tipe nilai bawaan kolomnya (bool, int, list/dict JSON, teks)."""
+    if isinstance(default, bool):
+        if value.strip().lower() in ('1', 'true', 'yes', 'ya'): return True
+        if value.strip().lower() in ('0', 'false', 'no', 'tidak', ''): return False
+        raise ValueError('harus true atau false')
+    if isinstance(default, int): return int(value)
+    if isinstance(default, (list, dict)):
+        v = json.loads(value)
+        if not isinstance(v, type(default)): raise ValueError(f'harus JSON berbentuk {type(default).__name__}')
+        return v
+    return value
