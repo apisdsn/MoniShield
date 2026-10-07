@@ -27,6 +27,7 @@ for ingest/import routes (*Authorize* → `jobToken`). `/api/admin/*` needs the 
 # Kelompok di Swagger menurut awalan jalur utuh per segmen (yang pertama cocok; /api/me bukan /api/meta); urutan = urutan tampil
 TAGS = [('/api/auth', 'Masuk & sesi / Session'), ('/api/me', 'Masuk & sesi / Session'), ('/api/admin/users', 'User (admin)'),
         ('/api/admin/import', 'Impor & sinkron S3 / S3 import & sync (admin)'), ('/api/admin/upload', 'Unggah folder / Folder upload (admin)'),
+        ('/api/admin/kafka', 'Kafka (admin)'), ('/api/live', 'Realtime (Kafka)'),
         ('/api/admin', 'Ingest, folder & audit (admin)'), ('/api/folders/{folder}/tables', 'Tabel / Tables'),
         ('/api/folders', 'Halaman per folder / Folder pages'), ('/api', 'Umum / General')]
 

@@ -15,14 +15,16 @@
   import ErrorState from '../lib/ErrorState.svelte';
   import SeverityTag from '../lib/SeverityTag.svelte';
   import AdminAlerts from './AdminAlerts.svelte';
+  import KafkaCard from '../lib/KafkaCard.svelte';
 
   let { focus = '' } = $props();
-  const SECTIONS = ['aws', 'watch', 'maxmind', 'notif', 'blocklist', 'server'];
+  const SECTIONS = ['aws', 'watch', 'kafka', 'maxmind', 'notif', 'blocklist', 'server'];
 
   let v = $state.raw(null), imp = $state.raw(null), error = $state(null);
   // isian per kelompok; kolom rahasia selalu mulai kosong (kosong = tidak diubah)
   let aws = $state({ ak: '', sk: '', st: '', region: '' });
   let mm = $state({ id: '', key: '' });
+  let kf = $state({}), kcard = $state();
   let bl = $state({ ex: '', org: '' });
   let wf = $state({ url: '', minutes: 60 });
   let busy = $state(''), msg = $state({});   // msg[kelompok] = {ok, text}
@@ -31,6 +33,9 @@
     v = r;
     aws = { ak: '', sk: '', st: '', region: r.aws.import_region.value || '' };
     mm = { id: '', key: '' };
+    const k = r.kafka;
+    kf = { enabled: k.kafka_enabled.value, brokers: k.kafka_brokers.value, topic: k.kafka_topic.value, group: k.kafka_group.value, security: k.kafka_security.value,
+      mech: k.kafka_sasl_mechanism.value, user: k.kafka_username.value, pass: '', offset: k.kafka_offset_reset.value, minutes: k.kafka_ingest_minutes.value };
     bl = { ex: (r.blocklist.blocklist_exclude.value || '').split(',').map((x) => x.trim()).filter(Boolean).join('\n'), org: r.blocklist.blocklist_exclude_org.value || '' };
   }
   async function loadImp() {
@@ -90,6 +95,10 @@
   const ENV = { jwt_secret: 'S4_JWT_SECRET', job_token: 'S4_JOB_TOKEN', auth_database_url: 'S4_AUTH_DATABASE_URL', admin_password: 'S4_ADMIN_PASSWORD' };
   const ingestLink = $derived(build({ ...$route, tab: 'admin/ingest', service: null, q: null }));
   const awsReady = $derived(v && v.aws.aws_access_key_id.set && v.aws.aws_secret_access_key.set);
+  const kfBody = () => ({ kafka_enabled: kf.enabled, kafka_brokers: kf.brokers.trim(), kafka_topic: kf.topic.trim(), kafka_group: kf.group.trim(),
+    kafka_security: kf.security, kafka_sasl_mechanism: kf.mech, kafka_username: kf.user.trim(), kafka_password: kf.pass, kafka_offset_reset: kf.offset,
+    kafka_ingest_minutes: String(kf.minutes) });
+  async function saveKafka() { if (await save('kafka', kfBody())) setTimeout(() => kcard?.load(), 1500); }
   const mmReady = $derived(v && v.maxmind.maxmind_account_id.set && v.maxmind.maxmind_license_key.set);
   const minLabel = (m) => (m < 60 ? $t('imp.w.min', { n: m }) : $t('imp.w.hour', { n: m / 60 }));
 </script>
@@ -197,7 +206,51 @@
       <p class="muted xs"><a href={ingestLink}>{$t('cf.watch.more')}</a></p>
     </section>
 
-    <!-- 3. MaxMind -->
+    <!-- 3. Kafka -->
+    <section class="card" id="cf-kafka" tabindex="-1" aria-labelledby="cf-kf-h">
+      <header>
+        <h2 id="cf-kf-h">{$t('cf.s.kafka')}</h2>
+        <SeverityTag level={v.kafka.kafka_brokers.value && v.kafka.kafka_topic.value && kf.enabled ? 'ok' : 1}
+          text={v.kafka.kafka_brokers.value && v.kafka.kafka_topic.value ? (v.kafka.kafka_enabled.value ? $t('cf.on') : $t('cf.off')) : $t('cf.not_ready')} />
+      </header>
+      <p class="muted small">{$t('cf.kf.intro')}</p>
+      <form onsubmit={(e) => { e.preventDefault(); saveKafka(); }} novalidate>
+        <div class="fields">
+          <div><label for="cf-kb">{$t('cf.kf.brokers')} {@render srcTag(v.kafka.kafka_brokers)}</label>
+            <input id="cf-kb" type="text" autocomplete="off" spellcheck="false" bind:value={kf.brokers} placeholder="10.10.1.5:9092" /></div>
+          <div><label for="cf-kt">{$t('cf.kf.topic')} {@render srcTag(v.kafka.kafka_topic)}</label>
+            <input id="cf-kt" type="text" autocomplete="off" spellcheck="false" bind:value={kf.topic} placeholder="k8s-logs" /></div>
+          <div><label for="cf-kg">{$t('cf.kf.group')} {@render srcTag(v.kafka.kafka_group)}</label>
+            <input id="cf-kg" type="text" autocomplete="off" spellcheck="false" bind:value={kf.group} /></div>
+          <div><label for="cf-ks">{$t('cf.kf.security')} {@render srcTag(v.kafka.kafka_security)}</label>
+            <select id="cf-ks" bind:value={kf.security}>
+              <option value="plaintext">{$t('cf.kf.sec.plaintext')}</option><option value="sasl_plaintext">SASL</option>
+              <option value="sasl_ssl">SASL + TLS</option><option value="ssl">TLS</option>
+            </select></div>
+          {#if kf.security.startsWith('sasl')}
+            <div><label for="cf-km">{$t('cf.kf.mech')} {@render srcTag(v.kafka.kafka_sasl_mechanism)}</label>
+              <select id="cf-km" bind:value={kf.mech}><option>PLAIN</option><option>SCRAM-SHA-256</option><option>SCRAM-SHA-512</option></select></div>
+            <div><label for="cf-ku">{$t('cf.kf.user')} {@render srcTag(v.kafka.kafka_username)}</label>
+              <input id="cf-ku" type="text" autocomplete="off" spellcheck="false" bind:value={kf.user} /></div>
+            <div><label for="cf-kp">{$t('cf.kf.pass')} {@render srcTag(v.kafka.kafka_password)}</label>
+              <input id="cf-kp" type="password" autocomplete="new-password" bind:value={kf.pass} placeholder={v.kafka.kafka_password.set ? $t('al.secret_set') : ''} /></div>
+          {/if}
+          <div><label for="cf-ko">{$t('cf.kf.offset')} {@render srcTag(v.kafka.kafka_offset_reset)}</label>
+            <select id="cf-ko" bind:value={kf.offset}><option value="earliest">{$t('cf.kf.earliest')}</option><option value="latest">{$t('cf.kf.latest')}</option></select></div>
+          <div><label for="cf-ki">{$t('cf.kf.minutes')} {@render srcTag(v.kafka.kafka_ingest_minutes)}</label>
+            <input id="cf-ki" type="number" min="1" max="1440" bind:value={kf.minutes} /></div>
+        </div>
+        <label class="sw"><input type="checkbox" bind:checked={kf.enabled} /> {$t('cf.kf.enabled')}</label>
+        <p class="muted xs">{$t('cf.kf.rancher')}</p>
+        {@render result('kafka')}
+        <div class="acts">
+          <button class="btn primary" type="submit" disabled={busy !== ''}>{busy === 'kafka' ? $t('action.saving') : $t('action.save')}</button>
+        </div>
+      </form>
+      {#if v.kafka.kafka_brokers.value && v.kafka.kafka_topic.value}<KafkaCard compact bind:this={kcard} />{/if}
+    </section>
+
+    <!-- 4. MaxMind -->
     <section class="card" id="cf-maxmind" tabindex="-1" aria-labelledby="cf-mm-h">
       <header>
         <h2 id="cf-mm-h">{$t('cf.s.maxmind')}</h2>
@@ -300,6 +353,8 @@
   .wform > div { display: flex; flex-direction: column; min-width: 140px; }
   .wform .grow { flex: 1 1 320px; }
   .acts.inline { margin-top: 0; flex-wrap: nowrap; }
+  .sw { display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 0.875rem; margin-top: 12px; }
+  .sw input { width: auto; min-height: 0; }
   .err { color: var(--err); font-size: 0.875rem; margin-top: 10px; }
   .okmsg { color: var(--ok-text); font-size: 0.875rem; margin-top: 10px; }
   .warnline { color: var(--warn); margin-top: 8px; }

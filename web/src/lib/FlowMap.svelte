@@ -13,6 +13,22 @@
 
   let { data, folder, module = null, server = null, aside = null, tall = false } = $props();
   let preset = $state('id'), search = $state(null), seq = 0;
+  // realtime (Kafka): /api/live/map mengirim lokasi kejadian per detik (tanpa IP). Hanya untuk folder yang sedang diisi
+  // Kafka ("hello".folder); 204 = Kafka tidak dipakai -> EventSource berhenti, peta memakai animasi biasa.
+  let liveOn = $state(false), mapRef = $state();
+  $effect(() => {
+    const f = folder, mod = module;
+    if (typeof EventSource === 'undefined') return;
+    const es = new EventSource('/api/live/map');
+    es.addEventListener('hello', (e) => { try { liveOn = JSON.parse(e.data).folder === f; } catch { liveOn = false; } });
+    es.onmessage = (e) => {
+      if (!liveOn) return;
+      try { for (const [lat, lon, n, m] of JSON.parse(e.data).p || []) if (!mod || m === mod) mapRef?.pulse({ lat, lon, n }); } catch { /* abaikan */ }
+    };
+    es.addEventListener('end', () => { liveOn = false; es.close(); });
+    es.onerror = () => { if (es.readyState === 2) liveOn = false; };
+    return () => { es.close(); liveOn = false; };
+  });
   const uid = `fm-${Math.random().toString(36).slice(2, 8)}`;
 
   const place = (l) => [l.city, l.region, $countryName(l.cc)].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(', ');
@@ -29,14 +45,14 @@
 {#snippet mapCard()}
 <section class="card wide fm" aria-labelledby="{uid}-h">
   <header>
-    <h2 id="{uid}-h">{$t('map.title')}</h2>
+    <h2 id="{uid}-h">{$t('map.title')}{#if liveOn} <span class="live" title={$t('map.live_tip')}>{$t('map.live')}</span>{/if}</h2>
     <div class="seg" role="group" aria-label={$t('map.preset')}>
       <button type="button" aria-pressed={preset === 'id'} onclick={() => (preset = 'id')}>Indonesia</button>
       <button type="button" aria-pressed={preset === 'world'} onclick={() => (preset = 'world')}>{$t('map.world')}</button>
     </div>
   </header>
   <a class="skip" href="#{uid}-flows">{$t('map.skip')}</a>
-  <MapView points={data.points} {server} {tall} bind:preset onpick={pick} label={$t('map.aria')} />
+  <MapView points={data.points} {server} {tall} bind:preset onpick={pick} label={$t('map.aria')} live={liveOn} bind:this={mapRef} />
   <div class="legend">
     <span><i class="dot loc"></i>{$t('map.lg.loc')}</span>
     <span><i class="dot srv"></i>{$t('map.lg.srv')}</span>
@@ -68,6 +84,11 @@
   .seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
   .skip { position: absolute; left: -9999px; }
   .skip:focus { position: static; display: inline-block; margin-bottom: 8px; }
+  .live { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 2px 9px; border-radius: 999px; font-size: 0.6875rem; font-weight: 700;
+    letter-spacing: 0.06em; color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 50%, transparent); vertical-align: middle; }
+  .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--err); animation: blink 1.4s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  @media (prefers-reduced-motion: reduce) { .live::before { animation: none; } }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin-top: 10px; font-size: 0.8125rem; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }

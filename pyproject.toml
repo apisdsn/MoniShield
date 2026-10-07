@@ -24,6 +24,9 @@ test = [
 s3 = [
     "boto3>=1.34", # impor dari awalan S3 (Tahap 19); hanya ListObjectsV2 dan GetObject
 ]
+kafka = [
+    "kafka-python>=2.0.2,<4", # log dari Kafka (Rancher cluster logging); murni Python, mendukung SASL PLAIN/SCRAM dan SSL
+]
 
 [tool.setuptools]
 packages = ["monishield", "monishield.derive", "monishield.api"]

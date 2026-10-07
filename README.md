@@ -44,7 +44,7 @@ Cara manual, langkah demi langkah:
 
 ```sh
 python3 -m venv .venv
-.venv/bin/pip install -e .                    # tambah ".[s3]" untuk impor S3, ".[test,s3]" untuk menjalankan uji
+.venv/bin/pip install -e .                    # tambah ".[s3,kafka]" untuk impor S3 + log Kafka, ".[test,s3,kafka]" untuk uji
 (cd web && npm ci && npm run build)           # hasil di web/dist, dilayani server yang sama
 .venv/bin/python -m monishield ingest            # opsional: ingest awal (server juga ingest saat mulai, S4_INGEST_ON_START)
 .venv/bin/python -m monishield serve             # http://127.0.0.1:8000 (S4_BIND)
@@ -65,6 +65,9 @@ docker compose --profile dbgate up -d         # opsional: DbGate   http://127.0.
 ```
 
 Rincian (keputusan DuckDB, cron, keamanan, alamat internet yang dihubungi, cadangan): `docs/06-docker.md`.
+
+**VPS baru + domain (HTTPS otomatis Let's Encrypt)**: ikuti `docs/07-deploy-vps.md` langkah demi langkah
+(`docker compose --profile https up -d`).
 
 ### 4. Pemakaian sehari-hari
 
@@ -141,11 +144,56 @@ cd web && npm run dev                         # terminal 2: Vite di :5173, permi
 ## Uji
 
 ```sh
-.venv/bin/pip install -e ".[test,s3]"
+.venv/bin/pip install -e ".[test,s3,kafka]"
 .venv/bin/pytest -q                       # termasuk tests/test_import.py (S3 tiruan lokal, tanpa AWS)
 ```
 
 Uji browser berdampingan dengan dashboard lama ada di `tools/uji_*.cjs` (Playwright; lihat kepala tiap berkas).
+
+## Log dari Kafka (Rancher, realtime)
+
+Rancher (Cluster → Tools → Logging → **Kafka**) mengirim satu pesan per baris log container:
+
+```json
+{"log": "36.81.72.112 - - [05/Oct/2026:09:27:37 +0000] \"GET /mat-view …\" 200 …", "stream": "stdout",
+ "kubernetes": {"namespace_name": "ingress-nginx", "container_name": "nginx-ingress-controller", "pod_name": "nginx-ingress-controller-v4v2g"},
+ "time": 1791383741, "tag": "…", "docker": {"container_id": "…"}}
+```
+
+Isinya **sama lengkap** dengan log S3: `log` = satu baris file log, dan namespace/layanan/pod yang di S3 ada di nama
+folder/file diambil dari `kubernetes.*`. MoniShield menulis ulang pesan menjadi susunan folder yang **sama** dengan ekspor
+S3 (`<tanggal>/<namespace>/<layanan>/log_<layanan>_<pod>_<tanggal>-00-00.log` di kotak masuk), lalu meng-ingest tiap
+`S4_KAFKA_INGEST_MINUTES` (bawaan 5) — semua halaman langsung jalan. Diuji: baris yang sama lewat S3 dan lewat Kafka
+menghasilkan file yang identik dan isi basis data yang identik (`tests/test_kafka.py`). Folder D berisi log
+(D-1 00.00, D 00.00] WIB seperti ekspor S3, jadi log hari ini masuk folder bertanggal besok. Baris nginx-ingress juga
+dikirim ke peta (lencana **LANGSUNG**): titik bergerak setiap ada request baru — hanya koordinat lokasi yang dikirim ke
+browser, bukan alamat IP.
+
+**Mengatur di Rancher**: Endpoint Type **Broker** (bukan Zookeeper), Endpoint `host:9092`, Topic mis. `k8s-logs`,
+**Flush Interval 5–10 detik** (60 = peta terlambat 1 menit), **Enable JSON Parsing TIDAK dicentang** (bila dicentang
+baris JSON dipecah menjadi kolom dan baris aslinya hilang), SASL bila broker memakainya (Plain/Scram).
+Belum punya Kafka: `docker compose --profile kafka up -d` (lihat `docs/06-docker.md`).
+
+**Mengatur di MoniShield**: layar **Konfigurasi → Kafka** (broker, topic, SASL; ditulis ke `.env`, konsumen langsung
+dimulai ulang), atau `.env`: `S4_KAFKA_BROKERS`, `S4_KAFKA_TOPIC`, … (bagian 8a `.env.example`).
+
+**Mengecek hasilnya**:
+- Layar **Ingest & impor → Log dari Kafka**: status tersambung/galat, pesan diterima / ditulis / dilewati (+ alasan dan
+  contoh pesan yang tidak terbaca), jumlah per layanan, ingest terakhir, 50 pesan terakhir.
+- Tombol **Cek pesan di topic**: mengambil 10 pesan TERAKHIR langsung dari Kafka (tanpa menggeser posisi baca) dan
+  menunjukkan file tujuan tiap pesan — cara paling cepat memastikan format Rancher terbaca.
+- Dari baris perintah di server Kafka (tanpa MoniShield):
+  ```sh
+  kafka-console-consumer.sh --bootstrap-server HOST:9092 --topic k8s-logs --max-messages 5            # 5 pesan baru
+  kafka-console-consumer.sh --bootstrap-server HOST:9092 --topic k8s-logs --from-beginning --max-messages 5
+  kafka-consumer-groups.sh --bootstrap-server HOST:9092 --describe --group monishield                 # LAG = belum dibaca
+  # Docker profil kafka: docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic k8s-logs --max-messages 5
+  ```
+- Setelah ingest: folder tanggal baru muncul di pemilih folder seperti folder S3.
+
+Catatan: offset di-commit sesudah baris ditulis ke disk (at-least-once) — bila server mati di antaranya, beberapa baris
+bisa tercatat dua kali. Folder yang sudah diisi Kafka tidak diambil lagi oleh sinkron S3; jangan mengimpor S3 manual
+untuk tanggal yang sama.
 
 ## Impor dari S3
 

@@ -15,7 +15,8 @@ SECRETS = {'admin_password': 'S4_ADMIN_PASSWORD', 'job_token': 'S4_JOB_TOKEN', '
            'auth_database_url': 'S4_AUTH_DATABASE_URL',   # memuat sandi PostgreSQL
            'maxmind_account_id': 'MAXMIND_ACCOUNT_ID', 'maxmind_license_key': 'MAXMIND_LICENSE_KEY',
            'aws_access_key_id': 'AWS_ACCESS_KEY_ID', 'aws_secret_access_key': 'AWS_SECRET_ACCESS_KEY', 'aws_session_token': 'AWS_SESSION_TOKEN',
-           'telegram_bot_token': 'TELEGRAM_BOT_TOKEN', 'discord_webhook_url': 'DISCORD_WEBHOOK_URL', 'smtp_password': 'SMTP_PASSWORD'}
+           'telegram_bot_token': 'TELEGRAM_BOT_TOKEN', 'discord_webhook_url': 'DISCORD_WEBHOOK_URL', 'smtp_password': 'SMTP_PASSWORD',
+           'kafka_password': 'KAFKA_PASSWORD'}
 ALERT_EVENTS = ('spike', 'critical', 'ingest_failed', 'sync_failed', 'folder_missing', 'summary')
 
 
@@ -85,6 +86,18 @@ class Config:
     alert_lang: str = 'id'
     dashboard_url: str = ''           # alamat dashboard untuk tautan di pesan, mis. https://monishield.kantor.go.id
     alert_missing_hour: int = 10      # jam (WIB) pemeriksaan "folder log hari ini belum datang"
+    # log dari Kafka (Rancher cluster logging -> Kafka; monishield/kafka_in.py)
+    kafka_enabled: bool = True        # false = konsumen dimatikan tanpa menghapus alamat broker
+    kafka_brokers: str = ''           # host:9092[,host2:9092]; kosong = Kafka tidak dipakai
+    kafka_topic: str = ''
+    kafka_group: str = 'monishield'   # grup konsumen (posisi baca disimpan di Kafka)
+    kafka_security: str = 'plaintext' # plaintext | sasl_plaintext | sasl_ssl | ssl
+    kafka_sasl_mechanism: str = 'PLAIN'   # PLAIN | SCRAM-SHA-256 | SCRAM-SHA-512
+    kafka_username: str = ''
+    kafka_password: str = ''
+    kafka_ca_file: str = ''           # sertifikat CA (PEM) untuk ssl/sasl_ssl; kosong = CA sistem
+    kafka_offset_reset: str = 'earliest'   # grup baru mulai dari: earliest (semua pesan yang masih disimpan) | latest
+    kafka_ingest_minutes: int = 5     # jeda ingest berkala file yang bertambah dari Kafka
     # alamat sumber unduhan & layanan luar (dulu tertulis di kode; bawaan = alamat resmi)
     url_maxmind: str = 'https://download.maxmind.com/geoip/databases/{}/download?suffix=zip'   # {} = nama edisi GeoLite2
     url_ip2asn: str = rules.IP2ASN_URL
@@ -174,6 +187,10 @@ def load(env=None, dotenv=None):
     cfg.inbox_dir = os.path.abspath(cfg.inbox_dir or os.path.join(cfg.data_dir, 'inbox'))
     if cfg.attack_rules not in ('crs', 'lama'): raise SystemExit("S4_ATTACK_RULES harus 'crs' atau 'lama'")
     if not 1 <= cfg.attack_paranoia <= 4: raise SystemExit('S4_ATTACK_PARANOIA harus 1..4')
+    if cfg.kafka_security not in ('plaintext', 'sasl_plaintext', 'sasl_ssl', 'ssl'): raise SystemExit('S4_KAFKA_SECURITY harus plaintext, sasl_plaintext, sasl_ssl, atau ssl')
+    if cfg.kafka_sasl_mechanism.upper() not in ('PLAIN', 'SCRAM-SHA-256', 'SCRAM-SHA-512'): raise SystemExit('S4_KAFKA_SASL_MECHANISM harus PLAIN, SCRAM-SHA-256, atau SCRAM-SHA-512')
+    if cfg.kafka_offset_reset not in ('earliest', 'latest'): raise SystemExit("S4_KAFKA_OFFSET_RESET harus 'earliest' atau 'latest'")
+    if not 1 <= cfg.kafka_ingest_minutes <= 1440: raise SystemExit('S4_KAFKA_INGEST_MINUTES harus 1..1440')
     if not 1 <= cfg.geo_max_age_days <= 30: raise SystemExit('S4_GEO_MAX_AGE_DAYS harus 1..30 (lisensi GeoLite2)')
     if cfg.url_maxmind.count('{}') != 1: raise SystemExit('S4_URL_MAXMIND harus memuat tepat satu {} (nama edisi)')
     for k in ('url_maxmind', 'url_ip2asn', 'url_land', 'url_borders', 'url_provinces', 'url_countries', 'url_geonames', 'telegram_api'):

@@ -42,6 +42,9 @@ def put_config(body: ConfigBody, request: Request, admin=Depends(require_admin))
     try: groups = settings.update(request.app, data)
     except settings.SettingsFail as e: raise ApiError(400, e.code, str(e)) from None
     _audit(request, admin, 'config.update', f"kelompok: {', '.join(groups) or 'tidak ada'} (.env)")   # tanpa nilai
+    if 'kafka' in groups:   # konsumen dimulai ulang dengan setelan baru (di latar: menunggu poll berjalan selesai)
+        import threading
+        threading.Thread(target=request.app.state.kafka.restart, name='kafka-restart', daemon=True).start()
     return settings.view(request.app)
 
 

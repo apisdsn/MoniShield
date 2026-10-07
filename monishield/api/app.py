@@ -11,8 +11,8 @@ from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .. import __version__, alerts as alertsmod, auth as authmod, config, db, detect, settings, upload as uploadmod
-from . import (admin, availability, config_api, docs, notify, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing,
+from .. import __version__, alerts as alertsmod, auth as authmod, config, db, detect, kafka_in, settings, upload as uploadmod
+from . import (admin, availability, config_api, docs, kafka, notify, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing,
                search, trends, upload, users)
 from .common import ROLE_DEPS
 
@@ -21,7 +21,7 @@ CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:;
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
 PAGES = (overview, command, ips, search, map, trends, security, rootcause, availability, pods, business, tracing, service)   # satu modul per halaman (TRD §5.3)
-ROUTERS = (meta.router, session.router, users.router, admin.router, upload.router, docs.router, notify.router, config_api.router, *(m.router for m in PAGES), tables.router)
+ROUTERS = (meta.router, session.router, users.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, *(m.router for m in PAGES), tables.router)
 
 
 def _deps(dependant):
@@ -67,9 +67,11 @@ def create_app(cfg=None, env_path=None):
         if cfg.ingest_on_start: app.state.ingest.start(by='(mulai server)')
         app.state.imports.start_watch()
         app.state.alerts.start()
+        app.state.kafka.start()   # log dari Kafka (bila S4_KAFKA_BROKERS + S4_KAFKA_TOPIC diisi)
         yield
         app.state.imports.stop_watch()
         app.state.alerts.stop()
+        app.state.kafka.stop()
         app.state.imports.wait(timeout=600)
         app.state.ingest.wait(timeout=600)
         app.state.auth.close()
@@ -82,6 +84,7 @@ def create_app(cfg=None, env_path=None):
     app.state.imports = admin.ImportManager(app)
     app.state.uploads = uploadmod.Uploads(cfg)
     app.state.alerts = alertsmod.Notifier(app)
+    app.state.kafka = kafka_in.KafkaFeed(app)
     check_roles(ROUTERS)
     for r in ROUTERS: app.include_router(r)
 

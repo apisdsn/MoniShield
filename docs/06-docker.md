@@ -181,6 +181,27 @@ Alamat sumber unduhan (MaxMind, ip2asn, Natural Earth, GeoNames) dan API Telegra
 Saat build saja: `registry-1.docker.io` / `production.cloudflare.docker.com` (image dasar), `registry.npmjs.org`, dan
 `pypi.org` + `files.pythonhosted.org`.
 
+### Kafka untuk log Rancher (profil `kafka`, opsional)
+
+Bila belum ada Kafka, compose menyediakan broker satu node (Apache Kafka 3.9, KRaft, tanpa Zookeeper):
+
+```sh
+# .env
+DOCKER_KAFKA_HOST=10.10.1.5          # alamat server ini yang terjangkau dari node cluster (diisi di Rancher)
+DOCKER_KAFKA_BIND=0.0.0.0            # bawaan 127.0.0.1 (hanya host ini)
+DOCKER_KAFKA_PORT=9094
+S4_KAFKA_BROKERS=kafka:9092          # app membaca lewat jaringan compose
+S4_KAFKA_TOPIC=k8s-logs
+docker compose --profile kafka up -d
+```
+
+Di Rancher: Endpoint Type **Broker**, Endpoint `10.10.1.5:9094`, Topic `k8s-logs`. Listener ini **tanpa sandi**:
+batasi port 9094 dengan firewall hanya untuk IP node cluster (atau pakai Kafka kantor yang ber-SASL dan isi
+`S4_KAFKA_SECURITY`/`S4_KAFKA_USERNAME`/`KAFKA_PASSWORD`). Satu partisi (urutan baris per pod terjaga); retensi
+`DOCKER_KAFKA_RETENTION_HOURS` (bawaan 168 jam). Yang sudah ditulis MoniShield ke `s4-inbox` tidak bergantung pada
+retensi itu. Diverifikasi 2026-10-07: app di container membaca `kafka:9092`, 500 pesan Rancher → folder 2026-10-08
+(14 file) → ingest otomatis.
+
 ## 8. Cadangan dan pembaruan
 
 | Volume | Isi | Cadangkan? |

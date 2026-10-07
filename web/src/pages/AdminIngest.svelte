@@ -12,6 +12,7 @@
   import DataTable from '../lib/DataTable.svelte';
   import ImportCard from '../lib/ImportCard.svelte';
   import UploadCard from '../lib/UploadCard.svelte';
+  import KafkaCard from '../lib/KafkaCard.svelte';
   import FolderManager from '../lib/FolderManager.svelte';
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
@@ -93,6 +94,8 @@
     </section>
 
     <ImportCard onfinished={() => { loadStatus(); loadAudit(); onfinished?.(); fmKey++; }} />
+
+    <KafkaCard />
 
     <UploadCard onfinished={() => { watching = true; setTimeout(loadStatus, 700); loadAudit(); }} />
 

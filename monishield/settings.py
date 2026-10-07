@@ -23,8 +23,11 @@ GROUPS = {
     'blocklist': ('blocklist_exclude', 'blocklist_exclude_org'),
     'watch': ('s3_watch', 's3_watch_minutes', 's3_watch_enabled'),
     'alerts': tuple(alerts.to_fields(alerts.load(config.Config()))),
+    'kafka': ('kafka_enabled', 'kafka_brokers', 'kafka_topic', 'kafka_group', 'kafka_security', 'kafka_sasl_mechanism', 'kafka_username',
+              'kafka_password', 'kafka_offset_reset', 'kafka_ingest_minutes'),
 }
-SCREEN = {k for g in ('aws', 'maxmind', 'blocklist') for k in GROUPS[g]}   # PUT /api/admin/config
+SCREEN_GROUPS = ('aws', 'maxmind', 'blocklist', 'kafka')
+SCREEN = {k for g in SCREEN_GROUPS for k in GROUPS[g]}   # PUT /api/admin/config
 SECRET = set(config.SECRETS)
 MASKED = ('aws_access_key_id', 'maxmind_account_id')
 ENV_ONLY = ('jwt_secret', 'job_token', 'auth_database_url', 'admin_password')   # hanya status terisi/kosong
@@ -58,7 +61,7 @@ def _mask(v):
 def view(app):
     """Untuk browser: nilai non-rahasia apa adanya; rahasia hanya {set, source[, masked]}."""
     cfg, fv, out = app.state.cfg, file_values(app), {}
-    for grp in ('aws', 'maxmind', 'blocklist'):
+    for grp in SCREEN_GROUPS:
         for k in GROUPS[grp]:
             item = dict(set=bool(getattr(cfg, k))) if k in SECRET else dict(value=getattr(cfg, k))
             if k in MASKED: item['masked'] = _mask(getattr(cfg, k))
@@ -96,7 +99,9 @@ def update(app, body):
         if k not in SCREEN: continue
         v = '' if v is None else str(v).strip()
         if k in SECRET and v == '': continue                      # rahasia dibiarkan kosong: tetap
-        values[k] = v if v != '' else None
+        if v == '': values[k] = None; continue
+        try: values[k] = config._cast(v, getattr(BASE, k))     # bool/angka seperti saat dibaca dari .env
+        except ValueError: raise SettingsFail(f'{config.env_name(k)}: nilai tidak sah.') from None
     for k in body.get('clear') or []:
         if k in SCREEN: values[k] = None
     cand = {k: getattr(cfg, k) for k in SCREEN}
@@ -139,6 +144,17 @@ def _validate(s):
     if v:
         try: re.compile(v)
         except re.error: raise SettingsFail('Pola pemilik jaringan bukan regex yang sah.') from None
+    v = s.get('kafka_brokers')
+    if v and not all(re.fullmatch(r'[A-Za-z0-9._-]{1,253}:\d{1,5}', x.strip()) for x in v.split(',') if x.strip()):
+        raise SettingsFail('Broker Kafka ditulis host:port, dipisah koma (mis. 10.10.1.5:9092).')
+    if s.get('kafka_topic') and not re.fullmatch(r'[A-Za-z0-9._-]{1,249}', s['kafka_topic']): raise SettingsFail('Nama topic Kafka tidak sah.')
+    if s.get('kafka_group') and not re.fullmatch(r'[A-Za-z0-9._-]{1,249}', s['kafka_group']): raise SettingsFail('Nama grup konsumen Kafka tidak sah.')
+    if 'kafka_security' in s and s['kafka_security'] not in ('plaintext', 'sasl_plaintext', 'sasl_ssl', 'ssl'): raise SettingsFail('Keamanan Kafka harus plaintext, sasl_plaintext, sasl_ssl, atau ssl.')
+    if 'kafka_sasl_mechanism' in s and str(s['kafka_sasl_mechanism']).upper() not in ('PLAIN', 'SCRAM-SHA-256', 'SCRAM-SHA-512'): raise SettingsFail('Mekanisme SASL harus PLAIN, SCRAM-SHA-256, atau SCRAM-SHA-512.')
+    if str(s.get('kafka_security', '')).startswith('sasl') and not (s.get('kafka_username') and s.get('kafka_password')):
+        raise SettingsFail('Keamanan SASL butuh nama pengguna dan sandi Kafka.')
+    if 'kafka_offset_reset' in s and s['kafka_offset_reset'] not in ('earliest', 'latest'): raise SettingsFail("Posisi awal harus 'earliest' atau 'latest'.")
+    if 'kafka_ingest_minutes' in s and not 1 <= int(s['kafka_ingest_minutes']) <= 1440: raise SettingsFail('Jeda ingest Kafka 1–1440 menit.')
 
 
 # ------------------------------------------------------------------ pindahan dari basis data akun (sekali)

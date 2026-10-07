@@ -18,12 +18,12 @@ RUN npm run build
 FROM python:3.13.9-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
-# dependensi dulu (lapisan cache): daftar diambil dari pyproject.toml, termasuk boto3 untuk impor S3
+# dependensi dulu (lapisan cache): daftar diambil dari pyproject.toml, termasuk boto3 (impor S3) dan kafka-python (log dari Kafka)
 COPY pyproject.toml ./
 RUN --mount=type=secret,id=ca_bundle,required=false \
     if [ -s /run/secrets/ca_bundle ]; then export PIP_CERT=/run/secrets/ca_bundle; fi; \
     python -c "import tomllib; p = tomllib.load(open('pyproject.toml', 'rb'))['project']; \
-print('\n'.join(p['dependencies'] + p['optional-dependencies']['s3']))" > /tmp/req.txt \
+print('\n'.join(p['dependencies'] + p['optional-dependencies']['s3'] + p['optional-dependencies']['kafka']))" > /tmp/req.txt \
  && pip install -r /tmp/req.txt && rm /tmp/req.txt
 COPY monishield/ monishield/
 COPY --from=web /src/web/dist web/dist
