@@ -21,7 +21,7 @@ koordinat lokasi (dari basis data IP lokal/offline, tabel ip_info) + modul, BUKA
 """
 import collections, datetime, json, os, re, threading, time
 
-from . import parse
+from monishield.domain import parse
 
 WIB = datetime.timedelta(hours=7)
 NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,252}')

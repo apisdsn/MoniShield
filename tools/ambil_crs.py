@@ -1,6 +1,6 @@
-"""Ambil aturan OWASP Core Rule Set (CRS) versi TERKUNCI dan simpan sebagai monishield/crs_rules.json (TRD §4.6, Tahap 21).
+"""Ambil aturan OWASP Core Rule Set (CRS) versi TERKUNCI dan simpan sebagai monishield/domain/crs_rules.json (TRD §4.6, Tahap 21).
 
-    py tools/ambil_crs.py            # unduh (git clone tag), olah, tulis monishield/crs_rules.json + monishield/CRS-LICENSE.txt
+    py tools/ambil_crs.py            # unduh (git clone tag), olah, tulis monishield/domain/crs_rules.json + CRS-LICENSE.txt
     py tools/ambil_crs.py --check    # olah ulang dan bandingkan: keluar 1 bila berkas di repo berbeda
     py tools/ambil_crs.py --src DIR  # pakai salinan CRS yang sudah ada (tanpa jaringan)
 
@@ -17,8 +17,8 @@ COMMIT = 'e03a4f6dabc7a30ebd8c52c97d28a154f590a48f'   # hasil `git rev-parse` ta
 REPO = 'https://github.com/coreruleset/coreruleset.git'
 FILES = ('913', '930', '931', '932', '933', '934', '941', '942', '944')
 V2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(V2, 'monishield', 'crs_rules.json')
-LICENSE_OUT = os.path.join(V2, 'monishield', 'CRS-LICENSE.txt')
+OUT = os.path.join(V2, 'monishield', 'domain', 'crs_rules.json')
+LICENSE_OUT = os.path.join(V2, 'monishield', 'domain', 'CRS-LICENSE.txt')
 
 # variabel ModSecurity -> bagian request yang ada di log nginx (selebihnya tidak tercatat)
 TARGETS = {'REQUEST_URI': 'uri', 'REQUEST_URI_RAW': 'uri', 'REQUEST_FILENAME': 'filename', 'REQUEST_BASENAME': 'basename',

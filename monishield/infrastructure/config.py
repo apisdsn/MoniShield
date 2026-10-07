@@ -6,9 +6,9 @@ Nilai bawaan = perilaku sistem lama. Setiap kunci bisa diatur lewat lingkungan/.
 """
 import dataclasses, json, os, re, tomllib
 
-from . import rules
+from monishield.domain import rules
 
-V2_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # akar proyek (dulu folder v2/ di repo dashboard-logging)
+V2_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # akar proyek (dulu folder v2/ di repo dashboard-logging)
 DOTENV = os.path.join(V2_DIR, '.env')   # dibaca load(); layar Konfigurasi menulis ke sini (monishield/envfile.py)
 # rahasia -> nama variabel lingkungannya
 SECRETS = {'admin_password': 'S4_ADMIN_PASSWORD', 'job_token': 'S4_JOB_TOKEN', 'jwt_secret': 'S4_JWT_SECRET',

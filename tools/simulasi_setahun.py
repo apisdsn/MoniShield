@@ -12,7 +12,8 @@ import argparse, datetime, os, shutil, sys, time
 V2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, V2)
 
-from monishield import db, derive, ingest, parse  # noqa: E402
+from monishield.infrastructure import db, derive, ingest
+from monishield import parse  # noqa: E402
 
 MENTAH = list(parse.TABLES)
 

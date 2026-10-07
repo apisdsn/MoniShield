@@ -1,7 +1,8 @@
 """Kerangka dashboard: kesehatan, daftar folder + konfigurasi tampilan, ringkasan satu folder (TRD §5.2)."""
 from fastapi import APIRouter, Depends, Request
 
-from .. import __version__, refdata
+from monishield import __version__
+from monishield.infrastructure import refdata
 from .common import cursor, folder_param, public, require_user_ready, wib
 
 router = APIRouter(prefix='/api')

@@ -9,7 +9,8 @@ import collections, json, os
 
 import pytest
 
-from monishield import config, detect
+from monishield.infrastructure import config
+from monishield.domain import detect
 
 V2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -68,7 +69,7 @@ def test_tiap_kategori_punya_contoh_yang_kena():
 def test_aturan_terkunci_dan_lengkap():
     d = detect.DATA
     assert d['version'] == 'v4.30.0' and len(d['commit']) == 40 and d['license'] == 'Apache-2.0'
-    assert os.path.exists(os.path.join(V2, 'monishield', 'CRS-LICENSE.txt'))
+    assert os.path.exists(os.path.join(V2, 'monishield', 'domain', 'CRS-LICENSE.txt'))
     assert {r['file'][8:11] for r in d['rules']} == {'913', '930', '931', '932', '933', '934', '941', '942', '944'}
     assert all(s['reason'] for s in d['skipped'])                         # yang dilewati selalu beralasan
     assert len(detect.rules(1)) == d['counts']['by_pl']['1'] and len(detect.rules(2)) > len(detect.rules(1))

@@ -3,7 +3,7 @@ import re
 
 from fastapi import APIRouter, Depends, Request
 
-from .. import detect
+from monishield.domain import detect
 from .common import cursor, folder_param, require_user_ready, AM, H, _all, _has
 from .tables import NG, SEV, SEV_SQL, cells, first, services
 

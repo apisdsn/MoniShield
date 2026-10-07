@@ -12,7 +12,7 @@ from urllib.parse import unquote_plus
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
-from .. import detect
+from monishield.domain import detect
 from .common import ApiError, cursor, folder_param, require_user_ready, _all
 from .tables import NG, SEV_SQL, T, UTC
 

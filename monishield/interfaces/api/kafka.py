@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
-from .. import kafka_in
+from monishield.infrastructure import kafka_in
 from .admin import _audit
 from .common import ApiError, require_admin, require_user_ready
 

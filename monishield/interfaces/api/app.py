@@ -11,9 +11,11 @@ from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .. import __version__, alerts as alertsmod, auth as authmod, config, db, detect, kafka_in, settings, upload as uploadmod
-from . import (admin, availability, config_api, docs, kafka, notify, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing,
-               search, trends, upload, users)
+from monishield import __version__
+from monishield.application import alerts as alertsmod, settings, upload as uploadmod
+from monishield.infrastructure import auth as authmod, config, db, kafka_in
+from monishield.domain import detect
+from monishield.interfaces.api import admin, availability, config_api, docs, kafka, notify, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing, search, trends, upload, users
 from .common import ROLE_DEPS
 
 WORKERS = 1  # konstanta, bukan konfigurasi (TRD §7.2)

@@ -21,7 +21,7 @@ Satu kejadian dikirim sekali per kunci (mis. 'spike:2026-10-06'); dicatat di tab
 import datetime, json, re, smtplib, ssl, threading, urllib.error, urllib.parse, urllib.request
 from email.message import EmailMessage
 
-from . import config
+from monishield.infrastructure import config
 
 TELEGRAM_API = 'https://api.telegram.org'   # bawaan; alamat yang dipakai = S4_TELEGRAM_API (cfg.telegram_api)
 DISCORD_HOSTS = ('discord.com', 'discordapp.com', 'ptb.discord.com', 'canary.discord.com')
@@ -232,7 +232,7 @@ def _link(cfg, folder, tab='peta'):
 # ------------------------------------------------------------------ penilaian
 def folder_events(cur, cfg, folder, crs):
     """Kejadian untuk satu folder: [(event, key, judul, teks)]. Angka dari Command Center (agregat), tanpa IP."""
-    from .api import command
+    from monishield.interfaces.api import command
     a = command._kpi(cur, folder, crs)
     b = command.baseline(cur, folder, crs, a)
     lang, out = cfg['lang'], []

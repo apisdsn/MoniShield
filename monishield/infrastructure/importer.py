@@ -8,7 +8,7 @@ dicetak, dicatat, atau dikembalikan.
 """
 import datetime, gzip, json, os, re, shutil, threading, time, uuid, zlib
 
-from . import rules
+from monishield.domain import rules
 
 ENDPOINT = None   # hanya uji (S3 tiruan lokal); server selalu memakai titik akhir resmi wilayah `import_region`
 MANIFEST = '.s3-import.json'   # di folder kotak masuk: {relpath objek: {key, size, etag[, stored, stored_size]}} unduhan sebelumnya

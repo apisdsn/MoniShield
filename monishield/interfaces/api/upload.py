@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from .. import importer, upload
+from monishield.infrastructure import importer
+from monishield.application import upload
 from .admin import _audit
 from .common import ApiError, require_admin
 

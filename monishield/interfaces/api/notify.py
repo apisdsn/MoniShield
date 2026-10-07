@@ -6,7 +6,7 @@
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from .. import alerts, settings
+from monishield.application import alerts, settings
 from .admin import _audit
 from .common import ApiError, require_admin
 

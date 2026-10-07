@@ -4,7 +4,8 @@ import collections, csv, datetime, glob, os
 
 import pytest
 
-from monishield import db, parse, rules
+from monishield.infrastructure import db
+from monishield.domain import parse, rules
 from conftest import ROOT
 
 FIX = os.path.join(os.path.dirname(__file__), 'fixtures', 'lines')

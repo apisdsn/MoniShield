@@ -5,7 +5,8 @@ Agregat diturunkan lewat derive_folder(), yang diisi tahap berikutnya.
 """
 import concurrent.futures, datetime, json, multiprocessing, os, shutil, threading, time
 
-from . import db, derive, detect, parse, refdata, rules
+from monishield.infrastructure import db, derive, refdata
+from monishield.domain import detect, parse, rules
 
 RAW_TABLES = list(parse.TABLES)
 _lock = threading.Lock()  # satu ingest pada satu waktu (TRD §3.1)

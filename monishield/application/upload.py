@@ -8,8 +8,9 @@ Bentuk jalur yang diterima (webkitRelativePath dari browser):
 """
 import datetime, os, shutil, threading, time, uuid
 
-from . import importer, rules
-from .importer import CONTROL, ImportFail
+from monishield.infrastructure import importer
+from monishield.domain import rules
+from monishield.infrastructure.importer import CONTROL, ImportFail
 
 # sesi unggah yang ditinggalkan (tab ditutup) dibersihkan setelah cfg.upload_session_hours (S4_UPLOAD_SESSION_HOURS)
 

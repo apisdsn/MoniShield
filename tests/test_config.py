@@ -3,7 +3,8 @@ import dataclasses, os
 
 import pytest
 
-from monishield import config, rules
+from monishield.infrastructure import config
+from monishield.domain import rules
 
 
 def env_file(tmp_path, text):

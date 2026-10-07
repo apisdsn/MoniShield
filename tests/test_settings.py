@@ -8,8 +8,9 @@ from fastapi.testclient import TestClient
 
 import logs_mini
 from s3_tiruan import KEY_OK, S3Tiruan
-from monishield import auth, config, envfile, importer, settings
-from monishield.api import app as appmod, config_api
+from monishield.infrastructure import auth, config, envfile, importer
+from monishield.application import settings
+from monishield.interfaces.api import app as appmod, config_api
 from conftest import JWT_SECRET
 
 X = {'X-Requested-With': 'uji'}
@@ -190,7 +191,7 @@ def test_pindahan_dari_basis_data_ke_env(cfg, envp, monkeypatch, s3):
 
 
 def test_pengecualian_daftar_blokir_dari_layar(client):
-    from monishield.api import ips
+    from monishield.interfaces.api import ips
     assert client.put('/api/admin/config', json=dict(blocklist_exclude='36.66.1.0/24', blocklist_exclude_org='TELKOM'), headers=X).status_code == 200
     c = client.app.state.cfg
     assert ips._excluded(c, '36.66.1.9', False, '') == 'list' and ips._excluded(c, '8.8.8.8', False, 'PT TELKOM INDONESIA') == 'org'
@@ -244,7 +245,7 @@ def test_alamat_dan_batas_dari_env():
                          'S4_URL_MAXMIND': 'https://mm.kantor.go.id/{}.zip', 'S4_GEO_MAX_AGE_DAYS': '14', 'S4_UPLOAD_SESSION_HOURS': '2'}, dotenv=False)
     assert (c.url_ip2asn, c.telegram_api, c.url_maxmind, c.geo_max_age_days, c.upload_session_hours) == \
         ('https://cermin.kantor.go.id/ip2asn-v4.tsv.gz', 'https://tg-proxy.kantor.go.id', 'https://mm.kantor.go.id/{}.zip', 14, 2)
-    from monishield import alerts
+    from monishield.application import alerts
     assert alerts.load(c)['channels']['telegram']['api'] == 'https://tg-proxy.kantor.go.id'
     for env in ({'S4_GEO_MAX_AGE_DAYS': '60'}, {'S4_URL_MAXMIND': 'https://x/tanpa-edisi'}, {'S4_URL_LAND': 'ftp://x'}):
         with pytest.raises(SystemExit): config.load(env=env, dotenv=False)

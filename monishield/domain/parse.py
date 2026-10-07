@@ -6,11 +6,11 @@ build_dashboard.py. Satu-satunya perbedaan perilaku: level error log nginx (TRD 
 
 Parser tidak tahu file_id maupun folder; ingest menambahkannya saat memuat CSV.
 
-  python -m monishield.parse <file.log[.gz]> --out <dir> [--service <nama>]
+  python -m monishield.domain.parse <file.log[.gz]> --out <dir> [--service <nama>]
 """
 import argparse, collections, csv, gzip, hashlib, json, os, sys
 
-from . import rules
+from monishield.domain import rules
 
 # Kolom CSV per tabel, TANPA file_id dan folder. Urutan = urutan kolom di schema.sql setelah keduanya.
 TABLES = {

@@ -6,8 +6,9 @@ import httpx, pytest
 from fastapi.testclient import TestClient
 
 import logs_mini
-from monishield import auth, config, db, ingest, kafka_in, parse
-from monishield.api import app as appmod
+from monishield.infrastructure import auth, config, db, ingest, kafka_in
+from monishield.domain import parse
+from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
 X = {'X-Requested-With': 'uji'}

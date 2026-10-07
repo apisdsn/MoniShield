@@ -4,7 +4,8 @@ import dataclasses, os, shutil, threading
 import duckdb, pytest
 
 import logs_mini
-from monishield import config, db, ingest, parse
+from monishield.infrastructure import config, db, ingest
+from monishield.domain import parse
 
 A, B = '2026-01-01', '2026-01-02'
 SL = ('ombudsman', 'om-be-simpel-loop', 'pod-s')

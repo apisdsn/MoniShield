@@ -28,11 +28,13 @@ kafka = [
     "kafka-python>=2.0.2,<4", # log dari Kafka (Rancher cluster logging); murni Python, mendukung SASL PLAIN/SCRAM dan SSL
 ]
 
-[tool.setuptools]
-packages = ["monishield", "monishield.derive", "monishield.api"]
+[tool.setuptools.packages.find]
+include = ["monishield*"]   # lapisan clean architecture: domain, application, infrastructure, interfaces
 
 [tool.setuptools.package-data]
-monishield = ["schema.sql", "derive/*.sql", "crs_rules.json", "capec.json", "CRS-LICENSE.txt"]
+"monishield.domain" = ["crs_rules.json", "capec.json", "CRS-LICENSE.txt"]
+"monishield.infrastructure" = ["schema.sql"]
+"monishield.infrastructure.derive" = ["*.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

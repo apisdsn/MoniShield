@@ -12,8 +12,8 @@ Aturan kesetaraan dengan sistem lama yang dijaga di SQL ini:
 """
 import glob, os
 
-from .. import detect
-from . import steps
+from monishield.domain import detect
+from monishield.infrastructure.derive import steps
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 

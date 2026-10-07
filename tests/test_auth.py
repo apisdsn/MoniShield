@@ -5,7 +5,7 @@ import jwt
 import pytest
 from sqlalchemy import select
 
-from monishield import auth
+from monishield.infrastructure import auth
 from conftest import JWT_SECRET
 
 PW = 'sandi-yang-cukup-panjang'

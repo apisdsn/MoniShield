@@ -7,7 +7,7 @@ Tiap fungsi: hapus baris folder ini, sisipkan yang baru. Dipanggil di dalam tran
 import collections
 from urllib.parse import unquote_plus
 
-from .. import detect, rules
+from monishield.domain import detect, rules
 
 C = collections.Counter
 WIB = "date_trunc('minute', {} + INTERVAL 7 HOUR)::VARCHAR"  # 'YYYY-MM-DD HH:MM:SS' -> dipotong [:16] = menit WIB

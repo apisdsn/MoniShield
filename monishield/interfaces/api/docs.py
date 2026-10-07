@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from .. import __version__
+from monishield import __version__
 from .common import ApiError, public, require_user, require_user_ready
 
 router = APIRouter(prefix='/api')

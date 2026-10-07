@@ -5,7 +5,8 @@ import collections, dataclasses, glob, json, os
 import pytest
 
 import logs_mini
-from monishield import config, db, ingest, rules
+from monishield.infrastructure import config, db, ingest
+from monishield.domain import rules
 from conftest import ROOT
 from test_derive_core import make, q, H, M, A, B, NG, FE, SL, AM
 

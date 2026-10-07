@@ -11,7 +11,7 @@ sama, isi lama dikembalikan.
 """
 import os, re, threading
 
-from . import config
+from monishield.infrastructure import config
 
 _LOCK = threading.Lock()
 MARK = '# --- diisi dari layar Konfigurasi MoniShield ---'

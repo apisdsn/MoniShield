@@ -7,7 +7,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
-from .. import db, importer, ingest, rules, settings
+from monishield.infrastructure import db, importer, ingest
+from monishield.domain import rules
+from monishield.application import settings
 from .common import DATE, ApiError, client_ip, require_admin, require_admin_or_job
 
 router = APIRouter(prefix='/api/admin')

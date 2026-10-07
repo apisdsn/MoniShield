@@ -14,7 +14,7 @@ pada ingest berikutnya. Tidak pernah diam-diam jatuh ke sumber lain.
 """
 import base64, csv, datetime, io, ipaddress, json, os, urllib.request, zipfile
 
-from . import rules
+from monishield.domain import rules
 
 # Atribusi yang wajib tampil di setiap peta (lisensi GeoLite2 dan CC BY 4.0).
 ATTRIBUTION = ['Produk ini memuat data GeoLite2 buatan MaxMind, tersedia dari https://www.maxmind.com',

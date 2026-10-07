@@ -3,7 +3,7 @@ import datetime, re
 
 from fastapi import Depends, HTTPException, Request, Response
 
-from .. import auth as authmod
+from monishield.infrastructure import auth as authmod
 
 COOKIE = 's4_session'
 CSRF_HEADER = 'x-requested-with'      # wajib pada setiap permintaan yang mengubah data (TRD §8.2)

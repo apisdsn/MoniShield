@@ -15,7 +15,8 @@ saat server mulai (`migrate`).
 """
 import ipaddress, os, re
 
-from . import alerts, config, envfile
+from monishield.application import alerts
+from monishield.infrastructure import config, envfile
 
 GROUPS = {
     'aws': ('aws_access_key_id', 'aws_secret_access_key', 'aws_session_token', 'import_region'),

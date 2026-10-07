@@ -1,7 +1,9 @@
 """Perintah baris: python -m monishield <perintah>. Subperintah bertambah per tahap (docs/04-rencana.md)."""
 import argparse, os, sys
 
-from . import __version__, config, rules
+from monishield import __version__
+from monishield.infrastructure import config
+from monishield.domain import rules
 
 RAW = ('nginx_access', 'nginx_error', 'fe_access', 'sl_event', 'spring_line', 'coredns_error', 'log_message')
 
@@ -15,9 +17,9 @@ def cmd_status(cfg, args):
         for k, v in cfg.public().items():
             if isinstance(v, dict): v = f'{len(v)} entri'
             print(f'  {k:22} {v}')
-        from . import auth
+        from monishield.infrastructure import auth
         print(f'  {"basis data akun":22} {auth.redact_url(cfg.auth_url)}')
-        from . import importer
+        from monishield.infrastructure import importer
         cs = importer.Credentials(cfg).status()
         print(f'  {"impor S3":22} ' + (f'aktif: {", ".join(importer.allowed_examples(cfg))}' if cfg.import_buckets else 'tidak diaktifkan'))
         print(f'  {"kredensial impor":22} ' + ('tersedia (lingkungan)' if cs['available'] else 'tidak ada'))
@@ -25,7 +27,7 @@ def cmd_status(cfg, args):
         print(f'folder log di disk: {len(folders)}' + (f' ({folders[0]} … {folders[-1]})' if folders else ' (tidak ada)'))
     if not os.path.exists(cfg.db_path):
         print(f'belum ada database ({cfg.db_path}); jalankan ingest'); return 0
-    from . import db, ingest
+    from monishield.infrastructure import db, ingest
     con = db.open(cfg.db_path)
     if args.checksum:
         for t, (n, h) in ingest.checksums(con).items(): print(f'  {t:22} {n:>10} {h:020d}')
@@ -122,7 +124,7 @@ def _ingest_via_api(cfg, args):
 def cmd_ingest(cfg, args):
     import dataclasses
 
-    from . import ingest
+    from monishield.infrastructure import ingest
     cfg = dataclasses.replace(cfg, offline=cfg.offline or args.offline)
     via = _ingest_via_api(cfg, args)
     if via is not None: return via
@@ -150,7 +152,7 @@ def cmd_import(cfg, args):
     """Impor dari awalan S3 (TRD §3.8). Server berjalan -> lewat API (token mesin); selain itu di proses ini lalu ingest folder itu."""
     import time
 
-    from . import importer
+    from monishield.infrastructure import importer
     try: importer.parse_url(cfg, args.url)                 # daftar izin diperiksa sebelum apa pun menghubungi AWS
     except importer.ImportFail as e: print(f'ditolak: {e.message}', file=sys.stderr); return 2
     up = _api(cfg, 'GET', '/api/health') is not None
@@ -171,7 +173,7 @@ def cmd_import(cfg, args):
     except importer.ImportFail as e: print(f'impor gagal: {e.message}', file=sys.stderr); return 1
     _import_print(r)
     if not args.dry_run:
-        from . import ingest
+        from monishield.infrastructure import ingest
         g = ingest.run(cfg, folder=r['folder'])
         print(f"ingest #{g['run_id']}: {g['status']}; {g['files_changed']} file berubah ({g['files_failed']} gagal)")
         return 1 if g['files_failed'] else 0
@@ -181,7 +183,7 @@ def cmd_import(cfg, args):
 def cmd_refdata(cfg, args):
     import dataclasses
 
-    from . import db, refdata
+    from monishield.infrastructure import db, refdata
     cfg = dataclasses.replace(cfg, offline=cfg.offline or args.offline)
     r = refdata.run(cfg, db.open(cfg.db_path), offline=cfg.offline, force_map=True, log=lambda m: print('  ', m, file=sys.stderr))
     ip = r['ip']
@@ -204,7 +206,7 @@ def cmd_serve(cfg, args):
 def cmd_user(cfg, args):
     import getpass
 
-    from . import auth
+    from monishield.infrastructure import auth
     os.makedirs(cfg.state_dir, exist_ok=True)
     a = auth.Auth(cfg.auth_url)   # tanpa rahasia JWT: baris perintah hanya mengelola akun, tidak membuat sesi
     if args.action == 'list':
@@ -221,14 +223,15 @@ def _local_db(cfg):
     """Buka DuckDB sendiri; bila server sedang memegangnya, jelaskan (TRD K1)."""
     import duckdb
 
-    from . import db
+    from monishield.infrastructure import db
     try: return db.open(cfg.db_path)
     except duckdb.IOException:
         raise SystemExit('database sedang dipakai server dashboard; lakukan lewat layar admin, atau hentikan server dulu') from None
 
 
 def cmd_derive(cfg, args):
-    from . import db, detect, ingest
+    from monishield.infrastructure import db, ingest
+    from monishield.domain import detect
     detect.use(cfg)
     done = ingest.derive_all(_local_db(cfg), args.folder)
     print(f'agregat diturunkan ulang untuk {len(done)} folder' + (f' ({done[0]} … {done[-1]})' if done else ''))
@@ -236,7 +239,7 @@ def cmd_derive(cfg, args):
 
 
 def cmd_forget(cfg, args):
-    from . import db, ingest
+    from monishield.infrastructure import db, ingest
     n = ingest.forget(_local_db(cfg), args.folder)
     print(f'folder {args.folder}: data {n} file dihapus dari database (berkas log tidak disentuh)')
     return 0 if n else 1

@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const [, , BASE = 'http://127.0.0.1:8000', PW] = process.argv;
 const OUT = process.env.SHOTS_DIR || path.join(require('os').tmpdir(), 's4-shots');
-const CAPEC = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'monishield', 'capec.json'), 'utf8'));
+const CAPEC = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'monishield', 'domain', 'capec.json'), 'utf8'));
 fs.mkdirSync(OUT, { recursive: true });
 const hasil = [];
 const cek = (n, ok, info = '') => { hasil.push(!!ok); console.log(`${ok ? 'LULUS' : 'GAGAL'}  ${n}${info ? '  — ' + info : ''}`); };
