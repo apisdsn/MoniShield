@@ -1,5 +1,5 @@
 """Pemicu ingest, penurunan ulang, dan penghapusan folder (TRD §5.5). Ingest berjalan DI DALAM proses API (K1)."""
-import json, os
+import datetime, json, os, shutil
 import threading
 import time
 from typing import Optional
@@ -103,7 +103,7 @@ def _new_folders(request):
     teratas (murah, dipanggil tombol Sinkronkan tiap menit); file baru di folder lama baru terlihat saat ingest berjalan."""
     cfg = request.app.state.cfg
     cur = request.app.state.con.cursor()
-    try: dikenal = {str(r[0]) for r in cur.execute('SELECT folder FROM folder_state').fetchall()}
+    try: dikenal = {str(r[0]) for r in cur.execute('SELECT folder FROM folder_state').fetchall()} | ingest.ignored(cur)
     finally: cur.close()
     baru = set()
     for root in (cfg.log_dir, cfg.inbox_dir):
@@ -129,6 +129,71 @@ def derive(request: Request, body: FolderBody = FolderBody(), admin=Depends(requ
     done = _exclusive(request, lambda cur: ingest.derive_all(cur, folder))
     _audit(request, admin, 'derive', f"folder={folder or 'semua'}")
     return dict(folders=done)
+
+
+class DeleteBody(BaseModel):
+    delete_inbox: bool = True   # hapus juga file log di kotak masuk (hasil impor S3); folder log utama tidak pernah dihapus
+
+
+def _on_disk(cfg, root, folder):
+    p = os.path.join(root, folder)
+    return os.path.isdir(p) and any(n.endswith(('.log', '.log.gz')) for _, _, names in os.walk(p) for n in names)
+
+
+@router.get('/folders')
+def folders_list(request: Request, admin=Depends(require_admin)):
+    """Kelola folder (permintaan pemilik 2026-10-07): semua folder yang dikenal dashboard, di disk, atau diabaikan."""
+    cfg, cur = request.app.state.cfg, request.app.state.con.cursor()
+    try:
+        db = {str(f): dict(lines=l, files=n, files_corrupt=c) for f, l, n, c in cur.execute('SELECT folder, lines, files, files_corrupt FROM folder_state').fetchall()}
+        ign = {f: dict(by=b, at=str(a.replace(microsecond=0)) if a else None) for f, b, a in cur.execute('SELECT ignored_folder, by_user, at_utc FROM folder_ignored').fetchall()}
+    finally: cur.close()
+    disk = set()
+    for root in (cfg.log_dir, cfg.inbox_dir):
+        try: disk |= {d for d in os.listdir(root) if rules.DATE_DIR.fullmatch(d)}
+        except OSError: pass
+    rows = []
+    for f in sorted(set(db) | set(ign) | disk, reverse=True):
+        log, inbox = _on_disk(cfg, cfg.log_dir, f), _on_disk(cfg, cfg.inbox_dir, f)
+        if f not in db and f not in ign and not (log or inbox): continue   # folder tanggal kosong di disk
+        rows.append(dict(folder=f, in_db=f in db, **(db.get(f) or dict(lines=0, files=0, files_corrupt=0)), log=log, inbox=inbox,
+                         ignored=f in ign, ignored_by=(ign.get(f) or {}).get('by'), ignored_at=(ign.get(f) or {}).get('at')))
+    return dict(rows=rows, log_dir_readonly=True)
+
+
+@router.post('/folders/{folder}/delete')
+def folder_delete(folder: str, request: Request, body: DeleteBody = DeleteBody(), admin=Depends(require_admin)):
+    """Hapus data folder dari dashboard. File di kotak masuk ikut dihapus bila diminta; folder log utama hanya dibaca,
+    jadi bila filenya masih ada folder itu dicatat "diabaikan" agar ingest/sinkronisasi tidak memasukkannya lagi."""
+    folder, cfg = _folder(folder, required=True), request.app.state.cfg
+    inbox = os.path.realpath(os.path.join(cfg.inbox_dir, folder))
+    if os.path.dirname(inbox) != os.path.realpath(cfg.inbox_dir): raise ApiError(400, 'invalid_parameter', 'folder tidak sah.')
+
+    def kerja(cur):
+        n = ingest.forget(cur, folder)
+        hapus_inbox = body.delete_inbox and os.path.isdir(inbox)
+        if hapus_inbox: shutil.rmtree(inbox)
+        sisa = _on_disk(cfg, cfg.log_dir, folder) or _on_disk(cfg, cfg.inbox_dir, folder)
+        if sisa:
+            cur.execute('INSERT OR REPLACE INTO folder_ignored VALUES (?, ?, ?)', [folder, admin['username'], datetime.datetime.now(datetime.UTC).replace(tzinfo=None)])
+        return n, hapus_inbox, sisa
+    n, hapus_inbox, sisa = _exclusive(request, kerja)
+    if not n and not hapus_inbox and not sisa: raise ApiError(404, 'not_found', 'Folder tidak ditemukan.')
+    _audit(request, admin, 'folder.delete', f"folder={folder} ({n} file data{'; kotak masuk dihapus' if hapus_inbox else ''}{'; diabaikan' if sisa else ''})")
+    return dict(folder=folder, files=n, inbox_deleted=hapus_inbox, ignored=sisa)
+
+
+@router.post('/folders/{folder}/restore')
+def folder_restore(folder: str, request: Request, admin=Depends(require_admin)):
+    """Batalkan "diabaikan": ingest/sinkronisasi berikutnya memasukkan folder itu lagi."""
+    folder = _folder(folder, required=True)
+    cur = request.app.state.con.cursor()
+    try:
+        if not cur.execute('SELECT 1 FROM folder_ignored WHERE ignored_folder = ?', [folder]).fetchone(): raise ApiError(404, 'not_found', 'Folder tidak sedang diabaikan.')
+        cur.execute('DELETE FROM folder_ignored WHERE ignored_folder = ?', [folder])
+    finally: cur.close()
+    _audit(request, admin, 'folder.restore', f'folder={folder}')
+    return dict(folder=folder, restored=True)
 
 
 @router.post('/forget')

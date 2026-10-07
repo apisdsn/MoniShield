@@ -87,6 +87,11 @@ def forget(con, folder):
     return n
 
 
+def ignored(con):
+    """{'YYYY-MM-DD'} folder yang diabaikan ingest (dihapus admin dari dashboard, file masih ada di disk)."""
+    return {r[0] for r in con.execute('SELECT ignored_folder FROM folder_ignored').fetchall()}
+
+
 def _next_id(con, seq, table, col):
     """Nomor baru dari sequence, tetapi tidak pernah <= nomor terbesar yang sudah ada. Sequence DuckDB bisa tertinggal
     setelah proses dihentikan paksa (nilai yang dipulihkan lebih kecil dari baris yang tersimpan) -> "Duplicate key".
@@ -116,6 +121,8 @@ def _run(cfg, con, only_folder, force, workers, progress):
     res = dict(run_id=run_id, status='ok', files_seen=0, files_changed=0, files_parsed=0, files_removed=0, files_failed=0, folders_changed=[], folders_recorrelated=[], refdata=None, warnings=[])
     try:
         files, res['warnings'] = scan([cfg.log_dir, cfg.inbox_dir])
+        ign = ignored(con)   # folder yang dihapus admin dari dashboard: dilewati sampai dipulihkan
+        files = {k: f for k, f in files.items() if f['folder'] not in ign}
         if only_folder: files = {k: f for k, f in files.items() if f['folder'] == only_folder}
         res['files_seen'] = len(files)
         cols = 'file_id, relpath, source_ext, folder, size_bytes, mtime_ns, sha256, rules_version'

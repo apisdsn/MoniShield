@@ -167,7 +167,8 @@ def test_matriks_peran_mencakup_semua_rute(client):
     for r in sorted(rute, key=lambda r: r.path == '/api/auth/logout'):            # keluar diuji paling akhir
         dep = next(d for d in (common.require_admin_or_job, common.require_admin, common.require_user_ready, common.require_user, common.public)
                    if d in set(appmod._deps(r.dependant)))
-        path = r.path.replace('{folder}', B).replace('{user_id}', '999999').replace('{job_id}', '999999').replace('{table}', 'c401').replace('{service}', NG)
+        f = '2030-01-01' if r.path.startswith('/api/admin/folders/') else B   # rute hapus/pulihkan folder: tanggal yang tidak ada (jangan hapus data uji)
+        path = r.path.replace('{folder}', f).replace('{user_id}', '999999').replace('{job_id}', '999999').replace('{table}', 'c401').replace('{service}', NG)
         method = sorted(r.methods)[0].lower()
         for i, (tc, hdr) in enumerate(((anon, X), (user, X), (client, X), (mesin, {**X, 'Authorization': f'Bearer {TOKEN}'}))):
             kw = dict(headers=hdr) if method in ('get', 'delete') else dict(headers=hdr, json={})
@@ -310,6 +311,47 @@ def test_sinkronisasi_mendeteksi_folder_baru(client, cfg):
     finally:   # fixture log dipakai bersama uji lain: kembalikan seperti semula
         for d in ('2026-03-03', '2026-03-04'): shutil.rmtree(os.path.join(cfg.log_dir, d), ignore_errors=True)
         client.post('/api/admin/forget', json=dict(folder='2026-03-04'), headers=X)
+
+
+def _ingest_tunggu(client):
+    assert client.post('/api/admin/ingest', json={}, headers=X).status_code == 202
+    for _ in range(300):
+        st = client.get('/api/admin/ingest/status').json()
+        if not st['running']: return st
+        time.sleep(0.02)
+    raise AssertionError('ingest tidak selesai')
+
+
+def test_hapus_folder_dari_dashboard_dan_pulihkan(client, cfg):
+    """Permintaan pemilik 2026-10-07: folder bisa dihapus dari daftar. Folder log utama hanya-baca: datanya dihapus dan folder
+    diabaikan ingest sampai dipulihkan; folder kotak masuk (impor S3) bisa dihapus beserta filenya."""
+    import shutil
+    admin(client)
+    rows = {r['folder']: r for r in client.get('/api/admin/folders').json()['rows']}
+    assert rows[B]['in_db'] and rows[B]['log'] and not rows[B]['ignored']
+    r = client.post(f'/api/admin/folders/{B}/delete', json={}, headers=X).json()
+    assert r['files'] > 0 and r['ignored'] and not r['inbox_deleted'] and os.path.isdir(os.path.join(cfg.log_dir, B))   # file log utama tidak disentuh
+    assert B not in [f['folder'] for f in client.get('/api/meta').json()['folders']]
+    st = _ingest_tunggu(client)
+    assert st['error'] is None and B not in st['last']['folders_changed'] and st['new_folders'] == []                   # tidak masuk lagi
+    assert B not in [f['folder'] for f in client.get('/api/meta').json()['folders']]
+    assert {r['folder']: r for r in client.get('/api/admin/folders').json()['rows']}[B]['ignored']
+    assert client.post(f'/api/admin/folders/{B}/restore', headers=X).status_code == 200
+    assert client.get('/api/admin/ingest/status').json()['new_folders'] == [B]
+    _ingest_tunggu(client)
+    assert B in [f['folder'] for f in client.get('/api/meta').json()['folders']]
+    # kotak masuk: data + file dihapus, tidak diabaikan (tidak ada sisa di disk)
+    shutil.copytree(os.path.join(cfg.log_dir, B), os.path.join(cfg.inbox_dir, '2026-03-05'))
+    try:
+        _ingest_tunggu(client)
+        r = client.post('/api/admin/folders/2026-03-05/delete', json=dict(delete_inbox=True), headers=X).json()
+        assert r['files'] > 0 and r['inbox_deleted'] and not r['ignored'] and not os.path.exists(os.path.join(cfg.inbox_dir, '2026-03-05'))
+        assert '2026-03-05' not in [x['folder'] for x in client.get('/api/admin/folders').json()['rows']]
+    finally: shutil.rmtree(os.path.join(cfg.inbox_dir, '2026-03-05'), ignore_errors=True)
+    assert client.post('/api/admin/folders/bukan-tanggal/delete', json={}, headers=X).status_code in (400, 404)
+    assert client.post('/api/admin/folders/2030-01-01/delete', json={}, headers=X).status_code == 404
+    assert client.post('/api/admin/folders/2030-01-01/restore', headers=X).status_code == 404
+    assert {'folder.delete', 'folder.restore'} <= {x['action'] for x in client.get('/api/admin/audit').json()['rows']}
 
 
 def test_ingest_kedua_saat_berjalan_409(client, monkeypatch):

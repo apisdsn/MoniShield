@@ -316,3 +316,11 @@ CREATE TABLE IF NOT EXISTS agg_crs_ip (
 CREATE TABLE IF NOT EXISTS agg_crs_hour (
     folder DATE, hour_wib TIMESTAMP, n BIGINT,
     PRIMARY KEY (folder, hour_wib));
+
+-- Folder yang dihapus admin dari dashboard tetapi filenya masih ada di folder log (hanya-baca) atau kotak masuk:
+-- ingest/sinkronisasi melewatinya sampai dipulihkan. Kolom sengaja bukan "folder" agar tidak ikut terhapus oleh forget().
+CREATE TABLE IF NOT EXISTS folder_ignored (
+    ignored_folder VARCHAR PRIMARY KEY,
+    by_user        VARCHAR,
+    at_utc         TIMESTAMP
+);

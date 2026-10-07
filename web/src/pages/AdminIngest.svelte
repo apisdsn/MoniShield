@@ -1,6 +1,6 @@
 <!-- Ingest & impor (DRD §3.11, TRD §8.4), hanya admin: status ingest terakhir (dari database, bertahan setelah server
      dimulai ulang) dan yang sedang berjalan, tombol "Ingest sekarang", kemajuan (diperbarui tiap 2 detik, diumumkan
-     sopan ke pembaca layar), peringatan; kartu impor S3 (lib/ImportCard, Tahap 19); catatan audit (500 terbaru, 50 pertama tampil).
+     sopan ke pembaca layar), peringatan; kartu impor S3 (lib/ImportCard, Tahap 19); kelola folder log (lib/FolderManager: hapus/pulihkan); catatan audit (500 terbaru, 50 pertama tampil).
      Dashboard tetap bisa dipakai selama ingest (ingest berjalan di thread server, K1). -->
 <script>
   import { onMount } from 'svelte';
@@ -10,6 +10,7 @@
   import { toast } from '../lib/Toast.svelte';
   import DataTable from '../lib/DataTable.svelte';
   import ImportCard from '../lib/ImportCard.svelte';
+  import FolderManager from '../lib/FolderManager.svelte';
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
 
@@ -89,6 +90,8 @@
     </section>
 
     <ImportCard onfinished={() => { loadStatus(); loadAudit(); onfinished?.(); }} />
+
+    <FolderManager onchanged={() => { loadStatus(); loadAudit(); onfinished?.(); }} />
 
     {#if audit}
       <DataTable title={$t('ing.audit')} rows={audit.rows} limit={50} columns={[

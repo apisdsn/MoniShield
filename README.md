@@ -59,6 +59,10 @@ Ingest pertama 11 folder ±10–40 detik; setelah itu hanya folder yang baru ata
 (ikon folder di kepala halaman). Lencana angka di tombol itu menunjukkan jumlah folder baru yang belum masuk; setelah
 sinkronisasi dashboard pindah ke folder terbaru. Hanya file baru atau yang berubah yang diproses.
 
+**Menghapus folder dari daftar**: admin → **Ingest & impor** → kartu **Folder log** → **Hapus**. Data folder hilang dari
+dashboard; file hasil impor S3 (kotak masuk) bisa ikut dihapus. File di folder log utama tidak pernah dihapus: folder itu
+ditandai *Diabaikan* agar sinkronisasi tidak memasukkannya lagi, dan bisa dikembalikan dengan **Pulihkan** + Sinkronkan.
+
 
 | Perintah (`.venv/bin/python -m simpel4 …`) | Fungsi |
 |---|---|
