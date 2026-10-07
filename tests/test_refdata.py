@@ -8,7 +8,7 @@ import csv, dataclasses, gzip, io, ipaddress, json, os, urllib.request, zipfile
 import pytest
 
 import logs_mini
-from simpel4 import config, db, ingest, refdata, rules
+from monishield import config, db, ingest, refdata, rules
 
 IP = lambda s: int(ipaddress.IPv4Address(s))
 

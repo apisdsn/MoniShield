@@ -1,7 +1,7 @@
 """Konfigurasi: lingkungan > .env > config.toml > bawaan; rahasia tidak pernah tercetak."""
 import pytest
 
-from simpel4 import config, rules
+from monishield import config, rules
 
 
 def env_file(tmp_path, text):

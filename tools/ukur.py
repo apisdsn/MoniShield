@@ -178,7 +178,7 @@ def main():
         print('\n## Waktu ingest (database nyata)')
         for label, args in (('tanpa perubahan', ['ingest']), ('satu folder dipaksa ulang', ['ingest', '--folder', '2026-09-29', '--force'])):
             t0 = time.perf_counter()
-            subprocess.run([sys.executable, '-m', 'simpel4', *args], cwd=V2, capture_output=True, check=True)
+            subprocess.run([sys.executable, '-m', 'monishield', *args], cwd=V2, capture_output=True, check=True)
             print(f'  {label:28} {time.perf_counter() - t0:.1f} dtk')
     con.close()
 

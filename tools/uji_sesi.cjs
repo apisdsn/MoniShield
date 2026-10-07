@@ -8,7 +8,7 @@ const [, , BASE, PW, V2] = process.argv;
 const hasil = [];
 const cek = (n, ok, info = '') => { hasil.push(ok); console.log(`${ok ? 'LULUS' : 'GAGAL'}  ${n}${info ? '  — ' + info : ''}`); };
 const tunggu = (ms) => new Promise((r) => setTimeout(r, ms));
-const startServer = () => spawn(path.join(V2, '.venv/bin/python'), ['-m', 'simpel4', 'serve'], { cwd: V2, detached: true, stdio: 'ignore',
+const startServer = () => spawn(path.join(V2, '.venv/bin/python'), ['-m', 'monishield', 'serve'], { cwd: V2, detached: true, stdio: 'ignore',
   env: { ...process.env, S4_SESSION_IDLE_MINUTES: '5', S4_INGEST_ON_START: 'false' } }).unref();
 const up = async () => { for (let i = 0; i < 60; i++) { try { if ((await fetch(BASE + '/api/health')).ok) return true; } catch {} await tunggu(500); } return false; };
 
@@ -33,7 +33,7 @@ const up = async () => { for (let i = 0; i < 60; i++) { try { if ((await fetch(B
   await page.waitForSelector('aside nav');
   cek('setelah masuk lagi: alamat sama (tab + folder)', page.url().endsWith('#/keamanan?folder=2026-09-29'), page.url());
   // 3. server mati -> pita merah; hidup lagi -> pulih sendiri
-  execSync(`kill $(pgrep -f "python -m simpel4 serve$")`);
+  execSync(`kill $(pgrep -f "python -m monishield serve$")`);
   await tunggu(1500);
   await page.click('button[aria-label="Muat ulang"]');
   await page.waitForSelector('.band.err', { timeout: 10000 });

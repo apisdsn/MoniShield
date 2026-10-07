@@ -19,7 +19,7 @@ let retryTimer = null;
 
 async function request(method, path, body) {
   const headers = { Accept: 'application/json' };
-  if (method !== 'GET') headers['X-Requested-With'] = 'simpel4-web';
+  if (method !== 'GET') headers['X-Requested-With'] = 'monishield-web';
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   let r;
   try {

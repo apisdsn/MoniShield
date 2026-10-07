@@ -343,7 +343,7 @@ sangat berulang). Angka ini **belum diukur**; pengukurannya adalah pekerjaan per
 
 ### 2.6 Akun (PostgreSQL lewat ORM, K11)
 
-Model SQLAlchemy di `simpel4/auth.py`; tabel dibuat saat aplikasi mulai (`create_all`). Nama tabel diberi
+Model SQLAlchemy di `monishield/auth.py`; tabel dibuat saat aplikasi mulai (`create_all`). Nama tabel diberi
 awalan `app_` karena `user` dan `session` adalah kata kunci di PostgreSQL.
 
 | Tabel | Kunci | Kolom |
@@ -963,7 +963,7 @@ v2/
 ├─ run.sh                    jalankan lokal: satu perintah
 ├─ pyproject.toml            dependensi Python
 ├─ config.example.toml       contoh konfigurasi (semua opsional)
-├─ simpel4/                  paket Python
+├─ monishield/                  paket Python
 │  ├─ config.py              baca konfigurasi + variabel lingkungan
 │  ├─ rules.py               salinan aturan lama (§4.1)
 │  ├─ parse.py               parser per layanan → baris CSV (§4.2)

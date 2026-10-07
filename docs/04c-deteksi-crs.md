@@ -8,7 +8,7 @@ paranoia 1 dan ambang skor anomali 5.
 ## Ringkasan
 
 - **Sumber aturan**: OWASP CRS **v4.30.0**, commit `e03a4f6dabc7a30ebd8c52c97d28a154f590a48f`, lisensi Apache 2.0
-  (`simpel4/CRS-LICENSE.txt`). Diolah sekali oleh `tools/ambil_crs.py` menjadi `simpel4/crs_rules.json`, yang
+  (`monishield/CRS-LICENSE.txt`). Diolah sekali oleh `tools/ambil_crs.py` menjadi `monishield/crs_rules.json`, yang
   ikut repo: dashboard tidak mengunduh apa pun saat berjalan. `py tools/ambil_crs.py --check` membuktikan berkas
   di repo sama dengan hasil olah ulang rilis yang dikunci.
 - **Aturan**: dari 203 aturan di berkas REQUEST-913, 930–934, 941, 942, 944 yang relevan, **176 diambil**
@@ -21,7 +21,7 @@ paranoia 1 dan ambang skor anomali 5.
   dianggap serangan bila skornya ≥ 5 (ambang bawaan CRS).
 - **Kategori** = CAPEC dari tag aturan, ditambah keluarga serangan CRS bila CAPEC-nya umum (mis. CAPEC-242
   Injeksi kode · XSS). CAPEC dipilih dari aturan yang jumlah skornya terbesar. Nama CAPEC dua bahasa ada di
-  `simpel4/capec.json`.
+  `monishield/capec.json`.
 - **Aturan lama tetap ada**: kolom `attack_cat` dan agregat `agg_attack_*` tidak diubah, sehingga uji
   kesetaraan E1–E4 tetap berjalan dengan `S4_ATTACK_RULES=lama`. Tampilan bawaan memakai CRS
   (`S4_ATTACK_RULES=crs`, keputusan S1b).

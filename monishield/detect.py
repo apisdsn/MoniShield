@@ -1,6 +1,6 @@
 """Deteksi serangan dengan aturan OWASP Core Rule Set (CRS), kategori CAPEC (TRD §4.6, Tahap 21).
 
-Cara "di skrip": aturan CRS (simpel4/crs_rules.json, diolah tools/ambil_crs.py dari rilis yang dikunci) dicocokkan ke
+Cara "di skrip": aturan CRS (monishield/crs_rules.json, diolah tools/ambil_crs.py dari rilis yang dikunci) dicocokkan ke
 bagian request yang ADA di log nginx: URI, argumen query, nama berkas, User-Agent. Body POST, header lain, dan cookie
 tidak tercatat, jadi tidak diperiksa; ini bukan pengganti WAF.
 

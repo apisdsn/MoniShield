@@ -4,7 +4,7 @@ import dataclasses, os, shutil, threading
 import pytest
 
 import logs_mini
-from simpel4 import config, db, ingest, parse
+from monishield import config, db, ingest, parse
 
 A, B = '2026-01-01', '2026-01-02'
 SL = ('ombudsman', 'om-be-simpel-loop', 'pod-s')

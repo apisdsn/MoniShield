@@ -117,8 +117,8 @@ def klien_api():
     """Aplikasi v2 di dalam proses (TestClient) atas database nyata, sudah masuk sebagai admin. Akun di SQLite sementara."""
     import dataclasses, tempfile
     from fastapi.testclient import TestClient
-    from simpel4 import auth, config
-    from simpel4.api import app as appmod
+    from monishield import auth, config
+    from monishield.api import app as appmod
     auth.SCRYPT = (10, 8, 1)   # hash murah: ini alat banding, bukan server
     pw, x = 'sandi-pembanding-pertama', {'X-Requested-With': 'kesetaraan'}
     # attack_rules='lama': kesetaraan dibuktikan dengan aturan serangan sistem lama (Tahap 21: tampilan memakai CRS)

@@ -45,7 +45,7 @@ def fetch_maxmind(cfg, edition, path, max_age_days=GEO_MAX_AGE_DAYS, log=print):
         return os.path.exists(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     auth = base64.b64encode(f'{cfg.maxmind_account_id}:{cfg.maxmind_license_key}'.encode()).decode()
-    req = urllib.request.Request(MAXMIND_URL.format(edition), headers={'Authorization': 'Basic ' + auth, 'User-Agent': 'simpel4/2.0'})
+    req = urllib.request.Request(MAXMIND_URL.format(edition), headers={'Authorization': 'Basic ' + auth, 'User-Agent': 'monishield/2.0'})
     try:
         with urllib.request.build_opener(_StripAuth).open(req, timeout=600) as r, open(path + '.tmp', 'wb') as fh:
             while chunk := r.read(1 << 20): fh.write(chunk)

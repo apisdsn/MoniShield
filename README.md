@@ -46,8 +46,8 @@ Cara manual, langkah demi langkah:
 python3 -m venv .venv
 .venv/bin/pip install -e .                    # tambah ".[s3]" untuk impor S3, ".[test,s3]" untuk menjalankan uji
 (cd web && npm ci && npm run build)           # hasil di web/dist, dilayani server yang sama
-.venv/bin/python -m simpel4 ingest            # opsional: ingest awal (server juga ingest saat mulai, S4_INGEST_ON_START)
-.venv/bin/python -m simpel4 serve             # http://127.0.0.1:8000 (S4_BIND)
+.venv/bin/python -m monishield ingest            # opsional: ingest awal (server juga ingest saat mulai, S4_INGEST_ON_START)
+.venv/bin/python -m monishield serve             # http://127.0.0.1:8000 (S4_BIND)
 ```
 
 Buka `http://127.0.0.1:8000`, masuk sebagai `admin` dengan `S4_ADMIN_PASSWORD`, lalu ganti sandi.
@@ -64,7 +64,7 @@ dashboard; file hasil impor S3 (kotak masuk) bisa ikut dihapus. File di folder l
 ditandai *Diabaikan* agar sinkronisasi tidak memasukkannya lagi, dan bisa dikembalikan dengan **Pulihkan** + Sinkronkan.
 
 
-| Perintah (`.venv/bin/python -m simpel4 …`) | Fungsi |
+| Perintah (`.venv/bin/python -m monishield …`) | Fungsi |
 |---|---|
 | `status` | konfigurasi efektif (tanpa rahasia), isi database, folder terakhir |
 | `ingest [--folder 2026-10-06] [--force] [--offline]` | masukkan folder log baru/berubah; juga bisa dari layar **Ingest & impor** (admin) |
@@ -81,7 +81,7 @@ menjalankan dua `serve` atau `ingest` bersamaan pada database yang sama (DuckDB 
 ### 5. Mengembangkan tampilan
 
 ```sh
-.venv/bin/python -m simpel4 serve             # terminal 1: API di :8000
+.venv/bin/python -m monishield serve             # terminal 1: API di :8000
 cd web && npm run dev                         # terminal 2: Vite di :5173, permintaan /api diteruskan ke :8000
 ```
 
@@ -118,7 +118,7 @@ ia hanya bisa diubah di konfigurasi server, tidak dari antarmuka. Batas bawaan: 
 Coba dulu tanpa mengunduh apa pun (membuktikan susunan objek sama dengan folder log lokal):
 
 ```sh
-python -m simpel4 import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/
+python -m monishield import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/
 ```
 
 Dari sistem luar (otomatis, tanpa orang):

@@ -1,11 +1,11 @@
-"""Akun, sandi, sesi, penguncian, peran, audit (TRD §8.2–§8.3, §9.6). Unit atas simpel4.auth, tanpa HTTP."""
+"""Akun, sandi, sesi, penguncian, peran, audit (TRD §8.2–§8.3, §9.6). Unit atas monishield.auth, tanpa HTTP."""
 import datetime
 
 import jwt
 import pytest
 from sqlalchemy import select
 
-from simpel4 import auth
+from monishield import auth
 from conftest import JWT_SECRET
 
 PW = 'sandi-yang-cukup-panjang'

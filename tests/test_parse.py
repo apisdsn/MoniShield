@@ -4,7 +4,7 @@ import collections, csv, datetime, glob, os
 
 import pytest
 
-from simpel4 import db, parse, rules
+from monishield import db, parse, rules
 from conftest import ROOT
 
 FIX = os.path.join(os.path.dirname(__file__), 'fixtures', 'lines')
@@ -34,7 +34,8 @@ def test_kolom_csv_sama_dengan_skema():
     con = db.open(':memory:')
     for table, cols in parse.TABLES.items():
         skema = [r[0] for r in con.execute(f"select column_name from information_schema.columns where table_name = '{table}' order by ordinal_position").fetchall()]
-        assert skema == ['file_id', 'line_no', 'folder'] + cols[1:], table
+        turunan = ['crs_rules', 'capec', 'crs_attack', 'crs_severity', 'crs_score'] if table == 'nginx_access' else []   # Tahap 21: diisi derive, bukan parser
+        assert skema == ['file_id', 'line_no', 'folder'] + cols[1:] + turunan, table
     db.open(':memory:').execute(open(db.SCHEMA).read())  # skema aman dijalankan dua kali
 
 

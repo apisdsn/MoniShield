@@ -18,7 +18,7 @@ LAMA = os.path.join(os.path.dirname(V2), 'dashboard.html')
 @pytest.fixture(scope='module')
 def bahan():
     import duckdb
-    for path, pesan in ((DB, 'database belum ada; jalankan: python -m simpel4 ingest'),
+    for path, pesan in ((DB, 'database belum ada; jalankan: python -m monishield ingest'),
                         (LAMA, 'dashboard.html sistem lama tidak ada'),
                         (ACUAN, 'docs/00-acuan.json belum dibuat; jalankan: python3 tools/acuan_lama.py')):
         if not os.path.exists(path): pytest.skip(pesan)
@@ -28,7 +28,7 @@ def bahan():
     folder_db = {str(r[0]) for r in con.execute('SELECT DISTINCT folder FROM ingest_file').fetchall()}
     if folder_db != set(acuan['days']):
         pytest.skip(f'acuan dan database tidak sepadan ({len(acuan["days"])} vs {len(folder_db)} folder); '
-                    'jalankan ulang tools/acuan_lama.py dan python -m simpel4 ingest')
+                    'jalankan ulang tools/acuan_lama.py dan python -m monishield ingest')
     return kesetaraan, acuan, con, ekstrak_dashboard.load()
 
 

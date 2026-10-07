@@ -1,4 +1,4 @@
-# Hanya pyproject.toml, simpel4/, dan web/ (tanpa node_modules/dist) yang dibutuhkan build.
+# Hanya pyproject.toml, monishield/, dan web/ (tanpa node_modules/dist) yang dibutuhkan build.
 # Rahasia, data, dan log TIDAK BOLEH masuk image.
 .env
 .env.*

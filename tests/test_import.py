@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 
 import logs_mini
 from s3_tiruan import KEY_OK, S3Tiruan
-from simpel4 import auth, config, db, importer, ingest
-from simpel4.api import app as appmod
+from monishield import auth, config, db, importer, ingest
+from monishield.api import app as appmod
 from conftest import JWT_SECRET
 
 D = '2026-01-05'

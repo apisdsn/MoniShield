@@ -1,4 +1,4 @@
-"""Perintah baris: python -m simpel4 <perintah>. Subperintah bertambah per tahap (docs/04-rencana.md)."""
+"""Perintah baris: python -m monishield <perintah>. Subperintah bertambah per tahap (docs/04-rencana.md)."""
 import argparse, os, sys
 
 from . import __version__, config, rules
@@ -10,7 +10,7 @@ def _n(x): return f'{x:,}'.replace(',', '.')
 
 
 def cmd_status(cfg, args):
-    print(f'simpel4 {__version__}')
+    print(f'monishield {__version__}')
     if not args.folder and not args.checksum:
         for k, v in cfg.public().items():
             if isinstance(v, dict): v = f'{len(v)} entri'
@@ -87,7 +87,7 @@ def _api(cfg, method, path, body=None):
     host, _, port = cfg.bind.rpartition(':')
     url = (cfg.api_url.rstrip('/') or f"http://{'127.0.0.1' if host in ('', '0.0.0.0') else host}:{port}") + path
     req = urllib.request.Request(url, method=method, data=json.dumps(body or {}).encode() if method != 'GET' else None,
-                                 headers={'Authorization': f'Bearer {cfg.job_token}', 'X-Requested-With': 'simpel4-cli', 'Content-Type': 'application/json'})
+                                 headers={'Authorization': f'Bearer {cfg.job_token}', 'X-Requested-With': 'monishield-cli', 'Content-Type': 'application/json'})
     try:
         with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=30) as r: return r.status, json.loads(r.read())
     except urllib.error.HTTPError as e: return e.code, json.loads(e.read() or b'{}')
@@ -248,7 +248,7 @@ def _date(s):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog='simpel4', description='Dashboard log SIMPEL4 v2')
+    ap = argparse.ArgumentParser(prog='monishield', description='Dashboard log SIMPEL4 v2')
     sub = ap.add_subparsers(dest='cmd', required=True)
     p = sub.add_parser('status', help='konfigurasi efektif dan keadaan data'); p.set_defaults(fn=cmd_status)
     p.add_argument('--folder', type=_date, help='rincian satu folder'); p.add_argument('--checksum', action='store_true', help='jumlah baris dan checksum tiap tabel')

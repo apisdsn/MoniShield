@@ -7,7 +7,7 @@ import csv, glob, gzip, itertools, json, os, re
 
 import pytest
 
-from simpel4 import rules
+from monishield import rules
 from conftest import ROOT, log_files
 
 NGINX_FOLDERS = ('2026-09-29', '2026-09-30', '2026-10-03', '2026-10-05', '2026-10-06')

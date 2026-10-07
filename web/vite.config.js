@@ -12,7 +12,7 @@ const api = 'http://127.0.0.1:8000';
 const LINKS = [['https://svelte.dev/e/', 'svelte/e/'], ['https://maplibre.org/', 'maplibre.org/'],
                ['https://github.com/mapbox/mapbox-gl-js/issues/2907', 'mapbox-gl-js#2907']];
 const noExternalLinks = {
-  name: 'simpel4-no-external-links',
+  name: 'monishield-no-external-links',
   renderChunk: (code) => ({ code: LINKS.reduce((c, [a, b]) => c.replaceAll(a, b), code), map: null }),
 };
 

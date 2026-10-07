@@ -14,8 +14,8 @@ import uvicorn  # noqa: E402
 
 import logs_mini  # noqa: E402
 from s3_tiruan import KEY_OK, S3Tiruan  # noqa: E402
-from simpel4 import config, db, importer, ingest  # noqa: E402
-from simpel4.api import app as appmod  # noqa: E402
+from monishield import config, db, importer, ingest  # noqa: E402
+from monishield.api import app as appmod  # noqa: E402
 
 D = '2026-01-05'
 SECRET = 'rahasiaTiruanUjiYangTidakBolehBocor0001'

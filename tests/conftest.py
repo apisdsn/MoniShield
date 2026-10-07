@@ -37,6 +37,6 @@ def auth_url(tmp_path):
     url = os.environ.get('S4_TEST_AUTH_URL')
     if not url: return 'sqlite:///' + str(tmp_path / 'auth.db')
     from sqlalchemy import create_engine
-    from simpel4 import auth
+    from monishield import auth
     e = create_engine(url); auth.Base.metadata.drop_all(e); e.dispose()
     return url

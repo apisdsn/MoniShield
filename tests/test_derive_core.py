@@ -5,7 +5,7 @@ import collections, dataclasses, glob, os
 import pytest
 
 import logs_mini
-from simpel4 import config, db, ingest, rules
+from monishield import config, db, ingest, rules
 from conftest import ROOT
 
 A, B = '2026-01-01', '2026-01-02'
@@ -90,7 +90,7 @@ def test_persentil_aturan_indeks_lama(tmp_path, old):
         vals = [((i * 7919) % 1000) / 10 for i in range(n)]
         con.execute('DELETE FROM sl_event')
         con.executemany("INSERT INTO sl_event VALUES (1, ?, DATE '2026-01-01', 'INFO', NULL, NULL, 'GET', '/x', '/x', 200, NULL, ?, false, NULL, NULL)", [[i, v * 1000] for i, v in enumerate(vals)])
-        stmt = dict((nm.split('_', 1)[1], s) for nm, s in __import__('simpel4.derive', fromlist=['x']).statements() if 'endpoint.sql' in nm and 'INSERT' in s)
+        stmt = dict((nm.split('_', 1)[1], s) for nm, s in __import__('monishield.derive', fromlist=['x']).statements() if 'endpoint.sql' in nm and 'INSERT' in s)
         con.execute('DELETE FROM agg_endpoint'); con.execute(stmt['endpoint.sql'], {'f': '2026-01-01'})
         got = con.execute('SELECT dur_n, p50, p95, p99, dur_max FROM agg_endpoint').fetchone()
         v = sorted(vals)

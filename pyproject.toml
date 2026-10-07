@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "simpel4"
+name = "monishield"
 version = "2.0.0"
 description = "Dashboard log SIMPEL4 (v2): ingest ke DuckDB, API FastAPI, tampilan Svelte"
 requires-python = ">=3.12"  # csv.QUOTE_NOTNULL (parse.py)
@@ -26,10 +26,10 @@ s3 = [
 ]
 
 [tool.setuptools]
-packages = ["simpel4", "simpel4.derive", "simpel4.api"]
+packages = ["monishield", "monishield.derive", "monishield.api"]
 
 [tool.setuptools.package-data]
-simpel4 = ["schema.sql", "derive/*.sql", "crs_rules.json", "capec.json", "CRS-LICENSE.txt"]
+monishield = ["schema.sql", "derive/*.sql", "crs_rules.json", "capec.json", "CRS-LICENSE.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -71,7 +71,7 @@ services:
     env_file: .env
     environment:
       S4_API_URL: http://app:8000     # diisi -> perintah tidak pernah membuka DuckDB sendiri (gagal bila app tidak terjangkau)
-    command: ["python", "-m", "simpel4", "ingest"]
+    command: ["python", "-m", "monishield", "ingest"]
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]

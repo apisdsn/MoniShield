@@ -117,9 +117,9 @@ bukti bahwa salinannya identik (TRD §4.1, §9.2).
 
 - `pyproject.toml` (dependensi: `duckdb`, `fastapi`, `uvicorn`; uji: `pytest`, `httpx`), `.gitignore`
   (`data/`, `.venv/`, `web/node_modules/`, `web/dist/`).
-- `simpel4/__init__.py`, `simpel4/__main__.py`, `simpel4/cli.py` (baru subperintah `status`).
-- `simpel4/config.py` (TRD §6.3; nilai bawaan = konstanta lama), `config.example.toml`.
-- `simpel4/rules.py`: salinan regex dan fungsi di TRD §4.1, tiap blok diberi catatan nomor baris asal.
+- `monishield/__init__.py`, `monishield/__main__.py`, `monishield/cli.py` (baru subperintah `status`).
+- `monishield/config.py` (TRD §6.3; nilai bawaan = konstanta lama), `config.example.toml`.
+- `monishield/rules.py`: salinan regex dan fungsi di TRD §4.1, tiap blok diberi catatan nomor baris asal.
 - `tests/test_rules.py`: (a) isi `demo()` lama; (b) perbandingan dengan `build_dashboard.py` untuk
   `classify`, `path_key`, `norm`, `jwt_bucket`, `accounts`, `incidents`, `ip_owner`, `geo_scan` atas masukan
   nyata yang diambil dari log (minimal 5.000 path, 500 UA, 500 pesan); dilewati bila modul lama tidak ada.
@@ -131,7 +131,7 @@ bukti bahwa salinannya identik (TRD §4.1, §9.2).
 |---|---|
 | `python3 -m venv .venv && .venv/bin/pip install -e ".[test]"` | selesai tanpa galat |
 | `pytest tests/test_rules.py -q` | semua lulus, 0 dilewati (modul lama ada) |
-| `py -m simpel4 status` | mencetak konfigurasi efektif: folder log, direktori data, cache; "belum ada database" |
+| `py -m monishield status` | mencetak konfigurasi efektif: folder log, direktori data, cache; "belum ada database" |
 | `ls -la ../build_dashboard.py ../dashboard_template.html` | tanggal ubah kedua file lama tetap (tidak disentuh) |
 
 ---
@@ -144,9 +144,9 @@ butir 3).
 
 **File dibuat**
 
-- `simpel4/schema.sql`: tabel kendali, mentah, dan agregat; view.
-- `simpel4/db.py`: membuka database, menerapkan skema (aman diulang), batas memori.
-- `simpel4/parse.py`: satu fungsi per jenis layanan; keluaran CSV per tabel + ringkasan file (`lines`,
+- `monishield/schema.sql`: tabel kendali, mentah, dan agregat; view.
+- `monishield/db.py`: membuka database, menerapkan skema (aman diulang), batas memori.
+- `monishield/parse.py`: satu fungsi per jenis layanan; keluaran CSV per tabel + ringkasan file (`lines`,
   `err`, `warn`, `corrupt_lines`, `file_counter`); bisa dijalankan sendiri untuk satu file.
 - `tests/fixtures/lines/*.txt`: baris asli per format dari inventaris §3 dan §4.1 (nama akun disamarkan).
 - `tests/test_parse.py`: (a) per baris contoh → baris keluaran dan perubahan penghitung yang diharapkan;
@@ -158,8 +158,8 @@ butir 3).
 | Perintah | Hasil yang diharapkan |
 |---|---|
 | `pytest tests/test_parse.py -q` | semua lulus |
-| `py -m simpel4.parse ../2026-10-06/ingress-nginx/nginx-ingress-controller/*5v8j4*.log --out /tmp/s4parse` | ringkasan: `lines=111301`; berkas `nginx_access.csv`, `nginx_error.csv`, `log_message.csv` terbentuk |
-| `py -c "from simpel4 import db; db.open(':memory:')"` lalu daftar tabel | semua tabel TRD §2 ada; menjalankan dua kali tidak galat |
+| `py -m monishield.parse ../2026-10-06/ingress-nginx/nginx-ingress-controller/*5v8j4*.log --out /tmp/s4parse` | ringkasan: `lines=111301`; berkas `nginx_access.csv`, `nginx_error.csv`, `log_message.csv` terbentuk |
+| `py -c "from monishield import db; db.open(':memory:')"` lalu daftar tabel | semua tabel TRD §2 ada; menjalankan dua kali tidak galat |
 
 Catatan: perbaikan level `crit` di frontend (TRD §4.4 butir 3) tidak mengubah angka pada data sekarang,
 karena tidak ada baris `crit`.
@@ -173,9 +173,9 @@ diulang (TRD §3.1–§3.3). Agregat belum.
 
 **File dibuat**
 
-- `simpel4/ingest.py`: pindai dua akar (folder log, kotak masuk), sidik jari (ukuran + mtime, lalu
+- `monishield/ingest.py`: pindai dua akar (folder log, kotak masuk), sidik jari (ukuran + mtime, lalu
   SHA-256 isi terdekompresi), parse di subproses, muat CSV, satu transaksi per folder, `ingest_run`.
-- `simpel4/cli.py`: subperintah `ingest [--folder] [--force]`, `forget <folder>`, `status` lengkap.
+- `monishield/cli.py`: subperintah `ingest [--folder] [--force]`, `forget <folder>`, `status` lengkap.
 - `tests/fixtures/logs_mini/`: folder log buatan kecil (dua tanggal, semua jenis layanan, satu file rusak,
   satu pasangan `.log`/`.log.gz`, satu folder tanpa namespace).
 - `tests/test_ingest.py`: semua butir TRD §9.4.
@@ -185,10 +185,10 @@ diulang (TRD §3.1–§3.3). Agregat belum.
 | Perintah | Hasil yang diharapkan |
 |---|---|
 | `pytest tests/test_ingest.py -q` | semua lulus |
-| `time py -m simpel4 ingest` (database kosong) | selesai ≤ 3 menit; 11 folder, 195 file, 0 gagal |
-| `py -m simpel4 status` | total baris 774.264; `nginx_access` 308.158; `fe_access` 148.049; `sl_event` 114.574; file 0 baris: 52 |
-| `time py -m simpel4 ingest` (kedua kali) | ≤ 5 detik; "0 file berubah" |
-| `py -m simpel4 status --checksum` sebelum dan sesudah ingest kedua | checksum tiap tabel sama |
+| `time py -m monishield ingest` (database kosong) | selesai ≤ 3 menit; 11 folder, 195 file, 0 gagal |
+| `py -m monishield status` | total baris 774.264; `nginx_access` 308.158; `fe_access` 148.049; `sl_event` 114.574; file 0 baris: 52 |
+| `time py -m monishield ingest` (kedua kali) | ≤ 5 detik; "0 file berubah" |
+| `py -m monishield status --checksum` sebelum dan sesudah ingest kedua | checksum tiap tabel sama |
 | `ls -la ../2026-10-06 ../.cache` | tidak ada berkas baru atau berubah di folder log |
 
 Baris per folder (Σ `ingest_file.lines`) harus sama dengan kolom "total" inventaris §7, mis. `2026-09-29`
@@ -209,9 +209,9 @@ keduanya satu cabang kecil di `ingest.py`.
 
 **File dibuat**
 
-- `simpel4/derive/__init__.py` (menjalankan berkas SQL berurutan untuk satu folder, di dalam transaksi
-  ingest) dan satu `simpel4/derive/NN_<tabel>.sql` per agregat di atas.
-- `simpel4/cli.py`: subperintah `derive [--folder | --all]`.
+- `monishield/derive/__init__.py` (menjalankan berkas SQL berurutan untuk satu folder, di dalam transaksi
+  ingest) dan satu `monishield/derive/NN_<tabel>.sql` per agregat di atas.
+- `monishield/cli.py`: subperintah `derive [--folder | --all]`.
 - `tests/test_derive_core.py`: pada `logs_mini`, nilai tiap agregat dihitung tangan; persentil memakai
   aturan indeks lama; "yang pertama" mengikuti urutan (`relpath`, `line_no`).
 
@@ -220,9 +220,9 @@ keduanya satu cabang kecil di `ingest.py`.
 | Perintah | Hasil yang diharapkan |
 |---|---|
 | `pytest tests/test_derive_core.py -q` | semua lulus |
-| `py -m simpel4 derive --all` | 11 folder diturunkan tanpa galat |
-| `py -m simpel4 status --folder 2026-09-29` | nginx: request 132.203, 4xx 4.635, 5xx 59, error 94, warning 164, IP unik 723, alur 1.762; simpel-loop: request 60.665, warning 9.614 |
-| `py -m simpel4 status --folder 2026-09-30` | nginx: error 1.690; error koneksi pod 1.200; retry 825 |
+| `py -m monishield derive --all` | 11 folder diturunkan tanpa galat |
+| `py -m monishield status --folder 2026-09-29` | nginx: request 132.203, 4xx 4.635, 5xx 59, error 94, warning 164, IP unik 723, alur 1.762; simpel-loop: request 60.665, warning 9.614 |
+| `py -m monishield status --folder 2026-09-30` | nginx: error 1.690; error koneksi pod 1.200; retry 825 |
 | Jalankan `derive --all` dua kali, bandingkan `status --checksum` | sama |
 
 Memuat perbaikan TRD §4.4 butir 2 dan 4 (chart per jam memuat baris error log; level efektif simpel-loop).
@@ -238,8 +238,8 @@ Memuat perbaikan TRD §4.4 butir 2 dan 4 (chart per jam memuat baris error log; 
 
 **File dibuat**
 
-- `simpel4/derive/NN_<tabel>.sql` untuk tiap agregat di atas; `simpel4/derive/accounts.py`,
-  `simpel4/derive/incidents.py` (memanggil fungsi di `rules.py` atas hasil query kecil).
+- `monishield/derive/NN_<tabel>.sql` untuk tiap agregat di atas; `monishield/derive/accounts.py`,
+  `monishield/derive/incidents.py` (memanggil fungsi di `rules.py` atas hasil query kecil).
 - Penurunan ulang agregat korelasi untuk folder lain yang terpengaruh (TRD §3.5), di `ingest.py`.
 - `tests/test_derive_features.py`: nilai dihitung tangan pada `logs_mini`, termasuk satu request id yang
   cocok lintas folder dan satu request id ganda.
@@ -249,9 +249,9 @@ Memuat perbaikan TRD §4.4 butir 2 dan 4 (chart per jam memuat baris error log; 
 | Perintah | Hasil yang diharapkan |
 |---|---|
 | `pytest tests/test_derive_features.py -q` | semua lulus |
-| `py -m simpel4 derive --all && py -m simpel4 status --folder 2026-09-29` | serangan 155 request / 77 URL / 12 IP; korelasi 22.638 dari 60.665; jejak 300+ baris (tidak dipotong); login gagal 86, reset 24, sukses 389; akun dianalisis 39; insiden 7; PDF 813 sukses / 32 gagal |
-| `py -m simpel4 status --folder 2026-10-06` | serangan 88; korelasi 4.161 dari 5.981; "Laporan Dibuat" 7 |
-| `time py -m simpel4 ingest --folder 2026-09-29 --force` | ≤ 60 detik (parse + muat + turunkan) |
+| `py -m monishield derive --all && py -m monishield status --folder 2026-09-29` | serangan 155 request / 77 URL / 12 IP; korelasi 22.638 dari 60.665; jejak 300+ baris (tidak dipotong); login gagal 86, reset 24, sukses 389; akun dianalisis 39; insiden 7; PDF 813 sukses / 32 gagal |
+| `py -m monishield status --folder 2026-10-06` | serangan 88; korelasi 4.161 dari 5.981; "Laporan Dibuat" 7 |
+| `time py -m monishield ingest --folder 2026-09-29 --force` | ≤ 60 detik (parse + muat + turunkan) |
 
 Memuat perbaikan TRD §4.4 butir 9 ("lambat ≥ 5 dtk" memuat 3xx); akun dan insiden tetap per folder (butir 7).
 
@@ -264,7 +264,7 @@ Memuat perbaikan TRD §4.4 butir 9 ("lambat ≥ 5 dtk" memuat 3xx); akun dan ins
 
 **File dibuat**
 
-- `simpel4/refdata.py`: unduhan ke cache (aturan umur lama), pemilik (`ip_owner`), lokasi (`geo_scan`),
+- `monishield/refdata.py`: unduhan ke cache (aturan umur lama), pemilik (`ip_owner`), lokasi (`geo_scan`),
   pembuatan `data/map/land.geojson`, `borders-country.geojson`, `borders-province-id.geojson`,
   `labels.json`.
 - Pemanggilan di akhir ingest; subperintah `refdata [--offline]`.
@@ -276,10 +276,10 @@ Memuat perbaikan TRD §4.4 butir 9 ("lambat ≥ 5 dtk" memuat 3xx); akun dan ins
 | Perintah | Hasil yang diharapkan |
 |---|---|
 | `pytest tests/test_refdata.py -q` | semua lulus |
-| `py -m simpel4 refdata` (cache lama `../.cache` dipakai) | tanpa unduhan baru; `ip_info` terisi |
-| `py -m simpel4 status` | IP dengan pemilik ≥ 1.734; IP dengan lokasi ≥ 1.676; server Jakarta (−6,17494; 106,822) |
+| `py -m monishield refdata` (cache lama `../.cache` dipakai) | tanpa unduhan baru; `ip_info` terisi |
+| `py -m monishield status` | IP dengan pemilik ≥ 1.734; IP dengan lokasi ≥ 1.676; server Jakarta (−6,17494; 106,822) |
 | `ls -la data/map/` | 4 berkas; `labels.json` berisi 177 negara / 38 provinsi / 514 kabupaten-kota |
-| `py -m simpel4 refdata --offline` dengan jaringan dimatikan | selesai, tanpa galat |
+| `py -m monishield refdata --offline` dengan jaringan dimatikan | selesai, tanpa galat |
 
 **Diputuskan pemilik (2026-10-06): lokasi IP dari MaxMind GeoLite2** (TRD §3.6), bukan DB-IP. Akibat untuk
 tahap ini:
@@ -287,7 +287,7 @@ tahap ini:
 - `refdata.py` mengunduh `GeoLite2-City-CSV` dengan `MAXMIND_ACCOUNT_ID`/`MAXMIND_LICENSE_KEY` dari `.env`,
   mengubah blok CIDR menjadi rentang terurut, dan memakai sapuan `geo_scan()` yang sama. `config.py`
   mendapat dua kunci itu (rahasia: tidak dicetak).
-- Verifikasi di tabel atas berubah: `py -m simpel4 refdata` **mengunduh** GeoLite2 (±49 MB) pada jalan
+- Verifikasi di tabel atas berubah: `py -m monishield refdata` **mengunduh** GeoLite2 (±49 MB) pada jalan
   pertama; "IP dengan lokasi ≥ 1.676" diganti "≥ 95 % IP publik punya lokasi" (angka lama berasal dari
   DB-IP); titik server tetap di Jakarta tetapi koordinatnya boleh berbeda.
 - Verifikasi tambahan: tanpa kunci → ingest selesai, lokasi kosong, ada keterangan; kunci tidak muncul di
@@ -367,15 +367,15 @@ peran (admin, user), audit, dan pemicu ingest (TRD §5.2, §5.5, §5.6, §8.1–
 
 **File dibuat**
 
-- `simpel4/auth.py`: model ORM akun di PostgreSQL/SQLite (TRD §2.6, K11), hash scrypt, sesi JWT di cookie, penguncian, CSRF, audit, token mesin,
+- `monishield/auth.py`: model ORM akun di PostgreSQL/SQLite (TRD §2.6, K11), hash scrypt, sesi JWT di cookie, penguncian, CSRF, audit, token mesin,
   dependensi "butuh sesi" dan "butuh admin".
-- `simpel4/api/app.py`: aplikasi FastAPI, satu koneksi DuckDB, format galat, header keamanan (CSP),
+- `monishield/api/app.py`: aplikasi FastAPI, satu koneksi DuckDB, format galat, header keamanan (CSP),
   penyajian berkas statis, pemeriksaan "setiap router mendeklarasikan peran" saat mulai.
-- `simpel4/api/common.py`: validasi parameter (TRD §8.1), sel IP + pemilik, kerangka endpoint tabel.
-- `simpel4/api/session.py` (`/api/auth/*`, `/api/me`), `users.py` (`/api/admin/users`, `audit`),
+- `monishield/api/common.py`: validasi parameter (TRD §8.1), sel IP + pemilik, kerangka endpoint tabel.
+- `monishield/api/session.py` (`/api/auth/*`, `/api/me`), `users.py` (`/api/admin/users`, `audit`),
   `admin.py` (`/api/admin/ingest`, `status`, `derive`, `forget`), endpoint `/api/health`, `/api/meta`,
   `/api/folders/{folder}`.
-- `simpel4/cli.py`: `serve`; `user create --admin`; `ingest`/`derive`/`forget` mencoba API dulu (token
+- `monishield/cli.py`: `serve`; `user create --admin`; `ingest`/`derive`/`forget` mencoba API dulu (token
   mesin), baru membuka DuckDB sendiri bila server mati.
 - `run.sh`: lingkungan, admin pertama, bangun frontend bila ada, `serve`.
 - `tests/test_auth.py`, `tests/test_api.py` (bagian kerangka): butir TRD §9.6 kecuali impor.
@@ -385,12 +385,12 @@ peran (admin, user), audit, dan pemicu ingest (TRD §5.2, §5.5, §5.6, §8.1–
 | Perintah | Hasil yang diharapkan |
 |---|---|
 | `pytest tests/test_auth.py tests/test_api.py -q` | semua lulus |
-| `S4_ADMIN_USER=admin S4_ADMIN_PASSWORD='<sandi 12+>' S4_COOKIE_SECURE=false py -m simpel4 serve &` | mendengar di `127.0.0.1:8000`; ingest awal "0 file berubah" |
+| `S4_ADMIN_USER=admin S4_ADMIN_PASSWORD='<sandi 12+>' S4_COOKIE_SECURE=false py -m monishield serve &` | mendengar di `127.0.0.1:8000`; ingest awal "0 file berubah" |
 | `curl -s -o /dev/null -w "%{http_code}" localhost:8000/api/meta` | `401` |
 | `curl -s -c /tmp/c -H 'Content-Type: application/json' -d '{"username":"admin","password":"…"}' localhost:8000/api/auth/login`, ganti sandi pertama (`POST /api/me/password`), lalu `curl -s -b /tmp/c localhost:8000/api/meta` | daftar 11 folder dengan rentang waktu; `ingest.running: false` |
 | `curl -s -b /tmp/c localhost:8000/api/folders/2026-10-06` | 7 layanan; nginx `err` 125; `attack_ip_count` 14 |
 | Admin membuat user `uji` (peran user); masuk sebagai `uji`: `GET /api/folders/2026-10-06`, lalu `GET /api/admin/users` | yang pertama 200 dengan 7 layanan (sama dengan admin); yang kedua `403` |
-| `py -m simpel4 ingest` saat server berjalan | lewat API; "0 file berubah"; tidak ada galat kunci file |
+| `py -m monishield ingest` saat server berjalan | lewat API; "0 file berubah"; tidak ada galat kunci file |
 | `curl -sI -b /tmp/c localhost:8000/api/meta` | header `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` ada |
 | Enam kali login dengan sandi salah | percobaan ke-6 → `429` |
 
@@ -406,9 +406,9 @@ terbuka untuk tahap ini.
 
 **File dibuat**
 
-- `simpel4/api/overview.py`, `map.py`, `trends.py`, `security.py`, `rootcause.py`, `availability.py`,
+- `monishield/api/overview.py`, `map.py`, `trends.py`, `security.py`, `rootcause.py`, `availability.py`,
   `pods.py`, `business.py`, `tracing.py`, `service.py`: satu modul per halaman.
-- `simpel4/api/common.py`: definisi 25 tabel (kolom, kolom yang boleh diurut, kolom teks untuk `q`, batas
+- `monishield/api/common.py`: definisi 25 tabel (kolom, kolom yang boleh diurut, kolom teks untuk `q`, batas
   bawaan).
 - `tests/test_api.py` (lanjutan): bentuk respons, `available: false`, validasi dan upaya penyisipan pada
   tiap parameter, ukuran respons ≤ 500 KB, **matriks peran** yang dibuat dari tabel TRD §8.3.
@@ -614,13 +614,13 @@ menempel kredensial lain sebagai cadangan (di memori saja).
 **File dibuat**
 
 - `pyproject.toml`: tambahan opsional `s3` berisi `boto3`.
-- `simpel4/importer.py`: pemeriksaan tautan (bentuk, daftar izin bucket dan awalan, tanggal), daftar
+- `monishield/importer.py`: pemeriksaan tautan (bentuk, daftar izin bucket dan awalan, tanggal), daftar
   objek, pemilihan (pola kunci, `.log` menang atas `.log.gz`, lewati yang ukuran + ETag-nya sama), unduhan
   berbatas ke direktori sementara, pemindahan atomik ke kotak masuk, `import_job`, mode coba, penyimpanan
   kredensial sementara di memori.
-- `simpel4/api/admin.py`: `POST /api/admin/import`, `GET /api/admin/import/{job_id}`,
+- `monishield/api/admin.py`: `POST /api/admin/import`, `GET /api/admin/import/{job_id}`,
   `POST`/`DELETE /api/admin/import/credentials`.
-- `simpel4/cli.py`: `import [--dry-run] s3://…`.
+- `monishield/cli.py`: `import [--dry-run] s3://…`.
 - `web/src/pages/AdminIngest.svelte`: kolom tautan, tombol "Coba dulu" dan "Impor", status impor, formulir
   kredensial sementara dengan keterangan kedaluwarsa.
 - `tests/s3_tiruan.py` (server S3 kecil untuk uji) dan `tests/test_import.py`: butir impor dan kredensial
@@ -632,15 +632,15 @@ menempel kredensial lain sebagai cadangan (di memori saja).
 | Perintah | Hasil yang diharapkan |
 |---|---|
 | `.venv/bin/pip install -e ".[test,s3]" && pytest tests/test_import.py -q` | semua lulus, tanpa menghubungi AWS |
-| Tanpa `import_buckets`: `py -m simpel4 import s3://simpel4-backup/k8s-logs/2026-09-26/` | ditolak: "impor tidak diaktifkan" |
-| `py -m simpel4 import s3://bucket-lain/k8s-logs/2026-09-26/` dan `…/k8s-logs/bukan-tanggal/` | keduanya ditolak dengan alasan |
+| Tanpa `import_buckets`: `py -m monishield import s3://simpel4-backup/k8s-logs/2026-09-26/` | ditolak: "impor tidak diaktifkan" |
+| `py -m monishield import s3://bucket-lain/k8s-logs/2026-09-26/` dan `…/k8s-logs/bukan-tanggal/` | keduanya ditolak dengan alasan |
 | Tanpa kredensial: impor tautan sah | pesan cara memberi kredensial; tidak ada berkas tertulis |
-| **Manual, dengan kredensial asli**: `py -m simpel4 import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/` | daftar objek; untuk tiap objek "ambil" / "lewati (alasan)"; susunannya cocok pola folder log (membuktikan T14); 0 byte diunduh |
+| **Manual, dengan kredensial asli**: `py -m monishield import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/` | daftar objek; untuk tiap objek "ambil" / "lewati (alasan)"; susunannya cocok pola folder log (membuktikan T14); 0 byte diunduh |
 | **Manual**: impor `2026-09-26` sungguhan ke database uji terpisah (`S4_DATA_DIR` lain, tanpa folder log lokal) | folder `2026-09-26` muncul; angkanya sama dengan acuan folder lokal: 1.203 baris, 6 error, 11 warning |
 | Kirim tautan yang sama lagi | "0 objek diunduh"; tidak ada data ganda |
-| `grep -rnE "AKIA|ASIA|aws_secret|SessionToken" data/ 2>/dev/null; py -m simpel4 status` | tidak ada kredensial di disk; status hanya menyebut "kredensial: tersedia (lingkungan)" |
+| `grep -rnE "AKIA|ASIA|aws_secret|SessionToken" data/ 2>/dev/null; py -m monishield status` | tidak ada kredensial di disk; status hanya menyebut "kredensial: tersedia (lingkungan)" |
 | Sebagai user biasa: buka layar impor / panggil endpoint | "tidak punya akses" / 403 |
-| Dengan kunci asli (yang bisa melihat semua bucket): `py -m simpel4 import --dry-run s3://<bucket lain di Jakarta>/x/2026-09-26/` | **ditolak oleh daftar izin sebelum menghubungi AWS** |
+| Dengan kunci asli (yang bisa melihat semua bucket): `py -m monishield import --dry-run s3://<bucket lain di Jakarta>/x/2026-09-26/` | **ditolak oleh daftar izin sebelum menghubungi AWS** |
 | Dengan token mesin: `curl -H "Authorization: Bearer $S4_JOB_TOKEN" -d '{"url":"s3://simpel4-backup/k8s-logs/2026-09-26/"}' …/api/admin/import` | 202; impor lalu ingest berjalan tanpa orang (otomatisasi) |
 | Mulai ulang server setelah menempel kredensial sementara | kredensial hilang; impor meminta lagi |
 
@@ -716,15 +716,15 @@ dikerjakan di sini karena mengubah konfigurasi klaster, di luar jangkauan proyek
   944 (Java) yang sasarannya URI, argumen, atau User-Agent; menyimpan pola, ID aturan, tingkat keparahan,
   tingkat paranoia, transformasi, dan tag CAPEC. Aturan yang polanya tidak bisa dipakai mesin regex Python
   dicatat dan dilewati, tidak diubah diam-diam.
-- `simpel4/crs_rules.json` (hasil alat di atas; ikut repo, sehingga tidak ada unduhan saat jalan) +
+- `monishield/crs_rules.json` (hasil alat di atas; ikut repo, sehingga tidak ada unduhan saat jalan) +
   berkas lisensi dan pemberitahuan CRS (Apache 2.0).
-- `simpel4/capec.json`: ID CAPEC → nama Indonesia dan Inggris untuk kategori yang dipakai.
-- `simpel4/detect.py`: menerapkan transformasi CRS yang dibutuhkan (decode URL, huruf kecil, buang
+- `monishield/capec.json`: ID CAPEC → nama Indonesia dan Inggris untuk kategori yang dipakai.
+- `monishield/detect.py`: menerapkan transformasi CRS yang dibutuhkan (decode URL, huruf kecil, buang
   komentar, dll.) lalu mencocokkan; keluaran per request: ID aturan yang kena, kategori CAPEC, keparahan,
   skor anomali.
-- `simpel4/schema.sql`: kolom baru di `nginx_access` (`crs_rules`, `capec`, `crs_severity`, `crs_score`);
+- `monishield/schema.sql`: kolom baru di `nginx_access` (`crs_rules`, `capec`, `crs_severity`, `crs_score`);
   kolom `attack_cat` lama **dipertahankan** agar uji kesetaraan tetap bisa dijalankan.
-- `simpel4/derive/`: agregat serangan dihitung dari klasifikasi baru; `rules_version` naik.
+- `monishield/derive/`: agregat serangan dihitung dari klasifikasi baru; `rules_version` naik.
 - `web/src/pages/Security.svelte`, kamus: kategori CAPEC, kolom "Aturan" (ID CRS), keterangan metode.
 - `tests/test_detect.py`: (a) muatan serangan dikenal per kategori → kena; (b) 22 ribu path nyata yang
   sekarang "bersih" → tingkat salah-tuduh diukur dan dilaporkan; (c) semua request yang kena aturan lama
@@ -738,9 +738,9 @@ dikerjakan di sini karena mengubah konfigurasi klaster, di luar jangkauan proyek
 |---|---|
 | `py tools/ambil_crs.py --check` | versi CRS terkunci; jumlah aturan diambil dan dilewati dicetak; `crs_rules.json` tidak berubah bila dijalankan ulang |
 | `pytest tests/test_detect.py -q` | semua lulus; tiap kategori punya contoh yang kena |
-| `py -m simpel4 derive --all` lalu `py tools/laporan_kesetaraan.py` | E1–E4 **tetap lulus** untuk angka lama (kolom `attack_cat`); angka serangan baru dilaporkan terpisah |
+| `py -m monishield derive --all` lalu `py tools/laporan_kesetaraan.py` | E1–E4 **tetap lulus** untuk angka lama (kolom `attack_cat`); angka serangan baru dilaporkan terpisah |
 | Baca `docs/04c-deteksi-crs.md` | untuk tiap folder: request serangan lama vs baru, per kategori; salah-tuduh pada lalu lintas normal < 0,5 % pada tingkat paranoia 1, atau aturan penyebabnya didaftar |
-| `time py -m simpel4 ingest --folder 2026-09-29 --force` | tetap ≤ 60 detik |
+| `time py -m monishield ingest --folder 2026-09-29 --force` | tetap ≤ 60 detik |
 | Halaman Keamanan folder `2026-10-06` | kategori bernama CAPEC dalam dua bahasa; tiap baris menyebut ID aturan CRS; catatan kaki menyebut CRS, versinya, dan bahwa hanya URL dan User-Agent yang diperiksa |
 
 **Keterbatasan yang tetap ada** (ditulis juga di halaman): body POST, header selain User-Agent, dan cookie
@@ -774,7 +774,7 @@ baru di-ingest atau tombol "Muat ulang", tanpa aliran realtime (Kafka ditunda).
 
 **File** (ditambahkan saat dikerjakan; bagian ini sebelumnya tanpa daftar file dan verifikasi):
 
-- `simpel4/api/command.py`: `GET /api/folders/{folder}/command[?module=]` = KPI utama (request HTTP, 5xx, error semua
+- `monishield/api/command.py`: `GET /api/folders/{folder}/command[?module=]` = KPI utama (request HTTP, 5xx, error semua
   layanan, error koneksi upstream, IP sumber serangan, IP login gagal) + butir "yang perlu perhatian" (kunci + angka +
   halaman tujuan) + respons Peta IP. Tidak ada perhitungan baru: tiap angka dibaca dari agregat halaman asalnya.
 - `web/src/pages/CommandCenter.svelte` (menggantikan `IpMap.svelte`, alamat tetap `#/peta?modul=`), `lib/FlowMap.svelte`
@@ -821,7 +821,7 @@ basis data (tidak ada sumber baru, tidak ada yang dikirim ke pihak ketiga).
 | 8 | Heatmap jam × tanggal | Tren: request ingress / error semua layanan, satu warna berurutan, 5 kelas + legenda, keterangan saat diarahkan, "Lihat sebagai tabel" |
 | 9 | Ringkasan harian PDF | tombol di Command Center → cetak browser (Simpan sebagai PDF): A4 mendatar **1 halaman**, tema terang, KPI + angka peta + gambar peta (kanvas difoto, atribusi ikut) + butir perhatian. **ASUMSI**: lewat cetak browser, tanpa pustaka PDF di server |
 
-**File**: `simpel4/api/command.py` (diperluas), `api/ips.py`, `api/search.py` (baru), `api/security.py`, `api/trends.py`,
+**File**: `monishield/api/command.py` (diperluas), `api/ips.py`, `api/search.py` (baru), `api/security.py`, `api/trends.py`,
 `detect.py` (`rule_msgs`); `web/src/pages/IpProfile.svelte`, `lib/GlobalSearch.svelte`, `lib/Heatmap.svelte` (baru),
 `pages/CommandCenter.svelte`, `pages/Trends.svelte`, `pages/Security.svelte`, `pages/Service.svelte`, `lib/IpCell.svelte`,
 `lib/DataTable.svelte` (filter dari luar bisa menggulir), `lib/MapView.svelte` (`preserveDrawingBuffer` untuk peta
@@ -889,7 +889,7 @@ atau dari TRD/DRD, dan alasannya.
 | 16 | 2026-10-06 | (a) "Ringkasan akar masalah" memakai komponen generik `Summary.svelte` (potongan teks / tebal / kode, dua bahasa) karena kalimat lama memuat `<code>` di tengah kalimat. (b) Upstream DNS di kalimat DNS diambil dari konfigurasi (`/api/meta` → `dns_upstream`), lama ditulis mati `10.88.1.100` (nilai bawaan sama). Bila tidak ada domain berdampak, potongan ", termasuk ke …" dihilangkan (lama menulis "termasuk ke ."). (c) `ChartCard` mendapat slot kaki (`footer`) untuk keterangan "Refresh token kedaluwarsa: N" (B07) di bawah chart JWT; bila lebih dari satu layanan, rinciannya ikut. (d) Kelas `.kpis.four` (4 kolom di layar lebar) dipindah ke `theme.css`, dipakai Keamanan dan Ketersediaan. (e) Persentase ketersediaan mengikuti bahasa (`98,000 %` / `98.000%`); lama selalu titik. (f) Alat uji: tabel 401 lama dibandingkan dengan 30 baris pertama v2 menurut aturan E2 (urutan jumlah identik; baris bernilai sama di batas 30 boleh beda pilihan). Pencarian tabel di `uji_tahap15/16` kini melewati kartu chart berjudul mirip (semula satu pemeriksaan lulus kosong). Verifikasi 5 dari 5 lulus: build + `cek_i18n` (389 kunci); `tools/uji_tahap16.cjs` 65/65 berdampingan dengan lama — Akar Masalah 29 Sep: ringkasan 5 butir sama, chart JWT sama, **baru** "Refresh token kedaluwarsa: 237", tabel 401 "Menampilkan 30 dari 653"; 06 Okt, 30 Sep (butir error koneksi 200 → 1.200, diharapkan), 27 Sep juga sama; Ketersediaan 30 Sep: KPI error koneksi pod **1.200** (lama 200), retry **825**, **10** insiden, KPI lain, 3 chart, dan tabel sama; 06 Okt sama; 28 Sep catatan tanpa nginx; 8 kombinasi untuk kedua halaman. |
 | 17 | 2026-10-06 | (a) **ASUMSI (Pelacakan)**: folder yang punya simpel-loop tetapi tidak satu pun requestId-nya cocok dengan nginx (`matched = 0`, mis. 27 dan 28 Sep) menampilkan catatan "Pelacakan butuh log om-be-simpel-loop dan ingress nginx …" (DRD §6.6, rencana 27 Sep); dashboard lama untuk folder itu menampilkan halaman berisi KPI nol karena `corr` = `[0, N]`. (b) KPI Pelacakan gagal / IP gagal / lambat dan dua chart-nya dihitung dari **semua** jejak (TRD §4.4 butir 1, 9): 29 Sep gagal 3.245 → 3.479, IP 150 → 176, lambat 15 → 24; chart IP dan jenis error berbeda sedikit dari lama karena lama memakai 300 jejak; 06 Okt (111 jejak) sama persis. (c) Bisnis: KPI yang lognya tidak ada tampil "–" + "Log <layanan> tidak ada di folder ini" per sumber (simpel-loop 7 KPI, report 2, appsmanager 2), bukan 0 (U16); perubahan vs folder sebelumnya hanya untuk metrik simpel-loop dengan aturan "sebanding" lama. Label metrik bisnis dari kamus `biz.<slug>`; metrik yang belum ada di kamus tampil apa adanya. (d) Pod: status file "Rusak" menggantikan "Ada Log"/"Tanpa Log" lama (B05; 06 Okt: 3 file rusak berisi 1 baris, di lama "Ada Log"); "Pod dengan retry" mendapat keterangan (i). (e) Tabel jejak: kolom URL memakai `AttackUrl` (host dari konfigurasi + path, UA di bawahnya), URL dipotong 200 dengan teks lengkap di tooltip; kolom waktu boleh dua baris agar tabel muat di 1440 px. (f) Alat uji: tabel aktivitas dibandingkan dengan aturan E2 (seri di batas 20 boleh beda pilihan); server lokal menyimpan `index.html` saat mulai, jadi server dijalankan ulang setelah build. Peringatan a11y `tabindex` di `Trends.svelte` (sejak Tahap 14) belum diubah. Verifikasi 7 dari 7 lulus: build + `cek_i18n` (443 kunci); `tools/uji_tahap17.cjs` **91/91** berdampingan dengan lama — Pod 06 Okt / 29 Sep / 28 Sep: 5 KPI, 2 chart, 3 tabel sama, status "Rusak" 3 file; Bisnis 29 Sep: 12 / 108 / 35 / 12 / 314 / 18 / 55 / PDF 813 / 32 / login 389, perubahan, 5 chart, 2 tabel sama; 30 Sep: 9 KPI "–" + keterangan, login 110 / 66; Pelacakan 29 Sep: 60.665 / 22.638 / 37,3 %, tabel "Menampilkan 300 dari 550" dan setelah dimuat semua 300 baris lama ada di v2; 27 Sep catatan (ASUMSI) dan 30 Sep tanpa simpel-loop catatan seperti lama; 8 kombinasi untuk ketiga halaman. Regresi lulus: `uji_browser` 51/51, `uji_sesi` 7/7 (server dengan `S4_SESSION_IDLE_MINUTES=5`), `uji_tahap13` 39/39, `uji_tahap14` 21/21, `uji_tahap15` 35/35, `uji_tahap16` 65/65; `test_format` 8/8; `cek_kontras` semua pasangan; URL di `web/dist` hanya skema XML. |
 | 18 | 2026-10-06 | (a) **API ditambah** di luar daftar berkas: `GET /api/admin/ingest/status` kini memuat `last_run` (ingest terakhir yang selesai, dibaca dari tabel `ingest_run`: waktu UTC, status, file dilihat/berubah, peringatan), karena status di memori kosong setelah server dimulai ulang; uji di `test_api.py` ditambah. (b) **ASUMSI "permintaan berikutnya"**: App membaca ulang `/api/me` setiap pindah tab dan muat ulang; halaman yang dibiarkan terbuka tanpa navigasi tetap memakai menu lama sampai itu (API tetap menolak 403 seketika). (c) **ASUMSI**: menonaktifkan akun sendiri tidak ditawarkan (server mengizinkan bila masih ada admin lain), sama seperti menghapus diri sendiri. (d) Catatan audit memuat 500 entri terbaru; tabel menampilkan 50 + "tampilkan berikutnya" dan memfilter di browser; bila lebih dari 500, keterangan "500 terbaru dari N". (e) Kartu "Impor dari S3" berisi catatan Tahap 19. (f) Komponen baru `lib/Dialog.svelte` (`<dialog>` bawaan + `showModal()`: fokus terkunci, Esc, fokus kembali ke pemicu; layar penuh di ≤ 560 px) dan `lib/RowMenu.svelte` (menu ⋯ `position: fixed` agar tidak terpotong tabel; butir nonaktif dengan sebab). `DataTable`: sel kartu baris ponsel kini `justify-items: start` (tag tidak melebar penuh) — berlaku di semua halaman, regresi dijalankan. (g) `format.utcToWib()` (waktu akun/ingest disimpan UTC) + uji. (h) Pesan galat server berbahasa Indonesia; layar memetakan kode galat ke kamus agar dua bahasa. (i) Kunci `placeholder.admin` dihapus. (j) Kaki sidebar "Ingest terakhir …" masih dari status di memori (`/api/meta`), belum memakai `last_run`. (k) Alat uji: ingest tanpa perubahan selesai < 0,5 dtk sehingga status "berjalan" tidak selalu terbaca di antara dua pembacaan; dibuktikan dengan tombol nonaktif + `run_id` baru, sedangkan "dashboard tetap terbuka selama ingest" dibuktikan lebih kuat oleh `test_ingest_lewat_api_dan_dashboard_tetap_terbuka` (ingest paksa). Verifikasi 9 dari 9 lulus: build + `cek_i18n` (523 kunci); `tools/uji_tahap18.cjs` **33/33** (dua kali berturut-turut) dengan dua jendela — tambah rina → wajib ganti sandi → dashboard tanpa menu admin; naik/turun peran berlaku pada pindah tab berikutnya; user biasa di layar admin "Tidak punya akses" + 403; reset sandi dan nonaktifkan mengakhiri sesi seketika, sandi sementara tampil sekali; admin terakhir tidak ditawarkan, PATCH → 409, daftar basi → pesan di dialog; "Ingest sekarang" → "0 file berubah", data 200 selama berjalan; audit 11 jenis tindakan dengan waktu, pelaku, IP, tanpa sandi/token; 8 kombinasi untuk kedua layar; dialog layar penuh di 390 px. Regresi lulus: `pytest` 239 lulus, 2 dilewati; `uji_browser` 51/51, `uji_sesi` 7/7, `uji_tahap13` 39/39, `uji_tahap14` 21/21, `uji_tahap15` 35/35, `uji_tahap16` 65/65, `uji_tahap17` 91/91 (setelah perubahan `DataTable`); `test_format` 9/9; `cek_kontras` semua pasangan. |
-| 19 | 2026-10-06 | **SEBAGIAN.** (a) **Belum diuji: dua baris Manual** (mode coba dan impor `2026-09-26` dengan kredensial asli, termasuk pembuktian ASUMSI T14 dan angka 1.203 / 6 / 11). `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` di lingkungan sesi ini hanya nilai pengisi (14 karakter, bukan bentuk kunci AWS); S3 menjawab `InvalidAccessKeyId`. Titik akhir S3 Jakarta **terjangkau** dari lingkungan ini (lewat proxy), tetapi X2 tetap harus diperiksa di server. Langkah untuk pemilik: isi kunci asli di `.env` + `S4_IMPORT_BUCKETS`, lalu `py -m simpel4 import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/` dan impor ke `S4_DATA_DIR` terpisah (README §Impor). (b) **Tambahan API**: `GET /api/admin/import` (hanya admin: aktif?, bentuk tautan yang diterima, status kredensial, 20 job terakhir) untuk riwayat di layar; `/api/meta` mendapat `imports` (aktif, kredensial tersedia + sumber). (c) Konfigurasi baru `import_timeout_minutes` (30). (d) Rencana objek per job (ambil/lewati + alasan) disimpan di **memori** (20 job terakhir), basis data `import_job` menyimpan ringkasan; status job `berjalan` / `coba` / `selesai` / `gagal`. (e) "Sama dengan unduhan sebelumnya" dicatat di manifest `.s3-import.json` di folder kotak masuk (ukuran + ETag + berkas masih ada). (f) Kunci objek tidak aman (`..`, `//`, karakter kendali) **membatalkan seluruh impor** (TRD §9.6), objek di luar pola hanya dilewati. (g) Ingest setelah impor memakai `IngestManager.run_blocking` (menunggu ingest lain, berbagi kunci). (h) Kredensial tempel: ID kunci harus huruf besar/angka 16–128, rahasia 16–128; diaudit tanpa nilai. (i) Pesan galat: bahasa Indonesia = pesan server (memuat rincian), EN = kamus per kode; pesan ringkas job di riwayat tetap teks server berbahasa Indonesia. (j) `tools/server_uji_impor.py` menjalankan dashboard + S3 tiruan untuk uji browser; titik akhir S3 dialihkan lewat `importer.ENDPOINT` yang sengaja **tidak** tersedia di konfigurasi. (k) `README.md` dibuat (belum ada) dengan contoh kebijakan IAM baca-saja `simpel4-backup/k8s-logs/`. Verifikasi yang bisa dijalankan, semuanya lulus: `pip install -e ".[test,s3]"` + `pytest tests/test_import.py` **28 lulus** tanpa menghubungi AWS (uji terbukti gagal bila aturan `.gz` berpasangan atau daftar izin awalan dirusak); tanpa `import_buckets` → "Impor tidak diaktifkan"; `bucket-lain`, `bukan-tanggal`, dan bucket Jakarta lain → ditolak sebelum menghubungi AWS; tanpa kredensial → pesan cara memberi, tidak ada berkas tertulis; tidak ada kunci AWS di `data/` (pola kunci 0; "ASIA" hanya nama ISP) dan `status` menyebut "kredensial impor: tersedia (lingkungan)"; user biasa → 403 (uji); token mesin → **202** di server sungguhan (job lalu gagal di S3 karena kunci pengisi), token mesin ke endpoint kredensial → 401; kredensial tempel hilang setelah server dimulai ulang dan tidak ada di log server maupun basis data akun; `tools/uji_tahap19.cjs` **22/22** (coba dulu 0 byte, impor + konfirmasi + ingest → folder muncul, impor ulang 0 objek, tempel/hapus kredensial, galat EN, audit tanpa rahasia, 8 kombinasi). Regresi: `pytest` 267 lulus, 2 dilewati; `uji_tahap18` 33/33; `cek_i18n` 582 kunci; `test_format` 9/9; `cek_kontras` semua pasangan. |
+| 19 | 2026-10-06 | **SEBAGIAN.** (a) **Belum diuji: dua baris Manual** (mode coba dan impor `2026-09-26` dengan kredensial asli, termasuk pembuktian ASUMSI T14 dan angka 1.203 / 6 / 11). `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` di lingkungan sesi ini hanya nilai pengisi (14 karakter, bukan bentuk kunci AWS); S3 menjawab `InvalidAccessKeyId`. Titik akhir S3 Jakarta **terjangkau** dari lingkungan ini (lewat proxy), tetapi X2 tetap harus diperiksa di server. Langkah untuk pemilik: isi kunci asli di `.env` + `S4_IMPORT_BUCKETS`, lalu `py -m monishield import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/` dan impor ke `S4_DATA_DIR` terpisah (README §Impor). (b) **Tambahan API**: `GET /api/admin/import` (hanya admin: aktif?, bentuk tautan yang diterima, status kredensial, 20 job terakhir) untuk riwayat di layar; `/api/meta` mendapat `imports` (aktif, kredensial tersedia + sumber). (c) Konfigurasi baru `import_timeout_minutes` (30). (d) Rencana objek per job (ambil/lewati + alasan) disimpan di **memori** (20 job terakhir), basis data `import_job` menyimpan ringkasan; status job `berjalan` / `coba` / `selesai` / `gagal`. (e) "Sama dengan unduhan sebelumnya" dicatat di manifest `.s3-import.json` di folder kotak masuk (ukuran + ETag + berkas masih ada). (f) Kunci objek tidak aman (`..`, `//`, karakter kendali) **membatalkan seluruh impor** (TRD §9.6), objek di luar pola hanya dilewati. (g) Ingest setelah impor memakai `IngestManager.run_blocking` (menunggu ingest lain, berbagi kunci). (h) Kredensial tempel: ID kunci harus huruf besar/angka 16–128, rahasia 16–128; diaudit tanpa nilai. (i) Pesan galat: bahasa Indonesia = pesan server (memuat rincian), EN = kamus per kode; pesan ringkas job di riwayat tetap teks server berbahasa Indonesia. (j) `tools/server_uji_impor.py` menjalankan dashboard + S3 tiruan untuk uji browser; titik akhir S3 dialihkan lewat `importer.ENDPOINT` yang sengaja **tidak** tersedia di konfigurasi. (k) `README.md` dibuat (belum ada) dengan contoh kebijakan IAM baca-saja `simpel4-backup/k8s-logs/`. Verifikasi yang bisa dijalankan, semuanya lulus: `pip install -e ".[test,s3]"` + `pytest tests/test_import.py` **28 lulus** tanpa menghubungi AWS (uji terbukti gagal bila aturan `.gz` berpasangan atau daftar izin awalan dirusak); tanpa `import_buckets` → "Impor tidak diaktifkan"; `bucket-lain`, `bukan-tanggal`, dan bucket Jakarta lain → ditolak sebelum menghubungi AWS; tanpa kredensial → pesan cara memberi, tidak ada berkas tertulis; tidak ada kunci AWS di `data/` (pola kunci 0; "ASIA" hanya nama ISP) dan `status` menyebut "kredensial impor: tersedia (lingkungan)"; user biasa → 403 (uji); token mesin → **202** di server sungguhan (job lalu gagal di S3 karena kunci pengisi), token mesin ke endpoint kredensial → 401; kredensial tempel hilang setelah server dimulai ulang dan tidak ada di log server maupun basis data akun; `tools/uji_tahap19.cjs` **22/22** (coba dulu 0 byte, impor + konfirmasi + ingest → folder muncul, impor ulang 0 objek, tempel/hapus kredensial, galat EN, audit tanpa rahasia, 8 kombinasi). Regresi: `pytest` 267 lulus, 2 dilewati; `uji_tahap18` 33/33; `cek_i18n` 582 kunci; `test_format` 9/9; `cek_kontras` semua pasangan. |
 | 20 | 2026-10-06 | (a) **Selisih yang diharapkan**: KPI rencana "222 lokasi, 12 negara, 2.030 request dari luar Indonesia" adalah angka DB-IP dashboard lama; v2 memakai MaxMind GeoLite2 (rencana Tahap 7 butir i) sehingga 06 Okt = **166 lokasi, 9 negara, 1.293** dari luar Indonesia. IP asal (516), modul (9), pod (15), total request (124.822), dan 0 dari IP internal **sama** dengan lama. (b) **Keputusan pemilik di tengah tahap**: lingkaran kelompok **tanpa angka** (DRD §7.5/ASUMSI D5 berubah; ukuran tetap menurut request, angka di tooltip); label lokasi terbesar bergaya contoh pemilik: nama tebal + baris kecil "N IP · N req". (c) **ASUMSI**: label 6 lokasi terbesar ikut aturan tabrakan (DRD §7.3 "tanpa bertumpuk"); di tampilan Indonesia tampil 5, label ke-6 (Serang, ±15 px dari Jakarta + label server) muncul saat diperbesar — dashboard lama menggambarnya bertumpuk. (d) **Pertanyaan pemilik: OpenStreetMap?** Ubin OSM daring tidak dipakai (mengirim IP pembuka dashboard ke pihak ketiga, melanggar aturan proyek; kebijakan ubin OSM); data OSM bisa menyusul sebagai ubin vektor yang dilayani sendiri (mis. PMTiles) bila pemilik memutuskan — mesin peta tetap MapLibre. Sampai itu ASUMSI D4 (Natural Earth) tetap. (e) **Kelancaran zoom**: di lingkungan uji tanpa GPU (WebGL perangkat lunak) animasi zoom ±10–12 frame/detik; hampir seluruh beban dari pengisian poligon daratan (tanpa daratan 30 fps, latar saja 60 fps). Uji penyederhanaan geometri (`tolerance` 1 dan 2) tidak memberi perbaikan yang konsisten, jadi tidak diterapkan; **perlu dicoba pemilik di perangkat ber-GPU**. (f) Glyph Noto Sans Regular/Bold rentang 0–255, 256–511, 7680–7935 (nama kota Vietnam), 8192–8447 dari openmaptiles/fonts v2.0 + `OFL.txt` (780 KB). (g) MapLibre 5.24 (BSD-3) dimuat sebagai chunk terpisah (±1 MB) hanya saat peta dibuka; plugin build membuang tautan maplibre.org/GitHub yang tak terpakai, sehingga di hasil build hanya tersisa skema XML + tautan atribusi MaxMind dan GeoNames. (h) Tooltip lewat kursor/ketukan; titik **tidak** bisa difokus satu per satu dengan keyboard (ASUMSI: tabel alur adalah padanannya, §7.9, dengan tautan "Lewati peta"); keyboard di peta: panah, +/−, 0, Esc. (i) Tombol layar penuh ⛶ di ≤ 900 px terpisah dari ⤢ (kembali ke preset). (j) Teks gerakan kooperatif dua bahasa diganti lewat kamus UI MapLibre (`map._locale`) lalu diaktifkan ulang. (k) Halaman layanan: respons `services/{svc}` mendapat `has_flows` (API ditambah + uji) agar layanan tanpa alur tidak meminta `/map` (yang menjawab 404). (l) `DataTable` mendapat `search` (filter dari luar). (m) Kait uji `box.__map`. (n) Halaman `Placeholder` dan 14 kunci `placeholder.*` dihapus (semua tab sudah punya halaman). (o) Catatan tabel alur menyebut MaxMind; "maksimal 3.000 alur" dihapus (v2 tidak memotong; 100 pertama + lanjutan, X6). (p) Yang belum diuji otomatis: cubit memperbesar (yang diuji: geser dua jari, satu jari tidak menggeser peta). Verifikasi: build + `cek_i18n` (608 kunci); `tools/uji_tahap20.cjs` **26/26** — KPI dan tabel alur vs lama, ganti modul (kamera tetap), roda mouse + petunjuk Ctrl, keyboard, klik titik → "Lihat di tabel", dunia → Jawa (kelompok pecah, label bertahap), tema/bahasa (posisi tetap, atribusi), **internet diputus → peta tetap tampil**, **0 permintaan ke domain lain**, 28 Sep catatan, layanan om-be-simpel-loop terlipat → alur modul itu, 390 px sentuh (CDP), 8 kombinasi. Regresi lulus setelah perubahan `DataTable` dan halaman layanan: `pytest` 267 lulus, 2 dilewati (termasuk kesetaraan E1–E4); `uji_browser` 51/51, `uji_sesi` 7/7, `uji_tahap13` 39/39 (semula 38/39: 404 di konsol halaman layanan non-modul, diperbaiki dengan `has_flows`), `uji_tahap14` 21/21, `uji_tahap15` 35/35, `uji_tahap16` 65/65, `uji_tahap17` 91/91, `uji_tahap18` 33/33; `test_format` 9/9; `cek_kontras` semua pasangan. |
 | 21 | 2026-10-06 | (a) **Skema tampilan** `S4_ATTACK_RULES` = `crs` (bawaan) / `lama`, dan `S4_ATTACK_PARANOIA` (1–4); aturan lama (`attack_cat`, `agg_attack_*`) tetap dihitung, agregat CRS di tabel baru `agg_crs_url/ip/hour` (rencana: agregat lama diganti). Uji kesetaraan memakai `lama`. (b) Kategori = **CAPEC/keluarga CRS** (mis. `242/xss`), karena beberapa aturan hanya membawa CAPEC umum; CAPEC dipilih dari jumlah skor terbesar. (c) Penurunan ulang otomatis memakai `folder_state.crs_version` (bukan `rules_version`). (d) `@pm` disusun sebagai regex trie (3,4 → ≈ 1 ms per path). (e) **Keterbatasan**: libinjection (942100, 941100) tidak ada di Python, tautologi `' OR 1=1` baru tertangkap di PL2; UA alat umum (curl, Go-http-client, python-requests) bukan serangan menurut CRS. (f) Angka berubah disengaja: total request serangan 315 → 110, 06 Okt 88 → 50 dan IP 14 → 4; `tests/test_api.py::test_folder` IP penyerang 2 → 1; KPI kritis = keparahan CRITICAL (label baru). Rincian di `docs/04c-deteksi-crs.md`. (g) Path bersih yang diuji salah-tuduh 30.512 (rencana menyebut 22 ribu): 0,043 %. Verifikasi: `ambil_crs.py --check` sama (176 diambil, 27 dilewati); `pytest test_detect test_config` 34 lulus, 2 dilewati (data nyata dipakai server), sebelumnya `test_detect` dengan data nyata + test_api 67 + test_refdata 13 lulus; kesetaraan E1/E3/E4 0 selisih dengan skema `lama`; `derive --all` 39 dtk, ingest 09-29 `--force` 24 dtk; `uji_tahap21.cjs` **22/22**. Regresi browser: uji_browser, uji_sesi, uji_tahap 13, 16, 17, 18, 20 lulus. **Tidak dijalankan ulang** atas permintaan pemilik: uji_tahap 14 dan 15 dengan server `S4_ATTACK_RULES=lama` (putaran yang jalan memakai CRS karena uji_sesi menyalakan ulang server tanpa variabel itu, sehingga beda angka serangan = perubahan disengaja) dan pytest penuh. |
 | 22 | 2026-10-06 | (a) **ASUMSI** (DRD §12): tab Peta IP diserap di alamat yang sama `#/peta?modul=` (tautan lama tetap jalan); label sidebar dan judul jadi "Command Center"; `IpMap.svelte` dihapus. (b) Rencana tahap ini tanpa daftar file dan verifikasi; keduanya ditulis saat dikerjakan (bagian Tahap 22). (c) KPI utama dan butir perhatian dipilih dari daftar TRD §12 (serangan, login gagal, 5xx, error koneksi pod) + file rusak; 6 angka peta lama tampil sebagai baris ringkas di samping pemilih modul. (d) **Permintaan pemilik di tengah tahap**: peta selebar dan setinggi layar (`100dvh − 300 px`, ponsel `− 220 px`), kartu perhatian di bawah peta (rancangan awal: di samping). Akibatnya butir 390 px Tahap 20 "peta 4:3" diganti "setinggi layar". (e) Tambahan di luar tahap: `pyproject.toml` kini menyertakan `crs_rules.json`, `capec.json`, `CRS-LICENSE.txt` (Tahap 21 lupa; pemasangan non-editable gagal memuat aturan); README mendapat panduan "Cara menjalankan" (permintaan pemilik). Verifikasi: `pytest tests/test_api.py` 68 lulus (termasuk uji Command Center baru); lihat 1440/390 px dan folder tanpa nginx (28 Sep) tanpa gulir mendatar dan tanpa galat konsol; `uji_tahap20.cjs` 25/26 di tempat baru, satu-satunya gagal = ukuran 4:3 yang sengaja diganti (624 px = 844 − 220), ekspektasinya diperbarui tetapi uji tidak dijalankan ulang. |
@@ -898,4 +898,5 @@ atau dari TRD/DRD, dan alasannya.
 | 25 | 2026-10-07 | (f) **Perbaikan dari laporan pemilik**: (1) ingest gagal `Duplicate key "run_id: 28"` — sequence DuckDB (`seq_run_id`, juga `seq_file_id`) bisa tertinggal dari baris tersimpan setelah proses dihentikan paksa; nomor baru kini `max(nextval, max(id)+1)` (`ingest._next_id`, aman karena satu penulis), database yang sudah terlanjur tertinggal sembuh sendiri; uji `test_sequence_tertinggal_tidak_membuat_duplicate_key` (gagal dengan galat yang sama tanpa perbaikan). (2) impor gagal `No module named 'botocore'` — paket opsional `s3` belum terpasang: impor kini ditolak di depan (`no_s3_library`, pesan cara memasang, tanpa job gagal), layar menonaktifkan impor dengan keterangan, CLI juga memeriksa; `run.sh` memasang `.[s3]` dan memasang ulang bila `pyproject.toml` berubah (dulu hanya saat `.venv` belum ada); uji `test_tanpa_boto3_ditolak_dengan_cara_memasang`. pytest import+ingest+api 122 lulus. |
 | 25 | 2026-10-07 | (g) **Impor S3: ekstrak otomatis** (permintaan pemilik): `S4_IMPORT_EXTRACT` (bawaan true) — tiap `.log.gz` yang diunduh diekstrak menjadi `.log` di folder sementara lalu `.gz` dibuang sebelum dipindah ke kotak masuk; gzip rusak/terpotong → `bad_gzip`, hasil > 20× batas objek → `extract_too_large` (impor dibatalkan, kotak masuk tidak berubah); manifest mencatat `stored`/`stored_size` sehingga impor ulang tidak mengunduh ulang; `.gz` dari impor lama diekstrak di tempat tanpa unduh. Uji +5 (import+ingest+config 63 lulus). |
 | 25 | 2026-10-07 | (h) **Hapus folder log dari daftar** (permintaan pemilik): kartu "Folder log" di Ingest & impor (`lib/FolderManager.svelte`; `GET /api/admin/folders`, `POST /api/admin/folders/{f}/delete` `{delete_inbox}`, `POST …/restore`, admin saja, diaudit). Data folder dihapus (`ingest.forget`); file kotak masuk ikut dihapus bila dicentang; file folder log utama TIDAK dihapus (hanya-baca) — folder dicatat di tabel baru `folder_ignored` (kolom `ignored_folder`, agar tidak ikut terhapus `forget`) sehingga ingest, sinkronisasi, dan lencana folder baru melewatinya sampai dipulihkan. Uji `test_hapus_folder_dari_dashboard_dan_pulihkan`; uji matriks peran memakai tanggal yang tidak ada untuk rute hapus agar tidak menghapus data uji. pytest api+ingest+import 128 lulus; browser: hapus 26 Sep → Diabaikan (file di disk utuh) → Pulihkan + Sinkronkan → kembali 19 file. |
+| 25 | 2026-10-07 | (i) **Nama paket `simpel4` → `monishield`** (permintaan pemilik): folder kode `monishield/`, `python -m monishield …`, `pyproject` (nama + paket + data), `run.sh`, Dockerfile (pengguna `monishield`), compose, tools, uji, nama paket web, User-Agent unduhan. **Tidak** diganti agar data/konfigurasi lama tetap jalan: berkas `data/simpel4.duckdb`, awalan `S4_`, issuer JWT, user/db PostgreSQL di compose, serta nama yang merujuk sistem SIMPeL4 (host `*simpel4.ombudsman.go.id`, bucket `simpel4-backup`). Bila memasang ulang: `pip install -e .` sekali (run.sh melakukannya otomatis karena `pyproject.toml` berubah). Ikut diperbaiki: `test_kolom_csv_sama_dengan_skema` (gagal sejak Tahap 21 karena kolom CRS turunan; pytest penuh tidak dijalankan saat itu). **pytest penuh: 308 lulus, 2 dilewati.** |
 | 11 | 2026-10-06 | (a) **Berkas**: sepuluh endpoint halaman ditulis di satu modul `api/pages.py` dan 25 definisi tabel + endpoint tabel di `api/tables.py` (rencana: satu modul per halaman + definisi di `common.py`); isinya sama, kodenya jauh lebih sedikit. (b) **Selisih tampilan yang belum tertulis di TRD §4.4**, kini ditambahkan ke butir 1: tabel/chart *kinerja endpoint* mengambil 25 P95 tertinggi dari SEMUA endpoint ber-≥5 request (TRD §5.4), sedangkan dashboard lama memilih dari 150 endpoint tersibuk; isinya berbeda untuk nginx pada 5 dari 11 folder. Setiap baris lama tetap ada di daftar lengkap v2 (E2). **Perlu diketahui pemilik.** (c) Chart "Respons 5xx per jam" (Ketersediaan) dibaca dari tabel mentah `nginx_access` folder itu, karena `agg_hour.err` kini memuat juga baris error log (butir 2); 9 ms pada folder terbesar. (d) `ETag` dikirim, jawaban 304 belum dibuat. (e) Filter `q` ikut mencari nama pemilik jaringan IP. (f) Tabel berbatas "semua" memakai batas 500. (g) Keamanan/Akar Masalah/Bisnis selalu `available: true` dengan penanda sumber (`nginx`, `sources`), karena halaman itu tetap berisi walau satu sumber tidak ada. (h) `tools/ukur.py --api` bawaannya menjalankan aplikasi di dalam proses; terhadap server berjalan butuh cookie sesi di `S4_COOKIE`. (i) ASUMSI X6 tetap: tabel alur 100 baris pertama. Hasil: `pytest` **239 lulus, 2 dilewati**; matriks peran mencakup 28 rute; **E2: 601 daftar, 9.889 baris lama, 0 berbeda** (E1 3.022 / E3 1.734 / E4 169 tetap 0); server nyata + curl: security 10-06 = 88 request / 14 IP, error koneksi pod 09-30 = 1.200, peta 09-28 `no_nginx`, `c401` 09-29 total 653 (208 cocok `count`, 5 baris), `sort=1;drop` → 400, tanpa sesi → 401; lapisan HTTP pada folder terbesar (09-29): endpoint terlama 56 ms (target 300), respons terbesar 174 KB (target 500). |

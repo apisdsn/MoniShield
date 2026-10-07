@@ -18,4 +18,4 @@ if [ -f web/package.json ] && { [ ! -d web/dist ] || [ -n "$(find web/src web/pa
 fi
 
 # Admin pertama dibuat server dari S4_ADMIN_USER / S4_ADMIN_PASSWORD bila belum ada user sama sekali.
-exec .venv/bin/python -m simpel4 serve
+exec .venv/bin/python -m monishield serve

@@ -5,8 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import logs_mini
-from simpel4 import auth, config, db, ingest
-from simpel4.api import app as appmod, common
+from monishield import auth, config, db, ingest
+from monishield.api import app as appmod, common
 from conftest import JWT_SECRET
 
 PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
@@ -417,7 +417,7 @@ def user(client):
 
 
 def test_semua_halaman_terbuka_untuk_user_dan_kecil(user):
-    from simpel4.api import tables
+    from monishield.api import tables
     svc = [s['service'] for s in user.get(f'/api/folders/{B}').json()['services']]
     urls = [f'/api/folders/{f}/{h}' for f in (A, B) for h in HALAMAN] + [f'/api/folders/{B}/services/{s}' for s in svc] + ['/api/trends']
     urls += [f'/api/folders/{B}/tables/{t}' + (f'?service={NG}' if sp.per_service else '') for t, sp in tables.TABLES.items()]
@@ -611,7 +611,7 @@ def test_csv_ip_serangan(user):
     assert r.status_code == 200 and r.headers['content-type'].startswith('text/csv') and 'attachment' in r.headers['content-disposition']
     baris = r.text.strip().split('\n')
     assert baris[0].startswith('ip,request_serangan,kategori') and len(baris) - 1 == user.get(f'/api/folders/{B}/security').json()['kpi']['attack_ips']
-    from simpel4.api.ips import _safe
+    from monishield.api.ips import _safe
     assert _safe('=HYPERLINK("x")') == "'=HYPERLINK(\"x\")" and _safe('-1') == "'-1" and _safe('AS123') == 'AS123' and _safe(None) == ''
 
 

@@ -6,7 +6,7 @@ build_dashboard.py. Satu-satunya perbedaan perilaku: level error log nginx (TRD 
 
 Parser tidak tahu file_id maupun folder; ingest menambahkannya saat memuat CSV.
 
-  python -m simpel4.parse <file.log[.gz]> --out <dir> [--service <nama>]
+  python -m monishield.parse <file.log[.gz]> --out <dir> [--service <nama>]
 """
 import argparse, collections, csv, gzip, hashlib, json, os, sys
 
@@ -223,7 +223,7 @@ def work(path, service, out_dir, upstream_prefix, known_sha, pair_path):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog='simpel4.parse', description='Parse satu file log menjadi CSV per tabel')
+    ap = argparse.ArgumentParser(prog='monishield.parse', description='Parse satu file log menjadi CSV per tabel')
     ap.add_argument('file'); ap.add_argument('--out', required=True)
     ap.add_argument('--service', help='bawaan: nama folder induk file')
     a = ap.parse_args(argv)

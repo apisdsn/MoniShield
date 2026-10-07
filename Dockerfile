@@ -25,15 +25,15 @@ RUN --mount=type=secret,id=ca_bundle,required=false \
     python -c "import tomllib; p = tomllib.load(open('pyproject.toml', 'rb'))['project']; \
 print('\n'.join(p['dependencies'] + p['optional-dependencies']['s3']))" > /tmp/req.txt \
  && pip install -r /tmp/req.txt && rm /tmp/req.txt
-COPY simpel4/ simpel4/
+COPY monishield/ monishield/
 COPY --from=web /src/web/dist web/dist
 # pengguna bukan root; folder volume dibuat di sini agar volume bernama mewarisi pemiliknya
-RUN groupadd --system --gid 10001 simpel4 \
- && useradd --system --uid 10001 --gid simpel4 --home-dir /app --shell /usr/sbin/nologin simpel4 \
- && mkdir -p /data /cache /inbox /logs && chown simpel4:simpel4 /data /cache /inbox
-USER simpel4
+RUN groupadd --system --gid 10001 monishield \
+ && useradd --system --uid 10001 --gid monishield --home-dir /app --shell /usr/sbin/nologin monishield \
+ && mkdir -p /data /cache /inbox /logs && chown monishield:monishield /data /cache /inbox
+USER monishield
 ENV S4_BIND=0.0.0.0:8000 S4_LOG_DIR=/logs S4_DATA_DIR=/data S4_CACHE_DIR=/cache S4_INBOX_DIR=/inbox S4_STATE_DIR=/data/state
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
   CMD ["python", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8000/api/health', timeout=4)"]
-CMD ["python", "-m", "simpel4", "serve"]
+CMD ["python", "-m", "monishield", "serve"]
