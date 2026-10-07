@@ -1,4 +1,4 @@
-# SIMPeL4 Dashboard (v2)
+# MoniShield (v2) — dashboard log SIMPeL4
 
 Dashboard log SIMPeL4: FastAPI + DuckDB di server, Svelte di browser. Rancangan lengkap ada di `docs/`
 (PRD, DRD, TRD, rencana); folder log lama di folder induk tetap menjadi sumber utama.
@@ -54,6 +54,11 @@ Buka `http://127.0.0.1:8000`, masuk sebagai `admin` dengan `S4_ADMIN_PASSWORD`, 
 Ingest pertama 11 folder ±10–40 detik; setelah itu hanya folder yang baru atau berubah yang diproses.
 
 ### 4. Pemakaian sehari-hari
+
+**Folder log baru?** Salin foldernya (`YYYY-MM-DD/…`) ke folder log, lalu admin cukup menekan tombol **Sinkronkan data**
+(ikon folder di kepala halaman). Lencana angka di tombol itu menunjukkan jumlah folder baru yang belum masuk; setelah
+sinkronisasi dashboard pindah ke folder terbaru. Hanya file baru atau yang berubah yang diproses.
+
 
 | Perintah (`.venv/bin/python -m simpel4 …`) | Fungsi |
 |---|---|

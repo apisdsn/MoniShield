@@ -6,7 +6,7 @@
   import { lang, t } from '../i18n.js';
   import { num, sysName } from '../format.js';
   import { TABS, build } from '../state.js';
-  import { APP_NAME } from '../brand.js';
+  import { APP_NAME, APP_MARK } from '../brand.js';
   import Icon from './Icon.svelte';
   let { route, summary = null, ingest = null, onpick = null } = $props();
 
@@ -18,7 +18,7 @@
   const active = (tab, service = null) => (route.tab === tab && (tab !== 'layanan' || route.service === service) ? 'page' : undefined);
 </script>
 
-<div class="logo"><i aria-hidden="true">S4</i><span>{APP_NAME}</span></div>
+<div class="logo"><i aria-hidden="true">{APP_MARK}</i><span>{APP_NAME}</span></div>
 <nav aria-label={$t('nav.label')}>
   <h2 class="grp" id="nav-analisis">{$t('nav.analysis')}</h2>
   <ul aria-labelledby="nav-analisis">

@@ -139,6 +139,13 @@
     reloadKey++;
   }
   function setFolder(f) { go({ folder: f }); }
+  // tombol Sinkronkan (admin): setelah ingest, muat ulang daftar folder + halaman; ada folder baru -> pindah ke yang terbaru
+  async function onsynced() {
+    const before = new Set(folders.map((f) => f.folder));
+    await loadMeta(); refreshMe(); reloadKey++;
+    const baru = (meta?.folders || []).map((f) => f.folder).filter((f) => !before.has(f)).sort();
+    if (baru.length) go({ folder: baru[baru.length - 1] });
+  }
 
   // ---------------------------------------------------------------- judul
   const title = $derived.by(() => {
@@ -230,7 +237,7 @@
 
   <div class="wrap" inert={drawer || undefined}>
     <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'tren' || !isDataTab}
-      onfolder={setFolder} onreload={reload} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
+      onfolder={setFolder} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
       {title} sysTitle={$route.tab === 'layanan'} {suffix} {status} bind:titleEl={h1} />
     {#if subtitle}<p class="sub"><span class="dot ok" aria-hidden="true"></span>{subtitle}</p>{/if}
 

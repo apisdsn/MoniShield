@@ -1,6 +1,6 @@
 <!-- Kepala halaman (DRD §2.1 U3, §8.2, gaya §12). Layar lebar: satu kartu lekat berisi judul + baris status ringkas
      (kiri) dan pemilih folder, bahasa, tema, muat ulang, menu user (kanan). ≤ 900 px: bar 52 px lekat
-     [☰] SIMPeL4 Dashboard [Folder ▾] [⋯] (bahasa, tema, muat ulang, isi menu user masuk ⋯); judul mengalir di bawahnya.
+     [☰] MoniShield [Folder ▾] [⋯] (bahasa, tema, muat ulang, isi menu user masuk ⋯); judul mengalir di bawahnya.
      Urutan DOM = urutan Tab: alat dulu, judul (h1, tabindex -1) sesudahnya; letak visual diatur grid. -->
 <script>
   import { lang, t } from '../i18n.js';
@@ -8,10 +8,11 @@
   import FolderPicker from './FolderPicker.svelte';
   import UserMenu from './UserMenu.svelte';
   import GlobalSearch from './GlobalSearch.svelte';
+  import SyncButton from './SyncButton.svelte';
   import Icon from './Icon.svelte';
   import { APP_NAME } from '../brand.js';
   let { me, route, folders, folder, folderDisabled = false, onfolder, onreload, onlogout, onmenu, drawerOpen = false,
-        menuBtn = $bindable(), title, sysTitle = false, suffix = '', status = [], titleEl = $bindable() } = $props();
+        menuBtn = $bindable(), onsynced = null, title, sysTitle = false, suffix = '', status = [], titleEl = $bindable() } = $props();
 
   function segKey(e, values, current, set) {
     if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
@@ -31,6 +32,7 @@
         <FolderPicker {folders} value={folder} disabled={folderDisabled} onchange={onfolder} />
         <GlobalSearch {folder} />
       {/if}
+      {#if me?.role === 'admin'}<SyncButton {onsynced} />{/if}
       <div class="wide-only">
         <div class="seg" role="radiogroup" aria-label={$t('ui.language')} tabindex="-1" onkeydown={(e) => segKey(e, ['id', 'en'], $lang, (v) => lang.set(v))}>
           <button role="radio" data-v="id" aria-checked={$lang === 'id'} tabindex={$lang === 'id' ? 0 : -1} onclick={() => lang.set('id')}>ID</button>

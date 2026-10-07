@@ -1,5 +1,5 @@
 """Kerangka API (TRD §5.1–§5.2, §5.5–§5.6, §8, §9.5–§9.6): masuk, sesi, peran, CSRF, header, validasi, ingest dalam proses."""
-import dataclasses, time, urllib.parse
+import dataclasses, os, time, urllib.parse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -288,6 +288,28 @@ def test_ingest_lewat_api_dan_dashboard_tetap_terbuka(client):
     assert lr['finished_at'] >= lr['started_at']
     assert client.get(f'/api/folders/{B}').json()['services'][0]['lines'] == 11
     assert 'ingest.start' in [x['action'] for x in client.get('/api/admin/audit').json()['rows']]
+
+
+def test_sinkronisasi_mendeteksi_folder_baru(client, cfg):
+    """Tombol Sinkronkan: status ingest menyebut folder log baru yang belum di-ingest; setelah ingest, daftarnya kosong."""
+    import shutil
+    admin(client)
+    assert client.get('/api/admin/ingest/status').json()['new_folders'] == []
+    os.makedirs(os.path.join(cfg.log_dir, '2026-03-03', 'kosong'))                     # folder tanpa file log: tidak dihitung
+    src = os.path.join(cfg.log_dir, B)
+    shutil.copytree(src, os.path.join(cfg.log_dir, '2026-03-04'))
+    assert client.get('/api/admin/ingest/status').json()['new_folders'] == ['2026-03-04']
+    assert client.post('/api/admin/ingest', json={}, headers=X).status_code == 202
+    for _ in range(300):
+        st = client.get('/api/admin/ingest/status').json()
+        if not st['running']: break
+        time.sleep(0.02)
+    try:
+        assert st['error'] is None and '2026-03-04' in st['last']['folders_changed'] and st['new_folders'] == []
+        assert '2026-03-04' in [f['folder'] for f in client.get('/api/meta').json()['folders']]
+    finally:   # fixture log dipakai bersama uji lain: kembalikan seperti semula
+        for d in ('2026-03-03', '2026-03-04'): shutil.rmtree(os.path.join(cfg.log_dir, d), ignore_errors=True)
+        client.post('/api/admin/forget', json=dict(folder='2026-03-04'), headers=X)
 
 
 def test_ingest_kedua_saat_berjalan_409(client, monkeypatch):

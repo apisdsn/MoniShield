@@ -1,5 +1,5 @@
 """Pemicu ingest, penurunan ulang, dan penghapusan folder (TRD §5.5). Ingest berjalan DI DALAM proses API (K1)."""
-import json
+import json, os
 import threading
 import time
 from typing import Optional
@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
-from .. import importer, ingest
+from .. import importer, ingest, rules
 from .common import DATE, ApiError, client_ip, require_admin, require_admin_or_job
 
 router = APIRouter(prefix='/api/admin')
@@ -95,7 +95,23 @@ def ingest_status(request: Request, who=Depends(require_admin_or_job)):
     finally: cur.close()
     last_run = r and dict(started_at=str(r[0].replace(microsecond=0)), finished_at=str(r[1].replace(microsecond=0)), status=r[2], files_seen=r[3], files_changed=r[4],
                           warnings=json.loads(r[5]) if r[5] else [])
-    return dict(request.app.state.ingest.state, last_run=last_run)
+    return dict(request.app.state.ingest.state, last_run=last_run, new_folders=_new_folders(request))
+
+
+def _new_folders(request):
+    """Folder tanggal (YYYY-MM-DD) di folder log / kotak masuk yang belum ada di basis data. Hanya daftar isi direktori
+    teratas (murah, dipanggil tombol Sinkronkan tiap menit); file baru di folder lama baru terlihat saat ingest berjalan."""
+    cfg = request.app.state.cfg
+    cur = request.app.state.con.cursor()
+    try: dikenal = {str(r[0]) for r in cur.execute('SELECT folder FROM folder_state').fetchall()}
+    finally: cur.close()
+    baru = set()
+    for root in (cfg.log_dir, cfg.inbox_dir):
+        try: calon = [d for d in os.listdir(root) if rules.DATE_DIR.fullmatch(d) and d not in dikenal and d not in baru]
+        except OSError: continue
+        for d in calon:   # hanya folder yang berisi file log (folder kosong tidak akan pernah masuk basis data)
+            if any(n.endswith(('.log', '.log.gz')) for _, _, names in os.walk(os.path.join(root, d)) for n in names): baru.add(d)
+    return sorted(baru)
 
 
 def _exclusive(request, fn):

@@ -62,7 +62,7 @@ def create_app(cfg=None):
         app.state.auth.close()
         app.state.con.close()
 
-    app = FastAPI(title='SIMPeL4 Dashboard', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title='MoniShield', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cfg = cfg
     detect.use(cfg)   # tingkat paranoia CRS untuk derive lewat API (Tahap 21)
     app.state.ingest = admin.IngestManager(app)

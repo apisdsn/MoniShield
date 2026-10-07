@@ -1,4 +1,4 @@
-# SIMPeL4 Dashboard (v2) — `docker compose up -d` (lihat docs/06-docker.md, TRD §7).
+# MoniShield (v2, dashboard log SIMPeL4) — `docker compose up -d` (lihat docs/06-docker.md, TRD §7).
 # Rahasia TIDAK ditulis di sini: semuanya dari .env (yang tidak ikut git maupun image).
 #
 #   app       API + tampilan + ingest di dalam proses. SATU-SATUNYA pembuka DuckDB (TRD K1, §7.2).
@@ -6,9 +6,9 @@
 #   ingest    profil "job", sekali jalan: memicu ingest di app lewat HTTP (token mesin), menunggu, lalu keluar.
 #             Tanpa volume: tidak pernah membuka DuckDB sendiri.   docker compose run --rm ingest
 #   proxy     profil "proxy", opsional: HTTPS (Caddy) bila server belum punya reverse proxy (TRD §7.1 ASUMSI T5).
-name: simpel4
+name: monishield
 
-x-image: &image simpel4-dashboard:2.0.0
+x-image: &image monishield:2.0.0
 
 services:
   app:

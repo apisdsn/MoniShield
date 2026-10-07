@@ -1,4 +1,4 @@
-# SIMPeL4 Dashboard (v2): image dua tahap (TRD §7.4, docs/06-docker.md).
+# MoniShield (v2, dashboard log SIMPeL4): image dua tahap (TRD §7.4, docs/06-docker.md).
 # Tahap 1 (Node) membangun tampilan; tahap 2 (Python) hanya membawa paket Python, kode server, dan hasil build.
 # Tidak ada Node, node_modules, alat build, .env, maupun log di image akhir.
 # Di balik proxy pemeriksa TLS: sertifikat CA tambahan bisa diberikan sebagai build secret "ca_bundle"

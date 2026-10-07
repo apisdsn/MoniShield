@@ -21,6 +21,7 @@
     download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
     key: 'M8 15a4 4 0 1 1 3.5-6H21v3h-2v3h-3v-3h-4.5A4 4 0 0 1 8 15',
     logout: 'M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10',
+    sync: 'M3 7h6l2 2h10v10H3zM12 11.5v5M9.5 14l2.5 2.5 2.5-2.5',   // folder + panah masuk: sinkronkan folder log
     refresh: 'M20 5v5h-5M4 19v-5h5M19 10a7.5 7.5 0 0 0-13.5-3M5 14a7.5 7.5 0 0 0 13.5 3',
     arrow: 'M5 12h14M13 6l6 6-6 6',
     dots: 'M5 12h.01M12 12h.01M19 12h.01',

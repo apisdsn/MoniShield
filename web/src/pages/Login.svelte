@@ -5,7 +5,7 @@
   import { lang, t } from '../i18n.js';
   import { theme } from '../theme.js';
   import { api } from '../api.js';
-  import { APP_NAME } from '../brand.js';
+  import { APP_NAME, APP_MARK } from '../brand.js';
   let { expired = false, onlogin } = $props();
 
   let username = $state(''), password = $state(''), reveal = $state(false), busy = $state(false), error = $state(null);
@@ -44,7 +44,7 @@
     </div>
   </div>
   <main id="main" class="card login">
-    <div class="logo"><i aria-hidden="true">S4</i><h1>{APP_NAME}</h1></div>
+    <div class="logo"><i aria-hidden="true">{APP_MARK}</i><h1>{APP_NAME}</h1></div>
     {#if expired}<p class="info" role="status">{$t('login.expired')}</p>{/if}
     <form onsubmit={submit} novalidate>
       <label for="u">{$t('login.username')}</label>
