@@ -27,7 +27,7 @@
     busy = 'ingest';
     try { await api.post('/api/admin/kafka/ingest', {}); toast($t('kf.ingest_started')); setTimeout(load, 800); } catch (e) { toast($errText(e)); } finally { busy = ''; }
   }
-  const STATE = { berjalan: ['ok', 'kf.st.running'], menyambung: [1, 'kf.st.connecting'], galat: [3, 'kf.st.error'], mati: [1, 'kf.st.off'] };
+  const STATE = { running: ['ok', 'kf.st.running'], connecting: [1, 'kf.st.connecting'], error: [3, 'kf.st.error'], off: [1, 'kf.st.off'] };
   const when = (x) => (x ? tWIB(utcToWib(x.replace('T', ' ')), $lang) : '—');
   const svc = $derived(s ? Object.entries(s.per_service).sort((a, b) => b[1] - a[1]) : []);
 </script>
@@ -35,7 +35,7 @@
 <section class="card wide kf" class:compact aria-labelledby="kf-h">
   <header>
     <h2 id="kf-h">{$t('kf.title')}</h2>
-    {#if s}{@const st = STATE[s.state] || STATE.mati}<SeverityTag level={st[0]} text={$t(st[1])} />{/if}
+    {#if s}{@const st = STATE[s.state] || STATE.off}<SeverityTag level={st[0]} text={$t(st[1])} />{/if}
   </header>
   {#if err}<p class="err" role="alert">{err}</p>
   {:else if !s}<p class="muted small">{$t('state.loading')}</p>

@@ -124,7 +124,7 @@ class Config:
     def public(self):
         """Isi konfigurasi untuk dicetak: rahasia hanya 'diisi' / 'kosong'."""
         d = dataclasses.asdict(self)
-        return {k: ('diisi' if v else 'kosong') if k in SECRETS else v for k, v in d.items()}
+        return {k: ('set' if v else 'empty') if k in SECRETS else v for k, v in d.items()}
 
 
 def env_name(key): return SECRETS.get(key) or 'S4_' + key.upper()

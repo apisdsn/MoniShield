@@ -250,7 +250,7 @@ def test_folder(client):
     assert (ng['lines'], ng['err'], ng['warn'], ng['err_http'], ng['err_log'], ng['requests'], ng['n4xx'], ng['files'], ng['prev']) == (11, 2, 1, 0, 2, 7, 2, 1, None)
     am = next(s for s in f['services'] if s['service'] == 'om-be-appsmanager')
     assert am['lines'] == 0 and am['files_empty'] == 1 and am['prev'] == dict(lines=10, err=1, warn=4)   # folder sebelumnya, untuk ▲/▼
-    assert len(f['files']) == 7 and {x['status'] for x in f['files']} == {'ok', 'kosong', 'rusak'}
+    assert len(f['files']) == 7 and {x['status'] for x in f['files']} == {'ok', 'empty', 'corrupt'}
     assert client.get(f'/api/folders/{A}').json()['prev_folder'] is None
 
 
@@ -500,7 +500,7 @@ def test_tren(user):
     j = user.get('/api/trends').json()
     assert j['folders'] == [A, B] and set(j) == {'folders', 'services', 'lines', 'err', 'warn', 'file_status', 'http', 'security', 'business', 'completeness', 'heat'}   # Tahap 24: +2
     assert j['lines'][NG] == [None, user.get(f'/api/folders/{B}/services/{NG}').json()['kpi']['lines']]     # null = layanan tidak ada di folder itu
-    assert j['file_status']['om-be-referensi'] == [None, 'rusak'] and j['file_status']['om-be-appsmanager'][1] == 'kosong'
+    assert j['file_status']['om-be-referensi'] == [None, 'corrupt'] and j['file_status']['om-be-appsmanager'][1] == 'empty'
     assert user.get('/api/trends?last=14').json()['folders'] == [A, B]
     # urutan layanan = kemunculan pertama: layanan folder A (urutan file), lalu yang baru muncul di B
     sa = [s['service'] for s in user.get(f'/api/folders/{A}').json()['services']]

@@ -77,10 +77,10 @@
     try {
       const j = await api.get(`/api/admin/import/${id}`);
       job = j;
-      if (j.running || (j.status === 'berjalan') || (!j.result && j.status !== 'gagal')) { timer = setTimeout(() => poll(id), 1000); return; }
+      if (j.running || (j.status === 'running') || (!j.result && j.status !== 'failed')) { timer = setTimeout(() => poll(id), 1000); return; }
       busy = false; timer = null;
-      if (j.status === 'gagal') fail = whyJob(j);
-      else if (j.status === 'selesai') { toast($t('imp.toast_done', { n: num(j.result.downloaded, $lang), folder: j.folder })); onfinished?.(); }
+      if (j.status === 'failed') fail = whyJob(j);
+      else if (j.status === 'done') { toast($t('imp.toast_done', { n: num(j.result.downloaded, $lang), folder: j.folder })); onfinished?.(); }
       load();
     } catch (e) { busy = false; fail = why(e); }
   }
@@ -96,13 +96,13 @@
   }
 
   const prog = $derived(job?.progress);
-  const phase = $derived(!prog ? $t('imp.ph.daftar') : prog.phase === 'unduh' && prog.total ? $t('imp.ph.unduh', { done: num(prog.done, $lang), total: num(prog.total, $lang) })
-    : $t(`imp.ph.${['daftar', 'ingest'].includes(prog.phase) ? prog.phase : 'daftar'}`));
+  const phase = $derived(!prog ? $t('imp.ph.daftar') : prog.phase === 'download' && prog.total ? $t('imp.ph.unduh', { done: num(prog.done, $lang), total: num(prog.total, $lang) })
+    : $t(prog.phase === 'ingest' ? 'imp.ph.ingest' : 'imp.ph.daftar'));
   const res = $derived(job?.result && !job.result.error ? job.result : null);
-  const ST = { selesai: ['ok', 'imp.st.done'], coba: [1, 'imp.st.dry'], gagal: [3, 'imp.st.fail'], berjalan: [2, 'imp.st.running'] };
+  const ST = { done: ['ok', 'imp.st.done'], dry_run: [1, 'imp.st.dry'], failed: [3, 'imp.st.fail'], running: [2, 'imp.st.running'] };
   const MB = (n) => bytes(n ?? 0, $lang);
   const w = $derived(ov?.watch);
-  const syncPhase = $derived(!syncing ? '' : ov?.state?.phase === 'unduh' && ov.state.total
+  const syncPhase = $derived(!syncing ? '' : ov?.state?.phase === 'download' && ov.state.total
     ? $t('imp.w.ph_unduh', { done: num(ov.state.done + 1, $lang), total: num(ov.state.total, $lang) })
     : ov?.state?.phase === 'ingest' ? $t('imp.ph.ingest') : $t('imp.w.ph_periksa'));
 </script>
@@ -119,7 +119,7 @@
     {@const c = ov.credentials}
     <p class="cred">
       {$t('imp.cred')}
-      {#if c.available}<SeverityTag level="ok" text={$t('imp.cred_ok')} /> <span class="muted">({$t(c.source === 'tempel' ? 'imp.src.pasted' : 'imp.src.env')}{#if c.pasted_at} · {tWIB(utcToWib(c.pasted_at), $lang)}{/if})</span>
+      {#if c.available}<SeverityTag level="ok" text={$t('imp.cred_ok')} /> <span class="muted">({$t(c.source === 'pasted' ? 'imp.src.pasted' : 'imp.src.env')}{#if c.pasted_at} · {tWIB(utcToWib(c.pasted_at), $lang)}{/if})</span>
       {:else}<SeverityTag level={3} text={$t('imp.cred_none')} />{/if}
     </p>
     <div class="credacts">
@@ -243,7 +243,7 @@
     { key: 'status', label: $t('col.status'), custom: true, sort: true },
     { key: 'requested_by', label: $t('imp.col.by'), fmt: (r) => $srv(r.requested_by) || '–' },
   ]}>
-    {#snippet cell(r)}{@const s = ST[r.status] || ST.gagal}<SeverityTag level={s[0]} text={$t(s[1])} />{#if r.message}<div class="muted small msg">{r.status === 'gagal' ? $errText(r.message) : $srv(r.message)}</div>{/if}{/snippet}
+    {#snippet cell(r)}{@const s = ST[r.status] || ST.failed}<SeverityTag level={s[0]} text={$t(s[1])} />{#if r.message}<div class="muted small msg">{r.status === 'failed' ? $errText(r.message) : $srv(r.message)}</div>{/if}{/snippet}
   </DataTable>
 {/if}
 

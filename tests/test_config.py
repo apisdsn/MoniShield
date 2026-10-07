@@ -46,7 +46,7 @@ def test_lingkungan_mengalahkan_dotenv(tmp_path):
 def test_rahasia_tidak_tercetak(tmp_path):
     p = env_file(tmp_path, 'S4_ADMIN_PASSWORD=sandi-panjang-sekali\nS4_JOB_TOKEN=zzTOKENzz\nMAXMIND_LICENSE_KEY=zzLISENSIzz\nAWS_SECRET_ACCESS_KEY=zzAWSzz\n')
     pub = config.load(env={}, dotenv=p).public()
-    assert all(pub[k] in ('diisi', 'kosong') for k in config.SECRETS)
+    assert all(pub[k] in ('set', 'empty') for k in config.SECRETS)
     assert not any(s in str(pub) for s in ('sandi-panjang-sekali', 'zzTOKENzz', 'zzLISENSIzz', 'zzAWSzz'))
 
 

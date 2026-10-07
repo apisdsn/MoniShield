@@ -52,7 +52,7 @@
     for (;;) {
       await new Promise((r) => setTimeout(r, 1000));
       const s = (await api.get('/api/admin/ingest/status')).s3;
-      progress = s.phase === 'unduh' && s.total ? $t('sync.s3_fetch', { done: num(s.done + 1, $lang), total: num(s.total, $lang) })
+      progress = s.phase === 'download' && s.total ? $t('sync.s3_fetch', { done: num(s.done + 1, $lang), total: num(s.total, $lang) })
         : s.phase === 'ingest' ? $t('sync.scanning') : $t('sync.s3_check');
       if (s.running) continue;
       if (s.last_errors?.length) toast($t('sync.s3_failed', { msg: $errText(s.last_errors[0]) }));

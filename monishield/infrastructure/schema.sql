@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS ingest_file (
     err           INTEGER NOT NULL,
     warn          INTEGER NOT NULL,
     corrupt_lines INTEGER NOT NULL,
-    status        VARCHAR NOT NULL,          -- ok | kosong | rusak | gagal
+    status        VARCHAR NOT NULL,          -- ok | empty | corrupt | failed
     rules_version INTEGER NOT NULL,
     ingested_at   TIMESTAMP NOT NULL
 );

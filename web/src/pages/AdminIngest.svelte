@@ -50,10 +50,10 @@
   }
 
   const last = $derived(st?.last_run);
-  const STATUS = { ok: 'ing.st.ok', gagal: 'ing.st.fail', berjalan: 'ing.st.running' };
+  const STATUS = { ok: 'ing.st.ok', failed: 'ing.st.fail', running: 'ing.st.running' };
   const phase = $derived(!st?.running ? '' : st.phase === 'parse' && st.total
     ? $t('ing.ph.parse', { done: num(st.done, $lang), total: num(st.total, $lang) })
-    : st.phase === 'muat' && st.folder ? $t('ing.ph.load', { folder: st.folder }) : $t('ing.ph.scan'));
+    : st.phase === 'load' && st.folder ? $t('ing.ph.load', { folder: st.folder }) : $t('ing.ph.scan'));
   const pct = $derived(st?.running && st.phase === 'parse' && st.total ? Math.round((st.done / st.total) * 100) : null);
 </script>
 

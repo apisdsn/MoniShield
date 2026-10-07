@@ -40,17 +40,17 @@ class Credentials:
     def get(self):
         """-> (kwargs boto3, sumber) atau (None, None)."""
         with self._lock:
-            if self._mem: return dict(self._mem), 'tempel'
+            if self._mem: return dict(self._mem), 'pasted'
         c = self.cfg
         if c.aws_access_key_id and c.aws_secret_access_key:
             return dict(aws_access_key_id=c.aws_access_key_id, aws_secret_access_key=c.aws_secret_access_key,
-                        **({'aws_session_token': c.aws_session_token} if c.aws_session_token else {})), 'lingkungan'
+                        **({'aws_session_token': c.aws_session_token} if c.aws_session_token else {})), 'environment'
         return None, None
 
     def status(self):
         with self._lock: mem, at = bool(self._mem), self._set_at
         env = bool(self.cfg.aws_access_key_id and self.cfg.aws_secret_access_key)
-        return dict(available=mem or env, source='tempel' if mem else 'lingkungan' if env else None,
+        return dict(available=mem or env, source='pasted' if mem else 'environment' if env else None,
                     pasted=mem, pasted_at=str(at) if at else None, environment=env)
 
 
@@ -132,7 +132,7 @@ def run(cfg, url, creds_store, dry_run=False, progress=None):
     if not creds: raise ImportFail('no_credentials', NO_CREDENTIALS)
     t0 = time.time()
     deadline = t0 + cfg.import_timeout_minutes * 60
-    progress(phase='daftar')
+    progress(phase='list')
     try:
         s3 = _client(cfg, creds)
         objects = list_objects(s3, bucket, prefix, cap=cfg.import_max_objects * 4)
@@ -173,7 +173,7 @@ def run(cfg, url, creds_store, dry_run=False, progress=None):
             if cfg.import_extract and r['rel'].endswith('.gz'):   # .log.gz -> .log (di folder sementara; yang dipindah hanya .log)
                 r['stored'], r['stored_size'] = r['rel'][:-3], _gunzip(dst, dst[:-3], r['rel'], cfg.import_max_object_mb * 2**20 * EXTRACT_RATIO)
                 res['extracted'] += 1
-            progress(phase='unduh', done=i + 1, total=len(take))
+            progress(phase='download', done=i + 1, total=len(take))
         _move_into_inbox(cfg, os.path.join(tmp, folder), folder, take)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

@@ -4,7 +4,7 @@ DELETE FROM agg_service WHERE folder = $f;
 INSERT INTO agg_service
 WITH f AS (
     SELECT service, sum(lines) AS lines, sum(err) AS err, sum(warn) AS warn, count(*) AS files,
-           count(*) FILTER (WHERE lines = 0) AS files_empty, count(*) FILTER (WHERE status = 'rusak') AS files_corrupt
+           count(*) FILTER (WHERE lines = 0) AS files_empty, count(*) FILTER (WHERE status = 'corrupt') AS files_corrupt
     FROM ingest_file WHERE folder = $f GROUP BY service),
 req AS (
     SELECT 'nginx-ingress-controller' AS service, status, ip, false AS failed FROM nginx_access WHERE folder = $f

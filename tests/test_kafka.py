@@ -123,7 +123,7 @@ def tunggu_ingest(tc):
 def test_status_ingest_dan_folder_muncul(client):
     feed = client.app.state.kafka
     s = client.get('/api/admin/kafka', headers=X).json()
-    assert (s['configured'], s['enabled'], s['state'], s['topic']) == (True, False, 'mati', 'k8s-logs')
+    assert (s['configured'], s['enabled'], s['state'], s['topic']) == (True, False, 'off', 'k8s-logs')
     sp = inboxmod.Spool(client.app.state.cfg.inbox_dir)
     feed.handle(messages() + [(b'{"stream":"stdout"}', None, 0, 999)], sp); feed.flush(sp)
     s = client.get('/api/admin/kafka', headers=X).json()

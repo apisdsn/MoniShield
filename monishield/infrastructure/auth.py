@@ -15,7 +15,7 @@ Dua peran: 'admin' dan 'user'. Pembatasan per modul ditunda (TRD §8.3).
 import contextlib, datetime, hmac, re, secrets, threading, time
 
 import jwt
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, create_engine, delete, func, select
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, create_engine, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
@@ -23,6 +23,7 @@ from monishield.domain import accounts
 from monishield.domain.accounts import PASSWORD_MAX, ROLES, AuthError, check_password, check_username, hash_password, job_token_ok   # noqa: F401
 
 MAX_FAILED, LOCK_MINUTES = 5, 15
+JOB_STATUS = {'berjalan': 'running', 'selesai': 'done', 'gagal': 'failed', 'coba': 'dry_run'}   # old -> current
 IP_MAX_FAILED, IP_WINDOW_S = 20, 15 * 60   # pembatas per IP, di memori
 JWT_ALG, JWT_ISS, JWT_SECRET_MIN = 'HS256', 'monishield', 32
 
@@ -132,6 +133,8 @@ class Auth:
         # garam tiruan: verifikasi tetap dihitung untuk user yang tidak ada, agar waktu jawab tidak membocorkan keberadaan user
         self._dummy_salt = secrets.token_bytes(16)
         Base.metadata.create_all(self.engine)   # ponytail: tanpa alat migrasi; tambahkan Alembic saat skema akun pertama kali berubah
+        with self.engine.begin() as c:   # import job status was Indonesian before 2026-10-08
+            for a, b in JOB_STATUS.items(): c.execute(update(ImportJob).where(ImportJob.status == a).values(status=b))
 
     @contextlib.contextmanager
     def _tx(self):
@@ -172,7 +175,7 @@ class Auth:
         return dict(job_id=j.job_id, requested_by=j.requested_by, bucket=j.bucket, prefix=j.prefix, folder=j.folder, status=j.status,
                     bytes=j.bytes, files=j.files, skipped=j.skipped, message=j.message, started_at=iso(j.started_at), finished_at=iso(j.finished_at))
 
-    def job_create(self, by, bucket, prefix, folder, status='berjalan'):
+    def job_create(self, by, bucket, prefix, folder, status='running'):
         with self._tx() as s:
             j = ImportJob(requested_by=(by or '')[:40] or None, bucket=bucket, prefix=prefix, folder=folder, status=status, started_at=now())
             s.add(j); s.flush()

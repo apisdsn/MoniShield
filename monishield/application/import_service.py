@@ -33,8 +33,8 @@ class ImportService:
     def start(self, url, dry_run, by):
         bucket, prefix, folder = s3_import.parse_url(self.ctx.cfg, url)   # tautan diperiksa sebelum ada koneksi ke AWS
         self.ctx.s3.ready()
-        self._claim('daftar', 'manual')
-        try: job = self.ctx.auth.job_create(by, bucket, prefix, folder, 'coba' if dry_run else 'berjalan')
+        self._claim('list', 'manual')
+        try: job = self.ctx.auth.job_create(by, bucket, prefix, folder, 'dry_run' if dry_run else 'running')
         except BaseException: self.state.update(running=False, phase=None); raise
         self.state['job_id'] = job
         self.thread = threading.Thread(target=self._run, args=(job, url, dry_run), name='import', daemon=True)
@@ -61,15 +61,15 @@ class ImportService:
                 msg += f"; ingest #{ing['run_id']}: {ing['files_changed']} file berubah"
             msg += ''.join(f'; {w}' for w in r['warnings'])
             self._keep(job, r)
-            auth.job_finish(job, 'coba' if dry_run else 'selesai', r['bytes'] if dry_run else r['downloaded_bytes'],
+            auth.job_finish(job, 'dry_run' if dry_run else 'done', r['bytes'] if dry_run else r['downloaded_bytes'],
                             r['take'] if dry_run else r['downloaded'], r['skipped'], msg)
             return True
         except ImportFail as e:
             self._keep(job, dict(error=dict(code=e.code, message=e.message)))
-            auth.job_finish(job, 'gagal', message=f'[{e.code}] {e.message}')   # kode di depan: tampilan menerjemahkannya (EN)
+            auth.job_finish(job, 'failed', message=f'[{e.code}] {e.message}')   # kode di depan: tampilan menerjemahkannya (EN)
         except Exception as e:  # noqa: BLE001  galat dilaporkan lewat status job; tanpa rahasia (pesan boto tidak memuat kunci)
             self._keep(job, dict(error=dict(code='import_failed', message=f'{type(e).__name__}: {e}'[:500])))
-            auth.job_finish(job, 'gagal', message=f'[import_failed] {type(e).__name__}: {e}'[:500])
+            auth.job_finish(job, 'failed', message=f'[import_failed] {type(e).__name__}: {e}'[:500])
         return False
 
     def _keep(self, job, r):
@@ -117,7 +117,7 @@ class ImportService:
         except ImportFail as e: raise Fail(e.code, e.message, 400) from None
         if not sources: raise Fail('watch_disabled', 'Sinkron S3 otomatis belum aktif: isi alamat folder induk S3 di kartu Impor dari S3 (mis. s3://nama-bucket/k8s-logs/).', 400)
         self.ctx.s3.ready()
-        self._claim('periksa', 'sync')
+        self._claim('check', 'sync')
         self.thread = threading.Thread(target=self._sync, args=(sources, by), name='s3-sync', daemon=True)
         self.thread.start()
 
@@ -150,8 +150,8 @@ class ImportService:
                     except ImportFail as e: res['errors'].append(dict(code=e.code, where=f, message=e.message)); continue
                     if p['take'] or any(o.get('extract_local') for o in p['objects']): todo.append((bucket, base, f, True))
             for i, (bucket, base, f, again) in enumerate(todo):
-                self.state.update(phase='unduh', done=i, total=len(todo))
-                job = auth.job_create(by, bucket, f'{base}{f}/', f, 'berjalan')
+                self.state.update(phase='download', done=i, total=len(todo))
+                job = auth.job_create(by, bucket, f'{base}{f}/', f, 'running')
                 self.state['job_id'] = job
                 ok = self._job(job, f's3://{bucket}/{base}{f}/', False)
                 (res['failed'] if not ok else res['rechecked'] if again else res['imported']).append(f)

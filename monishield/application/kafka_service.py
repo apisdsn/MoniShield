@@ -86,16 +86,16 @@ class KafkaFeed:
         self._reset_stats()
 
     def _reset_stats(self):
-        self.stats = dict(state='mati', since=None, received=0, written=0, skipped=0, last_message_at=None, last_ingest_at=None,
+        self.stats = dict(state='off', since=None, received=0, written=0, skipped=0, last_message_at=None, last_ingest_at=None,
                           error=None, last_skip=None, per_service={}, folders={})
         self.pending = set()   # folder yang bertambah sejak ingest terakhir
 
     # -------------------------------------------------------------- kendali
     def start(self):
         cfg = self.ctx.cfg
-        if not (cfg.kafka_enabled and configured(cfg)): self.stats['state'] = 'mati'; return
+        if not (cfg.kafka_enabled and configured(cfg)): self.stats['state'] = 'off'; return
         kc = self.ctx.kafka_client
-        if not kc.library_ok(): self.stats.update(state='galat', error=kc.no_library); return
+        if not kc.library_ok(): self.stats.update(state='error', error=kc.no_library); return
         if self.thread and self.thread.is_alive(): return
         self._stop = threading.Event()
         self.thread = threading.Thread(target=self._loop, name='kafka', daemon=True)
@@ -177,9 +177,9 @@ class KafkaFeed:
         while not self._stop.is_set():
             c = None
             try:
-                self.stats.update(state='menyambung', error=None)
+                self.stats.update(state='connecting', error=None)
                 c = kc.consumer(cfg)
-                self.stats.update(state='berjalan', since=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(timespec='seconds'))
+                self.stats.update(state='running', since=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(timespec='seconds'))
                 wait, last_flush = 5, time.time()
                 while not self._stop.is_set():
                     for recs in c.poll(timeout_ms=1000): self.handle(recs, spool)
@@ -190,10 +190,10 @@ class KafkaFeed:
                 if spool.n: self.flush(spool); c.commit()
             except Exception as e:   # noqa: BLE001  broker mati / sandi salah: status + coba lagi berkala
                 f = kc.error(e)
-                self.stats.update(state='galat', error=f'[{f.code}] {f.message}')
+                self.stats.update(state='error', error=f'[{f.code}] {f.message}')
                 self._stop.wait(wait); wait = min(wait * 2, 120)
             finally:
                 if c is not None:
                     try: c.close()
                     except Exception: pass   # noqa: BLE001
-        self.stats['state'] = 'mati'
+        self.stats['state'] = 'off'

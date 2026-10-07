@@ -36,8 +36,8 @@ def test_ingest_pertama(env):
     assert f['nginx-ingress-controller'] == ('.log', 11, 2, 1, 0, 'ok', 'ingress-nginx', 'pod-n', B)
     assert f['om-fe-inhouse'] == ('.log', 5, 1, 0, 0, 'ok', '-', 'pod-f', A)                    # folder tanpa namespace (A9)
     assert f['om-be-simpel-loop'][:2] == ('.log', 9) and f['om-be-report'][:2] == ('.log.gz', 4)  # .log menang; .gz dibaca bila sendirian
-    assert f['om-be-referensi'] == ('.log', 1, 0, 0, 1, 'rusak', 'ombudsman', 'pod-x', B)        # dihitung sebagai baris, ditandai rusak
-    assert sorted(r_[0] for r_ in q(con, "SELECT status FROM ingest_file WHERE service = 'om-be-appsmanager'")) == ['kosong', 'ok']
+    assert f['om-be-referensi'] == ('.log', 1, 0, 0, 1, 'corrupt', 'ombudsman', 'pod-x', B)        # dihitung sebagai baris, ditandai rusak
+    assert sorted(r_[0] for r_ in q(con, "SELECT status FROM ingest_file WHERE service = 'om-be-appsmanager'")) == ['empty', 'ok']
     assert f['layanan-baru'][5] == 'ok' and any("layanan tak dikenal 'layanan-baru'" in w for w in r['warnings'])  # A10
     n = {t: q(con, f'SELECT count(*) FROM {t}')[0][0] for t in ingest.RAW_TABLES}
     assert n == dict(nginx_access=7, nginx_error=4, fe_access=2, sl_event=4, spring_line=18, coredns_error=1, log_message=19)
@@ -159,7 +159,7 @@ def test_file_gagal_parse_file_lain_tetap_masuk_dan_dicoba_lagi(env):
     p = logs_mini.write(logs_mini.log_path(root, B, 'ombudsman', 'om-be-report', 'pod-bad'), dua_pola)
     r = go(cfg, con)
     assert (r['files_failed'], r['files_parsed'], r['status']) == (1, 9, 'ok') and any('GAGAL di-parse' in w and 'pola login' in w for w in r['warnings'])
-    assert q(con, "SELECT status, lines FROM ingest_file WHERE pod = 'pod-bad'") == [('gagal', 0)] and q(con, 'SELECT count(*) FROM nginx_access')[0][0] == 7
+    assert q(con, "SELECT status, lines FROM ingest_file WHERE pod = 'pod-bad'") == [('failed', 0)] and q(con, 'SELECT count(*) FROM nginx_access')[0][0] == 7
     assert go(cfg, con)['files_failed'] == 1  # dicoba lagi tiap ingest
     logs_mini.write(p, logs_mini.lines('om-be-report'))
     r = go(cfg, con)
@@ -174,7 +174,7 @@ def test_terhenti_di_tengah_transaksi_lalu_bersih(env, monkeypatch):
     with pytest.raises(KeyboardInterrupt): go(cfg, con)
     assert q(con, 'SELECT DISTINCT folder::VARCHAR FROM ingest_file') == [(A,)]          # folder A sudah commit
     assert q(con, 'SELECT count(*) FROM nginx_access')[0][0] == 0 and q(con, 'SELECT count(*) FROM file_counter c JOIN ingest_file f USING (file_id) WHERE folder = ?', B)[0][0] == 0
-    assert q(con, 'SELECT status FROM ingest_run')[0][0] == 'gagal' and not os.listdir(os.path.join(cfg.data_dir, 'tmp'))
+    assert q(con, 'SELECT status FROM ingest_run')[0][0] == 'failed' and not os.listdir(os.path.join(cfg.data_dir, 'tmp'))
     monkeypatch.undo()
     r = go(cfg, con)
     assert (r['files_parsed'], r['folders_changed']) == (7, [B])
@@ -188,12 +188,12 @@ def test_dimatikan_paksa_dibersihkan_pada_ingest_berikutnya(env):
     ingest_run tertinggal 'berjalan' dan CSV sementara tertinggal. Ingest berikutnya menandai run itu gagal dan menghapus sisanya."""
     cfg, con, _ = env
     go(cfg, con)
-    con.execute("INSERT INTO ingest_run VALUES (90, now(), NULL, 'berjalan', NULL, NULL, NULL)")
+    con.execute("INSERT INTO ingest_run VALUES (90, now(), NULL, 'running', NULL, NULL, NULL)")
     sisa = os.path.join(cfg.data_dir, 'tmp', 'run-90'); os.makedirs(sisa); open(os.path.join(sisa, '0'), 'w').write('203.0.113.9,budi@contoh.go.id')
     r = go(cfg, con)
     assert r['status'] == 'ok' and not os.path.exists(sisa)
     st, msg, selesai = q(con, 'SELECT status, message, finished_at FROM ingest_run WHERE run_id = 90')[0]
-    assert st == 'gagal' and 'terputus' in msg and selesai is not None
+    assert st == 'failed' and 'terputus' in msg and selesai is not None
 
 
 def test_sequence_tertinggal_tidak_membuat_duplicate_key(env):
@@ -252,7 +252,7 @@ def test_berkas_berisi_galat_ekspor_diberi_peringatan(env):
         fh.write('failed to get parse function: unsupported log format: "' + '\\x00' * 50 + '"')
     r = go(cfg, con)
     assert any("berisi pesan galat alat ekspor log" in w and 'nginx-ingress-controller' in w for w in r['warnings'])
-    assert q(con, "SELECT status FROM ingest_file WHERE folder = '2026-01-09'") == [('rusak',)]
+    assert q(con, "SELECT status FROM ingest_file WHERE folder = '2026-01-09'") == [('corrupt',)]
 
 
 def test_hanya_satu_ingest_pada_satu_waktu(env):

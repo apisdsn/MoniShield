@@ -141,8 +141,8 @@
                       {@const st = data.file_status[s][i]}
                       <td class="n" class:muted={ln === null || !ln}>
                         {#if ln === null}{$t('tr.absent')}
-                        {:else if !ln}{st === 'rusak' ? $t('file.rusak') : $t('file.kosong')}
-                        {:else}{num(ln, $lang)}{#if st === 'rusak'}<div><SeverityTag level={2} text={$t('file.rusak')} /></div>{/if}{/if}
+                        {:else if !ln}{st === 'corrupt' ? $t('file.rusak') : $t('file.kosong')}
+                        {:else}{num(ln, $lang)}{#if st === 'corrupt'}<div><SeverityTag level={2} text={$t('file.rusak')} /></div>{/if}{/if}
                       </td>
                     {/if}
                   {/each}

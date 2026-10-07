@@ -202,7 +202,7 @@ def test_pengecualian_daftar_blokir_dari_layar(client):
 def test_uji_aws(client):
     r = client.post('/api/admin/config/test', json=dict(kind='aws'), headers=X)
     assert r.status_code == 200, r.text
-    assert r.json() == dict(ok=True, kind='aws', target='s3://simpel4-backup/k8s-logs/', source='lingkungan')
+    assert r.json() == dict(ok=True, kind='aws', target='s3://simpel4-backup/k8s-logs/', source='environment')
     assert client.put('/api/admin/config', json=dict(aws_access_key_id='AKIASALAHSALAHSALAH1', aws_secret_access_key=SECRET_UI), headers=X).status_code == 200
     r = client.post('/api/admin/config/test', json=dict(kind='aws'), headers=X)
     assert r.status_code == 502 and r.json()['error']['code'] == 's3_denied'

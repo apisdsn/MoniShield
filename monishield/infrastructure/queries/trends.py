@@ -28,7 +28,7 @@ def trends(cur, cfg, params):
     for f, s, lines, err, warn, rusak, req, n4, n5 in rows:
         i = pos[f]
         out['lines'][s][i], out['err'][s][i], out['warn'][s][i] = lines, err, warn
-        out['file_status'][s][i] = 'rusak' if rusak else 'kosong' if not lines else 'ok'
+        out['file_status'][s][i] = 'corrupt' if rusak else 'empty' if not lines else 'ok'
         if s == NG: http['total'][i], http['n4xx'][i], http['n5xx'][i] = req, n4, n5
     sec = {k: kosong(0) for k in ('attack_requests', 'login_fail', 'resets')}
     atk = 'agg_crs_url' if cfg.attack_rules == 'crs' else 'agg_attack_url'   # Tahap 21: aturan deteksi yang dipakai

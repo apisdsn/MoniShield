@@ -34,7 +34,7 @@ def cmd_status(cfg, args):
         return 0
     if args.folder:
         rows = con.execute("""SELECT service, count(*), sum(lines), sum(err), sum(warn), count(*) FILTER (WHERE lines = 0),
-                                     count(*) FILTER (WHERE status = 'rusak'), count(*) FILTER (WHERE status = 'gagal')
+                                     count(*) FILTER (WHERE status = 'corrupt'), count(*) FILTER (WHERE status = 'failed')
                               FROM ingest_file WHERE folder = ? GROUP BY service ORDER BY service""", [args.folder]).fetchall()
         if not rows: print(f'folder {args.folder} belum ter-ingest'); return 1
         print(f'folder {args.folder}:  layanan | file | baris | error | warning | file 0 baris | rusak | gagal')
@@ -64,7 +64,7 @@ def cmd_status(cfg, args):
         if biz: print('  bisnis: ' + '; '.join(f'{k} {_n(v)}' for k, v in biz))
         return 0
     f = con.execute("""SELECT count(DISTINCT folder), count(*), coalesce(sum(lines), 0), count(*) FILTER (WHERE lines = 0),
-                              count(*) FILTER (WHERE status = 'rusak'), count(*) FILTER (WHERE status = 'gagal') FROM ingest_file""").fetchone()
+                              count(*) FILTER (WHERE status = 'corrupt'), count(*) FILTER (WHERE status = 'failed') FROM ingest_file""").fetchone()
     print(f'database: {f[0]} folder, {f[1]} file, total baris {_n(f[2])}; file 0 baris: {f[3]}; rusak: {f[4]}; gagal: {f[5]}')
     for t in RAW: print(f'  {t:22} {_n(con.execute(f"SELECT count(*) FROM {t}").fetchone()[0]):>10}')
     ip = con.execute("""SELECT count(*), count(*) FILTER (WHERE org IS NOT NULL), count(*) FILTER (WHERE is_private),
@@ -166,8 +166,8 @@ def cmd_import(cfg, args):
             time.sleep(1)
             code, j = _api(cfg, 'GET', f"/api/admin/import/{body['job_id']}") or (None, None)
             if code != 200: print('server berhenti menjawab saat impor berjalan', file=sys.stderr); return 2
-            if not j['running'] and j['status'] not in ('berjalan',) and (j['result'] or j['status'] == 'gagal'): break
-        if j['status'] == 'gagal': print(f"impor gagal: {j['message']}", file=sys.stderr); return 1
+            if not j['running'] and j['status'] not in ('running',) and (j['result'] or j['status'] == 'failed'): break
+        if j['status'] == 'failed': print(f"impor gagal: {j['message']}", file=sys.stderr); return 1
         _import_print(j['result']); print(f"impor #{j['job_id']} (lewat API server): {j['message']}"); return 0
     try: r = importer.run(cfg, args.url, importer.Credentials(cfg), dry_run=args.dry_run)
     except importer.ImportFail as e: print(f'impor gagal: {e.message}', file=sys.stderr); return 1

@@ -119,7 +119,7 @@ def test_mode_coba_tidak_menulis_apa_pun(cfg, s3):
     assert aksi[obj('om-be-appsmanager', 'pod-a', ext='.log.gz')[len(PRE):]] == ('lewati', '.gz berpasangan dengan .log')
     assert aksi[obj('om-fe-inhouse', 'pod-f', ext='.log.gz')[len(PRE):]] == ('ambil', '')
     assert aksi['.DS_Store'] == aksi['catatan.txt'] == aksi['lepas.log'] == ('lewati', 'bukan file log')
-    assert (r['take'], r['skipped'], r['downloaded'], r['credentials']) == (2, 4, 0, 'lingkungan')
+    assert (r['take'], r['skipped'], r['downloaded'], r['credentials']) == (2, 4, 0, 'environment')
     assert kosong(cfg) and s3.gets() == [] and not os.path.exists(os.path.join(cfg.data_dir, 'tmp'))
 
 
@@ -165,15 +165,15 @@ def test_kredensial_sementara_di_memori(cfg):
     with pytest.raises(importer.ImportFail): c.set('bukan kunci', 'x')
     c.set('AKIATEMPELUJI0000002', SECRET, 'token-sesi')
     kw, src = c.get()
-    assert src == 'tempel' and kw['aws_session_token'] == 'token-sesi'
+    assert src == 'pasted' and kw['aws_session_token'] == 'token-sesi'
     assert SECRET not in repr(c) and SECRET not in str(c.status()) and c.status()['pasted_at']
     c.clear()
     assert c.get() == (None, None)
     # urutan: tempel lalu lingkungan
     c2 = importer.Credentials(cfg)
-    assert c2.get()[1] == 'lingkungan'
+    assert c2.get()[1] == 'environment'
     c2.set('AKIATEMPELUJI0000002', SECRET)
-    assert c2.get()[1] == 'tempel'
+    assert c2.get()[1] == 'pasted'
 
 
 # ------------------------------------------------------------------ API
@@ -191,7 +191,7 @@ def client(cfg, auth_url, monkeypatch, s3):
 def tunggu(tc, job, h=X):
     for _ in range(300):
         j = tc.get(f'/api/admin/import/{job}', headers=h).json()
-        if not j['running'] and j['status'] != 'berjalan' and (j['result'] or j['status'] == 'gagal'): return j
+        if not j['running'] and j['status'] != 'running' and (j['result'] or j['status'] == 'failed'): return j
         time.sleep(0.05)
     raise AssertionError('impor tidak selesai')
 
@@ -200,17 +200,17 @@ def test_api_coba_lalu_impor_lewat_token_mesin(client, cfg):
     r = client.post('/api/admin/import', json=dict(url=URL, dry_run=True), headers=X)
     assert r.status_code == 202
     j = tunggu(client, r.json()['job_id'])
-    assert (j['status'], j['files'], j['skipped'], j['result']['downloaded']) == ('coba', 2, 4, 0) and kosong(cfg)
+    assert (j['status'], j['files'], j['skipped'], j['result']['downloaded']) == ('dry_run', 2, 4, 0) and kosong(cfg)
     mesin = TestClient(client.app)
     h = {**X, 'Authorization': f'Bearer {TOKEN}'}
     r = mesin.post('/api/admin/import', json=dict(url=URL), headers=h)
     assert r.status_code == 202
     j = tunggu(mesin, r.json()['job_id'], h)
-    assert (j['status'], j['files'], j['folder'], j['requested_by']) == ('selesai', 2, D, '(token mesin)'), j
+    assert (j['status'], j['files'], j['folder'], j['requested_by']) == ('done', 2, D, '(token mesin)'), j
     assert j['result']['ingest']['files_changed'] == 2 and 'ingest #' in j['message']
     assert D in [f['folder'] for f in client.get('/api/meta').json()['folders']]               # folder muncul di dashboard
     ov = client.get('/api/admin/import').json()
-    assert [x['status'] for x in ov['jobs']][:2] == ['selesai', 'coba'] and ov['enabled'] and ov['allowed'] == ['s3://simpel4-backup/k8s-logs/<YYYY-MM-DD>/']
+    assert [x['status'] for x in ov['jobs']][:2] == ['done', 'dry_run'] and ov['enabled'] and ov['allowed'] == ['s3://simpel4-backup/k8s-logs/<YYYY-MM-DD>/']
     assert {'import.start'} <= {x['action'] for x in client.get('/api/admin/audit').json()['rows']}
 
 
@@ -227,13 +227,13 @@ def test_api_kredensial_sementara(client, cfg, auth_url, s3):
     assert mesin.post('/api/admin/import/credentials', json=dict(access_key_id=KEY_OK, secret_access_key=SECRET), headers=h).status_code == 401
     assert mesin.delete('/api/admin/import/credentials', headers=h).status_code == 401
     r = client.post('/api/admin/import/credentials', json=dict(access_key_id='AKIATEMPELUJI0000002', secret_access_key=SECRET), headers=X)
-    assert r.status_code == 200 and r.json()['credentials']['source'] == 'tempel' and SECRET not in r.text and 'AKIATEMPEL' not in r.text
+    assert r.status_code == 200 and r.json()['credentials']['source'] == 'pasted' and SECRET not in r.text and 'AKIATEMPEL' not in r.text
     meta = client.get('/api/meta').json()['imports']
-    assert meta == dict(enabled=True, credentials=dict(available=True, source='tempel'))
+    assert meta == dict(enabled=True, credentials=dict(available=True, source='pasted'))
     # kunci tempel tidak dikenal S3 tiruan -> impor gagal dengan sebab; kotak masuk tetap kosong
     j = tunggu(client, client.post('/api/admin/import', json=dict(url=URL), headers=X).json()['job_id'])
-    assert j['status'] == 'gagal' and 'S3 menolak' in j['message'] and kosong(cfg)
-    assert client.delete('/api/admin/import/credentials', headers=X).json()['credentials']['source'] == 'lingkungan'
+    assert j['status'] == 'failed' and 'S3 menolak' in j['message'] and kosong(cfg)
+    assert client.delete('/api/admin/import/credentials', headers=X).json()['credentials']['source'] == 'environment'
     # rahasia tidak ada di respons, audit, maupun basis data akun
     semua = client.get('/api/admin/audit?limit=500').text + client.get('/api/admin/import').text + client.get(f'/api/admin/import/{j["job_id"]}').text
     assert SECRET not in semua and KEY_OK not in semua and 'AKIATEMPEL' not in semua
@@ -388,7 +388,7 @@ def test_sinkron_otomatis_mengambil_folder_baru_tanpa_tautan(wclient, cfg, s3):
     folders = [f['folder'] for f in wclient.get('/api/meta').json()['folders']]
     assert {'2026-01-06', '2026-01-07'} <= set(folders) and D not in folders
     jobs = wclient.get('/api/admin/import').json()['jobs']
-    assert [(j['folder'], j['status']) for j in jobs[:2]] == [('2026-01-07', 'selesai'), ('2026-01-06', 'selesai')] and jobs[0]['requested_by'] == 'admin'
+    assert [(j['folder'], j['status']) for j in jobs[:2]] == [('2026-01-07', 'done'), ('2026-01-06', 'done')] and jobs[0]['requested_by'] == 'admin'
     # putaran berikutnya lewat token mesin (cron): folder yang tertunda menyusul; yang sudah ada tidak diunduh ulang
     n0 = len(s3.gets())
     r = sinkron(TestClient(wclient.app), {**X, 'Authorization': f'Bearer {TOKEN}'}, wclient)

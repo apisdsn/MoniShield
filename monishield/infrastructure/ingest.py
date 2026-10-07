@@ -118,7 +118,7 @@ def _cleanup_killed(cfg, con):
     """Proses yang dimatikan paksa (kill -9, container dihentikan) tidak sempat menjalankan `finally`: baris ingest_run
     tertinggal 'berjalan' dan CSV sementara (berisi IP/email dari log) tertinggal di data/tmp. Dipanggil di awal ingest,
     saat kunci ingest dipegang, jadi tidak ada run lain yang sedang memakai keduanya."""
-    con.execute("UPDATE ingest_run SET finished_at = ?, status = 'gagal', message = ? WHERE status = 'berjalan'",
+    con.execute("UPDATE ingest_run SET finished_at = ?, status = 'failed', message = ? WHERE status = 'running'",
                 [utcnow(), json.dumps(['terputus: proses berhenti sebelum ingest selesai; data folder yang belum selesai tidak berubah'])])
     tmp = os.path.join(cfg.data_dir, 'tmp')
     for d in os.listdir(tmp) if os.path.isdir(tmp) else []:
@@ -129,7 +129,7 @@ def _run(cfg, con, only_folder, force, workers, progress):
     t0 = time.time()
     _cleanup_killed(cfg, con)
     run_id = _next_id(con, 'seq_run_id', 'ingest_run', 'run_id')
-    con.execute("INSERT INTO ingest_run VALUES (?, ?, NULL, 'berjalan', NULL, NULL, NULL)", [run_id, utcnow()])
+    con.execute("INSERT INTO ingest_run VALUES (?, ?, NULL, 'running', NULL, NULL, NULL)", [run_id, utcnow()])
     tmp = os.path.join(cfg.data_dir, 'tmp', f'run-{run_id}')
     res = dict(run_id=run_id, status='ok', files_seen=0, files_changed=0, files_parsed=0, files_removed=0, files_failed=0, folders_changed=[], folders_recorrelated=[], refdata=None, warnings=[])
     try:
@@ -171,7 +171,7 @@ def _run(cfg, con, only_folder, force, workers, progress):
         for k in gone: by_folder.setdefault(k['folder'], [[], []])[1].append(k)
         for fd in sorted(by_folder):
             changed, removed = by_folder[fd]
-            progress(phase='muat', folder=fd)
+            progress(phase='load', folder=fd)
             con.execute('BEGIN')
             try:
                 touched = False
@@ -197,7 +197,7 @@ def _run(cfg, con, only_folder, force, workers, progress):
         res['folders_redetected'] = []
         for (fd,) in con.execute('SELECT folder::VARCHAR FROM folder_state WHERE crs_version IS DISTINCT FROM ? ORDER BY 1', [detect.version_key()]).fetchall():
             if fd in res['folders_changed'] or (only_folder and fd != only_folder): continue
-            progress(phase='muat', folder=fd)
+            progress(phase='load', folder=fd)
             con.execute('BEGIN')
             try:
                 derive.steps.crs(con, fd)
@@ -214,7 +214,7 @@ def _run(cfg, con, only_folder, force, workers, progress):
         except Exception as e:  # noqa: BLE001
             res['warnings'].append(f'refdata gagal: {type(e).__name__}: {e}')
     except BaseException as e:
-        res['status'] = 'gagal'; res['warnings'].append(f'{type(e).__name__}: {e}')
+        res['status'] = 'failed'; res['warnings'].append(f'{type(e).__name__}: {e}')
         raise
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -243,15 +243,15 @@ def _apply_file(con, f, k, res):
         res['warnings'].append(f"{f['relpath']}: GAGAL di-parse: {r['error']}"); res['files_failed'] += 1
         _delete_file_rows(con, file_id); con.execute('DELETE FROM ingest_file WHERE file_id = ?', [file_id])
         # rules_version 0 -> selalu dicoba lagi pada ingest berikutnya
-        con.execute("INSERT INTO ingest_file VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 'gagal', 0, ?)",
+        con.execute("INSERT INTO ingest_file VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 'failed', 0, ?)",
                     [file_id, f['relpath'], f['source_ext'], f['folder'], f['ns'], f['service'], f['pod'], f['size_bytes'], f['mtime_ns'], r['sha256'] or '', utcnow()])
         return True
     if s is None:  # isi sama dengan yang sudah diproses: hanya berkas sumbernya yang berubah (disentuh, atau .gz <-> .log)
         con.execute('UPDATE ingest_file SET source_ext = ?, size_bytes = ?, mtime_ns = ? WHERE file_id = ?', meta + [file_id])
         return False
     _delete_file_rows(con, file_id); con.execute('DELETE FROM ingest_file WHERE file_id = ?', [file_id])
-    status = 'kosong' if not s['lines'] else 'rusak' if s['corrupt_lines'] and not s['rows'] else 'ok'
-    if status == 'rusak' and _export_error(f['path']):   # ditemukan pada data S3 asli 2026-10-07
+    status = 'empty' if not s['lines'] else 'corrupt' if s['corrupt_lines'] and not s['rows'] else 'ok'
+    if status == 'corrupt' and _export_error(f['path']):   # ditemukan pada data S3 asli 2026-10-07
         res['warnings'].append(f"{f['relpath']}: berisi pesan galat alat ekspor log, bukan log ('{EXPORT_ERROR}…'); periksa pengiriman log ke S3")
     con.execute('INSERT INTO ingest_file VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [file_id, f['relpath'], f['source_ext'], f['folder'], f['ns'], f['service'], f['pod'], f['size_bytes'], f['mtime_ns'], r['sha256'],

@@ -14,7 +14,19 @@ def open(path, memory_limit='1GB'):  # noqa: A001  (dipanggil sebagai db.open)
     con = duckdb.connect(path)
     con.execute(f"SET memory_limit = '{memory_limit}'")
     with builtins.open(SCHEMA, encoding='utf-8') as fh: con.execute(fh.read())
+    _english_status(con)
     return con
+
+
+# Status values were Indonesian before 2026-10-08; rewritten once in place (cheap no-op afterwards).
+RUN_STATUS = {'berjalan': 'running', 'gagal': 'failed'}
+FILE_STATUS = {'kosong': 'empty', 'rusak': 'corrupt', 'gagal': 'failed'}
+
+
+def _english_status(con):
+    for table, m in (('ingest_run', RUN_STATUS), ('ingest_file', FILE_STATUS)):
+        case = ' '.join(f"WHEN '{a}' THEN '{b}'" for a, b in m.items())
+        con.execute(f"UPDATE {table} SET status = CASE status {case} END WHERE status IN ({', '.join(repr(a) for a in m)})")
 
 
 OLD_NAME = 'simpel4.duckdb'   # nama berkas sebelum 2026-10-07 (nama aplikasi lama)

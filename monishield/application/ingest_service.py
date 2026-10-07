@@ -21,7 +21,7 @@ class IngestService:
     def start(self, folder=None, force=False, by=None):
         with self._lock:
             if self.state['running']: raise Busy('Ingest sedang berjalan.')
-            self.state.update(running=True, phase='pindai', done=0, total=0, folder=folder, started_by=by, error=None)
+            self.state.update(running=True, phase='scan', done=0, total=0, folder=folder, started_by=by, error=None)
         self.thread = threading.Thread(target=self._run, args=(folder, force), name='ingest', daemon=True)
         self.thread.start()
 
@@ -31,7 +31,7 @@ class IngestService:
         while True:
             with self._lock:
                 if not self.state['running']:
-                    self.state.update(running=True, phase='pindai', done=0, total=0, folder=folder, started_by=by, error=None); break
+                    self.state.update(running=True, phase='scan', done=0, total=0, folder=folder, started_by=by, error=None); break
             if time.time() - t0 > wait_seconds: raise Busy('Ingest lain tidak selesai-selesai.')
             time.sleep(1)
         self._run(folder, False)

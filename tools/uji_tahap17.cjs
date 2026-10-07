@@ -95,7 +95,7 @@ const ipOf = (s) => (String(s).match(/\d{1,3}(?:\.\d{1,3}){3}|[0-9a-f:]{6,}/i) |
     if (C.o2) cek(`pod ${f}: chart sebaran request per pod sama`, !samaSeri(C.o2, await chartTabel('Sebaran request per pod')).length);
     // kesehatan per pod: status lama "Tanpa Log" boleh menjadi "Rusak"/"Gagal dibaca" (B05)
     const sum = await api(`/api/folders/${f}`);
-    const rusak = sum.files.filter((x) => x.status === 'rusak').length;
+    const rusak = sum.files.filter((x) => x.status === 'corrupt').length;
     // status: file rusak/gagal dibaca di lama "Ada Log"/"Tanpa Log" menurut jumlah barisnya, di v2 "Rusak"/"Gagal dibaca" (B05)
     const h = await samaTabel('kesehatan per pod', [0, 1, 2, 3, 4]);
     const sL = Object.fromEntries((await tabel(lp, '#main .card', 'kesehatan per pod')).map((r) => [dec(r[0]), dec(r[5])]));

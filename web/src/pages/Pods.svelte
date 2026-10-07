@@ -35,7 +35,7 @@
   const errFiles = $derived((files || []).filter((f) => f.err).sort((a, b) => b.err - a.err).slice(0, 15));
   const pods = $derived(data?.tables['backend-pods'] || { total: 0, rows: [] });
   const topPods = $derived([...pods.rows].sort((a, b) => b.requests - a.requests).slice(0, 15));
-  const STATUS = { ok: ['ok', 'pod.has_log'], kosong: [2, 'pod.no_log'], rusak: [2, 'file.rusak'], gagal: [3, 'file.gagal'] };
+  const STATUS = { ok: ['ok', 'pod.has_log'], empty: [2, 'pod.no_log'], corrupt: [2, 'file.rusak'], failed: [3, 'file.gagal'] };
 </script>
 
 {#if error && !data}

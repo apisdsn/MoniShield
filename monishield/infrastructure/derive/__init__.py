@@ -42,7 +42,7 @@ def run(con, folder, now, rules_version):
     con.execute('DELETE FROM folder_state WHERE folder = ?', [folder])
     con.execute("""INSERT INTO folder_state (folder, derived_at, rules_version, range_start_utc, range_end_utc, lines, files, files_empty, files_corrupt, crs_version)
         SELECT $f, $now, $v, $a, $b, coalesce(sum(lines), 0), count(*),
-               count(*) FILTER (WHERE lines = 0), count(*) FILTER (WHERE status = 'rusak'), $crs
+               count(*) FILTER (WHERE lines = 0), count(*) FILTER (WHERE status = 'corrupt'), $crs
         FROM ingest_file WHERE folder = $f HAVING count(*) > 0""", {'f': folder, 'now': now, 'v': rules_version, 'a': rng[0], 'b': rng[1], 'crs': detect.version_key()})
 
 

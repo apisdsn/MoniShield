@@ -55,7 +55,7 @@
   const d = (k, good = false) => summ?.prev_folder
     ? delta(sum(cmp, k), sum(cmp.map((s) => s.prev), k), summ.prev_folder, $lang, { good, comparable: cmp.length > 0 }) : null;
   const files = $derived(summ?.files || []);
-  const nCorrupt = $derived(files.filter((f) => f.status === 'rusak').length);
+  const nCorrupt = $derived(files.filter((f) => f.status === 'corrupt').length);
   const rate = (n, dg) => `${num((n / ngRow.requests) * 100, $lang, dg)}%`;
 
   // error per jam per layanan: batang bertumpuk, jam gabungan semua layanan
