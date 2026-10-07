@@ -104,11 +104,15 @@ const sama = (a, b) => Math.abs(a.lng - b.lng) < 1e-6 && Math.abs(a.lat - b.lat)
   await p.mouse.move(box.x, box.y); await p.mouse.wheel(0, 300); await p.waitForTimeout(500);
   const pet = await p.evaluate(() => [window.__coop === 'wheel_zoom', document.querySelector('.maplibregl-cooperative-gesture-screen')?.textContent]);
   const yB = await p.evaluate(() => scrollY), zB = (await M(p)).zoom;
-  const box2 = await p.$eval('.mapwrap', (e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  // halaman sudah menggulir 300 px: titik tengah peta bisa tertutup kepala halaman yang menempel di atas, sehingga roda
+  // jatuh ke kepala halaman, bukan ke peta. Tampilkan peta lagi dan pastikan titik yang dituju memang kanvas peta.
+  const box2 = await p.$eval('.mapwrap', (e) => { e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await p.waitForTimeout(300);
+  const diPeta = await p.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('.mapwrap .map') != null, box2);
   await p.mouse.move(box2.x, box2.y); await p.keyboard.down('Control'); await p.mouse.wheel(0, -400); await p.keyboard.up('Control'); await p.waitForTimeout(900);
   const zC = (await M(p)).zoom;
-  cek('roda mouse di atas peta: halaman menggulir, peta tetap, petunjuk "Tahan Ctrl…"; Ctrl + roda memperbesar', yB > yA && Math.abs(zB - zA) < 1e-6 && pet[0] && /Tahan Ctrl/.test(pet[1]) && zC > zB + 0.2,
-    `scroll ${yA}->${yB}, zoom ${zA.toFixed(2)} -> ${zB.toFixed(2)} -> Ctrl ${zC.toFixed(2)}`);
+  cek('roda mouse di atas peta: halaman menggulir, peta tetap, petunjuk "Tahan Ctrl…"; Ctrl + roda memperbesar', yB > yA && Math.abs(zB - zA) < 1e-6 && pet[0] && /Tahan Ctrl/.test(pet[1]) && diPeta && zC > zB + 0.2,
+    `scroll ${yA}->${yB}, zoom ${zA.toFixed(2)} -> ${zB.toFixed(2)} -> Ctrl ${zC.toFixed(2)}${diPeta ? "" : " (titik tujuan bukan kanvas peta)"}`);
 
   // ------------------------------------------------------------------ kelancaran zoom: waktu antar-frame selama animasi zoom (informasi)
   const fps = await p.evaluate(async () => { const m = document.querySelector('.mapwrap .map').__map; const t = [];
