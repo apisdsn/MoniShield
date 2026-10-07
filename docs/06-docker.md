@@ -24,6 +24,7 @@ Prasyarat: Docker Engine 26+ dengan Compose 2.30+ (diuji Engine 29.8, Compose 5.
 ```sh
 cd v2
 cp .env.example .env && chmod 600 .env       # isi: lihat tabel di bawah; .env tidak ikut git maupun image
+sudo chgrp 10001 .env && chmod 660 .env      # pengguna container (gid 10001) boleh membaca + menulis .env (layar Konfigurasi)
 docker compose build                         # ±1–3 menit pertama kali
 docker compose up -d                         # app + postgres; tunggu "healthy":
 docker compose ps
@@ -157,9 +158,25 @@ Notifikasi (bila diaktifkan di layar Konfigurasi → Notifikasi): `api.telegram.
 kantor. Isi pesan hanya angka ringkasan + tautan dashboard, tanpa alamat IP pengguna. Tombol **Uji koneksi** MaxMind di
 layar Konfigurasi hanya meminta tautan unduhan ke `download.maxmind.com` (tanpa mengunduh, tanpa alamat IP pengguna).
 
-Kunci AWS, kunci MaxMind, dan pengecualian daftar blokir boleh dikosongkan di `.env` lalu diisi dari layar
-**Konfigurasi**: tersimpan di PostgreSQL (tabel `app_setting`, ikut cadangan basis data akun) dan langsung berlaku. Ingest
-lewat `docker compose run --rm ingest` dipicu ke server (token mesin), jadi isian layar juga berlaku di sana.
+### `.env` dipasang ke container, dan layar Konfigurasi menulis ke sana
+
+`app` tidak lagi memakai `env_file:`; `./.env` dipasang sebagai file ke `/app/.env` dan dibaca server sendiri saat mulai.
+Layar **Konfigurasi** (kunci AWS, MaxMind, folder S3 otomatis, notifikasi, daftar blokir) menulis ke file itu **di
+tempat** (tanpa ganti-nama, aman untuk bind mount), lalu nilainya langsung berlaku; setelah `docker compose restart` atau
+`up -d` nilainya tetap. Syarat: pengguna container (uid/gid 10001) boleh menulis:
+
+```sh
+sudo chgrp 10001 .env && chmod 660 .env
+```
+
+Tanpa izin itu layar menampilkan peringatan "tidak bisa ditulis" dan menolak **Simpan** (nilai lain tetap jalan).
+Variabel di blok `environment:` compose (path `/logs`, `/data`, URL PostgreSQL, dll.) tetap mengalahkan `.env`.
+`ingest` memasang file yang sama hanya-baca. Mengubah `.env` dengan editor juga boleh — mulai ulang `app` sesudahnya;
+pakai editor yang menulis di tempat (mis. `nano`, `vi` dengan `:set backupcopy=yes`), karena editor yang mengganti-nama
+file memutus bind mount sampai container dibuat ulang.
+
+Alamat sumber unduhan (MaxMind, ip2asn, Natural Earth, GeoNames) dan API Telegram juga diatur di `.env`
+(`S4_URL_*`, `S4_TELEGRAM_API`, bagian 10 `.env.example`) — berguna bila server hanya boleh keluar lewat cermin/proxy internal.
 
 Saat build saja: `registry-1.docker.io` / `production.cloudflare.docker.com` (image dasar), `registry.npmjs.org`, dan
 `pypi.org` + `files.pythonhosted.org`.

@@ -1,64 +1,54 @@
-"""Setelan yang diisi admin dari layar Konfigurasi (permintaan pemilik 2026-10-07: "satu halaman untuk semua kredensial").
+"""Layar Konfigurasi -> file .env (permintaan pemilik 2026-10-07: "ubah semua yang berbau configuration … ke dalam .env").
 
-Disimpan di basis data akun (app_setting 'config'), lalu DITIMPAKAN ke objek konfigurasi server yang sedang berjalan
-(`apply`), sehingga semua kode yang membaca `cfg.aws_*`, `cfg.maxmind_*`, dst. langsung memakai nilai baru tanpa mulai
-ulang. Urutan: isian layar > .env/variabel lingkungan > bawaan. Mengosongkan isian layar = kembali ke nilai .env.
+Semua setelan yang bisa diubah dari layar (kredensial AWS + wilayah, MaxMind, pengecualian daftar blokir, folder induk S3
+otomatis, notifikasi) DISIMPAN KE FILE .env — satu sumber kebenaran yang juga dibaca CLI dan Docker. Sesudah ditulis,
+nilainya langsung ditimpakan ke objek konfigurasi server yang sedang berjalan, jadi tidak perlu mulai ulang.
 
-Kredensial tidak pernah dikirim balik ke browser: hanya "sudah diisi" + sumbernya (Access Key ID ditampilkan tersamar).
-Yang TETAP hanya lewat .env (tidak bisa dari layar, karena menjadi dasar keamanan server itu sendiri): S4_JWT_SECRET,
-S4_JOB_TOKEN, sandi PostgreSQL, S4_ADMIN_PASSWORD, dan daftar izin bucket S4_IMPORT_BUCKETS — layar hanya menampilkan
-statusnya.
+Rahasia tidak pernah dikirim balik ke browser: hanya "sudah diisi" + sumbernya (Access Key ID / Account ID tersamar).
+Variabel lingkungan proses yang BERBEDA dari .env mengalahkan .env saat server dimulai (config.load); layar menandainya
+(sumber 'environment') agar admin tahu nilai layar tidak akan bertahan setelah mulai ulang.
+Yang TIDAK bisa diubah dari layar (dasar keamanan server): S4_JWT_SECRET, S4_JOB_TOKEN, S4_AUTH_DATABASE_URL,
+S4_ADMIN_PASSWORD, S4_IMPORT_BUCKETS — layar hanya menampilkan statusnya.
+
+Setelan lama yang dulu disimpan di basis data akun (app_setting 'config' / 'alerts' / 's3_watch') dipindah sekali ke .env
+saat server mulai (`migrate`).
 """
-import dataclasses, ipaddress, re
+import ipaddress, os, re
 
-# kolom yang boleh diisi dari layar: nama di cfg -> (kelompok, rahasia?)
-FIELDS = {
-    'aws_access_key_id': ('aws', True), 'aws_secret_access_key': ('aws', True), 'aws_session_token': ('aws', True),
-    'import_region': ('aws', False),
-    'maxmind_account_id': ('maxmind', True), 'maxmind_license_key': ('maxmind', True),
-    'blocklist_exclude': ('blocklist', False), 'blocklist_exclude_org': ('blocklist', False),
+from . import alerts, config, envfile
+
+GROUPS = {
+    'aws': ('aws_access_key_id', 'aws_secret_access_key', 'aws_session_token', 'import_region'),
+    'maxmind': ('maxmind_account_id', 'maxmind_license_key'),
+    'blocklist': ('blocklist_exclude', 'blocklist_exclude_org'),
+    'watch': ('s3_watch', 's3_watch_minutes', 's3_watch_enabled'),
+    'alerts': tuple(alerts.to_fields(alerts.load(config.Config()))),
 }
+SCREEN = {k for g in ('aws', 'maxmind', 'blocklist') for k in GROUPS[g]}   # PUT /api/admin/config
+SECRET = set(config.SECRETS)
+MASKED = ('aws_access_key_id', 'maxmind_account_id')
 ENV_ONLY = ('jwt_secret', 'job_token', 'auth_database_url', 'admin_password')   # hanya status terisi/kosong
+BASE = config.Config()
 
 
 class SettingsFail(Exception):
-    pass
+    def __init__(self, message, code='invalid_config'):
+        super().__init__(message); self.code = code
 
 
-def stored(auth):
-    st = auth.setting_get('config')
-    return {k: v for k, v in (st['value'] if st else {}).items() if k in FIELDS}
+def env_path(app): return app.state.env_path
 
 
-def _overlay(cfg, base, s):
-    for k in FIELDS: setattr(cfg, k, s[k] if s.get(k) not in (None, '') else getattr(base, k))
-    return {k for k in FIELDS if s.get(k) not in (None, '')}
+def file_values(app):
+    try: return config.read_dotenv(env_path(app))
+    except SystemExit: return {}
 
 
-def apply(app):
-    """Timpakan isian layar ke app.state.cfg; kolom tanpa isian layar kembali ke nilai awal (.env)."""
-    try: s = stored(app.state.auth)
-    except Exception: s = {}   # noqa: BLE001  basis data akun belum siap: tetap .env
-    app.state.cfg_layar = _overlay(app.state.cfg, app.state.cfg_env, s)
-
-
-def origin(app, key):
-    """'layar' | 'env' | None — asal nilai kolom yang sedang dipakai."""
-    if key in getattr(app.state, 'cfg_layar', ()): return 'layar'
-    return 'env' if getattr(app.state.cfg_env, key) else None
-
-
-def for_cli(cfg):
-    """CLI tanpa server (ingest/impor lokal): pakai juga isian layar yang tersimpan di basis data akun, bila terjangkau."""
-    from . import auth as authmod
-    try:
-        a = authmod.Auth(cfg.auth_url)
-        try: s = stored(a)
-        finally: a.close()
-    except Exception: return cfg   # noqa: BLE001  basis data akun tidak terjangkau: .env saja
-    out = dataclasses.replace(cfg)
-    _overlay(out, cfg, s)
-    return out
+def source(field, fv):
+    """'environment' (variabel lingkungan proses mengalahkan .env) | 'file' (.env) | None (nilai bawaan)."""
+    name = config.env_name(field)
+    if name in os.environ and os.environ[name] != fv.get(name): return 'environment'
+    return 'file' if name in fv else None
 
 
 def _mask(v):
@@ -67,35 +57,63 @@ def _mask(v):
 
 def view(app):
     """Untuk browser: nilai non-rahasia apa adanya; rahasia hanya {set, source[, masked]}."""
-    cfg = app.state.cfg
-    out = {}
-    for k, (grp, secret) in FIELDS.items():
-        src = origin(app, k)
-        if secret:
-            item = dict(set=bool(getattr(cfg, k)), source=src)
-            if k in ('aws_access_key_id', 'maxmind_account_id'): item['masked'] = _mask(getattr(cfg, k))
-        else:
-            item = dict(value=getattr(cfg, k), source=src)
-        out.setdefault(grp, {})[k] = item
+    cfg, fv, out = app.state.cfg, file_values(app), {}
+    for grp in ('aws', 'maxmind', 'blocklist'):
+        for k in GROUPS[grp]:
+            item = dict(set=bool(getattr(cfg, k))) if k in SECRET else dict(value=getattr(cfg, k))
+            if k in MASKED: item['masked'] = _mask(getattr(cfg, k))
+            item.update(source=source(k, fv), env=config.env_name(k))
+            out.setdefault(grp, {})[k] = item
     out['server'] = {k: bool(getattr(cfg, k)) for k in ENV_ONLY}
     out['server']['import_buckets'] = cfg.import_buckets
+    path = env_path(app)
+    override = sorted(config.env_name(k) for g in GROUPS.values() for k in g if source(k, fv) == 'environment')
+    out['file'] = dict(path=path, exists=os.path.exists(path), writable=envfile.writable(path), environment_override=override,
+                       pending=getattr(app.state, 'settings_pending', []))
     return out
 
 
-def update(app, body, by):
-    """body: {kolom: nilai} + clear: [kolom]. Rahasia kosong = tidak diubah. Diperiksa dulu, lalu disimpan + diterapkan."""
-    s = stored(app.state.auth)
+def write(app, values):
+    """{kolom: nilai | None}: tulis ke .env (None = baris dinonaktifkan -> bawaan) lalu terapkan ke server. Hanya kolom
+    yang nilainya berubah yang ditulis. -> daftar nama variabel yang berubah."""
+    cfg = app.state.cfg
+    values = {k: v for k, v in values.items() if (getattr(BASE, k) if v is None else v) != getattr(cfg, k) or v is None}
+    if not values: return []
+    path = env_path(app)
+    if not envfile.writable(path):
+        raise SettingsFail(f'File {path} tidak bisa ditulis oleh server. Beri izin tulis (lihat docs/06-docker.md) atau ubah file itu langsung.', 'env_not_writable')
+    try: changed = envfile.update(path, {config.env_name(k): None if v is None else envfile.fmt(v) for k, v in values.items()})
+    except envfile.EnvFileFail as e: raise SettingsFail(str(e)) from None
+    for k, v in values.items(): setattr(cfg, k, getattr(BASE, k) if v is None else v)
+    return changed
+
+
+def update(app, body):
+    """PUT /api/admin/config. body: {kolom: nilai} + clear: [kolom]. Rahasia kosong = tidak diubah; kolom biasa kosong =
+    kembali ke bawaan. Diperiksa dulu (gabungan dengan nilai sekarang), lalu ditulis ke .env. -> kelompok yang berubah."""
+    cfg, values = app.state.cfg, {}
     for k, v in (body or {}).items():
-        if k == 'clear' or k not in FIELDS: continue
+        if k not in SCREEN: continue
         v = '' if v is None else str(v).strip()
-        if FIELDS[k][1] and v == '': continue                        # rahasia dibiarkan kosong: tetap
-        s[k] = v
+        if k in SECRET and v == '': continue                      # rahasia dibiarkan kosong: tetap
+        values[k] = v if v != '' else None
     for k in body.get('clear') or []:
-        if k in FIELDS: s.pop(k, None)
-    _validate(s)
-    app.state.auth.setting_set('config', s, by)
-    apply(app)
-    return sorted({FIELDS[k][0] for k in body if k in FIELDS} | {FIELDS[k][0] for k in body.get('clear') or [] if k in FIELDS})
+        if k in SCREEN: values[k] = None
+    cand = {k: getattr(cfg, k) for k in SCREEN}
+    cand.update({k: getattr(BASE, k) if v is None else v for k, v in values.items()})
+    _validate(cand)
+    changed = write(app, values)
+    names = set(changed)
+    return sorted({g for g, ks in GROUPS.items() for k in ks if config.env_name(k) in names})
+
+
+def write_alerts(app, d):
+    """Setelan notifikasi (sudah diperiksa alerts.merge) -> .env."""
+    return write(app, alerts.to_fields(d))
+
+
+def write_watch(app, url, minutes, enabled):
+    return write(app, dict(s3_watch=url, s3_watch_minutes=int(minutes), s3_watch_enabled=bool(enabled)))
 
 
 def _validate(s):
@@ -114,10 +132,40 @@ def _validate(s):
     if v and not re.fullmatch(r'[A-Za-z0-9_]{10,64}', v): raise SettingsFail('License key MaxMind tidak sah.')
     if bool(s.get('maxmind_account_id')) != bool(s.get('maxmind_license_key')):
         raise SettingsFail('Isi Account ID dan License key MaxMind bersama-sama.')
-    for net in (x.strip() for x in s.get('blocklist_exclude', '').split(',') if x.strip()):
+    for net in (x.strip() for x in (s.get('blocklist_exclude') or '').split(',') if x.strip()):
         try: ipaddress.ip_network(net, strict=False)
         except ValueError: raise SettingsFail(f'"{net[:60]}" bukan IP atau CIDR.') from None
     v = s.get('blocklist_exclude_org')
     if v:
         try: re.compile(v)
         except re.error: raise SettingsFail('Pola pemilik jaringan bukan regex yang sah.') from None
+
+
+# ------------------------------------------------------------------ pindahan dari basis data akun (sekali)
+OLD_KEYS = ('config', 'alerts', 's3_watch')
+
+
+def migrate(app):
+    """Setelan lama di app_setting -> .env. Bila .env tidak bisa ditulis: tetap dipakai dari memori (tanpa hilang) dan
+    layar menampilkan peringatan; baris di basis data baru dihapus sesudah berhasil ditulis."""
+    auth, cfg = app.state.auth, app.state.cfg
+    try: old = {k: auth.setting_get(k) for k in OLD_KEYS}
+    except Exception: return   # noqa: BLE001  basis data akun belum siap
+    old = {k: v['value'] for k, v in old.items() if v}
+    if not old: return
+    values = {}
+    for k, v in (old.get('config') or {}).items():
+        if k in SCREEN and v not in (None, ''): values[k] = v
+    if 'alerts' in old: values.update(alerts.to_fields(alerts.from_db(cfg, old['alerts'])))
+    if 's3_watch' in old:
+        w = old['s3_watch']
+        values.update(s3_watch=w.get('url', ''), s3_watch_minutes=int(w.get('minutes') or cfg.s3_watch_minutes), s3_watch_enabled=bool(w.get('enabled')))
+    try:
+        write(app, values)
+        for k in old: auth.setting_delete(k)
+        app.state.settings_pending = []
+    except SettingsFail:
+        for k, v in values.items(): setattr(cfg, k, v)
+        app.state.settings_pending = sorted(config.env_name(k) for k in values)
+
+

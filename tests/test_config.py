@@ -1,4 +1,6 @@
 """Konfigurasi: lingkungan > .env > config.toml > bawaan; rahasia tidak pernah tercetak."""
+import dataclasses, os
+
 import pytest
 
 from monishield import config, rules
@@ -65,3 +67,9 @@ def test_contoh_env_bisa_dimuat():
     import os
     c = config.load(env={}, dotenv=os.path.join(config.V2_DIR, '.env.example'))
     assert c.import_buckets == {'simpel4-backup': ['k8s-logs/']} and c.admin_user == 'admin' and c.cookie_secure is True and c.admin_password == ''
+
+
+def test_env_example_memuat_semua_variabel():
+    """.env.example "LENGKAP": setiap kolom konfigurasi (termasuk URL sumber unduhan dan notifikasi) punya barisnya."""
+    t = open(os.path.join(config.V2_DIR, '.env.example')).read()
+    assert [config.env_name(f.name) for f in dataclasses.fields(config.Config) if config.env_name(f.name) + '=' not in t] == []

@@ -44,9 +44,12 @@ def check_roles(routers):
 def _error(status, code, message): return JSONResponse(dict(error=dict(code=code, message=message)), status_code=status)
 
 
-def create_app(cfg=None):
-    # salinan sendiri: isian layar Konfigurasi ditimpakan ke objek ini (settings.apply); cfg_env = nilai .env asli
-    cfg = dataclasses.replace(cfg or config.load())
+def create_app(cfg=None, env_path=None):
+    """env_path = file .env yang ditulis layar Konfigurasi. Bawaan: v2/.env bila konfigurasi dibaca di sini; bila `cfg`
+    diberikan pemanggil (uji, penyematan) tanpa env_path, ditulis di samping state_dir-nya agar v2/.env tidak tersentuh."""
+    loaded = cfg is None
+    cfg = dataclasses.replace(cfg or config.load())   # salinan sendiri: isian layar ditimpakan ke objek ini
+    env_path = env_path or (config.DOTENV if loaded else os.path.join(cfg.state_dir, '.env'))
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
@@ -56,7 +59,7 @@ def create_app(cfg=None):
             raise RuntimeError(f'S4_JWT_SECRET wajib diisi (minimal {authmod.JWT_SECRET_MIN} karakter acak); lihat .env.example')
         app.state.auth = authmod.Auth(cfg.auth_url, cfg.jwt_secret, cfg.session_idle_minutes, cfg.session_max_hours)
         app.state.auth.bootstrap_admin(cfg.admin_user, cfg.admin_password)
-        settings.apply(app)   # kredensial/setelan yang diisi dari layar Konfigurasi
+        settings.migrate(app)   # setelan lama di basis data akun -> .env (sekali)
         if cfg.duckdb_snapshot and not os.path.exists(db.snapshot_path(cfg)):   # DbGate langsung punya salinan, tanpa menunggu ingest
             cur = app.state.con.cursor()
             try: admin._snapshot(app, cur)
@@ -73,7 +76,7 @@ def create_app(cfg=None):
         app.state.con.close()
 
     app = FastAPI(title='MoniShield', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
-    app.state.cfg, app.state.cfg_env = cfg, dataclasses.replace(cfg)
+    app.state.cfg, app.state.env_path, app.state.settings_pending = cfg, env_path, []
     detect.use(cfg)   # tingkat paranoia CRS untuk derive lewat API (Tahap 21)
     app.state.ingest = admin.IngestManager(app)
     app.state.imports = admin.ImportManager(app)

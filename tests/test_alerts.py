@@ -68,11 +68,18 @@ def test_kredensial_tidak_pernah_dikirim_balik(app_env):
     ch = r.json()['channels']
     assert (ch['telegram']['bot_token'], ch['discord']['webhook_url'], ch['email']['password']) == (True, True, True)
     assert ch['telegram']['chat_id'] == '-1001234567890' and ch['email']['to'].startswith('tim@')
+    # disimpan di file .env (bukan basis data), langsung berlaku di konfigurasi server
+    env = config.read_dotenv(os.path.join(c.state_dir, '.env'))
+    assert (env['TELEGRAM_BOT_TOKEN'], env['S4_ALERT_TELEGRAM'], env['S4_ALERT_TELEGRAM_CHAT_ID'], env['DISCORD_WEBHOOK_URL'], env['SMTP_PASSWORD']) == \
+        (TOKEN, 'true', '-1001234567890', HOOK, SMTP_PW)
+    assert env['S4_SMTP_TO'] == 'tim@contoh.go.id, ketua@contoh.go.id' and env['S4_DASHBOARD_URL'] == 'https://monishield.contoh.go.id'
+    assert tc.app.state.cfg.telegram_bot_token == TOKEN and tc.app.state.auth.setting_get('alerts') is None
     # simpan lagi tanpa kredensial: tetap tersimpan; `clear` menghapus
     r = tc.put('/api/admin/alerts', json=dict(channels=dict(telegram=dict(bot_token='', enabled=True))), headers=X)
     assert r.json()['channels']['telegram']['bot_token'] is True
     r = tc.put('/api/admin/alerts', json=dict(channels=dict(discord=dict(enabled=False)), clear=['discord.webhook_url']), headers=X)
     assert r.json()['channels']['discord']['webhook_url'] is False
+    assert config.read_dotenv(os.path.join(c.state_dir, '.env'))['DISCORD_WEBHOOK_URL'] == ''
     audit = tc.get('/api/admin/audit').text
     assert 'alerts.update' in audit and TOKEN not in audit and SMTP_PW not in audit
 
@@ -119,7 +126,7 @@ def test_lonjakan_dan_serangan_kritis_tanpa_alamat_ip(app_env, sent):
     con = tc.app.state.con.cursor()
     try:
         con.execute("UPDATE agg_service SET err = err + 500 WHERE folder = '2026-01-06'")   # lonjakan error vs rata-rata 01-02..01-05
-        cfg = alerts.load(tc.app.state.auth)
+        cfg = alerts.load(tc.app.state.cfg)
         ev = {e[0]: e for e in alerts.folder_events(con, cfg, '2026-01-06', True)}
     finally: con.close()
     assert set(ev) == {'spike', 'critical'}
@@ -128,7 +135,7 @@ def test_lonjakan_dan_serangan_kritis_tanpa_alamat_ip(app_env, sent):
     _, key, title, text = ev['critical']
     assert 'IP' in text and '34.19.127.199' not in text and '#/keamanan?folder=2026-01-06' in text
     # kirim: semua saluran aktif, sekali per kunci
-    cfg = alerts.load(tc.app.state.auth)
+    cfg = alerts.load(tc.app.state.cfg)
     r = alerts.deliver(tc.app.state.auth, cfg, ev['spike'][1], 'spike', ev['spike'][2], ev['spike'][3])
     assert r == dict(telegram=None, discord=None, email=None)
     assert alerts.deliver(tc.app.state.auth, cfg, ev['spike'][1], 'spike', 'x', 'y') == {}
@@ -136,7 +143,7 @@ def test_lonjakan_dan_serangan_kritis_tanpa_alamat_ip(app_env, sent):
     # bahasa Inggris
     tc.put('/api/admin/alerts', json=dict(lang='en'), headers=X)
     con = tc.app.state.con.cursor()
-    try: ev = {e[0]: e for e in alerts.folder_events(con, alerts.load(tc.app.state.auth), '2026-01-06', True)}
+    try: ev = {e[0]: e for e in alerts.folder_events(con, alerts.load(tc.app.state.cfg), '2026-01-06', True)}
     finally: con.close()
     assert ev['spike'][2] == 'Spike in folder 2026-01-06' and 'Errors (all services)' in ev['spike'][3]
 

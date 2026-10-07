@@ -126,8 +126,6 @@ def cmd_ingest(cfg, args):
     cfg = dataclasses.replace(cfg, offline=cfg.offline or args.offline)
     via = _ingest_via_api(cfg, args)
     if via is not None: return via
-    from . import settings
-    cfg = settings.for_cli(cfg)   # kunci MaxMind yang diisi dari layar Konfigurasi juga berlaku di sini
 
     def progress(phase, **k):
         if phase == 'parse' and (k['done'] % 20 == 0 or k['done'] == k['total']): print(f"  parse {k['done']}/{k['total']}", file=sys.stderr)
@@ -169,8 +167,6 @@ def cmd_import(cfg, args):
             if not j['running'] and j['status'] not in ('berjalan',) and (j['result'] or j['status'] == 'gagal'): break
         if j['status'] == 'gagal': print(f"impor gagal: {j['message']}", file=sys.stderr); return 1
         _import_print(j['result']); print(f"impor #{j['job_id']} (lewat API server): {j['message']}"); return 0
-    from . import settings
-    cfg = settings.for_cli(cfg)   # kredensial AWS yang diisi dari layar Konfigurasi juga berlaku di sini
     try: r = importer.run(cfg, args.url, importer.Credentials(cfg), dry_run=args.dry_run)
     except importer.ImportFail as e: print(f'impor gagal: {e.message}', file=sys.stderr); return 1
     _import_print(r)
@@ -200,7 +196,7 @@ def cmd_serve(cfg, args):
 
     from .api import app as appmod
     host, _, port = cfg.bind.rpartition(':')
-    uvicorn.run(appmod.create_app(cfg), host=host or '127.0.0.1', port=int(port), workers=appmod.WORKERS, log_level='info',
+    uvicorn.run(appmod.create_app(cfg, env_path=config.DOTENV), host=host or '127.0.0.1', port=int(port), workers=appmod.WORKERS, log_level='info',
                 proxy_headers=cfg.trust_proxy, forwarded_allow_ips='*' if cfg.trust_proxy else None)
     return 0
 

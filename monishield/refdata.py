@@ -19,12 +19,8 @@ from . import rules
 # Atribusi yang wajib tampil di setiap peta (lisensi GeoLite2 dan CC BY 4.0).
 ATTRIBUTION = ['Produk ini memuat data GeoLite2 buatan MaxMind, tersedia dari https://www.maxmind.com',
                'IP ownership data from iptoasn.com', 'Nama wilayah: GeoNames (CC BY 4.0)', 'Peta dasar: Natural Earth']
-MAXMIND_URL = 'https://download.maxmind.com/geoip/databases/{}/download?suffix=zip'
-BORDERS_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_boundary_lines_land.geojson'
-PROVINCES_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson'
-GEO_MAX_AGE_DAYS = 7   # lisensi GeoLite2 melarang memakai basis data usang; berkas lama dihapus saat yang baru masuk
-ASN_MAX_AGE_DAYS = 7   # sama dengan sistem lama
-MAP_MAX_AGE_DAYS = 3650
+# Alamat sumber unduhan dan umur maksimal berkas diatur di konfigurasi (.env: S4_URL_*, S4_GEO_MAX_AGE_DAYS,
+# S4_ASN_MAX_AGE_DAYS, S4_MAP_MAX_AGE_DAYS); bawaannya alamat resmi. Lisensi GeoLite2 melarang memakai basis data usang.
 
 
 class _StripAuth(urllib.request.HTTPRedirectHandler):
@@ -36,8 +32,9 @@ class _StripAuth(urllib.request.HTTPRedirectHandler):
         return new
 
 
-def fetch_maxmind(cfg, edition, path, max_age_days=GEO_MAX_AGE_DAYS, log=print):
+def fetch_maxmind(cfg, edition, path, max_age_days=None, log=print):
     """Unduh satu edisi GeoLite2 (zip) bila belum ada / sudah lama. False = tidak tersedia."""
+    max_age_days = cfg.geo_max_age_days if max_age_days is None else max_age_days
     fresh = os.path.exists(path) and os.path.getmtime(path) > (datetime.datetime.now() - datetime.timedelta(days=max_age_days)).timestamp()
     if fresh: return True
     if not (cfg.maxmind_account_id and cfg.maxmind_license_key):
@@ -45,7 +42,7 @@ def fetch_maxmind(cfg, edition, path, max_age_days=GEO_MAX_AGE_DAYS, log=print):
         return os.path.exists(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     auth = base64.b64encode(f'{cfg.maxmind_account_id}:{cfg.maxmind_license_key}'.encode()).decode()
-    req = urllib.request.Request(MAXMIND_URL.format(edition), headers={'Authorization': 'Basic ' + auth, 'User-Agent': 'monishield/2.0'})
+    req = urllib.request.Request(cfg.url_maxmind.format(edition), headers={'Authorization': 'Basic ' + auth, 'User-Agent': 'monishield/2.0'})
     try:
         with urllib.request.build_opener(_StripAuth).open(req, timeout=600) as r, open(path + '.tmp', 'wb') as fh:
             while chunk := r.read(1 << 20): fh.write(chunk)
@@ -136,7 +133,7 @@ def fill_ip_info(cfg, con, offline=False, log=print):
     if offline and not os.path.exists(asn_path):
         res['lewat'].append('pemilik: ip2asn belum diunduh dan mode luring')
     else:
-        db = rules.load_ip2asn(asn_path, max_age_days=10**6 if offline else ASN_MAX_AGE_DAYS)
+        db = rules.load_ip2asn(asn_path, max_age_days=10**6 if offline else cfg.asn_max_age_days, url=cfg.url_ip2asn)
         if db is None:
             res['lewat'].append('pemilik: ip2asn tidak tersedia')
         else:
@@ -202,24 +199,24 @@ def build_map_files(cfg, offline=False, log=print):
     out_dir = os.path.join(cfg.data_dir, 'map')
     os.makedirs(out_dir, exist_ok=True)
     res, cache = {}, cfg.cache_dir
-    age = 10**6 if offline else MAP_MAX_AGE_DAYS
+    age = 10**6 if offline else cfg.map_max_age_days
 
     land_src = os.path.join(cache, 'ne_50m_land.geojson')
-    if _have([rules.LAND_URL], land_src, age, offline, 'daratan', log):
+    if _have([cfg.url_land], land_src, age, offline, 'daratan', log):
         g = json.load(open(land_src, encoding='utf-8'))
         g['features'] = [dict(type='Feature', properties={}, geometry=_round_geom_feature(f['geometry'])) for f in g['features']]
         _write_json(os.path.join(out_dir, 'land.geojson'), g)
         res['land.geojson'] = len(g['features'])
 
     b_src = os.path.join(cache, 'ne_50m_boundary_lines.geojson')
-    if _have([BORDERS_URL], b_src, age, offline, 'batas negara', log):
+    if _have([cfg.url_borders], b_src, age, offline, 'batas negara', log):
         g = json.load(open(b_src, encoding='utf-8'))
         g['features'] = [dict(type='Feature', properties={}, geometry=_round_geom_feature(f['geometry'])) for f in g['features']]
         _write_json(os.path.join(out_dir, 'borders-country.geojson'), g)
         res['borders-country.geojson'] = len(g['features'])
 
     p_src = os.path.join(cache, 'ne_10m_admin_1_states_provinces.geojson')
-    if _have([PROVINCES_URL], p_src, age, offline, 'batas provinsi', log):
+    if _have([cfg.url_provinces], p_src, age, offline, 'batas provinsi', log):
         g = json.load(open(p_src, encoding='utf-8'))
         feats = [f for f in g['features'] if (f['properties'].get('adm0_a3') or f['properties'].get('iso_a2')) in ('IDN', 'ID')]
         _write_json(os.path.join(out_dir, 'borders-province-id.geojson'),
@@ -229,8 +226,8 @@ def build_map_files(cfg, offline=False, log=print):
 
     countries = os.path.join(cache, 'ne_110m_countries.geojson')
     geonames = os.path.join(cache, 'geonames-ID.zip')
-    if _have([rules.COUNTRIES_URL], countries, age, offline, 'label negara', log) & _have([rules.GEONAMES_URL], geonames, age, offline, 'label wilayah Indonesia', log):
-        labels = rules.map_labels(countries, geonames)   # dipakai apa adanya dari sistem lama
+    if _have([cfg.url_countries], countries, age, offline, 'label negara', log) & _have([cfg.url_geonames], geonames, age, offline, 'label wilayah Indonesia', log):
+        labels = rules.map_labels(countries, geonames, cfg.url_countries, cfg.url_geonames)   # dipakai apa adanya dari sistem lama
         if any(labels.values()):
             _write_json(os.path.join(out_dir, 'labels.json'), labels)
             res['labels.json'] = {k: len(v) for k, v in labels.items()}

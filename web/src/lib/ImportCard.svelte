@@ -119,7 +119,7 @@
     {@const c = ov.credentials}
     <p class="cred">
       {$t('imp.cred')}
-      {#if c.available}<SeverityTag level="ok" text={$t('imp.cred_ok')} /> <span class="muted">({$t(c.source === 'tempel' ? 'imp.src.pasted' : c.source === 'layar' ? 'imp.src.saved' : 'imp.src.env')}{#if c.pasted_at} · {tWIB(utcToWib(c.pasted_at), $lang)}{/if})</span>
+      {#if c.available}<SeverityTag level="ok" text={$t('imp.cred_ok')} /> <span class="muted">({$t(c.source === 'tempel' ? 'imp.src.pasted' : 'imp.src.env')}{#if c.pasted_at} · {tWIB(utcToWib(c.pasted_at), $lang)}{/if})</span>
       {:else}<SeverityTag level={3} text={$t('imp.cred_none')} />{/if}
     </p>
     <div class="credacts">

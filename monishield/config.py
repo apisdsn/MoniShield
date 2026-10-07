@@ -9,11 +9,14 @@ import dataclasses, json, os, re, tomllib
 from . import rules
 
 V2_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DOTENV = os.path.join(V2_DIR, '.env')   # dibaca load(); layar Konfigurasi menulis ke sini (monishield/envfile.py)
 # rahasia -> nama variabel lingkungannya
 SECRETS = {'admin_password': 'S4_ADMIN_PASSWORD', 'job_token': 'S4_JOB_TOKEN', 'jwt_secret': 'S4_JWT_SECRET',
            'auth_database_url': 'S4_AUTH_DATABASE_URL',   # memuat sandi PostgreSQL
            'maxmind_account_id': 'MAXMIND_ACCOUNT_ID', 'maxmind_license_key': 'MAXMIND_LICENSE_KEY',
-           'aws_access_key_id': 'AWS_ACCESS_KEY_ID', 'aws_secret_access_key': 'AWS_SECRET_ACCESS_KEY', 'aws_session_token': 'AWS_SESSION_TOKEN'}
+           'aws_access_key_id': 'AWS_ACCESS_KEY_ID', 'aws_secret_access_key': 'AWS_SECRET_ACCESS_KEY', 'aws_session_token': 'AWS_SESSION_TOKEN',
+           'telegram_bot_token': 'TELEGRAM_BOT_TOKEN', 'discord_webhook_url': 'DISCORD_WEBHOOK_URL', 'smtp_password': 'SMTP_PASSWORD'}
+ALERT_EVENTS = ('spike', 'critical', 'ingest_failed', 'sync_failed', 'folder_missing', 'summary')
 
 
 @dataclasses.dataclass
@@ -60,9 +63,42 @@ class Config:
     s3_watch_days: int = 30         # hanya folder bertanggal dalam N hari terakhir yang diambil otomatis (0 = semua riwayat)
     s3_watch_max_folders: int = 3   # folder baru maksimal per putaran (terbaru dulu); sisanya menyusul putaran berikutnya
     s3_watch_recheck_days: int = 1  # folder hasil sinkron bertanggal >= hari ini - N diperiksa ulang tiap putaran (file yang datang belakangan)
+    s3_watch_enabled: bool = True   # false = sinkron otomatis dimatikan tanpa menghapus alamat S4_S3_WATCH (tombol "Matikan" di layar)
     aws_access_key_id: str = ''
     aws_secret_access_key: str = ''
     aws_session_token: str = ''
+    # notifikasi (layar Konfigurasi -> Notifikasi menulis ke sini; monishield/alerts.py)
+    alert_telegram: bool = False
+    telegram_bot_token: str = ''
+    alert_telegram_chat_id: str = ''
+    alert_discord: bool = False
+    discord_webhook_url: str = ''
+    alert_email: bool = False
+    smtp_host: str = ''
+    smtp_port: int = 587
+    smtp_security: str = 'starttls'   # starttls | ssl | none
+    smtp_username: str = ''
+    smtp_password: str = ''
+    smtp_from: str = ''
+    smtp_to: str = ''                 # penerima, dipisah koma
+    alert_events: str = 'spike,critical,ingest_failed,sync_failed,folder_missing'   # dari ALERT_EVENTS, dipisah koma
+    alert_lang: str = 'id'
+    dashboard_url: str = ''           # alamat dashboard untuk tautan di pesan, mis. https://monishield.kantor.go.id
+    alert_missing_hour: int = 10      # jam (WIB) pemeriksaan "folder log hari ini belum datang"
+    # alamat sumber unduhan & layanan luar (dulu tertulis di kode; bawaan = alamat resmi)
+    url_maxmind: str = 'https://download.maxmind.com/geoip/databases/{}/download?suffix=zip'   # {} = nama edisi GeoLite2
+    url_ip2asn: str = rules.IP2ASN_URL
+    url_land: str = rules.LAND_URL
+    url_borders: str = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_boundary_lines_land.geojson'
+    url_provinces: str = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson'
+    url_countries: str = rules.COUNTRIES_URL
+    url_geonames: str = rules.GEONAMES_URL
+    telegram_api: str = 'https://api.telegram.org'
+    # pembaruan data rujukan & batas lain
+    geo_max_age_days: int = 7         # GeoLite2 diunduh ulang bila lebih tua (lisensi MaxMind: maks. 30)
+    asn_max_age_days: int = 7         # ip2asn diunduh ulang bila lebih tua
+    map_max_age_days: int = 3650      # berkas peta (daratan, batas, label)
+    upload_session_hours: int = 6     # sesi unggah folder yang ditinggalkan dibersihkan setelah ini
 
     @property
     def db_path(self): return os.path.join(self.data_dir, 'monishield.duckdb')
@@ -114,7 +150,7 @@ def _cast(value, default):
 def load(env=None, dotenv=None):
     """env bawaan = os.environ; dotenv bawaan = v2/.env (lewati dengan dotenv=False)."""
     env = os.environ if env is None else env
-    file_env = {} if dotenv is False else read_dotenv(dotenv or os.path.join(V2_DIR, '.env'))
+    file_env = {} if dotenv is False else read_dotenv(dotenv or DOTENV)
     get = lambda name: env.get(name, file_env.get(name))  # lingkungan mengalahkan .env
     cfg = Config()
     names = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
@@ -138,4 +174,8 @@ def load(env=None, dotenv=None):
     cfg.inbox_dir = os.path.abspath(cfg.inbox_dir or os.path.join(cfg.data_dir, 'inbox'))
     if cfg.attack_rules not in ('crs', 'lama'): raise SystemExit("S4_ATTACK_RULES harus 'crs' atau 'lama'")
     if not 1 <= cfg.attack_paranoia <= 4: raise SystemExit('S4_ATTACK_PARANOIA harus 1..4')
+    if not 1 <= cfg.geo_max_age_days <= 30: raise SystemExit('S4_GEO_MAX_AGE_DAYS harus 1..30 (lisensi GeoLite2)')
+    if cfg.url_maxmind.count('{}') != 1: raise SystemExit('S4_URL_MAXMIND harus memuat tepat satu {} (nama edisi)')
+    for k in ('url_maxmind', 'url_ip2asn', 'url_land', 'url_borders', 'url_provinces', 'url_countries', 'url_geonames', 'telegram_api'):
+        if not re.match(r'https?://', getattr(cfg, k)): raise SystemExit(f'{env_name(k)} harus diawali http:// atau https://')
     return cfg

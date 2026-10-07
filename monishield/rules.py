@@ -147,8 +147,8 @@ def incidents(inc, gap_min=5):
 IP2ASN_URL = 'https://iptoasn.com/data/ip2asn-v4.tsv.gz'
 
 
-def load_ip2asn(path, max_age_days=7):  # beda dari lama: path berkas jadi parameter
-    if not fetch([IP2ASN_URL], path, max_age_days): return None
+def load_ip2asn(path, max_age_days=7, url=IP2ASN_URL):  # beda dari lama: path berkas dan alamat jadi parameter
+    if not fetch([url], path, max_age_days): return None
     starts, rows = [], []
     with gzip.open(path, 'rt', errors='replace') as fh:
         for line in fh:
@@ -235,14 +235,14 @@ def kab_name(n):
     return n.replace('Kabupaten ', 'Kab. ')
 
 
-def map_labels(countries_file, geonames_file):  # beda dari lama: path berkas jadi parameter
+def map_labels(countries_file, geonames_file, countries_url=COUNTRIES_URL, geonames_url=GEONAMES_URL):  # beda dari lama: path & alamat jadi parameter
     """c = [nama ID, nama EN, bujur, lintang, peringkat]; p / k = [nama, bujur, lintang] provinsi / kabupaten-kota."""
     out = dict(c=[], p=[], k=[])
-    if fetch([COUNTRIES_URL], countries_file, 3650):
+    if fetch([countries_url], countries_file, 3650):
         for f in json.load(open(countries_file))['features']:
             p = f['properties']
             out['c'].append([p['NAME_ID'], p['NAME'], round(p['LABEL_X'], 2), round(p['LABEL_Y'], 2), p['LABELRANK']])
-    if fetch([GEONAMES_URL], geonames_file, 3650):
+    if fetch([geonames_url], geonames_file, 3650):
         with zipfile.ZipFile(geonames_file).open('ID.txt') as fh:
             for line in io.TextIOWrapper(fh, 'utf-8'):
                 if '\tADM' not in line: continue

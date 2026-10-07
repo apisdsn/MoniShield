@@ -241,6 +241,12 @@ class Auth:
             if r is None: r = AppSetting(key=key); s.add(r)
             r.value, r.updated_at, r.updated_by = json.dumps(value, ensure_ascii=False), now(), (by or '')[:40] or None
 
+    def setting_delete(self, key):
+        """Hapus setelan lama (dipindah ke .env; settings.migrate)."""
+        with self._tx() as s:
+            r = s.get(AppSetting, key)
+            if r is not None: s.delete(r)
+
     # ---------------------------------------------------------------- riwayat notifikasi
     def alert_seen(self, key):
         """Sudah ada kiriman BERHASIL untuk kunci ini (ke saluran mana pun)?"""

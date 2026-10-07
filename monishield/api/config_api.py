@@ -1,6 +1,7 @@
-"""Konfigurasi: semua kredensial dan setelan yang boleh diisi dari layar, di satu tempat (monishield/settings.py), admin saja.
-  GET  /api/admin/config        status tiap kelompok (rahasia hanya "sudah diisi" + sumber) + status kunci yang hanya lewat .env
-  PUT  /api/admin/config        simpan; kolom rahasia kosong = tidak diubah, `clear` = kembali ke nilai .env
+"""Konfigurasi: semua kredensial dan setelan yang boleh diisi dari layar, di satu tempat, admin saja. Semuanya DITULIS KE
+FILE .env (monishield/settings.py, monishield/envfile.py) dan langsung berlaku.
+  GET  /api/admin/config        status tiap kelompok (rahasia hanya "sudah diisi" + sumber) + status file .env + kunci yang hanya lewat .env
+  PUT  /api/admin/config        tulis ke .env; kolom rahasia kosong = tidak diubah, `clear` = baris dinonaktifkan (nilai bawaan)
   POST /api/admin/config/test   uji koneksi memakai setelan TERSIMPAN: {kind: 'aws'} (daftar 1 objek di S3) atau
                                 {kind: 'maxmind'} (minta tautan unduhan GeoLite2; hanya otorisasi, tanpa mengunduh)
 Folder induk S3 otomatis dan notifikasi punya API sendiri (/api/admin/import/watch, /api/admin/alerts); halaman
@@ -11,7 +12,7 @@ import base64, urllib.error, urllib.request
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from .. import importer, refdata, settings
+from .. import importer, settings
 from .admin import _audit
 from .common import ApiError, require_admin
 
@@ -38,9 +39,9 @@ class ConfigBody(BaseModel):
 @router.put('')
 def put_config(body: ConfigBody, request: Request, admin=Depends(require_admin)):
     data = {k: v for k, v in body.model_dump().items() if v is not None}
-    try: groups = settings.update(request.app, data, admin['username'])
-    except settings.SettingsFail as e: raise ApiError(400, 'invalid_config', str(e)) from None
-    _audit(request, admin, 'config.update', f"kelompok: {', '.join(groups) or 'tidak ada'}")   # tanpa nilai
+    try: groups = settings.update(request.app, data)
+    except settings.SettingsFail as e: raise ApiError(400, e.code, str(e)) from None
+    _audit(request, admin, 'config.update', f"kelompok: {', '.join(groups) or 'tidak ada'} (.env)")   # tanpa nilai
     return settings.view(request.app)
 
 
@@ -76,7 +77,7 @@ def _test_maxmind(app):
         raise ApiError(400, 'maxmind_missing', 'Account ID dan License key MaxMind belum diisi.')
     if cfg.offline: raise ApiError(400, 'offline', 'Server dalam mode luring (S4_OFFLINE); uji koneksi tidak dijalankan.')
     auth = base64.b64encode(f'{cfg.maxmind_account_id}:{cfg.maxmind_license_key}'.encode()).decode()
-    req = urllib.request.Request(refdata.MAXMIND_URL.format('GeoLite2-City-CSV'), method='HEAD',
+    req = urllib.request.Request(cfg.url_maxmind.format('GeoLite2-City-CSV'), method='HEAD',
                                  headers={'Authorization': 'Basic ' + auth, 'User-Agent': 'monishield/2.0'})
     try:
         with urllib.request.build_opener(_NoRedirect).open(req, timeout=20) as r: code = r.status

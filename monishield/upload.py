@@ -11,7 +11,7 @@ import datetime, os, shutil, threading, time, uuid
 from . import importer, rules
 from .importer import CONTROL, ImportFail
 
-SESSION_HOURS = 6   # sesi unggah yang ditinggalkan (tab ditutup) dibersihkan setelah ini
+# sesi unggah yang ditinggalkan (tab ditutup) dibersihkan setelah cfg.upload_session_hours (S4_UPLOAD_SESSION_HOURS)
 
 
 def _date_ok(s):
@@ -121,7 +121,7 @@ class Uploads:
         shutil.rmtree(self._dir(uid), ignore_errors=True)
 
     def _expire(self):
-        old = [u for u, s in list(self.sessions.items()) if time.time() - s['at'] > SESSION_HOURS * 3600]
+        old = [u for u, s in list(self.sessions.items()) if time.time() - s['at'] > self.cfg.upload_session_hours * 3600]
         for u in old: self.drop(u)
         tmp = os.path.join(self.cfg.data_dir, 'tmp')   # sisa sesi dari proses sebelumnya (server dimulai ulang)
         for d in os.listdir(tmp) if os.path.isdir(tmp) else []:

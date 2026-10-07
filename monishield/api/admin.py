@@ -235,7 +235,7 @@ class ImportManager:
 
     def __init__(self, app):
         self.app, self._lock = app, threading.Lock()
-        self.creds = importer.Credentials(app.state.cfg, origin=lambda: settings.origin(app, 'aws_access_key_id'))
+        self.creds = importer.Credentials(app.state.cfg)
         self.state = dict(running=False, job_id=None, phase=None, done=0, total=0, mode=None)   # mode: 'manual' (tautan) / 'sync' (otomatis)
         self.plans, self.thread = {}, None   # job_id -> hasil importer.run (dibatasi 20 terakhir)
         self.watch = dict(last=None, next_check=None)   # sinkron otomatis: hasil putaran terakhir, jadwal berikutnya (UTC)
@@ -289,17 +289,11 @@ class ImportManager:
 
     # -------------------------------------------------------------- sinkron otomatis dari awalan induk S3 (S4_S3_WATCH)
     def watch_config(self):
-        """Setelan sinkron yang berlaku: yang disimpan admin dari layar (app_setting 's3_watch') mengalahkan .env.
-        -> dict(url, minutes, enabled, source='layar'|'env'|None, updated_at, updated_by)"""
+        """Setelan sinkron yang berlaku (.env: S4_S3_WATCH, S4_S3_WATCH_MINUTES, S4_S3_WATCH_ENABLED; layar menulis ke sana).
+        -> dict(url, minutes, enabled, source='file'|'environment'|None)"""
         cfg = self.app.state.cfg
-        try: st = self.app.state.auth.setting_get('s3_watch')
-        except Exception: st = None   # noqa: BLE001  basis data akun belum siap (mis. saat mulai): pakai .env
-        if st:
-            v = st['value']
-            return dict(url=v.get('url', ''), minutes=int(v.get('minutes') or cfg.s3_watch_minutes), enabled=bool(v.get('enabled')) and bool(v.get('url')),
-                        source='layar', updated_at=st['updated_at'], updated_by=st['updated_by'])
-        return dict(url=cfg.s3_watch, minutes=cfg.s3_watch_minutes, enabled=bool(cfg.s3_watch), source='env' if cfg.s3_watch else None,
-                    updated_at=None, updated_by=None)
+        return dict(url=cfg.s3_watch, minutes=cfg.s3_watch_minutes, enabled=cfg.s3_watch_enabled and bool(cfg.s3_watch),
+                    source=settings.source('s3_watch', settings.file_values(self.app)))
 
     def watch_sources(self):
         """-> (daftar s3://… yang dipantau, pesan galat konfigurasi atau None). Kosong bila sinkron dimatikan."""
@@ -317,7 +311,8 @@ class ImportManager:
             try: importer.parse_watch(self.app.state.cfg, url)
             except importer.ImportFail as e: raise ApiError(400, e.code, e.message) from None
         if minutes not in WATCH_MINUTES: raise ApiError(400, 'invalid_parameter', f'Jeda harus salah satu dari {", ".join(map(str, WATCH_MINUTES))} menit.')
-        self.app.state.auth.setting_set('s3_watch', dict(url=url, minutes=minutes, enabled=bool(enabled)), by)
+        try: settings.write_watch(self.app, url, minutes, enabled)
+        except settings.SettingsFail as e: raise ApiError(400, e.code, str(e)) from None
         self._kick_loop()
         return self.watch_config()
 
@@ -448,7 +443,7 @@ def _import_view(request):
     sources, problem = m.watch_sources()
     w = m.watch_config()
     watch = dict(enabled=bool(sources), sources=sources, problem=problem, url=w['url'], minutes=w['minutes'], source=w['source'],
-                 updated_at=w['updated_at'], updated_by=w['updated_by'], minute_options=WATCH_MINUTES, days=cfg.s3_watch_days,
+                 minute_options=WATCH_MINUTES, days=cfg.s3_watch_days,
                  max_folders=cfg.s3_watch_max_folders, **m.watch)
     return dict(enabled=bool(cfg.import_buckets), library=importer.library_ok(), allowed=importer.allowed_examples(cfg), region=cfg.import_region,
                 credentials=m.creds.status(), running=m.state['running'], state=m.state, watch=watch)

@@ -22,7 +22,9 @@ services:
       secrets: [ca_bundle]   # CA proxy kantor (opsional) untuk mengunduh paket saat build; tidak masuk image
     image: *image
     restart: unless-stopped
-    env_file: .env
+    # .env DIPASANG sebagai file (bukan env_file): server membacanya sendiri saat mulai dan layar Konfigurasi menulis ke
+    # sana (langsung berlaku, tetap ada setelah restart). Izin tulis untuk pengguna container (uid 10001):
+    #   sudo chgrp 10001 .env && chmod 660 .env        (lihat docs/06-docker.md)
     environment:   # mengalahkan .env: path di dalam container selalu ini, walau .env berisi path laptop
       S4_BIND: 0.0.0.0:8000
       S4_LOG_DIR: /logs
@@ -39,6 +41,7 @@ services:
       - s4-data:/data
       - s4-cache:/cache
       - s4-inbox:/inbox
+      - ./.env:/app/.env          # dibaca server + ditulis layar Konfigurasi (ditulis di tempat, aman untuk bind mount)
     ports:
       - "127.0.0.1:${DOCKER_PORT:-8000}:8000"   # hanya host sendiri (untuk proxy di server); bukan port publik
     read_only: true
@@ -74,9 +77,10 @@ services:
     image: *image
     profiles: [job]
     restart: "no"
-    env_file: .env
     environment:
       S4_API_URL: http://app:8000     # diisi -> perintah tidak pernah membuka DuckDB sendiri (gagal bila app tidak terjangkau)
+    volumes:
+      - ./.env:/app/.env:ro           # S4_JOB_TOKEN dll. dibaca dari file yang sama dengan app
     command: ["python", "-m", "monishield", "ingest"]
     read_only: true
     cap_drop: [ALL]

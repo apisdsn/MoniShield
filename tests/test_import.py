@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 import logs_mini
 from s3_tiruan import KEY_OK, S3Tiruan
-from monishield import auth, config, db, importer, ingest
+from monishield import auth, config, db, envfile, importer, ingest
 from monishield.api import app as appmod
 from conftest import JWT_SECRET
 
@@ -419,7 +419,8 @@ def test_penjadwal_memeriksa_sendiri(wclient):
     """Setelan disimpan dari layar -> penjadwal dibangunkan dan memeriksa ±5 detik kemudian, tanpa tombol."""
     m = wclient.app.state.imports
     r = wclient.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=5, enabled=True), headers=X)
-    assert r.status_code == 200 and r.json()['source'] == 'layar'
+    assert r.status_code == 200 and r.json()['minutes'] == 5
+    assert config.read_dotenv(os.path.join(wclient.app.state.cfg.state_dir, '.env'))['S4_S3_WATCH_MINUTES'] == '5'   # ditulis ke .env
     for _ in range(400):
         if m.watch['last'] and not m.state['running']: break
         time.sleep(0.05)
@@ -461,19 +462,31 @@ def test_alamat_dari_layar_tersimpan_dan_dipakai(plain, s3):
         r = tc.put('/api/admin/import/watch', json=dict(url='s3://simpel4-backup/k8s-logs', minutes=60, enabled=True), headers=X)   # tanpa "/" akhir
         assert r.status_code == 200, r.text
         w = r.json()
-        assert (w['enabled'], w['sources'], w['source'], w['minutes'], w['updated_by']) == (True, [WATCH], 'layar', 60, 'admin')
+        assert (w['enabled'], w['sources'], w['source'], w['minutes']) == (True, [WATCH], 'file', 60)
+        env = config.read_dotenv(os.path.join(plain.state_dir, '.env'))
+        assert env == {'S4_S3_WATCH': 's3://simpel4-backup/k8s-logs'}   # hanya yang berbeda dari nilai sekarang yang ditulis
         assert 'import.watch' in {x['action'] for x in tc.get('/api/admin/audit').json()['rows']}
         assert tc.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=7, enabled=True), headers=X).status_code == 400   # jeda di luar pilihan
-    # setelan bertahan setelah server dimulai ulang (basis data akun), lalu pemeriksaan memakai alamat itu
-    with TestClient(appmod.create_app(plain)) as tc:
+    # setelan bertahan setelah server dimulai ulang (dibaca lagi dari .env), lalu pemeriksaan memakai alamat itu
+    with TestClient(appmod.create_app(muat_ulang(plain))) as tc:
         assert tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X).status_code == 200   # sandi sudah diganti di atas
         assert tc.get('/api/admin/import').json()['watch']['sources'] == [WATCH]
         assert tc.post('/api/admin/import/sync', headers=X).status_code == 202
         tc.app.state.imports.wait(60)
         assert tc.get('/api/admin/import').json()['watch']['last']['imported'] == [D, '2026-01-06']
-        # dimatikan dari layar: mengalahkan .env, tombol ditolak
+        # dimatikan dari layar: S4_S3_WATCH_ENABLED=false, alamat tetap; tombol ditolak
         assert tc.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=60, enabled=False), headers=X).json()['enabled'] is False
         assert tc.post('/api/admin/import/sync', headers=X).json()['error']['code'] == 'watch_disabled'
+        assert tc.app.state.cfg.s3_watch == WATCH
+        assert config.read_dotenv(os.path.join(plain.state_dir, '.env'))['S4_S3_WATCH_ENABLED'] == 'false'
+
+
+def muat_ulang(c):
+    """Seperti server dimulai ulang: semua nilai uji sebagai lingkungan, KECUALI yang ada di .env (dibaca config.load)."""
+    path = os.path.join(c.state_dir, '.env')
+    fv = config.read_dotenv(path)
+    env = {config.env_name(f.name): envfile.fmt(getattr(c, f.name)) for f in dataclasses.fields(c)}
+    return config.load(env={k: v for k, v in env.items() if k not in fv}, dotenv=path)
 
 
 def test_user_biasa_tidak_boleh_mengatur_sinkron(plain):

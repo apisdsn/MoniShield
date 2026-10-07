@@ -1,8 +1,9 @@
 """Notifikasi ke Telegram, Discord, dan email (permintaan pemilik 2026-10-07: "cukup isi kredensialnya").
 
-Setelan (saluran + kredensialnya, kejadian yang dikirim, bahasa, alamat dashboard) diisi admin dari layar Notifikasi dan
-disimpan di basis data akun (app_setting 'alerts'). Kredensial (token bot, URL webhook, sandi SMTP) TIDAK pernah dikirim
-balik ke browser; hanya "sudah diisi".
+Setelan (saluran + kredensialnya, kejadian yang dikirim, bahasa, alamat dashboard) ada di .env (S4_ALERT_*, S4_SMTP_*,
+TELEGRAM_BOT_TOKEN, DISCORD_WEBHOOK_URL, SMTP_PASSWORD, S4_DASHBOARD_URL); layar Konfigurasi -> Notifikasi menulis ke sana
+(monishield/settings.py). Kredensial (token bot, URL webhook, sandi SMTP) TIDAK pernah dikirim balik ke browser; hanya
+"sudah diisi".
 
 ATURAN PROYEK: alamat IP pengguna tidak boleh dikirim ke layanan pihak ketiga. Pesan disusun dari angka agregat (jumlah
 request, jumlah IP, kategori), tanpa alamat IP; sebagai pengaman terakhir setiap pola alamat IPv4/IPv6 diganti "[IP]"
@@ -20,10 +21,12 @@ Satu kejadian dikirim sekali per kunci (mis. 'spike:2026-10-06'); dicatat di tab
 import datetime, json, re, smtplib, ssl, threading, urllib.error, urllib.parse, urllib.request
 from email.message import EmailMessage
 
-TELEGRAM_API = 'https://api.telegram.org'   # diganti di uji (server tiruan lokal)
+from . import config
+
+TELEGRAM_API = 'https://api.telegram.org'   # bawaan; alamat yang dipakai = S4_TELEGRAM_API (cfg.telegram_api)
 DISCORD_HOSTS = ('discord.com', 'discordapp.com', 'ptb.discord.com', 'canary.discord.com')
 TIMEOUT = 15
-EVENTS = ('spike', 'critical', 'ingest_failed', 'sync_failed', 'folder_missing', 'summary')
+EVENTS = config.ALERT_EVENTS
 DEFAULT = dict(
     channels=dict(telegram=dict(enabled=False, bot_token='', chat_id=''),
                   discord=dict(enabled=False, webhook_url=''),
@@ -48,23 +51,44 @@ class AlertFail(Exception):
 
 
 # ------------------------------------------------------------------ setelan
-def load(auth):
-    """Setelan tersimpan digabung dengan bawaan (kunci baru otomatis ada)."""
-    st = auth.setting_get('alerts')
-    cfg = json.loads(json.dumps(DEFAULT))
-    if st:
-        v = st['value']
-        for ch, d in (v.get('channels') or {}).items():
-            if ch in cfg['channels']: cfg['channels'][ch].update({k: d[k] for k in d if k in cfg['channels'][ch]})
-        cfg['events'].update({k: bool(x) for k, x in (v.get('events') or {}).items() if k in EVENTS})
-        for k in ('lang', 'dashboard_url', 'missing_hour'):
-            if k in v: cfg[k] = v[k]
-    return cfg
+def load(cfg):
+    """Setelan notifikasi dari konfigurasi server (.env) -> bentuk kamus yang dipakai modul ini dan layar."""
+    on = {x.strip() for x in (cfg.alert_events or '').split(',')}
+    return dict(
+        channels=dict(telegram=dict(enabled=cfg.alert_telegram, bot_token=cfg.telegram_bot_token, chat_id=cfg.alert_telegram_chat_id, api=cfg.telegram_api),
+                      discord=dict(enabled=cfg.alert_discord, webhook_url=cfg.discord_webhook_url),
+                      email=dict(enabled=cfg.alert_email, host=cfg.smtp_host, port=cfg.smtp_port, security=cfg.smtp_security,
+                                 username=cfg.smtp_username, password=cfg.smtp_password, sender=cfg.smtp_from, to=cfg.smtp_to)),
+        events={e: e in on for e in EVENTS}, lang=cfg.alert_lang, dashboard_url=cfg.dashboard_url, missing_hour=cfg.alert_missing_hour)
+
+
+def to_fields(d):
+    """Kebalikan load: kamus setelan -> {kolom konfigurasi: nilai} (untuk ditulis ke .env)."""
+    c = d['channels']
+    t, dc, e = c['telegram'], c['discord'], c['email']
+    return dict(alert_telegram=bool(t['enabled']), telegram_bot_token=t['bot_token'], alert_telegram_chat_id=t['chat_id'],
+                alert_discord=bool(dc['enabled']), discord_webhook_url=dc['webhook_url'],
+                alert_email=bool(e['enabled']), smtp_host=e['host'], smtp_port=int(e['port']), smtp_security=e['security'],
+                smtp_username=e['username'], smtp_password=e['password'], smtp_from=e['sender'], smtp_to=e['to'],
+                alert_events=','.join(k for k in EVENTS if d['events'].get(k)), alert_lang=d['lang'], dashboard_url=d['dashboard_url'],
+                alert_missing_hour=int(d['missing_hour']))
+
+
+def from_db(cfg, v):
+    """Setelan lama dari basis data akun (app_setting 'alerts', sebelum dipindah ke .env) digabung ke setelan sekarang."""
+    out = load(cfg)
+    for ch, d in (v.get('channels') or {}).items():
+        if ch in out['channels']: out['channels'][ch].update({k: d[k] for k in d if k in out['channels'][ch]})
+    out['events'].update({k: bool(x) for k, x in (v.get('events') or {}).items() if k in EVENTS})
+    for k in ('lang', 'dashboard_url', 'missing_hour'):
+        if k in v: out[k] = v[k]
+    return out
 
 
 def public(cfg):
     """Untuk browser: kredensial hanya 'sudah diisi' (True/False), nilainya tidak pernah dikembalikan."""
     out = json.loads(json.dumps(cfg))
+    out['channels']['telegram'].pop('api', None)   # alamat API dari .env, bukan isian layar
     for ch, keys in SECRETS.items():
         for k in keys: out['channels'][ch][k] = bool(cfg['channels'][ch][k])
     return out
@@ -77,7 +101,7 @@ def merge(cfg, body):
     for ch, d in (body.get('channels') or {}).items():
         if ch not in new['channels'] or not isinstance(d, dict): continue
         for k, v in d.items():
-            if k not in new['channels'][ch]: continue
+            if k not in new['channels'][ch] or k == 'api': continue
             if k in SECRETS.get(ch, ()) and (v is None or v == '' or v is True): continue   # kosong / "sudah diisi" = tidak diubah
             new['channels'][ch][k] = v
     for item in body.get('clear') or []:
@@ -133,7 +157,7 @@ def _post_json(url, payload):
 
 
 def send_telegram(ch, title, text):
-    _post_json(f"{TELEGRAM_API}/bot{ch['bot_token']}/sendMessage",
+    _post_json(f"{ch.get('api') or TELEGRAM_API}/bot{ch['bot_token']}/sendMessage",
                dict(chat_id=ch['chat_id'], text=f'{title}\n\n{text}'[:4000], disable_web_page_preview=True))
 
 
@@ -243,9 +267,7 @@ class Notifier:
     def __init__(self, app):
         self.app, self._lock = app, threading.Lock()
 
-    def _cfg(self):
-        try: return load(self.app.state.auth)
-        except Exception: return None   # noqa: BLE001  basis data akun belum siap
+    def _cfg(self): return load(self.app.state.cfg)
 
     def _bg(self, fn, *a):
         threading.Thread(target=self._safe, args=(fn, *a), name='alerts', daemon=True).start()

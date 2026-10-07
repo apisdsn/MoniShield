@@ -57,6 +57,7 @@ Ingest pertama 11 folder ±10–40 detik; setelah itu hanya folder yang baru ata
 
 ```sh
 cp .env.example .env && chmod 600 .env        # isi DOCKER_LOG_DIR, POSTGRES_PASSWORD, S4_JWT_SECRET, S4_ADMIN_PASSWORD, S4_JOB_TOKEN
+sudo chgrp 10001 .env && chmod 660 .env       # container (uid/gid 10001) boleh menulis .env dari layar Konfigurasi
 docker compose build && docker compose up -d  # app + PostgreSQL, http://127.0.0.1:8000
 docker compose run --rm ingest                # ingest sekali jalan (untuk cron harian)
 docker compose --profile pgadmin up -d        # opsional: pgAdmin  http://127.0.0.1:5050 (akun, sesi, audit)
@@ -78,8 +79,10 @@ halaman juga memeriksa S3 dulu, lalu folder log lokal. (Alternatif tanpa layar: 
 
 **Konfigurasi (semua kredensial di satu halaman)**: menu user → **Konfigurasi**. Berisi kunci akses AWS S3 + wilayah,
 folder induk S3 otomatis, kunci MaxMind GeoLite2, notifikasi, dan pengecualian daftar blokir; tiap bagian punya
-**Simpan** dan (untuk AWS/MaxMind) **Uji koneksi**. Isian layar disimpan di basis data akun, langsung berlaku tanpa mulai
-ulang, dan mengalahkan nilai `.env`; **Hapus isian layar** kembali ke `.env`. Kredensial tidak pernah ditampilkan lagi
+**Simpan** dan (untuk AWS/MaxMind) **Uji koneksi**. **Simpan menulis langsung ke file `.env`** (baris yang ada diganti,
+komentar tetap) dan langsung berlaku tanpa mulai ulang; **Hapus dari .env** menonaktifkan barisnya (nilai bawaan).
+Semua URL/alamat layanan luar dan batas yang dulu tertulis di kode juga ada di `.env` (bagian 10 `.env.example`:
+`S4_URL_*`, `S4_TELEGRAM_API`, `S4_*_MAX_AGE_DAYS`, …). Server harus boleh menulis `.env`. Kredensial tidak pernah ditampilkan lagi
 (Access Key ID hanya tersamar `AKIA…1234`). Yang tetap hanya lewat `.env` (dasar keamanan server: `S4_JWT_SECRET`,
 `S4_JOB_TOKEN`, basis data akun, `S4_ADMIN_PASSWORD`, `S4_IMPORT_BUCKETS`) hanya ditampilkan statusnya.
 

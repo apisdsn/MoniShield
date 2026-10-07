@@ -2,8 +2,8 @@
      kredensial AWS S3 + wilayah, folder induk S3 otomatis, kunci MaxMind GeoLite2, notifikasi (Telegram/Discord/email),
      pengecualian daftar blokir, dan status kunci yang hanya bisa diisi lewat .env. API: /api/admin/config (monishield/
      settings.py), /api/admin/import/watch, /api/admin/alerts. Rahasia tidak pernah dikirim balik oleh server: kolomnya
-     tampil "sudah diisi"; dibiarkan kosong saat menyimpan = tidak diubah; "Hapus isian layar" = kembali ke nilai .env.
-     Isian layar langsung berlaku tanpa mulai ulang server. -->
+     tampil "sudah diisi"; dibiarkan kosong saat menyimpan = tidak diubah; "Hapus dari .env" = baris dinonaktifkan (bawaan).
+     Semua isian DITULIS KE FILE .env server (permintaan pemilik 2026-10-07) dan langsung berlaku tanpa mulai ulang. -->
 <script>
   import { onMount, tick } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -83,8 +83,9 @@
     finally { busy = ''; }
   }
 
-  const src = (it) => $t(it.source === 'layar' ? 'cf.src.screen' : it.source === 'env' ? 'cf.src.env' : 'cf.src.none');
-  const anyScreen = (g) => Object.values(v[g]).some((it) => it.source === 'layar');
+  // sumber nilai: 'file' = .env, 'environment' = variabel lingkungan proses (mengalahkan .env), null = bawaan / belum diisi
+  const src = (it) => $t(it.source === 'file' ? 'cf.src.screen' : it.source === 'environment' ? 'cf.src.env' : it.set || it.value ? 'cf.src.default' : 'cf.src.none');
+  const anyScreen = (g) => Object.values(v[g]).some((it) => it.source === 'file' && (it.set || it.value));
   const keys = (g) => Object.keys(v[g]);
   const ENV = { jwt_secret: 'S4_JWT_SECRET', job_token: 'S4_JOB_TOKEN', auth_database_url: 'S4_AUTH_DATABASE_URL', admin_password: 'S4_ADMIN_PASSWORD' };
   const ingestLink = $derived(build({ ...$route, tab: 'admin/ingest', service: null, q: null }));
@@ -93,7 +94,8 @@
   const minLabel = (m) => (m < 60 ? $t('imp.w.min', { n: m }) : $t('imp.w.hour', { n: m / 60 }));
 </script>
 
-{#snippet srcTag(it)}<span class="src" class:screen={it.source === 'layar'} class:none={!it.source}>{src(it)}</span>{/snippet}
+{#snippet srcTag(it)}<span class="src" class:screen={it.source === 'file'} class:warn={it.source === 'environment'} class:none={!it.source}
+  title={$t('cf.env_hint', { name: it.env })}>{src(it)}</span>{/snippet}
 {#snippet result(g)}
   {#if msg[g]}<p class={msg[g].ok ? 'okmsg' : 'err'} role={msg[g].ok ? 'status' : 'alert'}>{msg[g].ok ? '✓ ' : ''}{msg[g].text}</p>{/if}
 {/snippet}
@@ -106,6 +108,11 @@
   <div class="page">
     <section class="card intro" aria-label={$t('cf.title')}>
       <p class="muted small">{$t('cf.intro')}</p>
+      <p class="small file">{$t('cf.file.title')} <code>{v.file.path}</code>
+        {#if v.file.writable}<SeverityTag level="ok" text={$t('cf.file.ok')} />{/if}</p>
+      {#if !v.file.writable}<p class="warnline small" role="alert">{$t('cf.file.ro')}</p>{/if}
+      {#if v.file.environment_override.length}<p class="warnline small">{$t('cf.file.override', { list: v.file.environment_override.join(', ') })}</p>{/if}
+      {#if v.file.pending.length}<p class="warnline small">{$t('cf.file.pending', { list: v.file.pending.join(', ') })}</p>{/if}
       <nav class="chips" aria-label={$t('cf.nav')}>
         {#each SECTIONS as s}<button type="button" class="chip" onclick={() => jump(s)}>{$t(`cf.s.${s}`)}</button>{/each}
       </nav>
@@ -283,6 +290,8 @@
   .src { font-size: 0.6875rem; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--kpi-label); }
   .src.screen { border-color: var(--accent); color: var(--accent); }
   .src.none { border-style: dashed; }
+  .src.warn { border-color: var(--warn); color: var(--warn); }
+  .file { margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   code { font-size: 0.75rem; word-break: break-all; }
   .acts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
   .acts .btn { min-height: var(--touch); }
