@@ -91,6 +91,16 @@ cron di host:
 | `app` mati / tidak sehat | `ingest` keluar dengan kode ≠ 0 ("server berhenti menjawab saat ingest berjalan"); cron mencatatnya di log |
 | Unduhan database acuan gagal | ingest tetap `ok` dengan peringatan "refdata gagal …"; lokasi/pemilik IP memakai berkas lama di cache, atau dikosongkan bila belum pernah ada |
 
+### Folder log tanpa menyalin ke server
+
+- **Sinkron otomatis dari S3**: isi `S4_S3_WATCH` (+ `S4_IMPORT_BUCKETS`, kunci AWS) di `.env`, lalu `docker compose up -d`.
+  `app` memeriksa bucket tiap `S4_S3_WATCH_MINUTES` menit, mengunduh folder tanggal baru ke volume `s4-inbox`, lalu
+  meng-ingest-nya. Pemeriksaan pertama 1 menit setelah container mulai. Cron dengan token mesin juga bisa memicunya:
+  `curl -X POST -H "Authorization: Bearer $S4_JOB_TOKEN" -H "X-Requested-With: job" http://127.0.0.1:8000/api/admin/import/sync`.
+- **Unggah dari browser**: layar Ingest & impor → Unggah folder log. File masuk ke `s4-inbox` lalu di-ingest. Reverse proxy
+  di depan `app` harus mengizinkan badan permintaan sebesar file log terbesar (nginx: `client_max_body_size 1024m;`;
+  Caddy dari profil `proxy` tidak membatasi).
+
 ## 5. Melihat isi database
 
 | Alat | Alamat | Melihat | Catatan |

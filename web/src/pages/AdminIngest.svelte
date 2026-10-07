@@ -1,6 +1,6 @@
 <!-- Ingest & impor (DRD §3.11, TRD §8.4), hanya admin: status ingest terakhir (dari database, bertahan setelah server
      dimulai ulang) dan yang sedang berjalan, tombol "Ingest sekarang", kemajuan (diperbarui tiap 2 detik, diumumkan
-     sopan ke pembaca layar), peringatan; kartu impor S3 (lib/ImportCard, Tahap 19); kelola folder log (lib/FolderManager: hapus/pulihkan); catatan audit (500 terbaru, 50 pertama tampil).
+     sopan ke pembaca layar), peringatan; kartu impor S3 + sinkron otomatis (lib/ImportCard, Tahap 19); unggah folder dari komputer (lib/UploadCard); kelola folder log (lib/FolderManager: hapus/pulihkan); catatan audit (500 terbaru, 50 pertama tampil).
      Dashboard tetap bisa dipakai selama ingest (ingest berjalan di thread server, K1). -->
 <script>
   import { onMount } from 'svelte';
@@ -10,6 +10,7 @@
   import { toast } from '../lib/Toast.svelte';
   import DataTable from '../lib/DataTable.svelte';
   import ImportCard from '../lib/ImportCard.svelte';
+  import UploadCard from '../lib/UploadCard.svelte';
   import FolderManager from '../lib/FolderManager.svelte';
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
@@ -17,6 +18,7 @@
   let { onfinished = null } = $props();
   const AUDIT_MAX = 500;
   let st = $state.raw(null), audit = $state.raw(null), error = $state(null), starting = $state(false);
+  let fmKey = $state(0);   // daftar folder dimuat ulang tiap ingest selesai (hasil sinkron S3 / unggahan baru terlihat)
   let timer = null, watching = false;   // watching: ingest dimulai dari layar ini (bisa selesai sebelum status pertama dibaca)
 
   async function loadStatus() {
@@ -27,7 +29,7 @@
       st = s; error = null;
       if (selesai) {
         toast(s.error ? $t('ing.toast_fail') : $t('ing.toast_done', { n: num(s.last_run?.files_changed ?? 0, $lang) }));
-        loadAudit(); onfinished?.();
+        loadAudit(); onfinished?.(); fmKey++;
       }
     } catch (e) { error = e; }
     clearTimeout(timer);
@@ -89,9 +91,11 @@
       <p class="muted small">{$t('ing.hint')}</p>
     </section>
 
-    <ImportCard onfinished={() => { loadStatus(); loadAudit(); onfinished?.(); }} />
+    <ImportCard onfinished={() => { loadStatus(); loadAudit(); onfinished?.(); fmKey++; }} />
 
-    <FolderManager onchanged={() => { loadStatus(); loadAudit(); onfinished?.(); }} />
+    <UploadCard onfinished={() => { watching = true; setTimeout(loadStatus, 700); loadAudit(); }} />
+
+    {#key fmKey}<FolderManager onchanged={() => { loadStatus(); loadAudit(); onfinished?.(); }} />{/key}
 
     {#if audit}
       <DataTable title={$t('ing.audit')} rows={audit.rows} limit={50} columns={[

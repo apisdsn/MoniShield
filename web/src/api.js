@@ -37,7 +37,32 @@ async function request(method, path, body) {
   throw new ApiError(r.status, err.code || String(r.status), err.message);
 }
 
+/** Unggah badan mentah (File/Blob) dengan kemajuan byte; XHR karena fetch tidak memberi kemajuan unggah.
+ *  signal (AbortSignal) membatalkan unggahan yang sedang berjalan. */
+function putFile(path, blob, onprogress = null, signal = null) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('PUT', path);
+    x.setRequestHeader('X-Requested-With', 'monishield-web');
+    x.setRequestHeader('Content-Type', 'application/octet-stream');
+    x.setRequestHeader('Accept', 'application/json');
+    if (onprogress) x.upload.onprogress = (e) => onprogress(e.loaded);
+    x.onload = () => {
+      let d = null;
+      try { d = JSON.parse(x.responseText); } catch { /* bukan JSON */ }
+      if (x.status >= 200 && x.status < 300) { lastActivity.set(Date.now()); return resolve(d); }
+      if (x.status === 401) session.set('expired');
+      reject(new ApiError(x.status, d?.error?.code || String(x.status), d?.error?.message));
+    };
+    x.onerror = () => reject(new ApiError(0, 'network', 'network'));
+    x.onabort = () => reject(new ApiError(0, 'aborted', 'aborted'));
+    signal?.addEventListener('abort', () => x.abort(), { once: true });
+    x.send(blob);
+  });
+}
+
 export const api = {
+  putFile,
   get: (path) => request('GET', path),
   post: (path, body = {}) => request('POST', path, body),
   patch: (path, body = {}) => request('PATCH', path, body),

@@ -71,6 +71,14 @@ Rincian (keputusan DuckDB, cron, keamanan, alamat internet yang dihubungi, cadan
 (ikon folder di kepala halaman). Lencana angka di tombol itu menunjukkan jumlah folder baru yang belum masuk; setelah
 sinkronisasi dashboard pindah ke folder terbaru. Hanya file baru atau yang berubah yang diproses.
 
+**Folder baru di S3 diambil sendiri** bila `S4_S3_WATCH` diisi (lihat Impor dari S3): server memeriksa bucket tiap
+`S4_S3_WATCH_MINUTES` menit (bawaan 60) dan meng-ingest folder tanggal yang baru. Ingin sekarang juga: **Ingest & impor**
+→ **Periksa S3 sekarang**.
+
+**Unggah dari komputer**: **Ingest & impor** → **Unggah folder log** → **Pilih folder…** (folder `YYYY-MM-DD`, induknya,
+atau isi satu tanggal + isi tanggalnya) → **Unggah**. Hanya `.log`/`.log.gz` yang dikirim (batas ukuran sama dengan
+impor S3), file masuk ke kotak masuk lalu di-ingest. Di balik nginx, naikkan `client_max_body_size` (bawaan nginx 1 MB).
+
 **Menghapus folder dari daftar**: admin → **Ingest & impor** → kartu **Folder log** → **Hapus**. Data folder hilang dari
 dashboard; file hasil impor S3 (kotak masuk) bisa ikut dihapus. File di folder log utama tidak pernah dihapus: folder itu
 ditandai *Diabaikan* agar sinkronisasi tidak memasukkannya lagi, dan bisa dikembalikan dengan **Pulihkan** + Sinkronkan.
@@ -126,6 +134,22 @@ AWS_SECRET_ACCESS_KEY=…
 Daftar izin adalah **satu-satunya** pembatas antara layar impor dan bucket lain yang bisa dibaca kunci itu;
 ia hanya bisa diubah di konfigurasi server, tidak dari antarmuka. Batas bawaan: 500 objek, 1 GB per objek,
 5 GB per impor, 30 menit (`S4_IMPORT_MAX_*`, `S4_IMPORT_TIMEOUT_MINUTES`).
+
+**Sinkron otomatis tanpa tautan** (permintaan pemilik 2026-10-07): isi folder induknya, lalu mulai ulang server.
+
+```sh
+S4_S3_WATCH=s3://simpel4-backup/k8s-logs/      # harus termasuk S4_IMPORT_BUCKETS; koma untuk lebih dari satu
+S4_S3_WATCH_MINUTES=60                         # 0 = hanya tombol "Periksa S3 sekarang" / cron
+S4_S3_WATCH_DAYS=30                            # hanya folder 30 hari terakhir (0 = seluruh riwayat)
+S4_S3_WATCH_MAX_FOLDERS=3                      # maks. folder baru per pemeriksaan, terbaru dulu
+```
+
+Tiap pemeriksaan: daftar folder `YYYY-MM-DD` tepat di bawah awalan (ListObjectsV2 + Delimiter, isi folder tidak
+didaftar) → folder yang belum ada di dashboard, folder log, kotak masuk, atau daftar *Diabaikan* diimpor + di-ingest
+satu per satu (tercatat di Riwayat impor) → folder hasil sinkron yang masih baru (`S4_S3_WATCH_RECHECK_DAYS`) diperiksa
+ulang dan hanya objek baru/berubah yang diunduh. Folder yang dihapus admin ditandai *Diabaikan* sehingga tidak diunduh
+lagi (kembalikan dengan **Pulihkan**). Dari cron: `curl -X POST -H "Authorization: Bearer $S4_JOB_TOKEN"
+-H "X-Requested-With: job" https://<server>/api/admin/import/sync`.
 
 Coba dulu tanpa mengunduh apa pun (membuktikan susunan objek sama dengan folder log lokal):
 

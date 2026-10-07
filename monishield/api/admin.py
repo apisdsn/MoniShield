@@ -13,6 +13,12 @@ from .common import DATE, ApiError, client_ip, require_admin, require_admin_or_j
 router = APIRouter(prefix='/api/admin')
 
 
+def _now(after_seconds=0):
+    """Waktu UTC (tanpa zona, detik bulat) untuk status, seperti kolom waktu lain di API."""
+    t = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0) + datetime.timedelta(seconds=after_seconds)
+    return str(t)
+
+
 class IngestManager:
     """Menjalankan ingest di thread latar atas kursor DuckDB milik proses ini; satu pada satu waktu."""
 
@@ -173,7 +179,8 @@ def folders_list(request: Request, admin=Depends(require_admin)):
 @router.post('/folders/{folder}/delete')
 def folder_delete(folder: str, request: Request, body: DeleteBody = DeleteBody(), admin=Depends(require_admin)):
     """Hapus data folder dari dashboard. File di kotak masuk ikut dihapus bila diminta; folder log utama hanya dibaca,
-    jadi bila filenya masih ada folder itu dicatat "diabaikan" agar ingest/sinkronisasi tidak memasukkannya lagi."""
+    jadi bila filenya masih ada (atau sinkron S3 otomatis aktif) folder itu dicatat "diabaikan" agar ingest/sinkronisasi
+    tidak memasukkannya lagi."""
     folder, cfg = _folder(folder, required=True), request.app.state.cfg
     inbox = os.path.realpath(os.path.join(cfg.inbox_dir, folder))
     if os.path.dirname(inbox) != os.path.realpath(cfg.inbox_dir): raise ApiError(400, 'invalid_parameter', 'folder tidak sah.')
@@ -182,7 +189,8 @@ def folder_delete(folder: str, request: Request, body: DeleteBody = DeleteBody()
         n = ingest.forget(cur, folder)
         hapus_inbox = body.delete_inbox and os.path.isdir(inbox)
         if hapus_inbox: shutil.rmtree(inbox)
-        sisa = _on_disk(cfg, cfg.log_dir, folder) or _on_disk(cfg, cfg.inbox_dir, folder)
+        # masih ada di disk, atau sinkron S3 otomatis aktif (folder akan diunduh lagi dari S3): dicatat "diabaikan"
+        sisa = _on_disk(cfg, cfg.log_dir, folder) or _on_disk(cfg, cfg.inbox_dir, folder) or bool(cfg.s3_watch)
         if sisa:
             cur.execute('INSERT OR REPLACE INTO folder_ignored VALUES (?, ?, ?)', [folder, admin['username'], datetime.datetime.now(datetime.UTC).replace(tzinfo=None)])
         return n, hapus_inbox, sisa
@@ -221,8 +229,9 @@ class ImportManager:
     def __init__(self, app):
         self.app, self._lock = app, threading.Lock()
         self.creds = importer.Credentials(app.state.cfg)
-        self.state = dict(running=False, job_id=None, phase=None, done=0, total=0)
+        self.state = dict(running=False, job_id=None, phase=None, done=0, total=0, mode=None)   # mode: 'manual' (tautan) / 'sync' (otomatis)
         self.plans, self.thread = {}, None   # job_id -> hasil importer.run (dibatasi 20 terakhir)
+        self.watch = dict(last=None, next_check=None)   # sinkron otomatis: hasil putaran terakhir, jadwal berikutnya (UTC)
 
     def start(self, url, dry_run, by):
         cfg = self.app.state.cfg
@@ -232,7 +241,7 @@ class ImportManager:
         if not self.creds.get()[0]: raise ApiError(400, 'no_credentials', importer.NO_CREDENTIALS)
         with self._lock:
             if self.state['running']: raise ApiError(409, 'import_running', 'Impor lain sedang berjalan; tunggu sampai selesai.')
-            self.state.update(running=True, job_id=None, phase='daftar', done=0, total=0)
+            self.state.update(running=True, job_id=None, phase='daftar', done=0, total=0, mode='manual')
         try: job = self.app.state.auth.job_create(by, bucket, prefix, folder, 'coba' if dry_run else 'berjalan')
         except BaseException: self.state.update(running=False, phase=None); raise
         self.state['job_id'] = job
@@ -243,6 +252,11 @@ class ImportManager:
     def _progress(self, phase, **k): self.state.update(phase=phase, **{x: k[x] for x in ('done', 'total') if x in k})
 
     def _run(self, job, url, dry_run, by):
+        try: self._job(job, url, dry_run)
+        finally: self.state.update(running=False, phase=None)
+
+    def _job(self, job, url, dry_run):
+        """Satu job impor (unduh lalu ingest folder itu). -> True bila selesai tanpa galat; galat dicatat di job."""
         auth, cfg = self.app.state.auth, self.app.state.cfg
         try:
             r = importer.run(cfg, url, self.creds, dry_run=dry_run, progress=self._progress)
@@ -257,14 +271,101 @@ class ImportManager:
             self._keep(job, r)
             auth.job_finish(job, 'coba' if dry_run else 'selesai', r['bytes'] if dry_run else r['downloaded_bytes'],
                             r['take'] if dry_run else r['downloaded'], r['skipped'], msg)
+            return True
         except importer.ImportFail as e:
             self._keep(job, dict(error=dict(code=e.code, message=e.message)))
             auth.job_finish(job, 'gagal', message=e.message)
         except Exception as e:  # noqa: BLE001  galat dilaporkan lewat status job; tanpa rahasia (pesan boto tidak memuat kunci)
             self._keep(job, dict(error=dict(code='import_failed', message=f'{type(e).__name__}: {e}'[:500])))
             auth.job_finish(job, 'gagal', message=f'{type(e).__name__}: {e}'[:500])
+        return False
+
+    # -------------------------------------------------------------- sinkron otomatis dari awalan induk S3 (S4_S3_WATCH)
+    def watch_sources(self):
+        """-> (daftar s3://… yang dipantau, pesan galat konfigurasi atau None)."""
+        try: return [f's3://{b}/{p}' for b, p in importer.parse_watch(self.app.state.cfg)], None
+        except importer.ImportFail as e: return [], e.message
+
+    def sync(self, by):
+        """Periksa awalan S4_S3_WATCH sekarang, di thread latar: folder tanggal yang belum dikenal diimpor + di-ingest."""
+        cfg = self.app.state.cfg
+        try: sources = importer.parse_watch(cfg)
+        except importer.ImportFail as e: raise ApiError(400, e.code, e.message) from None
+        if not sources: raise ApiError(400, 'watch_disabled', 'Sinkron S3 otomatis belum diatur: isi S4_S3_WATCH (mis. s3://simpel4-backup/k8s-logs/) di .env server.')
+        if not importer.library_ok(): raise ApiError(400, 'no_s3_library', importer.NO_LIBRARY)
+        if not self.creds.get()[0]: raise ApiError(400, 'no_credentials', importer.NO_CREDENTIALS)
+        with self._lock:
+            if self.state['running']: raise ApiError(409, 'import_running', 'Impor lain sedang berjalan; tunggu sampai selesai.')
+            self.state.update(running=True, job_id=None, phase='periksa', done=0, total=0, mode='sync')
+        self.thread = threading.Thread(target=self._sync, args=(sources, by), name='s3-sync', daemon=True)
+        self.thread.start()
+
+    def _known(self):
+        """Folder yang sudah dikenal (basis data, diabaikan, folder log, kotak masuk) dan folder kotak masuk hasil S3."""
+        cfg, cur = self.app.state.cfg, self.app.state.con.cursor()
+        try:
+            known = {str(r[0]) for r in cur.execute('SELECT folder FROM folder_state').fetchall()}
+            ign = ingest.ignored(cur)
+        finally: cur.close()
+        dirs = {}
+        for root in (cfg.log_dir, cfg.inbox_dir):
+            try: dirs[root] = {d for d in os.listdir(root) if rules.DATE_DIR.fullmatch(d)}
+            except OSError: dirs[root] = set()
+        from_s3 = {d for d in dirs[cfg.inbox_dir] if os.path.exists(os.path.join(cfg.inbox_dir, d, importer.MANIFEST))} - ign - dirs[cfg.log_dir]
+        return known | ign | dirs[cfg.log_dir] | dirs[cfg.inbox_dir], from_s3
+
+    def _sync(self, sources, by):
+        cfg, auth = self.app.state.cfg, self.app.state.auth
+        res = dict(at=_now(), by=by, sources=[], imported=[], rechecked=[], failed=[], waiting=0, errors=[])
+        try:
+            s3 = importer._client(cfg, self.creds.get()[0])
+            known, from_s3 = self._known()
+            today = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=7)).date()   # tanggal folder = WIB
+            seen, todo = set(), []
+            for bucket, base in sources:
+                try: folders = [f for f in importer.list_folders(s3, bucket, base) if f not in seen]
+                except Exception as e:  # noqa: BLE001
+                    res['errors'].append(f's3://{bucket}/{base}: {importer._s3_error(e).message}'); continue
+                seen.update(folders)
+                take, again, waiting = importer.pick(folders, known, from_s3, today, cfg.s3_watch_days, cfg.s3_watch_recheck_days, cfg.s3_watch_max_folders)
+                res['sources'].append(dict(source=f's3://{bucket}/{base}', folders=len(folders), new=len(take) + waiting))
+                res['waiting'] += waiting
+                todo += [(bucket, base, f, False) for f in take]
+                for f in again:   # hasil sinkron yang masih baru: diunduh lagi hanya bila ada objek baru/berubah
+                    try: p = importer.run(cfg, f's3://{bucket}/{base}{f}/', self.creds, dry_run=True)
+                    except importer.ImportFail as e: res['errors'].append(f'{f}: {e.message}'); continue
+                    if p['take'] or any(o.get('extract_local') for o in p['objects']): todo.append((bucket, base, f, True))
+            for i, (bucket, base, f, again) in enumerate(todo):
+                self.state.update(phase='unduh', done=i, total=len(todo))
+                job = auth.job_create(by, bucket, f'{base}{f}/', f, 'berjalan')
+                self.state['job_id'] = job
+                ok = self._job(job, f's3://{bucket}/{base}{f}/', False)
+                (res['failed'] if not ok else res['rechecked'] if again else res['imported']).append(f)
+        except Exception as e:  # noqa: BLE001
+            res['errors'].append(importer._s3_error(e).message if not isinstance(e, importer.ImportFail) else e.message)
         finally:
-            self.state.update(running=False, phase=None)
+            self.watch['last'] = res
+            self.state.update(running=False, phase=None, job_id=None)
+
+    def start_watch(self):
+        """Penjadwal: pemeriksaan pertama 1 menit setelah server mulai, lalu tiap S4_S3_WATCH_MINUTES."""
+        cfg = self.app.state.cfg
+        if not cfg.s3_watch or cfg.s3_watch_minutes <= 0: return
+        self._stop = threading.Event()
+        threading.Thread(target=self._watch_loop, args=(60,), name='s3-watch', daemon=True).start()
+
+    def _watch_loop(self, delay):
+        while True:
+            self.watch['next_check'] = _now(delay)
+            if self._stop.wait(delay): return
+            delay = self.app.state.cfg.s3_watch_minutes * 60
+            try: self.sync('(sinkron S3 otomatis)')
+            except ApiError as e:
+                if e.status_code == 409: delay = 300   # impor manual sedang berjalan: coba lagi 5 menit lagi
+                else: self.watch['last'] = dict(at=_now(), by='(sinkron S3 otomatis)', sources=[], imported=[], rechecked=[], failed=[], waiting=0, errors=[e.detail['message']])
+
+    def stop_watch(self):
+        if getattr(self, '_stop', None): self._stop.set()
 
     def _keep(self, job, r):
         self.plans[job] = r
@@ -287,8 +388,11 @@ class CredBody(BaseModel):
 
 def _import_view(request):
     m, cfg = request.app.state.imports, request.app.state.cfg
+    sources, problem = m.watch_sources()
+    watch = dict(enabled=bool(sources), sources=sources, problem=problem, minutes=cfg.s3_watch_minutes, days=cfg.s3_watch_days,
+                 max_folders=cfg.s3_watch_max_folders, **m.watch)
     return dict(enabled=bool(cfg.import_buckets), library=importer.library_ok(), allowed=importer.allowed_examples(cfg), region=cfg.import_region,
-                credentials=m.creds.status(), running=m.state['running'], state=m.state)
+                credentials=m.creds.status(), running=m.state['running'], state=m.state, watch=watch)
 
 
 @router.post('/import', status_code=202)
@@ -296,6 +400,14 @@ def start_import(request: Request, body: ImportBody = ImportBody(), who=Depends(
     job = request.app.state.imports.start(body.url, body.dry_run, who['username'])
     _audit(request, who, 'import.start', f"#{job} {body.url[:300]}{' (coba)' if body.dry_run else ''}")
     return dict(job_id=job)
+
+
+@router.post('/import/sync', status_code=202)
+def sync_s3(request: Request, who=Depends(require_admin_or_job)):
+    """Periksa awalan S4_S3_WATCH sekarang (tombol "Periksa S3 sekarang", atau cron dengan token mesin)."""
+    request.app.state.imports.sync(who['username'])
+    _audit(request, who, 'import.sync', 'periksa folder baru di S3')
+    return dict(started=True)
 
 
 @router.get('/import')

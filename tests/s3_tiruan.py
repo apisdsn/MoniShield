@@ -39,6 +39,16 @@ class S3Tiruan:
                 if len(parts) == 1 or parts[1] == '':
                     if q.get('list-type') != '2': return self._err(400, 'InvalidRequest')
                     keys = sorted(k for k in bucket if k.startswith(q.get('prefix', '')))
+                    if q.get('delimiter'):   # awalan bersama (folder) tanpa isinya; satu halaman saja
+                        pre, d = q.get('prefix', ''), q['delimiter']
+                        cps = sorted({pre + k[len(pre):].split(d, 1)[0] + d for k in keys if d in k[len(pre):]})
+                        files = [k for k in keys if d not in k[len(pre):]]
+                        xml = (f'<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+                               f'<Name>{parts[0]}</Name><Prefix>{escape(pre)}</Prefix><Delimiter>{escape(d)}</Delimiter><KeyCount>{len(cps) + len(files)}</KeyCount>'
+                               f'<MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>'
+                               + ''.join(f'<Contents><Key>{escape(k)}</Key><Size>{len(bucket[k])}</Size><ETag>"x"</ETag></Contents>' for k in files)
+                               + ''.join(f'<CommonPrefixes><Prefix>{escape(c)}</Prefix></CommonPrefixes>' for c in cps) + '</ListBucketResult>')
+                        return self._send(200, xml.encode(), {'Content-Type': 'application/xml'})
                     start = int(q.get('continuation-token') or 0)
                     chunk, more = keys[start:start + tiruan.page], start + tiruan.page < len(keys)
                     items = ''.join(f'<Contents><Key>{escape(k)}</Key><LastModified>2026-10-07T00:00:00.000Z</LastModified>'

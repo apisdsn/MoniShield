@@ -25,6 +25,7 @@
     refresh: 'M20 5v5h-5M4 19v-5h5M19 10a7.5 7.5 0 0 0-13.5-3M5 14a7.5 7.5 0 0 0 13.5 3',
     arrow: 'M5 12h14M13 6l6 6-6 6',
     dots: 'M5 12h.01M12 12h.01M19 12h.01',
+    calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
     'side-close': 'M4 4h16v16H4zM9 4v16M16 9.5L13.5 12l2.5 2.5',   // panel kiri + panah: ciutkan navigasi
     'side-open': 'M4 4h16v16H4zM9 4v16M13.5 9.5L16 12l-2.5 2.5',
   };

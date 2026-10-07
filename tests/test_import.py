@@ -330,3 +330,99 @@ def test_hasil_ekstrak_terlalu_besar_dibatalkan(cfg, s3, monkeypatch):
     monkeypatch.setattr(importer, 'EXTRACT_RATIO', 1e-8)        # batas ±10 byte: tiruan "gzip bomb"
     gagal(cfg, URL, 'extract_too_large')
     assert kosong(cfg)
+
+
+# ------------------------------------------------------------------ sinkron otomatis dari awalan induk (S4_S3_WATCH)
+WATCH = 's3://simpel4-backup/k8s-logs/'
+
+
+def test_pilih_folder_baru_dan_periksa_ulang():
+    import datetime as dt
+    today = dt.date(2026, 10, 7)
+    fs = ['2026-08-01', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-05', '2026-10-06', '2026-10-07']
+    known = {'2026-10-02', '2026-10-06', '2026-10-07'}
+    take, again, wait = importer.pick(fs, known, {'2026-10-06', '2026-10-07'}, today, days=30, recheck_days=1, max_new=2)
+    assert (take, again, wait) == (['2026-10-03', '2026-10-05'], ['2026-10-06', '2026-10-07'], 1)   # 08-01 di luar 30 hari; 10-01 menyusul
+    assert importer.pick(fs, known, set(), today, days=0, recheck_days=1, max_new=10)[0] == ['2026-08-01', '2026-10-01', '2026-10-03', '2026-10-05']
+
+
+@pytest.mark.parametrize('watch,code', [('s3://simpel4-backup/k8s-logs/', None), ('s3://bucket-lain/k8s-logs/', 'watch_not_allowed'),
+                                        ('s3://simpel4-backup/lain/', 'watch_not_allowed'), ('https://x/y', 'invalid_watch'),
+                                        ('s3://simpel4-backup/k8s-logs/../x/', 'invalid_watch')])
+def test_awalan_pantau_diperiksa_terhadap_daftar_izin(cfg, watch, code):
+    c = dataclasses.replace(cfg, s3_watch=watch)
+    if code is None: assert importer.parse_watch(c) == [('simpel4-backup', 'k8s-logs/')]
+    else:
+        with pytest.raises(importer.ImportFail) as e: importer.parse_watch(c)
+        assert e.value.code == code
+
+
+@pytest.fixture
+def wclient(cfg, auth_url, monkeypatch, s3):
+    """S3 berisi folder 2026-01-02 (sudah ada di folder log lokal), 01-05, 01-06, 01-07, dan awalan bukan tanggal."""
+    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    b = s3.buckets['simpel4-backup']
+    for f in ('2026-01-02', '2026-01-06', '2026-01-07'): b[obj('om-be-appsmanager', 'pod-a', folder=f)] = APPS
+    b['k8s-logs/arsip-lama/x.log'] = b'x'
+    c = dataclasses.replace(cfg, auth_database_url=auth_url, s3_watch=WATCH, s3_watch_days=0, s3_watch_max_folders=2, s3_watch_recheck_days=400, s3_watch_minutes=0)
+    con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
+    with TestClient(appmod.create_app(c)) as tc:
+        assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
+        assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+        yield tc
+
+
+def sinkron(tc, h=X, baca=None):
+    assert tc.post('/api/admin/import/sync', headers=h).status_code == 202
+    tc.app.state.imports.wait(60)
+    return (baca or tc).get('/api/admin/import', headers=X).json()['watch']['last']
+
+
+def test_sinkron_otomatis_mengambil_folder_baru_tanpa_tautan(wclient, cfg, s3):
+    w = wclient.get('/api/admin/import').json()['watch']
+    assert w['enabled'] and w['sources'] == [WATCH] and w['problem'] is None and w['last'] is None
+    r = sinkron(wclient)
+    assert (r['imported'], r['waiting'], r['errors'], r['failed']) == (['2026-01-06', '2026-01-07'], 1, [], []), r   # terbaru dulu, maks. 2
+    assert r['sources'] == [dict(source=WATCH, folders=4, new=3)]                    # 01-02 ada di folder log lokal: tidak diambil
+    folders = [f['folder'] for f in wclient.get('/api/meta').json()['folders']]
+    assert {'2026-01-06', '2026-01-07'} <= set(folders) and D not in folders
+    jobs = wclient.get('/api/admin/import').json()['jobs']
+    assert [(j['folder'], j['status']) for j in jobs[:2]] == [('2026-01-07', 'selesai'), ('2026-01-06', 'selesai')] and jobs[0]['requested_by'] == 'admin'
+    # putaran berikutnya lewat token mesin (cron): folder yang tertunda menyusul; yang sudah ada tidak diunduh ulang
+    n0 = len(s3.gets())
+    r = sinkron(TestClient(wclient.app), {**X, 'Authorization': f'Bearer {TOKEN}'}, wclient)
+    assert (r['imported'], r['rechecked'], r['waiting']) == ([D], [], 0) and r['by'] == '(token mesin)'
+    assert len(s3.gets()) - n0 == 2                                                   # hanya dua objek folder D
+    # file datang belakangan di folder yang sudah disinkron: diperiksa ulang, hanya objek baru yang diunduh
+    s3.buckets['simpel4-backup'][obj('om-fe-inhouse', 'pod-f', folder='2026-01-07')] = logs_mini.lines('om-fe-inhouse').encode()
+    n0 = len(s3.gets())
+    r = sinkron(wclient)
+    assert (r['imported'], r['rechecked']) == ([], ['2026-01-07']) and len(s3.gets()) - n0 == 1
+    assert {'import.sync'} <= {x['action'] for x in wclient.get('/api/admin/audit').json()['rows']}
+
+
+def test_folder_yang_dihapus_admin_tidak_disinkron_lagi(wclient, cfg):
+    sinkron(wclient)
+    assert wclient.post('/api/admin/folders/2026-01-07/delete', json=dict(delete_inbox=True), headers=X).status_code == 200
+    r = sinkron(wclient)
+    assert '2026-01-07' not in r['imported'] + r['rechecked'] and r['imported'] == [D]
+    assert not os.path.exists(os.path.join(cfg.inbox_dir, '2026-01-07'))
+
+
+def test_sinkron_belum_diatur_dan_tanpa_kredensial(client, cfg):
+    r = client.post('/api/admin/import/sync', headers=X)
+    assert (r.status_code, r.json()['error']['code']) == (400, 'watch_disabled')
+    assert client.get('/api/admin/import').json()['watch']['enabled'] is False
+
+
+def test_penjadwal_memeriksa_sendiri(wclient):
+    import threading
+    m = wclient.app.state.imports
+    m._stop = threading.Event()
+    t = threading.Thread(target=m._watch_loop, args=(0,), daemon=True); t.start()
+    for _ in range(400):
+        if m.watch['last'] and not m.state['running']: break
+        time.sleep(0.05)
+    m._stop.set(); t.join(5)
+    assert m.watch['last']['by'] == '(sinkron S3 otomatis)' and m.watch['last']['imported'] == ['2026-01-06', '2026-01-07']
+    assert not t.is_alive() and m.watch['next_check']

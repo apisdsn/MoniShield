@@ -142,6 +142,50 @@ def list_objects(s3, bucket, prefix, cap):
     return out
 
 
+# ------------------------------------------------------------------ pantau awalan induk (sinkron otomatis, permintaan pemilik 2026-10-07)
+def parse_watch(cfg):
+    """S4_S3_WATCH (satu atau beberapa s3://<bucket>/<awalan>/, dipisah koma) -> [(bucket, awalan)]. Diperiksa terhadap
+    daftar izin S4_IMPORT_BUCKETS yang sama dengan impor manual; tanpa jaringan."""
+    out = []
+    for u in (x for x in re.split(r'[,\s]+', cfg.s3_watch.strip()) if x):
+        m = URL.fullmatch(u) if len(u) <= 1024 and not CONTROL.search(u) else None
+        path = m.group(2).strip('/') if m else ''
+        parts = path.split('/') if path else []
+        if not m or '' in parts or '..' in parts or '.' in parts:
+            raise ImportFail('invalid_watch', f'S4_S3_WATCH: "{u[:100]}" harus berbentuk s3://<bucket>/<awalan>/ (folder induk berisi folder YYYY-MM-DD).')
+        bucket, base = m.group(1), path + '/' if path else ''
+        allowed = cfg.import_buckets.get(bucket)
+        if allowed is None or not any(base.startswith(p) for p in allowed):
+            raise ImportFail('watch_not_allowed', f'S4_S3_WATCH: s3://{bucket}/{base} tidak termasuk S4_IMPORT_BUCKETS.')
+        if (bucket, base) not in out: out.append((bucket, base))
+    return out
+
+
+def list_folders(s3, bucket, base):
+    """Nama folder tanggal (YYYY-MM-DD sah) tepat di bawah awalan: ListObjectsV2 dengan Delimiter '/', jadi isi folder
+    tidak ikut didaftar (murah walau riwayat bertahun-tahun)."""
+    out = set()
+    for page in s3.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix=base, Delimiter='/'):
+        for cp in page.get('CommonPrefixes', []):
+            name = cp['Prefix'][len(base):].rstrip('/')
+            if rules.DATE_DIR.fullmatch(name):
+                try: datetime.date.fromisoformat(name); out.add(name)
+                except ValueError: pass
+    return sorted(out)
+
+
+def pick(folders, known, from_s3, today, days, recheck_days, max_new):
+    """Dari folder di S3: yang BARU (belum dikenal sama sekali) dan yang DIPERIKSA ULANG (hasil impor S3 yang masih baru,
+    mungkin bertambah file). Hanya folder dalam `days` hari terakhir (0 = semua). Folder baru diambil maksimal `max_new`
+    per putaran, terbaru dulu; sisanya menyusul di putaran berikutnya. -> (baru, ulang, tertunda)"""
+    floor = (today - datetime.timedelta(days=days)).isoformat() if days else ''
+    fresh = (today - datetime.timedelta(days=recheck_days)).isoformat()
+    new = [f for f in folders if f >= floor and f not in known]
+    take = sorted(new[-max_new:]) if max_new > 0 else []
+    again = [f for f in folders if f >= fresh and f in from_s3 and f not in take]
+    return take, again, len(new) - len(take)
+
+
 # ------------------------------------------------------------------ pilih
 def plan(cfg, objects, prefix, folder):
     """Tentukan objek yang diambil / dilewati. Kunci tidak aman -> seluruh impor ditolak. Melewati batas -> ditolak."""

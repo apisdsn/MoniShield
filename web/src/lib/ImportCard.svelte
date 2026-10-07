@@ -1,7 +1,9 @@
 <!-- Kartu "Impor dari S3" di layar Ingest & impor (DRD §3.11, TRD §3.8): status kredensial (hanya tersedia/tidak dan
      sumbernya), formulir tempel kredensial sementara (memori server saja), kolom tautan dengan bentuk yang diterima,
      "Coba dulu" (hanya mendaftar objek), "Impor" (konfirmasi, kemajuan, lalu ingest), dan riwayat impor.
-     Nilai kredensial tidak pernah dikirim balik oleh server; kolomnya dikosongkan begitu terkirim. -->
+     Nilai kredensial tidak pernah dikirim balik oleh server; kolomnya dikosongkan begitu terkirim.
+     Sinkron otomatis (permintaan pemilik 2026-10-07): bila S4_S3_WATCH diisi, server memeriksa folder induk S3 berkala
+     dan mengambil folder tanggal yang baru tanpa tautan; bagian atas kartu menampilkan status + "Periksa S3 sekarang". -->
 <script>
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -17,13 +19,29 @@
   let ov = $state.raw(null), error = $state(null);
   let url = $state(''), busy = $state(false), job = $state.raw(null), fail = $state(null);
   let showCred = $state(false), ak = $state(''), sk = $state(''), stok = $state(''), credErr = $state(null), credBusy = $state(false);
-  let confirm = $state(false), timer = null;
+  let confirm = $state(false), timer = null, syncing = $state(false), syncTimer = null, syncErr = $state(null);
 
   async function load() {
+    const wasSyncing = syncing;
     try { ov = await api.get('/api/admin/import'); error = null; } catch (e) { error = e; }
-    if (ov?.running && ov.state?.job_id && !timer) poll(ov.state.job_id);
+    const autoRun = ov?.running && ov.state?.mode === 'sync';
+    if (ov?.running && ov.state?.job_id && !timer && !autoRun) poll(ov.state.job_id);
+    clearTimeout(syncTimer);
+    syncing = !!autoRun || (syncing && ov?.running);
+    if (syncing) syncTimer = setTimeout(load, 1500);
+    else if (wasSyncing) {
+      const l = ov?.watch?.last;
+      if (l) toast(l.errors?.length ? $t('imp.w.toast_err') : $t('imp.w.toast', { n: num(l.imported.length + l.rechecked.length, $lang) }));
+      onfinished?.();
+    }
   }
-  onMount(() => { load(); return () => clearTimeout(timer); });
+  onMount(() => { load(); const iv = setInterval(() => { if (!syncing && !busy) load(); }, 30000); return () => { clearTimeout(timer); clearTimeout(syncTimer); clearInterval(iv); }; });
+
+  async function syncNow() {
+    syncErr = null;
+    try { await api.post('/api/admin/import/sync', {}); syncing = true; load(); }
+    catch (e) { syncErr = why(e); }
+  }
 
   // galat: bahasa Indonesia = pesan server apa adanya (memuat rincian, mis. awalan yang diizinkan); EN = kamus per kode
   const why = (e) => (e.status === 0 ? $t('state.error_network') : $lang === 'en' && e.code ? $t(`imp.err.${e.code}`) : e.message || $t('state.error_text'));
@@ -65,6 +83,10 @@
   const res = $derived(job?.result && !job.result.error ? job.result : null);
   const ST = { selesai: ['ok', 'imp.st.done'], coba: [1, 'imp.st.dry'], gagal: [3, 'imp.st.fail'], berjalan: [2, 'imp.st.running'] };
   const MB = (n) => bytes(n ?? 0, $lang);
+  const w = $derived(ov?.watch);
+  const syncPhase = $derived(!syncing ? '' : ov?.state?.phase === 'unduh' && ov.state.total
+    ? $t('imp.w.ph_unduh', { done: num(ov.state.done + 1, $lang), total: num(ov.state.total, $lang) })
+    : ov?.state?.phase === 'ingest' ? $t('imp.ph.ingest') : $t('imp.w.ph_periksa'));
 </script>
 
 <section class="card wide imp" aria-labelledby="imp-h">
@@ -104,6 +126,35 @@
       </form>
     {/if}
 
+    <div class="watch" aria-labelledby="w-h">
+      <h3 id="w-h">{$t('imp.w.title')}</h3>
+      {#if w?.enabled}
+        <p class="small">{$t(w.minutes > 0 ? 'imp.w.on' : 'imp.w.manual', { m: num(w.minutes, $lang) })}
+          {#each w.sources as s}<code>{s}</code>{' '}{/each}
+          · {w.days ? $t('imp.w.days', { d: num(w.days, $lang) }) : $t('imp.w.alldays')} · {$t('imp.w.max', { n: num(w.max_folders, $lang) })}</p>
+        {#if w.last}
+          {@const l = w.last}
+          <p class="small">{$t('imp.w.last', { time: tWIB(utcToWib(l.at), $lang), by: l.by })}:
+            {#if l.imported.length}{$t('imp.w.got', { n: num(l.imported.length, $lang), list: l.imported.join(', ') })}{:else}{$t('imp.w.none')}{/if}{#if l.rechecked.length}; {$t('imp.w.updated', { list: l.rechecked.join(', ') })}{/if}{#if l.waiting}; {$t('imp.w.waiting', { n: num(l.waiting, $lang) })}{/if}{#if l.failed.length}; <span class="errtxt">{$t('imp.w.failed', { list: l.failed.join(', ') })}</span>{/if}</p>
+          {#each l.errors as e}<p class="err small">{e}</p>{/each}
+        {:else}<p class="muted small">{$t('imp.w.never')}</p>{/if}
+        {#if w.next_check && w.minutes > 0}<p class="muted small">{$t('imp.w.next', { time: tWIB(utcToWib(w.next_check), $lang) })}</p>{/if}
+        <div class="acts">
+          <button class="btn primary" onclick={syncNow} disabled={syncing || busy || ov.running || !c.available}>{syncing ? $t('imp.w.running') : $t('imp.w.now')}</button>
+        </div>
+        <div aria-live="polite">
+          {#if syncing}
+            <div class="prog" role="progressbar" aria-label={$t('imp.w.title')} aria-valuetext={syncPhase}><div class="fill indet"></div></div>
+            <p class="muted small">{syncPhase}</p>
+          {/if}
+          {#if syncErr}<p class="err" role="alert">{syncErr}</p>{/if}
+        </div>
+      {:else}
+        <Note wide={false}>{w?.problem || $t('imp.w.off')}</Note>
+      {/if}
+    </div>
+
+    <h3 class="manual">{$t('imp.manual')}</h3>
     <label for="imp-url" class="lbl">{$t('imp.url')}</label>
     <input id="imp-url" class="url" type="text" autocomplete="off" spellcheck="false" placeholder={ov.allowed[0]?.replace('<YYYY-MM-DD>', '2026-09-26')}
       bind:value={url} aria-describedby="imp-hint" />
@@ -194,4 +245,8 @@
   .objs ul { list-style: none; display: grid; gap: 4px; max-height: 320px; overflow: auto; }
   .objs code { word-break: break-all; }
   .msg { max-width: 360px; white-space: normal; }
+  .watch { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg2); display: flex; flex-direction: column; gap: 2px; max-width: 900px; }
+  .watch code { word-break: break-all; }
+  .errtxt { color: var(--err); }
+  .manual { margin-top: 20px; }
 </style>
