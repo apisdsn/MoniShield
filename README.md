@@ -28,7 +28,7 @@ Isi minimal di `.env`:
 | `S4_ADMIN_PASSWORD` | sandi admin pertama (≥ 12 karakter); wajib diganti saat masuk pertama |
 | `S4_COOKIE_SECURE` | `true` di server ber-HTTPS; **`false` hanya untuk mencoba di komputer sendiri** lewat `http://` |
 | `S4_LOG_DIR` | folder log, bila bukan folder induk `v2/` |
-| `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY` | opsional: lokasi IP di peta (GeoLite2, gratis). Tanpa ini, atau dengan `S4_OFFLINE=true`, peta tetap jalan tanpa lokasi baru |
+| `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY` | opsional: lokasi IP di peta (GeoLite2, gratis; bisa juga diisi di layar **Konfigurasi**). Tanpa ini, atau dengan `S4_OFFLINE=true`, peta tetap jalan tanpa lokasi baru |
 
 Pilihan lain (port, impor S3, aturan deteksi serangan, PostgreSQL untuk akun) dijelaskan di `.env.example`.
 
@@ -76,7 +76,14 @@ sinkronisasi dashboard pindah ke folder terbaru. Hanya file baru atau yang berub
 jeda yang dipilih (bawaan 1 jam); folder tanggal yang baru diunduh dan di-ingest. Tombol **Sinkronkan data** di kepala
 halaman juga memeriksa S3 dulu, lalu folder log lokal. (Alternatif tanpa layar: `S4_S3_WATCH` di `.env`.)
 
-**Notifikasi**: menu user → **Notifikasi** → centang Telegram / Discord / Email, isi kredensialnya (token bot + chat ID,
+**Konfigurasi (semua kredensial di satu halaman)**: menu user → **Konfigurasi**. Berisi kunci akses AWS S3 + wilayah,
+folder induk S3 otomatis, kunci MaxMind GeoLite2, notifikasi, dan pengecualian daftar blokir; tiap bagian punya
+**Simpan** dan (untuk AWS/MaxMind) **Uji koneksi**. Isian layar disimpan di basis data akun, langsung berlaku tanpa mulai
+ulang, dan mengalahkan nilai `.env`; **Hapus isian layar** kembali ke `.env`. Kredensial tidak pernah ditampilkan lagi
+(Access Key ID hanya tersamar `AKIA…1234`). Yang tetap hanya lewat `.env` (dasar keamanan server: `S4_JWT_SECRET`,
+`S4_JOB_TOKEN`, basis data akun, `S4_ADMIN_PASSWORD`, `S4_IMPORT_BUCKETS`) hanya ditampilkan statusnya.
+
+**Notifikasi**: menu user → **Konfigurasi** → bagian *Notifikasi* → centang Telegram / Discord / Email, isi kredensialnya (token bot + chat ID,
 URL webhook, atau server SMTP), **Simpan**, lalu **Kirim uji**. Dikirim saat: lonjakan (≥ 2× rata-rata 7 folder sebanding),
 serangan kritis, ingest gagal, sinkron S3 bermasalah, folder log hari ini belum datang (jam bisa diatur), dan — bila
 dicentang — ringkasan tiap folder baru. Pesan hanya berisi angka dan tautan, **tanpa alamat IP**; kredensial tidak pernah

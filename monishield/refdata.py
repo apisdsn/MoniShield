@@ -41,7 +41,7 @@ def fetch_maxmind(cfg, edition, path, max_age_days=GEO_MAX_AGE_DAYS, log=print):
     fresh = os.path.exists(path) and os.path.getmtime(path) > (datetime.datetime.now() - datetime.timedelta(days=max_age_days)).timestamp()
     if fresh: return True
     if not (cfg.maxmind_account_id and cfg.maxmind_license_key):
-        log(f'{edition}: MAXMIND_ACCOUNT_ID/MAXMIND_LICENSE_KEY belum diisi di .env; lokasi IP dilewati')
+        log(f'{edition}: kunci MaxMind belum diisi (layar Konfigurasi atau MAXMIND_ACCOUNT_ID/MAXMIND_LICENSE_KEY di .env); lokasi IP dilewati')
         return os.path.exists(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     auth = base64.b64encode(f'{cfg.maxmind_account_id}:{cfg.maxmind_license_key}'.encode()).decode()

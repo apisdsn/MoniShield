@@ -2,7 +2,7 @@
 
 Jalankan dengan satu worker saja: lebih dari satu worker = lebih dari satu proses penulis DuckDB.
 """
-import contextlib, os
+import contextlib, dataclasses, os
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -11,8 +11,8 @@ from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .. import __version__, alerts as alertsmod, auth as authmod, config, db, detect, upload as uploadmod
-from . import (admin, availability, docs, notify, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing,
+from .. import __version__, alerts as alertsmod, auth as authmod, config, db, detect, settings, upload as uploadmod
+from . import (admin, availability, config_api, docs, notify, business, command, ips, map, meta, overview, pods, rootcause, security, service, session, tables, tracing,
                search, trends, upload, users)
 from .common import ROLE_DEPS
 
@@ -21,7 +21,7 @@ CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:;
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
 PAGES = (overview, command, ips, search, map, trends, security, rootcause, availability, pods, business, tracing, service)   # satu modul per halaman (TRD §5.3)
-ROUTERS = (meta.router, session.router, users.router, admin.router, upload.router, docs.router, notify.router, *(m.router for m in PAGES), tables.router)
+ROUTERS = (meta.router, session.router, users.router, admin.router, upload.router, docs.router, notify.router, config_api.router, *(m.router for m in PAGES), tables.router)
 
 
 def _deps(dependant):
@@ -45,7 +45,8 @@ def _error(status, code, message): return JSONResponse(dict(error=dict(code=code
 
 
 def create_app(cfg=None):
-    cfg = cfg or config.load()
+    # salinan sendiri: isian layar Konfigurasi ditimpakan ke objek ini (settings.apply); cfg_env = nilai .env asli
+    cfg = dataclasses.replace(cfg or config.load())
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
@@ -55,6 +56,7 @@ def create_app(cfg=None):
             raise RuntimeError(f'S4_JWT_SECRET wajib diisi (minimal {authmod.JWT_SECRET_MIN} karakter acak); lihat .env.example')
         app.state.auth = authmod.Auth(cfg.auth_url, cfg.jwt_secret, cfg.session_idle_minutes, cfg.session_max_hours)
         app.state.auth.bootstrap_admin(cfg.admin_user, cfg.admin_password)
+        settings.apply(app)   # kredensial/setelan yang diisi dari layar Konfigurasi
         if cfg.duckdb_snapshot and not os.path.exists(db.snapshot_path(cfg)):   # DbGate langsung punya salinan, tanpa menunggu ingest
             cur = app.state.con.cursor()
             try: admin._snapshot(app, cur)
@@ -71,7 +73,7 @@ def create_app(cfg=None):
         app.state.con.close()
 
     app = FastAPI(title='MoniShield', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
-    app.state.cfg = cfg
+    app.state.cfg, app.state.cfg_env = cfg, dataclasses.replace(cfg)
     detect.use(cfg)   # tingkat paranoia CRS untuk derive lewat API (Tahap 21)
     app.state.ingest = admin.IngestManager(app)
     app.state.imports = admin.ImportManager(app)

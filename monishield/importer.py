@@ -60,10 +60,14 @@ def allowed_examples(cfg):
 
 # ------------------------------------------------------------------ kredensial
 class Credentials:
-    """Urutan: yang ditempel admin (memori proses, hilang saat server mulai ulang), lalu variabel lingkungan."""
+    """Urutan: yang ditempel admin (memori proses, hilang saat server mulai ulang), lalu konfigurasi server — isian layar
+    Konfigurasi (tersimpan, sumber 'layar') atau variabel lingkungan/.env (sumber 'lingkungan')."""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, origin=None):
         self.cfg, self._mem, self._set_at, self._lock = cfg, None, None, threading.Lock()
+        self._origin = origin or (lambda: None)   # -> 'layar' bila kunci di cfg berasal dari layar Konfigurasi
+
+    def _cfg_source(self): return 'layar' if self._origin() == 'layar' else 'lingkungan'
 
     def __repr__(self): return f'<Credentials sumber={self.status()["source"]}>'   # nilai tidak pernah ikut tercetak
 
@@ -85,14 +89,14 @@ class Credentials:
         c = self.cfg
         if c.aws_access_key_id and c.aws_secret_access_key:
             return dict(aws_access_key_id=c.aws_access_key_id, aws_secret_access_key=c.aws_secret_access_key,
-                        **({'aws_session_token': c.aws_session_token} if c.aws_session_token else {})), 'lingkungan'
+                        **({'aws_session_token': c.aws_session_token} if c.aws_session_token else {})), self._cfg_source()
         return None, None
 
     def status(self):
         with self._lock: mem, at = bool(self._mem), self._set_at
         env = bool(self.cfg.aws_access_key_id and self.cfg.aws_secret_access_key)
-        return dict(available=mem or env, source='tempel' if mem else 'lingkungan' if env else None,
-                    pasted=mem, pasted_at=str(at) if at else None, environment=env)
+        return dict(available=mem or env, source='tempel' if mem else self._cfg_source() if env else None,
+                    pasted=mem, pasted_at=str(at) if at else None, environment=env, saved=env and self._cfg_source() == 'layar')
 
 
 NO_LIBRARY = ('Impor S3 butuh paket boto3 yang belum terpasang di server. Jalankan: .venv/bin/pip install -e ".[s3]" '
@@ -105,8 +109,8 @@ def library_ok():
     return all(importlib.util.find_spec(m) is not None for m in ('boto3', 'botocore'))
 
 
-NO_CREDENTIALS = ('Tidak ada kredensial AWS. Isi AWS_ACCESS_KEY_ID dan AWS_SECRET_ACCESS_KEY di .env server lalu mulai ulang, '
-                  'atau tempel kredensial sementara di layar Ingest & impor.')
+NO_CREDENTIALS = ('Tidak ada kredensial AWS. Isi di layar Konfigurasi (menu akun), atau AWS_ACCESS_KEY_ID dan AWS_SECRET_ACCESS_KEY '
+                  'di .env server lalu mulai ulang, atau tempel kredensial sementara di layar Ingest & impor.')
 
 
 # ------------------------------------------------------------------ S3

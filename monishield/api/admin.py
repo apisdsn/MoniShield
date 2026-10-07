@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
-from .. import db, importer, ingest, rules
+from .. import db, importer, ingest, rules, settings
 from .common import DATE, ApiError, client_ip, require_admin, require_admin_or_job
 
 router = APIRouter(prefix='/api/admin')
@@ -235,7 +235,7 @@ class ImportManager:
 
     def __init__(self, app):
         self.app, self._lock = app, threading.Lock()
-        self.creds = importer.Credentials(app.state.cfg)
+        self.creds = importer.Credentials(app.state.cfg, origin=lambda: settings.origin(app, 'aws_access_key_id'))
         self.state = dict(running=False, job_id=None, phase=None, done=0, total=0, mode=None)   # mode: 'manual' (tautan) / 'sync' (otomatis)
         self.plans, self.thread = {}, None   # job_id -> hasil importer.run (dibatasi 20 terakhir)
         self.watch = dict(last=None, next_check=None)   # sinkron otomatis: hasil putaran terakhir, jadwal berikutnya (UTC)

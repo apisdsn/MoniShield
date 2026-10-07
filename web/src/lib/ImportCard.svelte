@@ -9,6 +9,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
+  import { build, route } from '../state.js';
   import { num, bytes, tWIB, utcToWib } from '../format.js';
   import { toast } from './Toast.svelte';
   import DataTable from './DataTable.svelte';
@@ -118,7 +119,7 @@
     {@const c = ov.credentials}
     <p class="cred">
       {$t('imp.cred')}
-      {#if c.available}<SeverityTag level="ok" text={$t('imp.cred_ok')} /> <span class="muted">({$t(c.source === 'tempel' ? 'imp.src.pasted' : 'imp.src.env')}{#if c.pasted_at} · {tWIB(utcToWib(c.pasted_at), $lang)}{/if})</span>
+      {#if c.available}<SeverityTag level="ok" text={$t('imp.cred_ok')} /> <span class="muted">({$t(c.source === 'tempel' ? 'imp.src.pasted' : c.source === 'layar' ? 'imp.src.saved' : 'imp.src.env')}{#if c.pasted_at} · {tWIB(utcToWib(c.pasted_at), $lang)}{/if})</span>
       {:else}<SeverityTag level={3} text={$t('imp.cred_none')} />{/if}
     </p>
     <div class="credacts">
@@ -128,7 +129,7 @@
     {#if !c.available || showCred}
       <form class="credf" onsubmit={saveCred} novalidate aria-labelledby="cred-h">
         <h3 id="cred-h">{$t('imp.cred_form')}</h3>
-        <p class="muted small">{$t('imp.cred_note')}</p>
+        <p class="muted small">{$t('imp.cred_note')} <a href={build({ ...$route, tab: 'admin/konfigurasi', service: null, q: null })}>{$t('imp.cred_more')}</a></p>
         <label for="c-ak">{$t('imp.c.ak')}</label>
         <input id="c-ak" type="password" autocomplete="off" spellcheck="false" bind:value={ak} />
         <label for="c-sk">{$t('imp.c.sk')}</label>
