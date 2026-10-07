@@ -73,6 +73,8 @@
     <p class="err" role="alert">{why(error)}</p>
   {:else if ov && !ov.enabled}
     <Note wide={false}>{$t('imp.disabled')}</Note>
+  {:else if ov && ov.library === false}
+    <Note wide={false}>{$t('imp.no_library')}</Note>
   {:else if ov}
     {@const c = ov.credentials}
     <p class="cred">

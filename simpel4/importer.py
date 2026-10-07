@@ -94,6 +94,16 @@ class Credentials:
                     pasted=mem, pasted_at=str(at) if at else None, environment=env)
 
 
+NO_LIBRARY = ('Impor S3 butuh paket boto3 yang belum terpasang di server. Jalankan: .venv/bin/pip install -e ".[s3]" '
+              '(atau ./run.sh, yang kini memasangnya), lalu mulai ulang server.')
+
+
+def library_ok():
+    """boto3 + botocore terpasang? (paket opsional "s3"; diperiksa sebelum job dibuat agar tidak gagal di tengah)"""
+    import importlib.util
+    return all(importlib.util.find_spec(m) is not None for m in ('boto3', 'botocore'))
+
+
 NO_CREDENTIALS = ('Tidak ada kredensial AWS. Isi AWS_ACCESS_KEY_ID dan AWS_SECRET_ACCESS_KEY di .env server lalu mulai ulang, '
                   'atau tempel kredensial sementara di layar Ingest & impor.')
 

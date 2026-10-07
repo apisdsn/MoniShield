@@ -87,6 +87,14 @@ def forget(con, folder):
     return n
 
 
+def _next_id(con, seq, table, col):
+    """Nomor baru dari sequence, tetapi tidak pernah <= nomor terbesar yang sudah ada. Sequence DuckDB bisa tertinggal
+    setelah proses dihentikan paksa (nilai yang dipulihkan lebih kecil dari baris yang tersimpan) -> "Duplicate key".
+    Aman karena hanya dipanggil di bawah _lock (satu penulis)."""
+    v = con.execute(f"SELECT nextval('{seq}')").fetchone()[0]
+    return max(v, con.execute(f'SELECT coalesce(max({col}), 0) + 1 FROM {table}').fetchone()[0])
+
+
 def run(cfg, con=None, folder=None, force=False, workers=None, progress=None):
     """Jalankan ingest. Mengembalikan ringkasan; melempar Busy bila ingest lain berjalan."""
     if not _lock.acquire(blocking=False): raise Busy('ingest sedang berjalan')
@@ -102,7 +110,7 @@ def run(cfg, con=None, folder=None, force=False, workers=None, progress=None):
 
 def _run(cfg, con, only_folder, force, workers, progress):
     t0 = time.time()
-    run_id = con.execute("SELECT nextval('seq_run_id')").fetchone()[0]
+    run_id = _next_id(con, 'seq_run_id', 'ingest_run', 'run_id')
     con.execute("INSERT INTO ingest_run VALUES (?, ?, NULL, 'berjalan', NULL, NULL, NULL)", [run_id, utcnow()])
     tmp = os.path.join(cfg.data_dir, 'tmp', f'run-{run_id}')
     res = dict(run_id=run_id, status='ok', files_seen=0, files_changed=0, files_parsed=0, files_removed=0, files_failed=0, folders_changed=[], folders_recorrelated=[], refdata=None, warnings=[])
@@ -209,7 +217,7 @@ def _apply_file(con, f, k, res):
         res['warnings'].append(f"{f['relpath']}: isi .log dan .log.gz BERBEDA; .log yang dipakai")
     if k and k['source_ext'] != f['source_ext'] and r['sha256'] and r['sha256'] != k['sha256']:
         res['warnings'].append(f"{f['relpath']}: {f['source_ext']} berbeda dari {k['source_ext']} yang sudah diproses; diproses ulang")
-    file_id = k['file_id'] if k else con.execute("SELECT nextval('seq_file_id')").fetchone()[0]
+    file_id = k['file_id'] if k else _next_id(con, 'seq_file_id', 'ingest_file', 'file_id')
     meta = [f['source_ext'], f['size_bytes'], f['mtime_ns']]
     if r['error']:
         res['warnings'].append(f"{f['relpath']}: GAGAL di-parse: {r['error']}"); res['files_failed'] += 1

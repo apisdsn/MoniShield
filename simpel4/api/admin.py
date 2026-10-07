@@ -154,6 +154,7 @@ class ImportManager:
         cfg = self.app.state.cfg
         try: bucket, prefix, folder = importer.parse_url(cfg, url)          # tautan diperiksa sebelum ada koneksi ke AWS
         except importer.ImportFail as e: raise ApiError(e.status, e.code, e.message) from None
+        if not importer.library_ok(): raise ApiError(400, 'no_s3_library', importer.NO_LIBRARY)
         if not self.creds.get()[0]: raise ApiError(400, 'no_credentials', importer.NO_CREDENTIALS)
         with self._lock:
             if self.state['running']: raise ApiError(409, 'import_running', 'Impor lain sedang berjalan; tunggu sampai selesai.')
@@ -211,7 +212,7 @@ class CredBody(BaseModel):
 
 def _import_view(request):
     m, cfg = request.app.state.imports, request.app.state.cfg
-    return dict(enabled=bool(cfg.import_buckets), allowed=importer.allowed_examples(cfg), region=cfg.import_region,
+    return dict(enabled=bool(cfg.import_buckets), library=importer.library_ok(), allowed=importer.allowed_examples(cfg), region=cfg.import_region,
                 credentials=m.creds.status(), running=m.state['running'], state=m.state)
 
 

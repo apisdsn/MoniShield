@@ -5,7 +5,12 @@ set -eu
 cd "$(dirname "$0")"
 
 [ -f .env ] || { echo "v2/.env belum ada: salin .env.example ke .env, isi, lalu chmod 600 .env" >&2; exit 1; }
-[ -x .venv/bin/python ] || { python3 -m venv .venv && .venv/bin/pip install -q -e .; }
+[ -x .venv/bin/python ] || python3 -m venv .venv
+# Paket Python (termasuk boto3 untuk impor S3) dipasang saat .venv baru DAN setiap kali pyproject.toml berubah,
+# supaya dependensi yang ditambahkan belakangan ikut terpasang (dulu: hanya saat .venv belum ada).
+if [ ! -f .venv/.deps-ok ] || [ pyproject.toml -nt .venv/.deps-ok ]; then
+  .venv/bin/pip install -q -e ".[s3]" && touch .venv/.deps-ok
+fi
 
 # Tampilan dibangun hanya bila sumbernya ada dan lebih baru dari hasil bangun terakhir.
 if [ -f web/package.json ] && { [ ! -d web/dist ] || [ -n "$(find web/src web/package.json -newer web/dist -print -quit 2>/dev/null)" ]; }; then

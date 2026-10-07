@@ -182,6 +182,21 @@ def test_terhenti_di_tengah_transaksi_lalu_bersih(env, monkeypatch):
     con2.close()
 
 
+def test_sequence_tertinggal_tidak_membuat_duplicate_key(env):
+    """Laporan pemilik 2026-10-07: 'Duplicate key "run_id: 28"'. Sequence DuckDB bisa tertinggal dari baris yang tersimpan
+    (mis. setelah proses dihentikan paksa). Ingest harus tetap jalan dengan nomor baru yang belum dipakai."""
+    cfg, con, root = env
+    go(cfg, con)
+    runs, fids = q(con, 'SELECT max(run_id) FROM ingest_run')[0][0], q(con, 'SELECT max(file_id) FROM ingest_file')[0][0]
+    for sq in ('seq_run_id', 'seq_file_id'): con.execute(f'DROP SEQUENCE {sq}'); con.execute(f'CREATE SEQUENCE {sq}')   # mulai lagi dari 1
+    shutil.copytree(os.path.join(root, B), os.path.join(root, '2026-01-09'))                                        # file baru -> file_id baru
+    r = go(cfg, con)
+    assert r['status'] == 'ok' and r['run_id'] == runs + 1 and '2026-01-09' in r['folders_changed']
+    assert q(con, 'SELECT min(file_id) FROM ingest_file WHERE folder = ?', '2026-01-09')[0][0] > fids
+    assert q(con, 'SELECT count(*), count(DISTINCT file_id) FROM ingest_file')[0] == q(con, 'SELECT count(*), count(*) FROM ingest_file')[0]
+    assert go(cfg, con)['run_id'] == runs + 2
+
+
 def test_hanya_satu_ingest_pada_satu_waktu(env):
     cfg, con, _ = env
     assert ingest._lock.acquire(blocking=False)

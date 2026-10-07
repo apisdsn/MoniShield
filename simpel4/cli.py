@@ -154,6 +154,7 @@ def cmd_import(cfg, args):
     try: importer.parse_url(cfg, args.url)                 # daftar izin diperiksa sebelum apa pun menghubungi AWS
     except importer.ImportFail as e: print(f'ditolak: {e.message}', file=sys.stderr); return 2
     up = _api(cfg, 'GET', '/api/health') is not None
+    if not up and not importer.library_ok(): print(importer.NO_LIBRARY, file=sys.stderr); return 2
     if not up and cfg.api_url: print(f'server {cfg.api_url} tidak terjangkau; impor tidak dijalankan', file=sys.stderr); return 2
     if up:
         if not cfg.job_token: print('server sedang berjalan tetapi S4_JOB_TOKEN kosong', file=sys.stderr); return 2

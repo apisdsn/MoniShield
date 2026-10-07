@@ -268,3 +268,16 @@ def test_user_biasa_403(client):
                  ('delete', '/api/admin/import/credentials')):
         r = getattr(tc, m)(p, headers=X) if m in ('get', 'delete') else getattr(tc, m)(p, json={}, headers=X)
         assert r.status_code == 403, p
+
+
+def test_tanpa_boto3_ditolak_dengan_cara_memasang(client, monkeypatch):
+    """Laporan pemilik 2026-10-07: impor gagal "No module named 'botocore'" (paket s3 belum terpasang). Kini ditolak di
+    depan dengan pesan cara memasang, tanpa membuat job gagal; layar membaca `library` untuk menonaktifkan impor."""
+    monkeypatch.setattr(importer, 'library_ok', lambda: False)
+    sebelum = len(client.get('/api/admin/import').json()['jobs'])
+    r = client.post('/api/admin/import', json=dict(url=URL), headers=X)
+    assert r.status_code == 400 and r.json()['error']['code'] == 'no_s3_library' and 'pip install' in r.json()['error']['message']
+    ov = client.get('/api/admin/import').json()
+    assert ov['library'] is False and len(ov['jobs']) == sebelum
+    monkeypatch.undo()
+    assert importer.library_ok() is True and client.get('/api/admin/import').json()['library'] is True
