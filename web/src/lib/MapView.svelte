@@ -4,7 +4,11 @@
      tanpa angka, keputusan pemilik 2026-10-06; angka di tooltip dan di label 6 lokasi terbesar); busur per lokasi; titik
      server; tooltip bergaya chart dengan "Lihat di tabel"; gerakan kooperatif (Ctrl + roda, dua jari); keyboard
      (panah, +/−, 0, Esc); atribusi selalu terlihat; ganti tema/bahasa/data tanpa kehilangan posisi.
-     MapLibre dimuat terpisah (import dinamis) agar halaman lain tidak ikut membawanya. -->
+     MapLibre dimuat terpisah (import dinamis) agar halaman lain tidak ikut membawanya.
+     Animasi alur (permintaan pemilik 2026-10-07; lib/mapFlow.js): partikel berjalan dari lokasi asal ke titik server +
+     riak saat tiba; busur bergradasi pudar -> terang ke arah server. Tombol putar/jeda (diingat per browser; bawaan mati
+     bila sistem meminta gerak dikurangi). Siap realtime: `pulse({lat, lon, n})` (bind:this) atau event jendela
+     `monishield:map-pulse`; prop `live` mematikan partikel ambient sehingga hanya kejadian nyata yang bergerak. -->
 <script module>
   let labelsP = null;   // labels.json dipakai bersama semua peta di halaman
   const loadLabels = () => (labelsP ||= fetch('/map/labels.json').then((r) => (r.ok ? r.json() : { c: [], p: [], k: [] })).catch(() => ({ c: [], p: [], k: [] })));
@@ -16,11 +20,19 @@
   import { lang, t, countryName } from '../i18n.js';
   import { theme } from '../theme.js';
   import { num } from '../format.js';
+  import { load as loadPref, save as savePref } from '../store.js';
+  import { FlowAnimator, flowSources, flowLayers, arcGradient, tailGradient, arcOf } from './mapFlow.js';
 
   /** points: [{lat, lon, city, region, cc, ips, requests, modules: {modul: n}}] (urut naik); server: {ip, lat, lon, city, cc} */
-  let { points = [], server = null, preset = $bindable('id'), onpick = null, label = '', compact = false, tall = false } = $props();   // tall: setinggi layar (Command Center)
+  let { points = [], server = null, preset = $bindable('id'), onpick = null, label = '', compact = false, tall = false, live = false } = $props();   // tall: setinggi layar (Command Center)
   let box = $state(), wrap = $state(), map = null, ml = null, ready = $state(false), failed = $state(false);
   let tip = $state(null), full = $state(false);   // tip: {x, y, kind, ...}
+  let anim = null;
+  const pref = loadPref('map_anim', null);
+  let playing = $state(pref === null ? !matchMedia('(prefers-reduced-motion: reduce)').matches : pref === '1');
+  function togglePlay() { playing = !playing; savePref('map_anim', playing ? '1' : '0'); anim?.setPlaying(playing); }
+  /** Satu kejadian nyata (mis. dari Kafka): partikel dari (lat, lon) ke server. -> true bila tergambar. */
+  export function pulse(ev) { return anim?.pulse(ev) ?? false; }
 
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const place = (p, l) => [p.city, p.region, $countryName(p.cc)].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(', ') || (l === 'en' ? 'Unknown' : 'Tidak diketahui');
@@ -34,8 +46,7 @@
     const loc = pts.map((p, i) => ({ type: 'Feature', id: i + 1, geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
       properties: { i, requests: p.requests, ips: p.ips, rank: rank.get(p), name: shortName(p), sub: `${num(p.ips, $lang)} IP · ${num(p.requests, $lang)} req` } }));
     const arcs = server ? pts.map((p) => {
-      const [x0, y0, x1, y1] = [p.lon, p.lat, server.lon, server.lat];
-      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2 + Math.hypot(x1 - x0, y1 - y0) / 4;   // lengkung lama: kontrol di atas titik tengah
+      const { x0, y0, x1, y1, cx, cy } = arcOf(p.lon, p.lat, server.lon, server.lat);   // lengkung lama: kontrol di atas titik tengah
       const line = Array.from({ length: 25 }, (_, k) => { const s = k / 24, u = 1 - s; return [u * u * x0 + 2 * u * s * cx + s * s * x1, u * u * y0 + 2 * u * s * cy + s * s * y1]; });
       return { type: 'Feature', geometry: { type: 'LineString', coordinates: line },
         properties: { w: 1 + (3 * p.requests) / max, op: p.requests < max * 0.01 ? 0.25 : 0.45 } };
@@ -68,7 +79,8 @@
         land: { type: 'geojson', data: `${o}/map/land.geojson` },
         borders: { type: 'geojson', data: `${o}/map/borders-country.geojson` },
         prov: { type: 'geojson', data: `${o}/map/borders-province-id.geojson` },
-        arcs: { type: 'geojson', data: d.arcs },
+        arcs: { type: 'geojson', data: d.arcs, lineMetrics: true },   // lineMetrics: gradasi arah (asal pudar -> server terang)
+        ...flowSources(),
         loc: { type: 'geojson', data: d.loc, cluster: true, clusterRadius: 40, clusterMaxZoom: 7,
           clusterProperties: { requests: ['+', ['get', 'requests']], ips: ['+', ['get', 'ips']] } },
         top: { type: 'geojson', data: d.top },
@@ -81,7 +93,8 @@
         { id: 'coast', type: 'line', source: 'land', paint: { 'line-color': c.coast, 'line-width': 0.5 } },
         { id: 'borders', type: 'line', source: 'borders', paint: { 'line-color': c.coast, 'line-width': 0.75 } },
         { id: 'prov', type: 'line', source: 'prov', minzoom: 4, paint: { 'line-color': c.coast, 'line-width': 0.5, 'line-dasharray': [3, 2] } },
-        { id: 'arcs', type: 'line', source: 'arcs', layout: { 'line-cap': 'round' }, paint: { 'line-color': c.accent, 'line-width': ['get', 'w'], 'line-opacity': ['get', 'op'] } },
+        { id: 'arcs', type: 'line', source: 'arcs', layout: { 'line-cap': 'round' }, paint: { 'line-gradient': arcGradient(c.accent), 'line-width': ['get', 'w'], 'line-opacity': ['get', 'op'] } },
+        ...flowLayers(c.accent, c.server),
         { id: 'clusters', type: 'circle', source: 'loc', filter: ['has', 'point_count'],
           paint: { 'circle-color': c.accent, 'circle-opacity': 0.28, 'circle-stroke-color': c.accent, 'circle-stroke-width': 2, 'circle-stroke-opacity': 0.9,
             'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'requests']], 0, 12, Math.sqrt(Math.max(d.max * 4, 1)), 22] } },
@@ -149,7 +162,12 @@
         map.touchZoomRotate.disableRotation();
         map.keyboard.disableRotation();
         map.getCanvas().setAttribute('aria-label', label);
-        map.on('load', () => { ready = true; });
+        map.on('load', () => {
+          ready = true;
+          anim = new FlowAnimator(map, box);
+          anim.setLive(live); anim.setPlaying(playing); anim.setData(points, server);
+          box.__flow = anim;   // dibaca alat uji (seperti __map)
+        });
         map.on('error', (e) => { if (/WebGL/i.test(String(e?.error?.message))) failed = true; });
         map.on('movestart', () => (tip = null));
         for (const id of ['points', 'clusters', 'server']) {
@@ -165,7 +183,9 @@
         offLang = lang.subscribe((nl) => { if (firstL) return (firstL = false); relabel(nl); });
       } catch (e) { failed = true; }
     })();
-    return () => { alive = false; offTheme?.(); offLang?.(); map?.remove(); map = null; };
+    const onPulse = (e) => anim?.pulse(e.detail || {});
+    window.addEventListener('monishield:map-pulse', onPulse);
+    return () => { alive = false; offTheme?.(); offLang?.(); window.removeEventListener('monishield:map-pulse', onPulse); anim?.destroy(); anim = null; map?.remove(); map = null; };
   });
 
   // data berganti (mis. pilih modul): ganti isi sumber; kamera tidak disentuh
@@ -174,9 +194,11 @@
     void server;
     if (!ready || !map) return;
     map.getSource('loc')?.setData(d.loc); map.getSource('top')?.setData(d.top); map.getSource('arcs')?.setData(d.arcs); map.getSource('srv')?.setData(srvFC());
+    anim?.setData(points, server);
     map.setPaintProperty('clusters', 'circle-radius', ['interpolate', ['linear'], ['sqrt', ['get', 'requests']], 0, 12, Math.sqrt(Math.max(d.max * 4, 1)), 22]);
     tip = null;
   });
+  $effect(() => { const l = live; anim?.setLive(l); });
   // preset dari tombol Indonesia | Dunia
   let lastPreset = null;
   $effect(() => { const p = preset; if (ready && map && lastPreset !== null && p !== lastPreset) fit(); lastPreset = p; });
@@ -187,7 +209,8 @@
     const c = colors();
     const set = (id, k, v) => map.getLayer(id) && map.setPaintProperty(id, k, v);
     set('sea', 'background-color', c.sea); set('land', 'fill-color', c.land); set('coast', 'line-color', c.coast); set('borders', 'line-color', c.coast);
-    set('prov', 'line-color', c.coast); set('arcs', 'line-color', c.accent); set('clusters', 'circle-color', c.accent); set('clusters', 'circle-stroke-color', c.accent);
+    set('prov', 'line-color', c.coast); set('arcs', 'line-gradient', arcGradient(c.accent));
+    set('flow-tail', 'line-gradient', tailGradient(c.accent)); set('flow-head', 'circle-color', c.accent); set('flow-glow', 'circle-color', c.accent); set('flow-ripple', 'circle-stroke-color', c.server); set('clusters', 'circle-color', c.accent); set('clusters', 'circle-stroke-color', c.accent);
     set('points', 'circle-color', c.accent); set('points', 'circle-stroke-color', c.accent); set('server', 'circle-color', c.server); set('server', 'circle-stroke-color', c.halo);
     for (const id of ['lbl-kab', 'lbl-prov', 'lbl-country-small', 'lbl-country']) { set(id, 'text-color', c.muted); set(id, 'text-halo-color', c.halo); }
     for (const id of ['lbl-loc', 'lbl-top']) { set(id, 'text-color', c.fg); set(id, 'text-halo-color', c.halo); }
@@ -241,6 +264,9 @@
     <button type="button" class="mb" aria-label={$t('map.zoom_in')} title={$t('map.zoom_in')} onclick={() => zoom(1)}>+</button>
     <button type="button" class="mb" aria-label={$t('map.zoom_out')} title={$t('map.zoom_out')} onclick={() => zoom(-1)}>−</button>
     <button type="button" class="mb" aria-label={$t('map.reset')} title={$t('map.reset')} onclick={fit}>⤢</button>
+    <button type="button" class="mb" aria-pressed={playing} aria-label={$t(playing ? 'map.anim_pause' : 'map.anim_play')} title={$t(playing ? 'map.anim_pause' : 'map.anim_play')}
+      onclick={togglePlay}>
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">{#if playing}<rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="currentColor" /><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="currentColor" />{:else}<path d="M4.5 2.8v10.4a.6.6 0 0 0 .9.5l8.2-5.2a.6.6 0 0 0 0-1L5.4 2.3a.6.6 0 0 0-.9.5Z" fill="currentColor" />{/if}</svg></button>
     <button type="button" class="mb fs" aria-pressed={full} aria-label={$t(full ? 'map.exit_full' : 'map.full')} title={$t(full ? 'map.exit_full' : 'map.full')} onclick={toggleFull}>{full ? '×' : '⛶'}</button>
   </div>
   {#if tip}

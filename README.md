@@ -95,6 +95,11 @@ ditampilkan lagi setelah disimpan.
 **Pembanding**: Command Center membandingkan angka dengan **rata-rata 7 folder sebelumnya** yang lengkap (bisa diganti ke
 "Folder sebelumnya"); bila belum ada 3 folder lengkap, otomatis memakai folder sebelumnya.
 
+**Animasi alur di peta**: partikel bergerak dari lokasi asal menuju titik server (IP tujuan), riak saat tiba; makin
+banyak request, makin sering partikelnya. Tombol ❚❚/▶ di pojok peta menjeda (diingat per browser; bawaan dijeda bila
+sistem meminta gerak dikurangi). Untuk realtime nanti (Kafka): setiap kejadian cukup dikirim ke halaman sebagai event
+`monishield:map-pulse` `{lat, lon, n}` (lihat `web/src/lib/mapFlow.js`).
+
 **Daftar blokir**: Keamanan → **Daftar blokir…** → format nginx (`deny`), ingress-nginx (`denylist-source-range`), atau
 teks; rentang 1/7/30 folder; keparahan minimal → **Unduh** / **Salin**. IP privat, jaringan sendiri
 (`S4_BLOCKLIST_EXCLUDE_ORG`, bawaan OMBUDSMAN), dan `S4_BLOCKLIST_EXCLUDE` tidak pernah masuk. Periksa dulu sebelum dipasang.

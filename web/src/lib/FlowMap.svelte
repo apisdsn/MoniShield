@@ -41,6 +41,7 @@
     <span><i class="dot loc"></i>{$t('map.lg.loc')}</span>
     <span><i class="dot srv"></i>{$t('map.lg.srv')}</span>
     <span><i class="dot cl"></i>{$t('map.lg.cluster')}</span>
+    <span><i class="flow" aria-hidden="true"></i>{$t('map.lg.flow')}</span>
     <span class="muted">{$t('map.lg.sentence', { abroad: num(data.abroad_requests, $lang), unloc: num(data.unlocated_requests, $lang) })}</span>
   </div>
 </section>
@@ -73,6 +74,9 @@
   .dot.loc { background: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
   .dot.srv { background: var(--c10); }
   .dot.cl { width: 16px; height: 16px; background: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: inset 0 0 0 2px var(--accent); }
+  .flow { width: 26px; height: 3px; border-radius: 2px; display: inline-block; position: relative;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 20%, transparent), var(--accent)); }
+  .flow::after { content: ''; position: absolute; right: -2px; top: -2.5px; width: 8px; height: 8px; border-radius: 50%; background: var(--c10); }
   .wide-slot { grid-column: 1 / -1; min-width: 0; }
   .small { font-size: 0.75rem; }
   .side-row { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); align-items: start; }

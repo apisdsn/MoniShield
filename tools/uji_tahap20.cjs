@@ -26,6 +26,10 @@ const sama = (a, b) => Math.abs(a.lng - b.lng) < 1e-6 && Math.abs(a.lat - b.lat)
 
 (async () => {
   const browser = await chromium.launch({ ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}), args: ['--enable-unsafe-swiftshader'] });
+  // animasi alur dijeda di semua konteks: sumber partikel diperbarui tiap bingkai sehingga map.loaded() tidak pernah true
+  // (animasinya diuji terpisah: tools/uji_animasi_peta.cjs)
+  const newCtx = browser.newContext.bind(browser);
+  browser.newContext = async (o) => { const c = await newCtx(o); await c.addInitScript(() => { try { localStorage.setItem('map_anim', '0'); } catch {} }); return c; };
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const p = await ctx.newPage();
   const errs = [], luar = [];
