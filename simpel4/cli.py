@@ -143,7 +143,7 @@ def _import_print(r):
         print(f"  {'ambil ' if o['action'] == 'ambil' else 'lewati'} {o['rel']:70} {_n(o['size']):>13} B" + (f"  ({o['reason']})" if o['reason'] else ''))
     for w in r.get('warnings', []): print('  peringatan:', w, file=sys.stderr)
     print(f"{r['take']} objek {'akan diambil' if r['dry_run'] else 'diambil'} ({_n(r['bytes'])} B), {r['skipped']} dilewati; "
-          f"diunduh {r['downloaded']} objek / {_n(r['downloaded_bytes'])} B; kredensial: {r['credentials']}")
+          f"diunduh {r['downloaded']} objek / {_n(r['downloaded_bytes'])} B; {r.get('extracted', 0)} .gz diekstrak; kredensial: {r['credentials']}")
 
 
 def cmd_import(cfg, args):

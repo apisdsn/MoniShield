@@ -326,6 +326,7 @@
  "imp.ph.unduh": "Mengunduh objek {done} dari {total}",
  "imp.res.done": "Selesai: {n} objek diunduh ({size}) · {m} dilewati · folder {folder}.",
  "imp.res.dry": "Hasil coba: {n} objek akan diambil ({size}) · {m} dilewati · 0 byte diunduh.",
+ "imp.res.extracted": "{n} file .log.gz diekstrak menjadi .log.",
  "imp.res.ingest": "Ingest: {n} file berubah.",
  "imp.skip": "lewati",
  "imp.src.env": "konfigurasi server",

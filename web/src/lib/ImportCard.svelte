@@ -127,7 +127,7 @@
       {#if res && !busy}
         <p class="sum">
           {#if res.dry_run}{$t('imp.res.dry', { n: num(res.take, $lang), size: MB(res.bytes), m: num(res.skipped, $lang) })}
-          {:else}{$t('imp.res.done', { n: num(res.downloaded, $lang), size: MB(res.downloaded_bytes), m: num(res.skipped, $lang), folder: res.folder })}{#if res.ingest}{' '}{$t('imp.res.ingest', { n: num(res.ingest.files_changed, $lang) })}{/if}{/if}
+          {:else}{$t('imp.res.done', { n: num(res.downloaded, $lang), size: MB(res.downloaded_bytes), m: num(res.skipped, $lang), folder: res.folder })}{#if res.extracted}{' '}{$t('imp.res.extracted', { n: num(res.extracted, $lang) })}{/if}{#if res.ingest}{' '}{$t('imp.res.ingest', { n: num(res.ingest.files_changed, $lang) })}{/if}{/if}
         </p>
         {#each res.warnings || [] as w}<p class="warnline small">{w}</p>{/each}
         <details class="objs">

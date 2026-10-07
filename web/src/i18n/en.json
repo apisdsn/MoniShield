@@ -326,6 +326,7 @@
  "imp.ph.unduh": "Downloading object {done} of {total}",
  "imp.res.done": "Done: {n} objects downloaded ({size}) · {m} skipped · folder {folder}.",
  "imp.res.dry": "Dry run: {n} objects would be fetched ({size}) · {m} skipped · 0 bytes downloaded.",
+ "imp.res.extracted": "{n} .log.gz files extracted to .log.",
  "imp.res.ingest": "Ingest: {n} files changed.",
  "imp.skip": "skip",
  "imp.src.env": "server configuration",

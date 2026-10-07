@@ -6,12 +6,13 @@ server: tautan diperiksa SEBELUM ada koneksi ke AWS. Hanya dua operasi S3 yang d
 GetObject. Kredensial: yang ditempel admin (memori proses saja) lalu variabel lingkungan; tidak pernah
 dicetak, dicatat, atau dikembalikan.
 """
-import datetime, json, os, re, shutil, threading, time, uuid
+import datetime, gzip, json, os, re, shutil, threading, time, uuid, zlib
 
 from . import rules
 
 ENDPOINT = None   # hanya uji (S3 tiruan lokal); server selalu memakai titik akhir resmi wilayah `import_region`
-MANIFEST = '.s3-import.json'   # di folder kotak masuk: {relpath: {key, size, etag}} unduhan sebelumnya
+MANIFEST = '.s3-import.json'   # di folder kotak masuk: {relpath objek: {key, size, etag[, stored, stored_size]}} unduhan sebelumnya
+EXTRACT_RATIO = 20             # hasil ekstrak satu .gz maks. 20× batas ukuran objek (cegah "gzip bomb")
 URL = re.compile(r's3://([a-z0-9][a-z0-9.-]{1,61}[a-z0-9])/(.*)')
 CONTROL = re.compile(r'[\x00-\x1f\x7f]')
 
@@ -165,9 +166,13 @@ def plan(cfg, objects, prefix, folder):
         if name.endswith('.gz') and rel[:-3] in keys:
             r.update(action='lewati', reason='.gz berpasangan dengan .log'); continue
         prev = before.get(rel)
-        if prev and prev.get('etag') == r['etag'] and prev.get('size') == r['size'] and os.path.isfile(os.path.join(inbox, *rel.split('/'))) \
-                and os.path.getsize(os.path.join(inbox, *rel.split('/'))) == r['size']:
-            r.update(action='lewati', reason='sama dengan unduhan sebelumnya'); continue
+        if prev and prev.get('etag') == r['etag'] and prev.get('size') == r['size']:
+            kept = os.path.join(inbox, *prev.get('stored', rel).split('/'))
+            if os.path.isfile(kept) and os.path.getsize(kept) == prev.get('stored_size', r['size']):
+                # unduhan lama berupa .gz yang belum diekstrak: diekstrak di tempat saat impor dijalankan (tanpa unduh ulang)
+                r.update(action='lewati', reason='sama dengan unduhan sebelumnya',
+                         extract_local=bool(cfg.import_extract and rel.endswith('.gz') and 'stored' not in prev))
+                continue
         if r['size'] > cfg.import_max_object_mb * 2**20:
             raise ImportFail('object_too_large', f'Objek {rel} {r["size"] / 2**20:.0f} MB melebihi batas {cfg.import_max_object_mb} MB per objek.')
         r.update(action='ambil', reason='')
@@ -200,9 +205,11 @@ def run(cfg, url, creds_store, dry_run=False, progress=None):
     rows = plan(cfg, objects, prefix, folder)
     take = [r for r in rows if r['action'] == 'ambil']
     res = dict(bucket=bucket, prefix=prefix, folder=folder, dry_run=dry_run, credentials=source, objects=rows,
-               take=len(take), skipped=len(rows) - len(take), bytes=sum(r['size'] for r in take), downloaded=0, downloaded_bytes=0, warnings=[])
+               take=len(take), skipped=len(rows) - len(take), bytes=sum(r['size'] for r in take), downloaded=0, downloaded_bytes=0, extracted=0, warnings=[])
+    local = [r for r in rows if r.get('extract_local')]
     if os.path.isdir(os.path.join(cfg.log_dir, folder)):
         res['warnings'].append(f'folder {folder} juga ada di folder log lokal; saat ingest versi lokal yang dipakai')
+    if not dry_run and local: res['extracted'] += _extract_in_inbox(cfg, folder, local)
     if dry_run or not take:
         res['seconds'] = round(time.time() - t0, 2); return res
     tmp = os.path.join(cfg.data_dir, 'tmp', f'import-{uuid.uuid4().hex[:12]}')
@@ -224,6 +231,9 @@ def run(cfg, url, creds_store, dry_run=False, progress=None):
             except Exception as e: raise _s3_error(e) from None   # noqa: BLE001
             if n != r['size']: raise ImportFail('size_mismatch', f'Objek {r["rel"]} terunduh {n} byte, terdaftar {r["size"]}; impor dibatalkan.', 502)
             res['downloaded'] += 1; res['downloaded_bytes'] += n
+            if cfg.import_extract and r['rel'].endswith('.gz'):   # .log.gz -> .log (di folder sementara; yang dipindah hanya .log)
+                r['stored'], r['stored_size'] = r['rel'][:-3], _gunzip(dst, dst[:-3], r['rel'], cfg.import_max_object_mb * 2**20 * EXTRACT_RATIO)
+                res['extracted'] += 1
             progress(phase='unduh', done=i + 1, total=len(take))
         _move_into_inbox(cfg, os.path.join(tmp, folder), folder, take)
     finally:
@@ -241,14 +251,57 @@ def _move_into_inbox(cfg, src, folder, take):
         except OSError: shutil.copytree(src, dst + '.part'); os.replace(dst + '.part', dst)   # beda sistem berkas
     else:
         for r in take:
-            s, d = os.path.join(src, *r['rel'].split('/')), os.path.join(dst, *r['rel'].split('/'))
+            kept = r.get('stored', r['rel'])
+            s, d = os.path.join(src, *kept.split('/')), os.path.join(dst, *kept.split('/'))
             os.makedirs(os.path.dirname(d), exist_ok=True)
             try: os.replace(s, d)
             except OSError: shutil.copy2(s, d + '.part'); os.replace(d + '.part', d)
-    path = os.path.join(dst, MANIFEST)
+            if kept != r['rel']:   # versi .gz lama dari impor sebelumnya tidak dibutuhkan lagi
+                try: os.remove(os.path.join(dst, *r['rel'].split('/')))
+                except FileNotFoundError: pass
+    _manifest_update(dst, take)
+
+
+def _manifest_update(folder_dir, rows):
+    path = os.path.join(folder_dir, MANIFEST)
     try:
         with open(path, encoding='utf-8') as fh: man = json.load(fh)
     except (OSError, ValueError): man = {}
-    man.update({r['rel']: dict(key=r['key'], size=r['size'], etag=r['etag']) for r in take})
+    for r in rows:
+        man[r['rel']] = dict(key=r['key'], size=r['size'], etag=r['etag'], **({'stored': r['stored'], 'stored_size': r['stored_size']} if 'stored' in r else {}))
     with open(path + '.tmp', 'w', encoding='utf-8') as fh: json.dump(man, fh, ensure_ascii=False, indent=0, sort_keys=True)
     os.replace(path + '.tmp', path)
+
+
+def _gunzip(src, dst, rel, limit):
+    """Ekstrak src (.gz) ke dst, hapus src. Isi gzip diperiksa utuh; hasil > limit -> impor dibatalkan. -> ukuran hasil."""
+    n = 0
+    try:
+        with gzip.open(src, 'rb') as g, open(dst + '.part', 'wb') as out:
+            while chunk := g.read(2**20):
+                n += len(chunk)
+                if n > limit: break
+                out.write(chunk)
+    except (OSError, EOFError, zlib.error):
+        _rm(dst + '.part')
+        raise ImportFail('bad_gzip', f'Objek {rel} bukan gzip yang utuh (rusak atau terpotong); impor dibatalkan.', 502) from None
+    if n > limit:
+        _rm(dst + '.part')
+        raise ImportFail('extract_too_large', f'Hasil ekstrak {rel} melebihi {limit / 2**20:.0f} MB; impor dibatalkan.', 413)
+    os.replace(dst + '.part', dst); os.remove(src)
+    return n
+
+
+def _rm(path):
+    try: os.remove(path)
+    except FileNotFoundError: pass
+
+
+def _extract_in_inbox(cfg, folder, rows):
+    """.gz dari impor sebelumnya (sebelum ekstrak otomatis ada) diekstrak di tempat, tanpa unduh ulang; manifest diperbarui."""
+    base = os.path.join(cfg.inbox_dir, folder)
+    for r in rows:
+        src = os.path.join(base, *r['rel'].split('/'))
+        r['stored'], r['stored_size'] = r['rel'][:-3], _gunzip(src, src[:-3], r['rel'], cfg.import_max_object_mb * 2**20 * EXTRACT_RATIO)
+    _manifest_update(base, rows)
+    return len(rows)

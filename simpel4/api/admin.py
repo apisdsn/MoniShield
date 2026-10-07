@@ -173,6 +173,7 @@ class ImportManager:
         try:
             r = importer.run(cfg, url, self.creds, dry_run=dry_run, progress=self._progress)
             msg = f"{r['take']} objek {'akan diambil' if dry_run else 'diambil'}, {r['skipped']} dilewati"
+            if r.get('extracted'): msg += f", {r['extracted']} .gz diekstrak menjadi .log"
             if not dry_run:
                 self.state['phase'] = 'ingest'
                 ing = self.app.state.ingest.run_blocking(r['folder'], f'impor #{job}')

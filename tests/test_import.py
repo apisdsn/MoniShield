@@ -1,5 +1,5 @@
 """Impor dari awalan S3 (TRD §3.8, §9.6) terhadap S3 TIRUAN lokal: tanpa AWS, tanpa internet."""
-import dataclasses, gzip, os, time
+import dataclasses, gzip, json, os, time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -281,3 +281,52 @@ def test_tanpa_boto3_ditolak_dengan_cara_memasang(client, monkeypatch):
     assert ov['library'] is False and len(ov['jobs']) == sebelum
     monkeypatch.undo()
     assert importer.library_ok() is True and client.get('/api/admin/import').json()['library'] is True
+
+
+# ------------------------------------------------------------------ ekstrak .log.gz -> .log (permintaan pemilik 2026-10-07)
+FE_GZ = obj('om-fe-inhouse', 'pod-f', ext='.log.gz')
+FE_LOG = os.path.join('ombudsman', 'om-fe-inhouse', f'log_om-fe-inhouse_pod-f_{D}-00-00.log')
+
+
+def test_gz_diekstrak_menjadi_log(cfg, s3):
+    r = importer.run(cfg, URL, importer.Credentials(cfg))
+    folder = os.path.join(cfg.inbox_dir, D)
+    assert r['extracted'] == 1 and not os.path.exists(os.path.join(folder, FE_LOG + '.gz'))
+    assert open(os.path.join(folder, FE_LOG), 'rb').read() == gzip.decompress(ISI[FE_GZ])
+    man = json.load(open(os.path.join(folder, importer.MANIFEST)))
+    assert man[FE_GZ[len(PRE):]]['stored'] == FE_GZ[len(PRE):-3] and man[FE_GZ[len(PRE):]]['size'] == len(ISI[FE_GZ])
+    r2 = importer.run(cfg, URL, importer.Credentials(cfg))                  # ulang: tidak mengunduh dan tidak mengekstrak lagi
+    assert (r2['downloaded'], r2['extracted']) == (0, 0)
+    con = db.open(cfg.db_path)
+    try: assert ingest.run(cfg, con, folder=D, workers=0)['files_failed'] == 0
+    finally: con.close()
+
+
+def test_tanpa_ekstrak_gz_disimpan_apa_adanya(cfg, s3):
+    c = dataclasses.replace(cfg, import_extract=False)
+    r = importer.run(c, URL, importer.Credentials(c))
+    folder = os.path.join(cfg.inbox_dir, D)
+    assert r['extracted'] == 0 and os.path.isfile(os.path.join(folder, FE_LOG + '.gz')) and not os.path.exists(os.path.join(folder, FE_LOG))
+
+
+def test_gz_dari_impor_lama_diekstrak_tanpa_unduh_ulang(cfg, s3):
+    importer.run(dataclasses.replace(cfg, import_extract=False), URL, importer.Credentials(cfg))   # seperti folder 2026-10-07 pemilik
+    n0 = len(s3.gets())
+    r = importer.run(cfg, URL, importer.Credentials(cfg))
+    folder = os.path.join(cfg.inbox_dir, D)
+    assert (r['downloaded'], r['extracted']) == (0, 1) and len(s3.gets()) == n0
+    assert os.path.isfile(os.path.join(folder, FE_LOG)) and not os.path.exists(os.path.join(folder, FE_LOG + '.gz'))
+    assert importer.run(cfg, URL, importer.Credentials(cfg))['extracted'] == 0
+    assert importer.run(cfg, URL, importer.Credentials(cfg), dry_run=True)['extracted'] == 0
+
+
+def test_gz_rusak_membatalkan_impor(cfg, s3):
+    s3.buckets['simpel4-backup'][FE_GZ] = gzip.compress(b'baris log\n' * 100)[:-12]     # terpotong
+    gagal(cfg, URL, 'bad_gzip')
+    assert kosong(cfg) and os.listdir(os.path.join(cfg.data_dir, 'tmp')) == []
+
+
+def test_hasil_ekstrak_terlalu_besar_dibatalkan(cfg, s3, monkeypatch):
+    monkeypatch.setattr(importer, 'EXTRACT_RATIO', 1e-8)        # batas ±10 byte: tiruan "gzip bomb"
+    gagal(cfg, URL, 'extract_too_large')
+    assert kosong(cfg)
