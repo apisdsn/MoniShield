@@ -1,610 +1,610 @@
-# DRD — Kebutuhan desain dashboard log SIMPEL4 (v2)
+# DRD — Design requirements for the SIMPEL4 log dashboard (v2)
 
-Tampilan dan interaksi v2. Dasarnya: [`00-inventaris.md`](00-inventaris.md) (isi tiap tab), [`01-prd.md`](01-prd.md)
-(prioritas dan asumsi), CSS di `dashboard_template.html`, dan tangkapan layar `dashboard.html` hasil build
-2026-10-06 (tab Overview, Peta IP, Keamanan, Ketersediaan, halaman ingress nginx pada lebar 1440 px; Peta IP
-pada 390 px; semuanya tema gelap, bahasa Indonesia).
+Look and interaction of v2. Based on: [`00-inventaris.md`](00-inventaris.md) (contents of each tab), [`01-prd.md`](01-prd.md)
+(priorities and assumptions), the CSS in `dashboard_template.html`, and screenshots of `dashboard.html` built on
+2026-10-06 (Overview, IP Map, Security and Availability tabs and the ingress nginx page at 1440 px width; IP Map
+at 390 px; all in the dark theme, Indonesian language).
 
-Kebutuhan data dan teknis (skema, endpoint, struktur komponen kode) bukan bagian dokumen ini.
+Data and technical requirements (schema, endpoints, code component structure) are not part of this document.
 
-**Prinsip**: tampilan lama sudah baik dan dikenali penggunanya. v2 mempertahankan susunan, warna, dan
-istilahnya; yang berubah hanya yang (a) rusak di layar sempit, (b) tidak terbaca, (c) dituntut PRD, atau
-(d) tak terhindarkan karena data kini dimuat per tab. Semua perubahan terdaftar di [§10](#10-yang-berubah-dari-tampilan-lama).
+**Principle**: the old look is good and familiar to its users. v2 keeps its layout, colours and
+terminology; the only things that change are those that are (a) broken on narrow screens, (b) unreadable, (c) required by the PRD, or
+(d) unavoidable because data is now loaded per tab. All changes are listed in [§10](#10-changes-from-the-old-look).
 
-> **Revisi 2026-10-06 (Tahap 1 rencana).** Diselaraskan dengan keputusan pemilik dan [`03-trd.md`](03-trd.md):
-> dashboard dibuka dari banyak komputer dengan **login** (dua peran: admin dan user; user melihat seluruh
-> dashboard), tampilan **ponsel dikerjakan serius**, definisi janggal diperbaiki, dan ada **impor dari S3**.
-> Tambahan utama: layar Masuk, Ganti sandi, Kelola user, Ingest & impor (§3.11), perilaku sesi (§6.9), dan
-> perubahan U28–U32 (§10).
+> **Revision 2026-10-06 (Stage 1 of the plan).** Aligned with the owner's decisions and [`03-trd.md`](03-trd.md):
+> the dashboard is opened from many computers with a **login** (two roles: admin and user; a user sees the whole
+> dashboard), the **phone view is done seriously**, odd definitions are fixed, and there is **import from S3**.
+> Main additions: the Sign in, Change password, Manage users, and Ingest & import screens (§3.11), session behaviour (§6.9), and
+> changes U28–U32 (§10).
 
-Rujukan: "inv. §x" = inventaris, "F/B/T/A/P-nn" = nomor di PRD. **ASUMSI** dirangkum di [§11](#11-asumsi-dan-pertanyaan-terbuka).
+References: "inv. §x" = inventory, "F/B/T/A/P-nn" = numbers in the PRD. **ASSUMPTIONS** are summarized in [§11](#11-assumptions-and-open-questions).
 
-Belum dilihat langsung: tema terang dan bahasa Inggris (dinilai dari CSS dan kamus, bukan tangkapan layar).
+Not yet seen directly: the light theme and English (judged from the CSS and the dictionary, not from screenshots).
 
 ---
 
-## 1. Navigasi dan daftar halaman
+## 1. Navigation and page list
 
-### 1.1 Struktur
+### 1.1 Structure
 
-Satu aplikasi satu layar: kerangka tetap (navigasi + header), isi berganti. Tidak ada halaman bertingkat.
+One application, one screen: a fixed frame (navigation + header) with changing content. There are no nested pages.
 
 ```
-Analisis                         Layanan (yang ada di folder terpilih)
+Analysis                         Services (those in the selected folder)
 ├─ Overview            /         ├─ Nginx-Ingress-Controller
-├─ Peta IP                       ├─ Coredns
-├─ Tren      (lintas folder)     ├─ Om-Be-Appsmanager
-├─ Keamanan     [N IP]           ├─ Om-Be-Referensi
-├─ Akar Masalah                  ├─ Om-Be-Report
-├─ Ketersediaan                  ├─ Om-Be-Simpel-Loop
-├─ Pod                           └─ Om-Fe-Inhouse
-├─ Bisnis                           (lencana = jumlah error)
-└─ Pelacakan Request
+├─ IP Map                        ├─ Coredns
+├─ Trends    (across folders)    ├─ Om-Be-Appsmanager
+├─ Security     [N IP]           ├─ Om-Be-Referensi
+├─ Root Causes                   ├─ Om-Be-Report
+├─ Availability                  ├─ Om-Be-Simpel-Loop
+├─ Pods                          └─ Om-Fe-Inhouse
+├─ Business                         (badge = error count)
+└─ Request Tracing
 ```
 
-Urutan, nama, dan lencana sama dengan sistem lama (inv. §2.0). Sembilan tab analisis + satu templat
-halaman layanan = **10 halaman data**. Sidebar ini sama untuk admin dan user.
+Order, names, and badges are the same as in the old system (inv. §2.0). Nine analysis tabs + one service page
+template = **10 data pages**. This sidebar is the same for admin and user.
 
-Di luar sidebar ada **4 layar akun dan admin** (§3.11), dicapai dari layar Masuk atau dari menu user di
+Outside the sidebar there are **4 account and admin screens** (§3.11), reached from the Sign in screen or from the user menu in the
 header:
 
 ```
-(belum masuk)  →  Masuk  →  [Ganti sandi, bila wajib]  →  dashboard
-Menu user ▾ ├─ Ganti sandi
-            ├─ Kelola user        (hanya admin)
-            ├─ Ingest & impor     (hanya admin)
-            └─ Keluar
+(not signed in)  →  Sign in  →  [Change password, if required]  →  dashboard
+User menu ▾ ├─ Change password
+            ├─ Manage users       (admin only)
+            ├─ Ingest & import    (admin only)
+            └─ Sign out
 ```
 
-### 1.2 Daftar halaman
+### 1.2 Page list
 
-| # | Halaman | Bergantung folder | Butuh log | Sketsa |
+| # | Page | Depends on folder | Needs log | Sketch |
 |--:|---|:-:|---|---|
-| 1 | Overview | ya | — | §3.1 |
-| 2 | Peta IP | ya | ingress nginx | §3.2 |
-| 3 | Tren | **tidak** | — | §3.3 |
-| 4 | Keamanan | ya | nginx (serangan), appsmanager (login) | §3.4 |
-| 5 | Akar Masalah | ya | nginx, Spring, coredns | §3.5 |
-| 6 | Ketersediaan | ya | ingress nginx | §3.6 |
-| 7 | Pod | ya | — | §3.7 |
-| 8 | Bisnis | ya | simpel-loop, report, appsmanager | §3.8 |
-| 9 | Pelacakan Request | ya | simpel-loop + nginx | §3.9 |
-| 10 | Layanan `<nama>` | ya | layanan itu | §3.10 |
-| 11 | Masuk | — | — | §3.11 |
-| 12 | Ganti sandi | — | — | §3.11 |
-| 13 | Kelola user (admin) | — | — | §3.11 |
-| 14 | Ingest & impor (admin) | — | — | §3.11 |
+| 1 | Overview | yes | — | §3.1 |
+| 2 | IP Map | yes | ingress nginx | §3.2 |
+| 3 | Trends | **no** | — | §3.3 |
+| 4 | Security | yes | nginx (attacks), appsmanager (login) | §3.4 |
+| 5 | Root Causes | yes | nginx, Spring, coredns | §3.5 |
+| 6 | Availability | yes | ingress nginx | §3.6 |
+| 7 | Pods | yes | — | §3.7 |
+| 8 | Business | yes | simpel-loop, report, appsmanager | §3.8 |
+| 9 | Request Tracing | yes | simpel-loop + nginx | §3.9 |
+| 10 | Service `<name>` | yes | that service | §3.10 |
+| 11 | Sign in | — | — | §3.11 |
+| 12 | Change password | — | — | §3.11 |
+| 13 | Manage users (admin) | — | — | §3.11 |
+| 14 | Ingest & import (admin) | — | — | §3.11 |
 
-### 1.3 Alamat (URL)
+### 1.3 Address (URL)
 
-Alamat menyimpan **tab, folder, dan modul peta**, sehingga tautan yang dibagikan membuka tampilan yang sama
-dan tombol kembali browser berfungsi. Di sistem lama hanya tab yang tersimpan; folder selalu kembali ke yang
-terbaru (perubahan U1). Bahasa dan tema tetap pilihan per browser, tidak masuk alamat.
+The address stores the **tab, folder, and map module**, so a shared link opens the same view
+and the browser back button works. In the old system only the tab was stored; the folder always went back to the
+latest one (change U1). Language and theme remain per-browser choices and are not part of the address.
 
-- Tanpa folder di alamat → folder terbaru.
-- Folder di alamat tidak ada → folder terbaru + pemberitahuan singkat.
-- Tab layanan yang tidak ada di folder terpilih → Overview (perilaku lama).
-- Belum masuk → layar Masuk; setelah berhasil, kembali ke alamat yang tadi diminta.
-- Layar admin punya alamat sendiri (`admin/user`, `admin/ingest`); dibuka user biasa → keadaan
-  "Tidak punya akses" (§6.6).
+- No folder in the address → latest folder.
+- Folder in the address does not exist → latest folder + a short notice.
+- A service tab that does not exist in the selected folder → Overview (old behaviour).
+- Not signed in → Sign in screen; after success, back to the address that was requested.
+- Admin screens have their own addresses (`admin/user`, `admin/ingest`); opened by a regular user → the
+  "No access" state (§6.6).
 
 ---
 
-## 2. Kerangka
+## 2. Frame
 
-### 2.1 Layar lebar (> 900 px)
+### 2.1 Wide screen (> 900 px)
 
 ```
 ┌────────────────┬──────────────────────────────────────────────────────────────────┐
-│ [S4] SIMPEL4   │  Judul Tab (38px, gradien)   [◀][Folder ▾][▶] [ID|EN] [☀|☾] [👤▾] │
-│      Log       │  Folder log 6 Okt 2026 · berisi log 5 Okt 09.00–6 Okt 00.59 WIB  │
-│                │  · 7 layanan                                                     │
-│ ANALISIS       │ ──────────────────────────────────────────────────────────────── │
+│ [S4] SIMPEL4   │  Tab Title (38px, gradient)  [◀][Folder ▾][▶] [ID|EN] [☀|☾] [👤▾] │
+│      Log       │  Log folder 6 Oct 2026 · contains logs 5 Oct 09:00–6 Oct 00:59   │
+│                │  WIB · 7 services                                                │
+│ ANALYSIS       │ ──────────────────────────────────────────────────────────────── │
 │ ● Overview     │                                                                  │
-│ ○ Peta IP      │  <main>  isi halaman:                                            │
-│ ○ Tren         │    baris KPI  → peringatan/catatan → grid kartu 2 kolom          │
-│ ○ Keamanan 14IP│    (kartu "lebar" mengisi 2 kolom)                               │
+│ ○ IP Map       │  <main>  page content:                                           │
+│ ○ Trends       │    KPI row  → warnings/notes → 2-column card grid                │
+│ ○ Security 14IP│    ("wide" cards span 2 columns)                                 │
 │ ○ …            │                                                                  │
-│ LAYANAN        │                                                                  │
+│ SERVICES       │                                                                  │
 │ ○ Nginx-…  125 │                                                                  │
 │ ○ Coredns  191 │                                                                  │
 │ ○ …            │                                                                  │
 │                │                                                                  │
-│ Semua waktu    │                                                                  │
-│ dalam WIB      │                                                                  │
+│ All times      │                                                                  │
+│ in WIB         │                                                                  │
 └────────────────┴──────────────────────────────────────────────────────────────────┘
-   236 px tetap     isi maks. 1560 px, padding 26/34 px, grid kartu min. 520 px
+   236 px fixed     content max. 1560 px, padding 26/34 px, card grid min. 520 px
 ```
 
-Dipertahankan: lebar sidebar 236 px, sidebar tetap saat isi digulir, grup "Analisis"/"Layanan", titik
-penanda, lencana merah muda, judul bergradien, pemilih folder berbentuk pil berwarna aksen, grid kartu
-`auto-fit` minimal 520 px, KPI `auto-fit` minimal 170 px.
+Kept: sidebar width 236 px, sidebar fixed while the content scrolls, the "Analysis"/"Services" groups, marker
+dots, pink badges, gradient title, accent-coloured pill-shaped folder picker, card grid
+`auto-fit` at least 520 px, KPI `auto-fit` at least 170 px.
 
-Berubah:
+Changed:
 
-- **Subjudul memuat rentang waktu log sebenarnya** (B06, perubahan U2). Nama folder bukan tanggal isinya.
-- **Baris header menempel di atas** saat digulir (hanya pemilih folder, bahasa, tema; tinggi 56 px), supaya
-  folder bisa diganti dari tengah halaman panjang (U3).
-- Teks "Semua waktu dalam WIB (UTC+7)" cukup sekali di kaki sidebar; tidak diulang di subjudul.
-- **Menu user** di ujung kanan header (U28): tombol berisi nama tampilan; terbuka menjadi daftar: nama +
-  peran, "Ganti sandi", lalu untuk admin "Kelola user" dan "Ingest & impor", lalu "Keluar". Pola menu
-  standar: `Enter`/`Spasi` membuka, panah berpindah, `Esc` menutup dan mengembalikan fokus.
+- **The subtitle shows the actual log time range** (B06, change U2). The folder name is not the date of its contents.
+- **The header row sticks to the top** while scrolling (only the folder picker, language, theme; height 56 px), so
+  the folder can be changed from the middle of a long page (U3).
+- The text "All times in WIB (UTC+7)" appears once in the sidebar footer; it is not repeated in the subtitle.
+- **User menu** at the right end of the header (U28): a button showing the display name; it opens into a list: name +
+  role, "Change password", then for admins "Manage users" and "Ingest & import", then "Sign out". Standard menu
+  pattern: `Enter`/`Space` opens, arrows move, `Esc` closes and returns focus.
 
-### 2.2 Layar sempit (≤ 900 px)
+### 2.2 Narrow screen (≤ 900 px)
 
-Lihat §8.
+See §8.
 
 ---
 
-## 3. Sketsa tiap halaman
+## 3. Sketch of each page
 
-Notasi: `[KPI]` kartu angka · `╔ chart ╗` kartu chart · `┌ tabel ┐` kartu tabel · `(f)` punya filter ·
-`▌peringatan` kotak temuan · `┆catatan┆` kartu catatan bergaris putus. Isi tiap elemen dan sumber datanya ada
-di inventaris pada nomor yang disebut; di sini hanya tata letak.
+Notation: `[KPI]` number card · `╔ chart ╗` chart card · `┌ table ┐` table card · `(f)` has a filter ·
+`▌warning` findings box · `┆note┆` dashed note card. The contents of each element and its data source are
+in the inventory under the number given; only the layout is here.
 
 ### 3.1 Overview (inv. §2.1)
 
 ```
-Periode log: 5 Okt 2026 00.00 WIB – 6 Okt 2026 00.59 WIB
-[Total baris ▼36%] [Error ▼37%] [Warning/4xx] [HTTP request] [Rate 4xx] [Rate 5xx]
-[Layanan] [File log] [File kosong] [File rusak*]
-╔ Error per jam per layanan (batang bertumpuk)                    lebar ╗
-╔ Error & warning per layanan ╗      ╔ Baris log per layanan ╗
-┌ Ringkasan layanan ┐                ┌ File log ┐
-┌ Top pesan error lintas layanan (25, batang proporsi)            lebar ┐
-── Traffic HTTP seluruh sistem ── (sumber: ingress nginx)
-   … kartu halaman layanan nginx, tanpa peta dan tanpa kartu pesan (§3.10 no. 2–18)
+Log period: 5 Oct 2026 00:00 WIB – 6 Oct 2026 00:59 WIB
+[Total log lines ▼36%] [Error ▼37%] [Warning/4xx] [HTTP requests] [4xx rate] [5xx rate]
+[Services] [Log files] [Empty files] [Corrupt files*]
+╔ Errors per hour per service (stacked bars)                       wide ╗
+╔ Errors & warnings per service ╗    ╔ Log lines per service ╗
+┌ Service summary ┐                  ┌ Log files ┐
+┌ Top errors across services (25, proportion bars)                 wide ┐
+── System-wide HTTP traffic ── (source: ingress nginx)
+   … cards of the nginx service page, without the map and the messages card (§3.10 nos. 2–18)
 ```
 
-\* B05: KPI baru "File rusak", hanya tampil bila > 0.
+\* B05: new KPI "Corrupt files", shown only when > 0.
 
-### 3.2 Peta IP (inv. §2.2)
+### 3.2 IP Map (inv. §2.2)
 
 ```
-[Modul: Semua Modul ▾]
-[IP asal unik] [Lokasi asal] [Negara asal] [Modul tujuan] [IP tujuan unik] [Total request]
-┌ Peta IP Asal → IP Tujuan                      [Indonesia | Dunia]  lebar ┐
+[Module: All modules ▾]
+[Unique source IPs] [Source locations] [Source countries] [Destination modules] [Unique destination IPs] [Total requests]
+┌ Source IP → destination IP map                 [Indonesia | World]  wide ┐
 │ ┌──────────────────────────────────────────────────────────── [+][−][⤢] │
-│ │                 peta (lihat §7)                                      │ │
+│ │                 map (see §7)                                         │ │
 │ └──────────────────────────────── © MaxMind · GeoNames · Natural Earth ─┘ │
-│ ◉ Lokasi IP asal  ◉ Server tujuan  ⬤ Kelompok lokasi                     │
-│ 2.030 request dari luar Indonesia · 0 dari IP internal / tanpa lokasi    │
+│ ◉ Source IP location  ◉ Destination server  ⬤ Location cluster           │
+│ 2,030 requests from outside Indonesia · 0 from internal / unlocated IPs  │
 └──────────────────────────────────────────────────────────────────────────┘
-┌ Alur IP Asal → IP Tujuan (f)                                       lebar ┐
-┆ Lokasi adalah perkiraan tingkat kota … IP tujuan adalah IP pod …         ┆
+┌ Source IP → destination IP flows (f)                                wide ┐
+┆ Locations are city-level estimates … The destination IP is the pod IP …  ┆
 ```
 
-### 3.3 Tren (inv. §2.3)
+### 3.3 Trends (inv. §2.3)
 
 ```
-Perbandingan antar folder log. Data tiap hari tidak selalu lengkap …
-[Rentang: 30 folder terakhir ▾]*
-╔ Error per hari per layanan ╗       ╔ Warning per hari per layanan ╗
-╔ Request HTTP per hari ╗            ╔ Keamanan per hari ╗
-╔ Aktivitas bisnis per hari ╗        ╔ Baris log per hari per layanan ╗
-┌ Error per layanan & perubahan vs hari sebelumnya                  lebar ┐
-┌ Kelengkapan data (jumlah baris; Kosong / Rusak* / Tidak ada)      lebar ┐
+Comparison across log folders. Daily data is not always complete …
+[Range: last 30 folders ▾]*
+╔ Errors per day per service ╗       ╔ Warnings per day per service ╗
+╔ HTTP requests per day ╗            ╔ Security per day ╗
+╔ Business activity per day ╗        ╔ Log lines per day per service ╗
+┌ Errors per service & change vs previous day                        wide ┐
+┌ Data completeness (line count; Empty / Corrupt* / None)            wide ┐
 ```
 
-\* Perubahan U4: dengan 365 folder, chart batang dan tabel selebar 365 kolom tidak terbaca. Pemilih rentang
-(14 / 30 / 90 folder terakhir / semua; bawaan 30). Kedua tabel menggulir mendatar dengan kolom "Layanan"
-terkunci di kiri dan folder terbaru di kanan. Pemilih folder di header **dinonaktifkan** di tab ini, dengan
-keterangan "Tren menampilkan semua folder".
+\* Change U4: with 365 folders, bar charts and tables 365 columns wide are unreadable. A range picker
+(last 14 / 30 / 90 folders / all; default 30). Both tables scroll horizontally with the "Service" column
+locked on the left and the latest folder on the right. The folder picker in the header is **disabled** on this tab, with
+the note "Trends show all folders".
 
-### 3.4 Keamanan (inv. §2.4)
-
-```
-[Request serangan] [IP sumber unik] [Serangan kritis] [Endpoint 2xx]
-[IP login gagal] [Akun sukses ≥3 gagal] [Sukses dari IP berbeda] [Reset password]
-▌Temuan utama: • Percobaan Log4Shell … • Panel Rancher … • 62 endpoint 2xx …
-╔ Request per kategori serangan ╗    ╔ Timeline indikasi serangan per jam ╗
-╔ Top 10 IP sumber serangan ╗        ╔ Sumber serangan per pemilik jaringan ╗
-╔ Password salah per jam ╗           ╔ Top 10 IP dengan password salah ╗
-┌ Endpoint dengan indikasi serangan (f)                             lebar ┐
-┌ IP sumber serangan (f)                                            lebar ┐
-┌ Analisis akun (f)                                                 lebar ┐
-┌ Login gagal / brute force (f)                                     lebar ┐
-┌ IP dengan respons 4xx terbanyak                                   lebar ┐
-Deteksi berbasis pola (signature) … (catatan kaki)
-```
-
-Delapan KPI ditata **4 + 4** pada layar lebar (sekarang 6 + 2 yang menyisakan baris yatim; U5).
-
-### 3.5 Akar Masalah (inv. §2.5)
+### 3.4 Security (inv. §2.4)
 
 ```
-▌Ringkasan akar masalah: • 401 berulang … • token JWT … • PDF gagal … • DNS … • koneksi pod …
-╔ Klien dengan 401 berulang ╗        ╔ Umur token JWT saat ditolak ╗
-╔ PDF report per template ╗          ╔ Error koneksi nginx → pod per jenis ╗
-┌ Klien dengan 401 berulang (f)                                     lebar ┐
-┌ Status pembuatan PDF per template (f) ┐   ┌ DNS timeout per domain ┐
+[Attack requests] [Unique source IPs] [Critical attacks] [2xx endpoints]
+[IPs with failed logins] [Accounts ok after ≥3 failures] [Success from a different IP] [Password resets]
+▌Key findings: • Log4Shell attempts … • Rancher panel … • 62 2xx endpoints …
+╔ Requests per attack category ╗     ╔ Suspected attacks per hour timeline ╗
+╔ Top 10 attack source IPs ╗         ╔ Attack sources by network owner ╗
+╔ Wrong passwords per hour ╗         ╔ Top 10 IPs with wrong passwords ╗
+┌ Endpoints with suspected attacks (f)                               wide ┐
+┌ Attack source IPs (f)                                              wide ┐
+┌ Account analysis (f)                                               wide ┐
+┌ Failed logins / brute force (f)                                    wide ┐
+┌ IPs with most 4xx responses                                        wide ┐
+Signature-based detection … (footnote)
 ```
 
-B07: chart umur JWT mendapat keterangan di bawahnya "Refresh token kedaluwarsa: N" (angka yang sekarang
-dihitung tetapi tidak tampil).
+The eight KPIs are laid out **4 + 4** on wide screens (currently 6 + 2, which leaves an orphan row; U5).
 
-### 3.6 Ketersediaan (inv. §2.6)
-
-```
-[Ketersediaan %] [Total 5xx] [Insiden 5xx] [Retry ke pod lain]
-[Error koneksi pod] [Cek Uptime-Kuma] [Cek uptime gagal]
-╔ Respons 5xx per jam                                               lebar ╗
-╔ Respons 5xx per upstream ╗         ╔ Health check Uptime-Kuma per jam ╗
-┌ Ketersediaan per upstream ┐        ┌ Target health check Uptime-Kuma ┐
-┌ Daftar insiden 5xx                                                lebar ┐
-┌ Error koneksi nginx → pod (f)                                     lebar ┐
-```
-
-### 3.7 Pod (inv. §2.7)
+### 3.5 Root Causes (inv. §2.5)
 
 ```
-[Pod (file log)] [Pod tanpa log] [Pod backend di nginx] [Pod dengan retry*] [Restart]
-┆ Nama pod diambil dari nama file log. Nginx hanya mencatat IP pod …      ┆
-╔ Error per pod (15) ╗               ╔ Sebaran request per pod (IP) (15) ╗
-┌ Kesehatan per pod (f) — Status: Ada log / Tanpa log / Rusak*      lebar ┐
-┌ Sebaran traffic per pod backend                                   lebar ┐
-┌ Restart / start aplikasi                                          lebar ┐
+▌Root cause summary: • repeated 401 … • JWT … • failed PDF … • DNS … • pod connection …
+╔ Clients with repeated 401 ╗        ╔ Age of JWT when rejected ╗
+╔ PDF reports per template ╗         ╔ nginx → pod connection errors by type ╗
+┌ Clients with repeated 401 (f)                                      wide ┐
+┌ PDF generation status per template (f) ┐   ┌ DNS timeouts per domain ┐
 ```
 
-\* B10: label "Pod dengan retry 502" → "Pod dengan retry". B05: status "Rusak".
+B07: the JWT age chart gets a caption below it, "Expired refresh tokens: N" (a number that is currently
+computed but not shown).
 
-### 3.8 Bisnis (inv. §2.8)
-
-```
-[Laporan dibuat ▲] [Registrasi ▲] [OTP diminta] [OTP terverifikasi] [File diunggah] [Upload ditolak]
-[Email terkirim] [PDF dibuat] [PDF gagal] [Login sukses] [Pengguna unik login]
-┆ Dihitung dari event aplikasi (respons 2xx) … hanya pod yang lognya ada  ┆
-╔ Ringkasan aktivitas layanan publik ╗   ╔ Email notifikasi per jenis ╗
-╔ Top aktivitas proses laporan ╗         ╔ Login sukses per jam ╗
-╔ PDF report per template ╗
-┌ Aktivitas proses laporan ┐             ┌ PDF report per template ┐
-```
-
-### 3.9 Pelacakan Request (inv. §2.9)
+### 3.6 Availability (inv. §2.6)
 
 ```
-[RequestId simpel-loop] [Cocok dengan nginx] [Tingkat kecocokan]
-[Request gagal terlacak] [IP unik (gagal)] [Lambat ≥ 5 dtk]
-┆ Setiap event aplikasi simpel-loop punya requestId … X % tidak cocok …   ┆
-╔ Top 10 IP dengan request gagal ╗   ╔ Request gagal per jenis error ╗
-┌ Jejak request gagal / lambat (f)                                  lebar ┐
+[Availability %] [Total 5xx] [5xx incidents] [Retries to another pod]
+[Pod connection errors] [Uptime-Kuma checks] [Failed uptime checks]
+╔ 5xx responses per hour                                             wide ╗
+╔ 5xx responses per upstream ╗       ╔ Uptime-Kuma health checks per hour ╗
+┌ Availability per upstream ┐        ┌ Uptime-Kuma health check targets ┐
+┌ 5xx incidents                                                      wide ┐
+┌ nginx → pod connection errors (f)                                  wide ┐
 ```
 
-### 3.10 Halaman layanan (inv. §2.10)
-
-Satu templat; kartu yang tidak berlaku untuk layanan itu tidak dirender (tabel centang di inv. §2.10).
+### 3.7 Pods (inv. §2.7)
 
 ```
-[Baris log] [Error] [Warning] [HTTP request] [Rate 4xx] [Rate 5xx] [level 1..4]
- 1 ┌ Peta modul ini + ┌ tabel alur (f)                              lebar ┐
- 2 ╔ Aktivitas per jam: Total & Error                               lebar ╗
- 3 ╔ Status code HTTP ╗               4 ╔ Traffic per upstream (donat) ╗
- 5 ╔ Distribusi level (donat) ╗       6 ╔ Top 10 endpoint ╗
- 7 ╔ Top 10 endpoint 4xx/5xx ╗        8 ╔ Top 10 IP klien ╗
- 9 ╔ Top 10 pesan error/warning ╗
-10 ┌ Top endpoint ┐                  11 ┌ Endpoint dengan status 4xx/5xx ┐
-12 ╔ P95 – 10 endpoint paling lambat ╗ 13 ╔ Error rate tertinggi ╗
-14 ┌ Kinerja endpoint                                               lebar ┐
-15 ┌ Endpoint dengan error rate tertinggi                           lebar ┐
-16 ┌ Request lambat ≥ 1 dtk ┐        17 ┌ Top IP klien ┐
-18 ┌ Top User-Agent ┐
-19 ┌ Pesan error / warning (dikelompokkan) (f)                      lebar ┐
+[Pods (log files)] [Pods without logs] [Backend pods in nginx] [Pods with retries*] [Restarts]
+┆ Pod names come from the log file names. Nginx only logs the pod IP …    ┆
+╔ Errors per pod (15) ╗              ╔ Request distribution per pod (IP) (15) ╗
+┌ Health per pod (f) — Status: Has logs / No logs / Corrupt*         wide ┐
+┌ Traffic distribution per backend pod                               wide ┐
+┌ Application restarts / starts                                      wide ┐
 ```
 
-Perubahan U6: peta di halaman layanan **terlipat secara bawaan** ("Tampilkan peta asal pengguna modul ini").
-Alasan: peta adalah elemen terberat, sudah ada di tab Peta IP dengan pemilih modul, dan di halaman layanan
-ia mendorong chart utama ke bawah lipatan. Tabel alurnya ikut terlipat. Pilihan buka/tutup diingat per browser.
+\* B10: label "Pods with retry 502" → "Pods with retries". B05: status "Corrupt".
 
-### 3.11 Masuk dan admin (TRD §8.2–§8.4)
+### 3.8 Business (inv. §2.8)
 
-Layar-layar ini memakai token, kartu, tabel, dan tombol yang sama dengan halaman data. Semuanya dua bahasa
-dan dua tema. Tidak ada sidebar di layar Masuk dan Ganti sandi wajib.
+```
+[Reports created ▲] [Registrations ▲] [OTPs requested] [OTPs verified] [Files uploaded] [Uploads rejected]
+[Emails sent] [PDFs generated] [PDFs failed] [Successful logins] [Unique users logged in]
+┆ Counted from application events (2xx responses) … only pods with logs   ┆
+╔ Public service activity summary ╗      ╔ Notification emails per type ╗
+╔ Top report processing activities ╗     ╔ Successful logins per hour ╗
+╔ PDF reports per template ╗
+┌ Report processing activities ┐         ┌ PDF reports per template ┐
+```
 
-**Masuk**
+### 3.9 Request Tracing (inv. §2.9)
+
+```
+[Simpel-loop requestIds] [Matched with nginx] [Match rate]
+[Traced failed requests] [Unique IPs (failed)] [Slow ≥ 5 s]
+┆ Every simpel-loop app event has a requestId … X % did not match …       ┆
+╔ Top 10 IPs with failed requests ╗  ╔ Failed requests per error type ╗
+┌ Failed / slow request traces (f)                                   wide ┐
+```
+
+### 3.10 Service page (inv. §2.10)
+
+One template; cards that do not apply to the service are not rendered (checklist table in inv. §2.10).
+
+```
+[Log lines] [Error] [Warning] [HTTP requests] [4xx rate] [5xx rate] [level 1..4]
+ 1 ┌ This module's map + ┌ flow table (f)                            wide ┐
+ 2 ╔ Activity per hour: Total & Error                                wide ╗
+ 3 ╔ HTTP status codes ╗              4 ╔ Traffic per upstream (donut) ╗
+ 5 ╔ Level distribution (donut) ╗     6 ╔ Top 10 endpoints ╗
+ 7 ╔ Top 10 endpoints 4xx/5xx ╗       8 ╔ Top 10 client IPs ╗
+ 9 ╔ Top 10 error/warning messages ╗
+10 ┌ Top endpoints ┐                  11 ┌ Endpoints with 4xx/5xx ┐
+12 ╔ P95 – 10 slowest endpoints ╗     13 ╔ Highest error rate ╗
+14 ┌ Endpoint performance                                            wide ┐
+15 ┌ Endpoints with the highest error rate                           wide ┐
+16 ┌ Slow requests ≥ 1 s ┐            17 ┌ Top client IPs ┐
+18 ┌ Top user agents ┐
+19 ┌ Error / warning messages (grouped) (f)                          wide ┐
+```
+
+Change U6: the map on the service page is **collapsed by default** ("Show the map of this module's user origins").
+Reason: the map is the heaviest element, it already exists on the IP Map tab with a module picker, and on the service page
+it pushes the main charts below the fold. Its flow table is collapsed with it. The open/closed choice is remembered per browser.
+
+### 3.11 Sign in and admin (TRD §8.2–§8.4)
+
+These screens use the same tokens, cards, tables, and buttons as the data pages. All of them are bilingual
+and support both themes. There is no sidebar on the Sign in screen and on the mandatory Change password screen.
+
+**Sign in**
 
 ```
                          ┌────────────────────────────────────┐
         [ID|EN] [☀|☾]    │  [S4]  SIMPEL4 Log                 │
                          │                                    │
-                         │  Nama user                         │
+                         │  Username                          │
                          │  [______________________________]  │
-                         │  Sandi                             │
+                         │  Password                          │
                          │  [__________________________] [👁] │
                          │                                    │
-                         │  ▌Nama user atau sandi salah.      │  ← hanya setelah gagal
+                         │  ▌Wrong username or password.      │  ← only after a failure
                          │                                    │
-                         │  [            Masuk             ]  │
-                         │  Lupa sandi? Hubungi admin.        │
+                         │  [           Sign in            ]  │
+                         │  Forgot your password? Contact an  │
                          └────────────────────────────────────┘
 ```
 
-- Satu kartu di tengah, lebar maksimum 380 px; di ponsel selebar layar dengan tepi 16 px.
-- Pesan gagal **satu kalimat yang sama** untuk nama salah maupun sandi salah. Saat dibatasi: "Terlalu banyak
-  percobaan. Coba lagi dalam N menit." Saat sesi habis: keterangan biru di atas formulir "Sesi Anda
-  berakhir. Silakan masuk lagi."
-- Kolom memakai `<label>` terlihat, `autocomplete="username"` / `"current-password"`; `Enter` mengirim;
-  tombol 👁 menampilkan sandi dan punya nama aksesibel. Pesan gagal memakai `role="alert"` dan fokus
-  kembali ke kolom sandi.
-- Tidak ada "ingat saya", pendaftaran, atau tautan lupa sandi lewat email.
-- Selama mengirim: tombol nonaktif dengan teks "Memeriksa…".
+- One card in the centre, maximum width 380 px; on phones as wide as the screen with a 16 px margin.
+- The failure message is **the same single sentence** for a wrong name and a wrong password. When rate-limited: "Too many
+  attempts. Try again in N minutes." When the session has expired: a blue note above the form "Your session
+  has ended. Please sign in again."
+- Fields use a visible `<label>`, `autocomplete="username"` / `"current-password"`; `Enter` submits;
+  the 👁 button shows the password and has an accessible name. The failure message uses `role="alert"` and focus
+  returns to the password field.
+- There is no "remember me", registration, or forgot-password link via email.
+- While submitting: the button is disabled with the text "Checking…".
 
-**Ganti sandi**
-
-```
-┌ Ganti sandi ───────────────────────────────────────┐
-│ ┆ Anda harus mengganti sandi sebelum melanjutkan. ┆ │  ← hanya bila wajib
-│ Sandi sekarang     [_________________________]     │
-│ Sandi baru         [_________________________]     │
-│   Minimal 12 karakter. Kalimat panjang lebih baik. │
-│ Ulangi sandi baru  [_________________________]     │
-│ [ Simpan ]   [ Batal ]                             │  ← "Batal" tidak ada bila wajib
-└────────────────────────────────────────────────────┘
-```
-
-- Wajib saat masuk pertama dan setelah sandi direset admin: layar ini tampil sendirian sampai selesai
-  (satu-satunya jalan lain adalah "Keluar").
-- Aturan ditulis sebelum pengguna mengetik, bukan sebagai galat sesudahnya. Galat per kolom, di bawah
-  kolomnya, terhubung dengan `aria-describedby`.
-- Berhasil → pemberitahuan singkat "Sandi diganti"; sesi di perangkat lain berakhir.
-
-**Kelola user** (admin)
+**Change password**
 
 ```
-Kelola User                                                    [+ Tambah user]
+┌ Change password ──────────────────────────────────────┐
+│ ┆ You must change your password before continuing. ┆  │  ← only when required
+│ Current password     [_________________________]      │
+│ New password         [_________________________]      │
+│   At least 12 characters. A long sentence is better.  │
+│ Repeat new password  [_________________________]      │
+│ [ Save ]   [ Cancel ]                                 │  ← no "Cancel" when required
+└───────────────────────────────────────────────────────┘
+```
+
+- Required at first sign-in and after the password was reset by an admin: this screen is shown on its own until done
+  (the only other way out is "Sign out").
+- The rules are written before the user types, not as an error afterwards. Errors per field, below
+  the field, linked with `aria-describedby`.
+- Success → short notice "Password changed"; sessions on other devices end.
+
+**Manage users** (admin)
+
+```
+Manage Users                                                       [+ Add user]
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ NAMA USER   NAMA TAMPILAN   PERAN     STATUS      TERAKHIR MASUK       AKSI  │
-│ admin       Administrator   ● Admin   ● Aktif     6 Okt 2026 18.40 WIB  [⋯]  │
-│ rina        Rina            User      ● Aktif     5 Okt 2026 09.12 WIB  [⋯]  │
-│ budi        Budi            User      ○ Nonaktif  –                     [⋯]  │
+│ USERNAME    DISPLAY NAME    ROLE      STATUS      LAST SIGN-IN        ACTIONS│
+│ admin       Administrator   ● Admin   ● Active    6 Oct 2026 18:40 WIB  [⋯]  │
+│ rina        Rina            User      ● Active    5 Oct 2026 09:12 WIB  [⋯]  │
+│ budi        Budi            User      ○ Inactive  –                     [⋯]  │
 └──────────────────────────────────────────────────────────────────────────────┘
- [⋯] → Ubah · Reset sandi · Nonaktifkan / Aktifkan · Hapus
+ [⋯] → Edit · Reset password · Deactivate / Activate · Delete
 
-┌ Tambah user ────────────────────────────────┐
-│ Nama user       [______________]            │  huruf kecil, angka, titik, strip; 3–32
-│ Nama tampilan   [______________]            │
-│ Peran           (•) User   ( ) Admin        │
-│   User melihat seluruh dashboard.           │
-│   Admin juga mengelola user, ingest, impor. │
-│ Sandi awal      [______________] [Buat acak]│
-│   User wajib menggantinya saat masuk pertama│
-│ [ Simpan ]  [ Batal ]                       │
+┌ Add user ───────────────────────────────────┐
+│ Username        [______________]            │  lowercase letters, digits, dot, hyphen; 3–32
+│ Display name    [______________]            │
+│ Role            (•) User   ( ) Admin        │
+│   Users see the whole dashboard.            │
+│   Admins also manage users, ingest, imports.│
+│ Initial password [_____________] [Generate] │
+│   The user must change it at first sign-in  │
+│ [ Save ]  [ Cancel ]                        │
 └─────────────────────────────────────────────┘
 ```
 
-- Tabel memakai komponen tabel (§4.3) dengan filter. Peran admin dan status memakai tag (§4.5): admin =
-  tag netral bertitik, aktif = tag ok, nonaktif = teks `muted`.
-- Formulir tambah/ubah tampil sebagai dialog (di ponsel: layar penuh). Fokus terkunci di dalam dialog;
-  `Esc` menutup; fokus kembali ke tombol pemicu.
-- **Reset sandi** menampilkan sandi sementara **sekali**, dengan tombol salin dan peringatan "Sandi ini
-  tidak akan ditampilkan lagi".
-- **Hapus** dan **Nonaktifkan** meminta konfirmasi yang menyebut nama user. Menghapus diri sendiri, atau
-  menghapus/menurunkan/menonaktifkan admin terakhir, **tidak ditawarkan** (butir menu nonaktif dengan
-  keterangan sebabnya).
-- Di ponsel tabel menjadi kartu baris (§8.2); tombol "+ Tambah user" menempel di bawah layar.
-- Kosong tidak mungkin (selalu ada minimal satu admin).
+- The table uses the table component (§4.3) with a filter. The admin role and the status use tags (§4.5): admin =
+  neutral tag with a dot, active = ok tag, inactive = `muted` text.
+- The add/edit form is shown as a dialog (on phones: full screen). Focus is trapped inside the dialog;
+  `Esc` closes it; focus returns to the trigger button.
+- **Reset password** shows the temporary password **once**, with a copy button and the warning "This password
+  will not be shown again".
+- **Delete** and **Deactivate** ask for a confirmation that names the user. Deleting yourself, or
+  deleting/demoting/deactivating the last admin, is **not offered** (the menu item is disabled with a
+  note explaining why).
+- On phones the table becomes row cards (§8.2); the "+ Add user" button sticks to the bottom of the screen.
+- Empty is impossible (there is always at least one admin).
 
-**Ingest & impor** (admin)
+**Ingest & import** (admin)
 
 ```
-Ingest & Impor
+Ingest & Import
 ┌ Ingest ──────────────────────────────────────────────────────────────────────┐
-│ Terakhir: 6 Okt 2026 17.51 WIB · berhasil · 0 file berubah     [Ingest sekarang]
-│ ▓▓▓▓▓▓▓▓░░░░  Folder 2026-10-06 · 12 dari 18 file        ← hanya saat berjalan │
-│ ▌2 peringatan: pasangan .log/.log.gz berbeda (…); layanan tak dikenal (…)     │
+│ Last: 6 Oct 2026 17:51 WIB · succeeded · 0 files changed           [Ingest now]
+│ ▓▓▓▓▓▓▓▓░░░░  Folder 2026-10-06 · 12 of 18 files          ← only while running │
+│ ▌2 warnings: differing .log/.log.gz pair (…); unknown service (…)             │
 └──────────────────────────────────────────────────────────────────────────────┘
-┌ Impor dari S3 ───────────────────────────────────────────────────────────────┐
-│ Kredensial AWS: ● tersedia (konfigurasi server)                               │
-│ Tautan  [ s3://simpel4-backup/k8s-logs/2026-10-07/            ]               │
-│         Hanya s3://simpel4-backup/k8s-logs/<tanggal>/                         │
-│ [ Coba dulu ]  [ Impor ]                                                      │
-│ Hasil coba: 18 objek akan diambil (104 MB) · 19 dilewati (.gz berpasangan)    │
-│ ┌ Riwayat impor: WAKTU · TAUTAN · FOLDER · OBJEK · UKURAN · STATUS ─────────┐ │
+┌ Import from S3 ──────────────────────────────────────────────────────────────┐
+│ AWS credentials: ● available (server configuration)                           │
+│ Link    [ s3://simpel4-backup/k8s-logs/2026-10-07/            ]               │
+│         Only s3://simpel4-backup/k8s-logs/<date>/                             │
+│ [ Dry run ]  [ Import ]                                                       │
+│ Dry run: 18 objects would be fetched (104 MB) · 19 skipped (paired .gz)       │
+│ ┌ Import history: TIME · LINK · FOLDER · OBJECTS · SIZE · STATUS ───────────┐ │
 └──────────────────────────────────────────────────────────────────────────────┘
-┌ Catatan audit (f) ─ WAKTU · USER · TINDAKAN · RINCIAN · IP ──────────────────┐
+┌ Audit log (f) ─ TIME · USER · ACTION · DETAILS · IP ─────────────────────────┐
 ```
 
-- **Ingest**: status terakhir, tombol "Ingest sekarang" (nonaktif saat berjalan), kemajuan saat berjalan
-  (diperbarui tiap 2 detik; diumumkan sopan ke pembaca layar), dan daftar peringatan yang bisa dibuka.
-  Dashboard tetap bisa dipakai selama ingest.
-- **Impor**: kolom tautan dengan contoh bentuk yang diterima; "Coba dulu" hanya mendaftar objek dan
-  menampilkan ringkasan; "Impor" meminta konfirmasi lalu menampilkan kemajuan. Galat ditulis sebagai sebab
-  dan tindakan ("Bucket ini tidak diizinkan. Yang diizinkan: …").
-- **Kredensial**: hanya status (tersedia / tidak, sumbernya). Bila tidak tersedia, muncul formulir tempel
-  kredensial sementara (tiga kolom bertipe sandi, tanpa `autocomplete`) dengan keterangan "disimpan di
-  memori server saja, hilang saat server dimulai ulang". Nilai kredensial tidak pernah ditampilkan kembali.
-- Bila impor dimatikan di konfigurasi: kartu Impor diganti catatan cara mengaktifkannya.
-- **Catatan audit**: tabel berfilter, terbaru di atas, 50 baris pertama + "tampilkan berikutnya".
-- Di ponsel ketiga kartu bertumpuk; riwayat dan audit menjadi kartu baris.
+- **Ingest**: last status, an "Ingest now" button (disabled while running), progress while running
+  (updated every 2 seconds; announced politely to screen readers), and an expandable list of warnings.
+  The dashboard stays usable during an ingest.
+- **Import**: a link field with an example of the accepted form; "Dry run" only lists objects and
+  shows a summary; "Import" asks for confirmation and then shows progress. Errors are written as cause
+  and action ("This bucket is not allowed. Allowed: …").
+- **Credentials**: status only (available / not, and the source). When not available, a form to paste
+  temporary credentials appears (three password-type fields, without `autocomplete`) with the note "kept in
+  server memory only, lost when the server restarts". Credential values are never shown again.
+- When import is turned off in the configuration: the Import card is replaced by a note on how to enable it.
+- **Audit log**: a filterable table, newest on top, first 50 rows + "show next".
+- On phones the three cards stack; history and audit become row cards.
 
 ---
 
-## 4. Komponen yang dipakai ulang
+## 4. Reused components
 
-Setiap komponen punya empat keadaan: **berisi**, **memuat**, **kosong**, **gagal** (§6.5–6.7).
+Every component has four states: **filled**, **loading**, **empty**, **failed** (§6.5–6.7).
 
-### 4.1 Kartu KPI
+### 4.1 KPI card
 
 ```
 ┌──────────────────────┐
-│ Label (13,5px, 500)  │   ← maks. 2 baris
-│ 124.822   (34px,600) │   ← angka tabular; warna = makna (§5.3)
-│ ▼ 36% vs 5 Okt 2026  │   ← opsional, 11,5px
+│ Label (13.5px, 500)  │   ← max. 2 lines
+│ 124,822   (34px,600) │   ← tabular figures; colour = meaning (§5.3)
+│ ▼ 36% vs 5 Oct 2026  │   ← optional, 11.5px
 └──────────────────────┘
 ```
 
-- Warna nilai: gradien aksen (netral), `err`, `warn`, `ok`, `muted`. Sama dengan lama.
-- Baris perbandingan: empat bentuk dari inv. §2.0 (▲/▼ %, ≈ sama, baru, tidak lengkap). Panah **selalu
-  disertai kata** ("naik"/"turun" untuk pembaca layar) dan warna bukan satu-satunya penanda.
-- Perubahan U7: KPI yang nilainya kini berbeda dari sistem lama karena B03 tidak diberi tanda apa pun di
-  tampilan; selisihnya hidup di laporan kesetaraan, bukan di antarmuka.
-- Perubahan U8: KPI boleh punya **keterangan `(i)`** (tooltip + fokus keyboard) berisi definisi satu
-  kalimat. Wajib untuk yang definisinya tidak jelas dari label: Error (nginx dan frontend = respons 5xx +
-  baris error log, **dengan rinciannya**: "51 respons 5xx + 74 baris error log"), Warning / 4xx app,
-  Ketersediaan (non-5xx), IP tujuan unik, Tingkat kecocokan. Di luar KPI, keterangan yang sama wajib pada:
-  judul donat level simpel-loop ("request gagal 4xx dihitung WARN, 5xx ERROR") dan level `EXC` di tabel
-  pesan ("rincian exception; tidak menambah jumlah Error") (TRD §4.4).
+- Value colours: accent gradient (neutral), `err`, `warn`, `ok`, `muted`. Same as the old one.
+- Comparison line: the four forms from inv. §2.0 (▲/▼ %, ≈ same, new, incomplete). Arrows are **always
+  accompanied by a word** ("up"/"down" for screen readers) and colour is not the only indicator.
+- Change U7: KPIs whose value now differs from the old system because of B03 get no mark at all in the
+  view; the difference lives in the parity report, not in the interface.
+- Change U8: a KPI may have an **`(i)` explanation** (tooltip + keyboard focus) containing a one-sentence
+  definition. Required for those whose definition is not clear from the label: Error (nginx and frontend = 5xx responses +
+  error log lines, **with the breakdown**: "51 5xx responses + 74 error log lines"), Warning / app 4xx,
+  Availability (non-5xx), Unique destination IPs, Match rate. Outside KPIs, the same explanation is required on:
+  the simpel-loop level donut title ("failed 4xx requests count as WARN, 5xx as ERROR") and the `EXC` level in the messages
+  table ("exception detail; not added to the Error count") (TRD §4.4).
 
-### 4.2 Kartu chart
+### 4.2 Chart card
 
-- Kerangka: judul kiri, aksi kanan (bila ada), kanvas tinggi 280 px. Sama dengan lama.
-- Jenis dan gaya dipertahankan (inv. §2.0): garis area bergradien, batang bersudut bulat (maks. 34 px),
-  donat 74 % dengan persentase di tengah, batang horizontal top-N dengan label dipotong 48 karakter.
-- Warna dari token (§5.4), bukan nilai tulis-mati; ganti tema tanpa memuat ulang data.
-- Legenda hanya bila > 1 seri atau donat. Tooltip mode indeks.
-- Perubahan U9: tiap chart punya **alternatif teks**: `aria-label` berisi judul + ringkasan satu kalimat
-  (nilai terbesar dan total), dan tombol "Lihat sebagai tabel" yang membuka data chart dalam tabel. Chart
-  kanvas tidak terbaca pembaca layar dan tidak bisa disalin.
-- Perubahan U10: sumbu waktu memakai jam saja (`13.00`) bila semua titik satu tanggal; tanggal ditulis
-  sekali di bawah sumbu. Sekarang tiap label mengulang `5 Okt` dan dimiringkan.
-- Batang horizontal untuk IP: klik batang menggulir ke baris IP itu di tabel terkait pada halaman yang
-  sama (bila ada). Tidak pindah halaman.
+- Frame: title on the left, actions on the right (if any), canvas height 280 px. Same as the old one.
+- Types and styles are kept (inv. §2.0): gradient area lines, round-cornered bars (max. 34 px),
+  74 % donut with the percentage in the centre, horizontal top-N bars with labels truncated at 48 characters.
+- Colours come from tokens (§5.4), not hard-coded values; switching theme without reloading data.
+- Legend only when there is > 1 series or a donut. Index-mode tooltip.
+- Change U9: every chart has a **text alternative**: an `aria-label` with the title + a one-sentence summary
+  (largest value and total), and a "View as table" button that opens the chart data in a table. Canvas
+  charts cannot be read by screen readers and cannot be copied.
+- Change U10: the time axis shows hours only (`13:00`) when all points are on one date; the date is written
+  once below the axis. Currently every label repeats `5 Oct` and is slanted.
+- Horizontal bars for IPs: clicking a bar scrolls to that IP's row in the related table on the same
+  page (if any). It does not change page.
 
-### 4.3 Tabel dengan filter
+### 4.3 Table with filter
 
 ```
-┌ Judul tabel                              [🔍 filter…        ] ┐
-│ KOLOM A ▾        KOLOM B        JUMLAH                        │  ← header lekat
-│ baris …                                              1.234    │
-│ …                                                             │  ← maks. 440–600px, gulir di dalam kartu
-│ Menampilkan 30 dari 653   [Tampilkan 100 berikutnya]          │  ← baru (B04)
+┌ Table title                              [🔍 filter…        ] ┐
+│ COLUMN A ▾       COLUMN B       COUNT                         │  ← sticky header
+│ row …                                                1,234    │
+│ …                                                             │  ← max. 440–600px, scrolls inside the card
+│ Showing 30 of 653   [Show next 100]                           │  ← new (B04)
 └───────────────────────────────────────────────────────────────┘
 ```
 
-- Dipertahankan: header lekat, angka rata kanan tabular, sorot baris saat hover, kolom pertama
-  `word-break`, batang proporsi di bawah sel pertama untuk tabel "Jumlah", pewarnaan kode status.
-- **Jumlah awal = batas lama** (inv. §5.2), supaya tampilan pertama identik. Satu pengecualian: tabel
-  alur IP tampil **100** baris pertama, bukan 3.000 (U30). Di bawahnya baris status
-  "Menampilkan N dari M" dan tombol untuk memuat berikutnya (B04). Bila M ≤ N baris status tidak tampil.
-- **Filter** mencari di **seluruh data** tabel itu, bukan hanya baris yang tampil (B04). Substring, tanpa
-  beda huruf besar/kecil, pada semua kolom teks; jeda ketik 250 ms; tombol × untuk mengosongkan; hasil
-  "N baris cocok". Tanpa hasil: "Tidak ada baris yang cocok dengan '…'".
-- Perubahan U11: **urut per kolom** dengan klik header (angka dan waktu). Urutan bawaan = urutan lama.
-- Tabel lebar (≥ 6 kolom) menggulir mendatar di dalam kartu dengan kolom pertama terkunci; lihat §8.
-- Sel yang terpotong (URL, UA, pesan) menampilkan teks lengkap saat diklik/fokus, bukan hanya lewat `title`.
+- Kept: sticky header, right-aligned tabular numbers, row highlight on hover, first column
+  `word-break`, proportion bar under the first cell for "Count" tables, status code colouring.
+- **Initial count = the old limit** (inv. §5.2), so the first view is identical. One exception: the IP
+  flow table shows the first **100** rows, not 3,000 (U30). Below it, a status line
+  "Showing N of M" and a button to load the next ones (B04). When M ≤ N the status line is not shown.
+- The **filter** searches **all the data** of that table, not just the visible rows (B04). Substring,
+  case-insensitive, on all text columns; 250 ms typing debounce; × button to clear; result
+  "N matching rows". No results: "No rows match '…'".
+- Change U11: **sort per column** by clicking the header (numbers and times). Default order = old order.
+- Wide tables (≥ 6 columns) scroll horizontally inside the card with the first column locked; see §8.
+- Truncated cells (URL, UA, message) show the full text on click/focus, not only via `title`.
 
-Tabel pesan terkelompok (F19) memakai komponen ini dengan baris yang bisa dibuka: klik pesan → contoh baris
-log asli dalam blok monospace berlabel "Baris log asli (waktu UTC)", dengan tombol salin.
+The grouped messages table (F19) uses this component with expandable rows: clicking a message → a sample of the original log
+line in a monospace block labelled "Original log line (UTC time)", with a copy button.
 
-### 4.4 Sel IP dengan pemilik jaringan
+### 4.4 IP cell with network owner
 
 ```
-103.160.147.100                      ← tebal, monospace-tabular
+103.160.147.100                      ← bold, monospace-tabular
 AS141576 · ID · IDNIC-OMBUDSMAN-AS-ID Ombudsman Republik Indonesia   ← 11px, muted
-● Jaringan Ombudsman                 ← tag hijau, hanya bila pemiliknya Ombudsman
+● Ombudsman network                  ← green tag, only when the owner is Ombudsman
 ```
 
-- Varian: tanpa pemilik (IP saja); IP privat → "Jaringan Internal (IP Privat)"; `+N` IP lain di tabel
-  serangan. Sama dengan lama.
-- Teks pemilik dipotong 2 baris; lengkapnya saat diklik/fokus.
-- Perubahan U12: tombol salin kecil muncul saat hover/fokus. Tidak ada tautan keluar ke layanan pencari IP
-  (melanggar aturan privasi).
-- Di chart, tooltip IP menampilkan pemilik di baris kedua (lama).
+- Variants: without owner (IP only); private IP → "Internal network (private IP)"; `+N` other IPs in the
+  attacks table. Same as the old one.
+- Owner text is truncated to 2 lines; full text on click/focus.
+- Change U12: a small copy button appears on hover/focus. No outbound link to an IP lookup service
+  (that would break the privacy rule).
+- In charts, the IP tooltip shows the owner on the second line (old).
 
-### 4.5 Tag tingkat bahaya
+### 4.5 Severity tags
 
-| Tingkat | Kategori | Gelap (teks / latar) | Terang (teks / latar) |
+| Level | Categories | Dark (text / background) | Light (text / background) |
 |---|---|---|---|
-| 3 kritis | Log4Shell / RCE, SQL Injection, Path Traversal / LFI, XSS | `#fda4af` / err 14 % | `#be123c` / err 14 % |
-| 2 sedang | Probe file sensitif, Scan CMS / WordPress, Probe PHP / CGI | `#fcd34d` / warn 14 % | `#b45309` / warn 14 % |
-| 1 rendah | UA tool/scanner otomatis; tag netral ("Multi-akun", tanda akun) | `#cbd5e1` / abu 14 % | `#44546a` / abu 14 % |
-| ok | "Jaringan Ombudsman", "Ada log" | `#6ee7b7` / ok 14 % | `#047857` / ok 14 % |
+| 3 critical | Log4Shell / RCE, SQL Injection, Path Traversal / LFI, XSS | `#fda4af` / err 14 % | `#be123c` / err 14 % |
+| 2 medium | Sensitive file probe, CMS / WordPress scan, PHP / CGI probe | `#fcd34d` / warn 14 % | `#b45309` / warn 14 % |
+| 1 low | Automated tool/scanner UA; neutral tags ("Multi-account", account flags) | `#cbd5e1` / grey 14 % | `#44546a` / grey 14 % |
+| ok | "Ombudsman network", "Has log" | `#6ee7b7` / ok 14 % | `#047857` / ok 14 % |
 
-Bentuk pil, 11 px tebal, titik kecil di kiri. Sama dengan lama. Tambahan: tingkat dibedakan juga oleh
-**teks** (nama kategori selalu tampil), jadi tidak bergantung warna. Tag baru "Rusak" (B05) memakai tingkat 2.
+Pill shape, 11 px bold, small dot on the left. Same as the old one. Addition: the level is also distinguished by
+**text** (the category name is always shown), so it does not depend on colour. The new "Corrupt" tag (B05) uses level 2.
 
-### 4.6 Peringatan dan catatan
+### 4.6 Warnings and notes
 
-- **Peringatan** ("Temuan utama", "Ringkasan akar masalah"): kartu dengan garis kiri merah 3 px, judul
-  tebal, daftar butir. Sama. IP dan akun di dalam kalimat memakai gaya data (tidak dikapitalisasi).
-- **Catatan**: kartu bergaris putus-putus, teks `muted` 13 px. Dipakai untuk penjelasan metode dan
-  keadaan kosong.
+- **Warning** ("Key findings", "Root cause summary"): a card with a 3 px red left border, bold
+  title, bullet list. Same. IPs and accounts inside sentences use the data style (not capitalized).
+- **Note**: a dashed-border card, `muted` 13 px text. Used for method explanations and
+  empty states.
 
-### 4.7 Peta
+### 4.7 Map
 
-Satu komponen untuk tab Peta IP dan halaman layanan; spesifikasi di §7.
+One component for the IP Map tab and the service page; specification in §7.
 
-### 4.8 Kontrol
+### 4.8 Controls
 
-| Kontrol | Bentuk | Catatan |
+| Control | Form | Note |
 |---|---|---|
-| Pemilih folder | `select` pil, teks aksen | §6.1 |
-| Pemilih modul | `select` pil | §6.2 |
-| Bahasa, tema, preset peta | grup tombol pil (segmented) | `role="radiogroup"`, panah kiri/kanan berpindah |
-| Filter | input pil dengan ikon kaca pembesar | §4.3 |
-| Tombol sekunder | pil bergaris, teks `fg` | "Tampilkan berikutnya", "Coba lagi", "Lihat sebagai tabel" |
+| Folder picker | pill `select`, accent text | §6.1 |
+| Module picker | pill `select` | §6.2 |
+| Language, theme, map preset | pill button group (segmented) | `role="radiogroup"`, left/right arrows move |
+| Filter | pill input with a magnifying-glass icon | §4.3 |
+| Secondary button | outlined pill, `fg` text | "Show next", "Try again", "View as table" |
 
 ---
 
-## 5. Token desain
+## 5. Design tokens
 
-Diambil dari `:root` dan `:root[data-theme="light"]` di `dashboard_template.html`. Nama dipertahankan.
-Kolom "Δ" menandai nilai yang **berubah atau baru**, dengan alasan di §5.6.
+Taken from `:root` and `:root[data-theme="light"]` in `dashboard_template.html`. The names are kept.
+The "Δ" column marks values that are **changed or new**, with the reason in §5.6.
 
-### 5.1 Warna dasar
+### 5.1 Base colours
 
-| Token | Gelap | Terang | Pakai | Δ |
+| Token | Dark | Light | Use | Δ |
 |---|---|---|---|:-:|
-| `--bg` | `#0a1120` | `#f3f6fb` | latar halaman | |
-| `--bg2` | `#0d1628` | `#ffffff` | latar input, grup tombol | |
-| `--card` | `#101b2e` | `#ffffff` | latar kartu | |
-| `--card2` | `#0c1524` | `#eef3fa` | latar peta, blok kode | |
-| `--fg` | `#e2ecf3` | `#0f1b2d` | teks utama | |
-| `--muted` | `#7d8fa6` | `#5b6b80` | teks sekunder | |
-| `--line` | `#1c2a40` | `#dbe3ee` | garis pemisah (dekoratif) | |
-| `--line-strong` | `#5a7299` | `#8794a8` | batas input dan tombol | baru |
-| `--accent` | `#2dd4bf` | `#0d9488` | aksen, grafik, fokus | |
-| `--accent2` | `#22d3ee` | `#0891b2` | gradien | |
-| `--accent-text` | `#2dd4bf` | `#0f766e` | aksen sebagai **teks kecil** | baru |
-| `--violet` | `#8b5cf6` | `#7c3aed` | seri kedua | |
+| `--bg` | `#0a1120` | `#f3f6fb` | page background | |
+| `--bg2` | `#0d1628` | `#ffffff` | input and button group background | |
+| `--card` | `#101b2e` | `#ffffff` | card background | |
+| `--card2` | `#0c1524` | `#eef3fa` | map and code block background | |
+| `--fg` | `#e2ecf3` | `#0f1b2d` | main text | |
+| `--muted` | `#7d8fa6` | `#5b6b80` | secondary text | |
+| `--line` | `#1c2a40` | `#dbe3ee` | divider lines (decorative) | |
+| `--line-strong` | `#5a7299` | `#8794a8` | input and button borders | new |
+| `--accent` | `#2dd4bf` | `#0d9488` | accent, charts, focus | |
+| `--accent2` | `#22d3ee` | `#0891b2` | gradient | |
+| `--accent-text` | `#2dd4bf` | `#0f766e` | accent as **small text** | new |
+| `--violet` | `#8b5cf6` | `#7c3aed` | second series | |
 | `--err` | `#f43f5e` | `#e11d48` | error, 5xx | |
-| `--warn` | `#f59e0b` | `#b45309` | peringatan, 4xx | |
-| `--ok` | `#34d399` | `#059669` | sukses, 2xx (grafik, angka besar) | |
-| `--ok-text` | `#34d399` | `#047857` | sukses sebagai teks kecil | baru |
-| `--neutral` | `#7a8699` | `#7a8699` | 3xx, keparahan 1 di chart | dinamai |
-| `--land` | `#1b2d4a` | `#cfdff5` | daratan peta | |
-| `--coast` | `#5a7299` | `#6f86ab` | garis pantai dan batas wilayah | baru |
-| `--glow` | `0 0 0 1px rgba(45,212,191,.06), 0 12px 32px rgba(0,0,0,.35)` | `0 1px 2px rgba(15,27,45,.05), 0 8px 24px rgba(15,27,45,.06)` | bayangan kartu | |
+| `--warn` | `#f59e0b` | `#b45309` | warning, 4xx | |
+| `--ok` | `#34d399` | `#059669` | success, 2xx (charts, large numbers) | |
+| `--ok-text` | `#34d399` | `#047857` | success as small text | new |
+| `--neutral` | `#7a8699` | `#7a8699` | 3xx, severity 1 in charts | named |
+| `--land` | `#1b2d4a` | `#cfdff5` | map land | |
+| `--coast` | `#5a7299` | `#6f86ab` | coastlines and region borders | new |
+| `--glow` | `0 0 0 1px rgba(45,212,191,.06), 0 12px 32px rgba(0,0,0,.35)` | `0 1px 2px rgba(15,27,45,.05), 0 8px 24px rgba(15,27,45,.06)` | card shadow | |
 
-Latar halaman tema gelap tetap memakai dua gradien radial halus (cyan kanan-atas, violet kiri-bawah).
-Kartu tema gelap tetap gradien `rgba(20,34,56,.92) → rgba(11,20,35,.92)`; tema terang putih polos.
+The dark-theme page background keeps its two subtle radial gradients (cyan top-right, violet bottom-left).
+Dark-theme cards keep the gradient `rgba(20,34,56,.92) → rgba(11,20,35,.92)`; the light theme is plain white.
 
-### 5.2 Warna turunan yang sekarang ditulis langsung
+### 5.2 Derived colours that are currently written inline
 
-Di CSS lama nilai-nilai ini tersebar sebagai heksadesimal; v2 menamainya.
+In the old CSS these values are scattered as hex codes; v2 names them.
 
-| Token | Gelap | Terang |
+| Token | Dark | Light |
 |---|---|---|
-| `--side-bg` | gradien `#0b1424 → #080e1a` | `#ffffff` |
+| `--side-bg` | gradient `#0b1424 → #080e1a` | `#ffffff` |
 | `--nav-fg` | `#b6c4d4` | `#44546a` |
 | `--kpi-label` | `#c4d2e0` | `#44546a` |
 | `--heading` | `#dbe7f0` | `--fg` |
 | `--th-fg` / `--th-bg` | `#9fb1c4` / `#0f1a2c` | `--muted` / `#f6f8fc` |
 | `--code-fg` | `#c7d7e4` | `#44546a` |
 | `--pre-bg` | `#08101d` | `#f6f8fc` |
-| `--row-hover` | `rgba(45,212,191,.03)` | sama |
-| `--badge-fg` / `--badge-bg` | `#fda4af` / `rgba(244,63,94,.12)` | `#be123c` / sama |
+| `--row-hover` | `rgba(45,212,191,.03)` | same |
+| `--badge-fg` / `--badge-bg` | `#fda4af` / `rgba(244,63,94,.12)` | `#be123c` / same |
 | `--title-grad` | `#2dd4bf → #a5f3fc → #e2e8f0` | `#0d9488 → #0891b2 → #1e3a8a` |
 | `--kpi-grad` | `#2dd4bf → #67e8f9` | `#0d9488 → #0891b2` |
-| `--tooltip-bg` | `rgba(8,16,29,.95)`, garis `rgba(45,212,191,.3)` | sama (tooltip gelap di kedua tema) |
+| `--tooltip-bg` | `rgba(8,16,29,.95)`, border `rgba(45,212,191,.3)` | same (dark tooltip in both themes) |
 | `--grid` | `rgba(148,163,184,.08)` | `rgba(15,27,45,.08)` |
 
-### 5.3 Warna bermakna
+### 5.3 Meaningful colours
 
-| Makna | Token |
+| Meaning | Token |
 |---|---|
-| 2xx / sukses / ada log | `--ok` |
-| 3xx / netral | `--neutral` |
-| 4xx / WARN / keparahan 2 | `--warn` |
-| 5xx / ERROR / EXC / keparahan 3 | `--err` |
-| Level INFO | `--accent`; PERFORMANCE `--ok`; DEBUG `--muted` |
-| Titik server di peta | `--warn` |
-| Titik lokasi dan busur | `--accent` |
+| 2xx / success / has log | `--ok` |
+| 3xx / neutral | `--neutral` |
+| 4xx / WARN / severity 2 | `--warn` |
+| 5xx / ERROR / EXC / severity 3 | `--err` |
+| INFO level | `--accent`; PERFORMANCE `--ok`; DEBUG `--muted` |
+| Server dot on the map | `--warn` |
+| Location dots and arcs | `--accent` |
 
-### 5.4 Palet seri chart
+### 5.4 Chart series palette
 
-| # | Gelap (lama) | Terang | Δ |
+| # | Dark (old) | Light | Δ |
 |--:|---|---|:-:|
-| 1 | `#2dd4bf` | `#0d9488` | terang baru |
+| 1 | `#2dd4bf` | `#0d9488` | new light |
 | 2 | `#8b5cf6` | `#7c3aed` | |
 | 3 | `#22d3ee` | `#0891b2` | |
 | 4 | `#f472b6` | `#db2777` | |
@@ -615,531 +615,532 @@ Di CSS lama nilai-nilai ini tersebar sebagai heksadesimal; v2 menamainya.
 | 9 | `#a3e635` | `#65a30d` | |
 | 10 | `#fb923c` | `#ea580c` | |
 
-Ungu batang "IP klien" `#8a5cd6` yang ditulis mati diganti `--violet`.
+The hard-coded purple `#8a5cd6` of the "client IP" bars is replaced by `--violet`.
 
-### 5.5 Tipografi, ukuran, bentuk
+### 5.5 Typography, sizes, shapes
 
-| Token | Nilai | Catatan |
+| Token | Value | Note |
 |---|---|---|
-| Huruf antarmuka | Outfit 400/500/600/700, lalu `system-ui` | **dibundel**, bukan dari Google Fonts (B09) |
-| Huruf data | JetBrains Mono, lalu `ui-monospace` | lama menyebutnya tetapi tidak memuatnya; v2 membundel satu berat (400) |
-| Teks dasar | 14 px / 1,5 | |
-| Judul halaman | 38 px / 600 (28 px di layar sempit) | |
-| Nilai KPI | 34 px / 600, angka tabular | |
-| Judul kartu | 15,5 px / 500 | |
-| Label KPI, navigasi | 13,5 px | |
-| Sel tabel | 13 px; header 12 px / 600, jarak huruf .06em | |
-| Teks kecil | 12 px (kode, waktu), 11,5 px (delta), 11 px (tag, pemilik IP) | **minimum 11 px** |
-| Radius | kartu 20 · peta/blok/gulir 12 · pil 999 · batang 6 | |
-| Jarak | grid kartu 18 · KPI 14 · padding kartu 20/22 · KPI 18/20 · sel 10 | |
-| Tinggi | chart 280 · tabel maks. 440 (560–600 untuk tabel besar) | |
-| Lebar | sidebar 236 · isi maks. 1560 · kartu min. 520 · KPI min. 170 | |
-| Titik henti | 900 px (lama) dan 560 px (baru) | §8 |
-| Fokus | garis 2 px `--accent` + jarak 2 px | baru, §9 |
-| Gerak | transisi 150 ms; dimatikan bila `prefers-reduced-motion` | |
+| Interface font | Outfit 400/500/600/700, then `system-ui` | **bundled**, not from Google Fonts (B09) |
+| Data font | JetBrains Mono, then `ui-monospace` | the old one names it but does not load it; v2 bundles one weight (400) |
+| Base text | 14 px / 1.5 | |
+| Page title | 38 px / 600 (28 px on narrow screens) | |
+| KPI value | 34 px / 600, tabular figures | |
+| Card title | 15.5 px / 500 | |
+| KPI label, navigation | 13.5 px | |
+| Table cell | 13 px; header 12 px / 600, letter spacing .06em | |
+| Small text | 12 px (code, time), 11.5 px (delta), 11 px (tags, IP owner) | **minimum 11 px** |
+| Radius | card 20 · map/block/scroll 12 · pill 999 · bar 6 | |
+| Spacing | card grid 18 · KPI 14 · card padding 20/22 · KPI 18/20 · cell 10 | |
+| Height | chart 280 · table max. 440 (560–600 for large tables) | |
+| Width | sidebar 236 · content max. 1560 · card min. 520 · KPI min. 170 | |
+| Breakpoints | 900 px (old) and 560 px (new) | §8 |
+| Focus | 2 px `--accent` outline + 2 px offset | new, §9 |
+| Motion | 150 ms transitions; turned off under `prefers-reduced-motion` | |
 
-Kapitalisasi: teks antarmuka *Capitalize Each Word* lewat CSS, data tidak (lama). **Keputusan pemilik 2026-10-06**:
-**nama sistem** (layanan backend/frontend, pod, namespace, host, upstream, modul) selalu **huruf kecil** apa adanya,
-termasuk di sidebar, judul halaman layanan, label chart, dan kalimat temuan (lama: `tc()` mengkapitalkan nama layanan;
-perubahan U33). Kode: `sysName()` di `format.js` dan class `sys` untuk elemen yang dikapitalkan CSS. Pengecualian baru: kalimat
-panjang (catatan, butir temuan, keterangan kosong) **tidak** dikapitalisasi; sekarang ikut terkapitalisasi
-dan sulit dibaca ("Lokasi Adalah Perkiraan Tingkat Kota Dari Database…") (U13).
+Capitalization: interface text is *Capitalize Each Word* via CSS, data is not (old). **Owner decision 2026-10-06**:
+**system names** (backend/frontend services, pods, namespaces, hosts, upstreams, modules) are always **lowercase** as they are,
+including in the sidebar, service page titles, chart labels, and finding sentences (old: `tc()` capitalized service names;
+change U33). Code: `sysName()` in `format.js` and the `sys` class for elements capitalized by CSS. New exception: long
+sentences (notes, finding bullets, empty-state captions) are **not** capitalized; currently they get capitalized too
+and are hard to read ("Lokasi Adalah Perkiraan Tingkat Kota Dari Database…", i.e. "Locations Are City-Level Estimates From The
+Database…") (U13).
 
-### 5.6 Mengapa ada token baru
+### 5.6 Why there are new tokens
 
-Rasio kontras dihitung dari nilai lama (WCAG 2.1; teks kecil butuh ≥ 4,5, grafik dan batas kontrol ≥ 3):
+Contrast ratios computed from the old values (WCAG 2.1; small text needs ≥ 4.5, graphics and control borders ≥ 3):
 
-| Pasangan lama | Rasio | Masalah | Perbaikan |
+| Old pair | Ratio | Problem | Fix |
 |---|--:|---|---|
-| Terang: `--accent` `#0d9488` di putih | 3,74 | dipakai sebagai teks 13,5 px (nav aktif, pemilih folder) | `--accent-text` `#0f766e` = 5,47 |
-| Terang: `--ok` `#059669` di putih | 3,77 | teks kecil hijau | `--ok-text` `#047857` = 5,48 |
-| Terang: seri chart 1 `#2dd4bf` di putih | 1,86 | batang hampir tak terlihat | palet terang §5.4 (semua ≥ 3) |
-| Terang: seri `#f59e0b` di putih | 2,15 | sama | `#b45309` = 5,02 |
-| `--line` terhadap kartu | 1,2–1,3 | batas input tidak terlihat | `--line-strong` (gelap 3,6; terang 3,1) |
-| `--land` terhadap `--card2` | 1,2–1,3 | daratan nyaris menyatu dengan laut | garis pantai `--coast` (gelap 3,7; terang 3,3) |
+| Light: `--accent` `#0d9488` on white | 3.74 | used as 13.5 px text (active nav, folder picker) | `--accent-text` `#0f766e` = 5.47 |
+| Light: `--ok` `#059669` on white | 3.77 | small green text | `--ok-text` `#047857` = 5.48 |
+| Light: chart series 1 `#2dd4bf` on white | 1.86 | bars almost invisible | light palette §5.4 (all ≥ 3) |
+| Light: series `#f59e0b` on white | 2.15 | same | `#b45309` = 5.02 |
+| `--line` against the card | 1.2–1.3 | input borders invisible | `--line-strong` (dark 3.6; light 3.1) |
+| `--land` against `--card2` | 1.2–1.3 | land nearly merges with the sea | coastline `--coast` (dark 3.7; light 3.3) |
 
-Yang sudah memenuhi dan tidak diubah: `--fg` (14,4 / 17,3), `--muted` (5,2 / 5,4), header tabel (7,9 / 5,1),
-navigasi (10,4 / 7,7), `--err` dan `--warn` sebagai teks di kedua tema (≥ 4,7), palet gelap (≥ 4,1).
+Already compliant and unchanged: `--fg` (14.4 / 17.3), `--muted` (5.2 / 5.4), table header (7.9 / 5.1),
+navigation (10.4 / 7.7), `--err` and `--warn` as text in both themes (≥ 4.7), the dark palette (≥ 4.1).
 
 ---
 
-## 6. Perilaku
+## 6. Behaviour
 
-### 6.1 Pemilih folder
+### 6.1 Folder picker
 
-- Isi: semua folder, terbaru di atas. Label: `Folder log 6 Okt 2026`; di daftar terbuka ditambah keterangan
-  kecil `log 5 Okt` dan tanda `kosong` / `rusak` bila folder itu praktis tanpa data (B05, B06).
-- Bawaan: folder terbaru. **ASUMSI D1**: tetap `select` bawaan browser, bukan kalender; cukup untuk puluhan
-  folder dan gratis aksesibilitasnya. Bila folder sudah ratusan, opsi dikelompokkan per bulan (`optgroup`).
-- Ganti folder: tab tetap; isi berganti; posisi gulir kembali ke atas; daftar "Layanan" di sidebar dan
-  lencana menyesuaikan; alamat diperbarui. Filter tabel dikosongkan; pilihan modul dipertahankan bila modul
-  itu ada di folder baru.
-- Panah ◀ ▶ di samping pemilih untuk folder sebelumnya/berikutnya (U14); berguna saat membandingkan hari
-  berurutan. Pintasan `[` dan `]`.
-- Di tab Tren: nonaktif (§3.3).
+- Contents: all folders, newest on top. Label: `Log folder 6 Oct 2026`; in the open list a small
+  `log 5 Oct` caption is added, and an `empty` / `corrupt` mark when that folder has practically no data (B05, B06).
+- Default: the latest folder. **ASSUMPTION D1**: it stays the browser's native `select`, not a calendar; enough for dozens of
+  folders and accessible for free. Once there are hundreds of folders, options are grouped by month (`optgroup`).
+- Changing folder: the tab stays; the content changes; the scroll position goes back to the top; the "Services" list in the sidebar and
+  the badges adjust; the address is updated. Table filters are cleared; the module choice is kept if that module
+  exists in the new folder.
+- ◀ ▶ arrows next to the picker for the previous/next folder (U14); useful when comparing consecutive
+  days. Shortcuts `[` and `]`.
+- On the Trends tab: disabled (§3.3).
 
-### 6.2 Pemilih modul (Peta IP)
+### 6.2 Module picker (IP Map)
 
-- Isi: "Semua Modul" + modul tujuan yang ada di folder itu, urut abjad (lama).
-- Ganti modul: KPI, peta, legenda, dan tabel alur berganti bersama; **posisi dan zoom peta dipertahankan**
-  (sekarang peta dirender ulang; preset tetap tetapi zoom manual hilang).
-- Pilihan tersimpan di alamat. Modul yang tidak ada di folder baru → kembali ke "Semua Modul" (lama).
+- Contents: "All modules" + the destination modules present in that folder, sorted alphabetically (old).
+- Changing module: KPIs, map, legend, and flow table change together; **the map position and zoom are kept**
+  (currently the map is re-rendered; the preset stays but manual zoom is lost).
+- The choice is stored in the address. A module that does not exist in the new folder → back to "All modules" (old).
 
-### 6.3 Ganti bahasa
+### 6.3 Switching language
 
-- Tombol ID / EN di header; berlaku seketika tanpa memuat ulang data; diingat per browser; bawaan ID.
-- Yang diterjemahkan: semua teks antarmuka, kalimat temuan otomatis, label dan legenda chart, format angka
-  (`1.234` / `1,234`), tanggal dan jam (`06.03` / `06:03`), satuan durasi (`dtk` / `s`), nama negara, nama
-  bulan (`Okt` / `Oct`).
-- Yang **tidak** diterjemahkan: data log (URL, pesan, UA, nama template), nama layanan, nama kota dan
-  provinsi dari database lokasi, label provinsi/kabupaten di peta.
-- Kategori serangan, tanda akun, metrik bisnis, dan kelompok umur JWT adalah **label**, jadi diterjemahkan
-  (lama juga begitu).
-- Perubahan U15: teks berasal dari kamus berkunci, bukan penggantian teks di DOM setelah render. Tidak
-  terlihat pengguna, tetapi menghilangkan kedipan teks Indonesia sebelum berganti dan risiko data yang
-  kebetulan sama dengan kunci kamus ikut "diterjemahkan".
-- Atribut `lang` dokumen mengikuti pilihan.
+- ID / EN button in the header; applies instantly without reloading data; remembered per browser; default ID.
+- What is translated: all interface text, automatic finding sentences, chart labels and legends, number format
+  (`1.234` / `1,234`), dates and times (`06.03` / `06:03`), duration units (`dtk` / `s`), country names, month
+  names (`Okt` / `Oct`).
+- What is **not** translated: log data (URLs, messages, UAs, template names), service names, city and
+  province names from the location database, province/regency labels on the map.
+- Attack categories, account flags, business metrics, and JWT age groups are **labels**, so they are translated
+  (the old system did so too).
+- Change U15: text comes from a keyed dictionary, not from replacing text in the DOM after rendering. Not
+  visible to users, but it removes the flicker of Indonesian text before it switches and the risk of data that
+  happens to equal a dictionary key being "translated" as well.
+- The document `lang` attribute follows the choice.
 
-### 6.4 Ganti tema
+### 6.4 Switching theme
 
-- Tombol ☀ / ☾; seketika; diingat per browser.
-- Bawaan saat pertama dibuka: **gelap** (lama). **ASUMSI D2**: tidak mengikuti preferensi sistem, agar
-  tampilan pertama sama dengan yang dikenal.
-- Chart dan peta berganti warna tanpa mengambil data lagi dan tanpa kehilangan posisi peta.
-- Tombol memakai `aria-pressed` dan label teks ("Tema terang", "Tema gelap"), bukan hanya ikon.
+- ☀ / ☾ button; instant; remembered per browser.
+- Default on first open: **dark** (old). **ASSUMPTION D2**: it does not follow the system preference, so that
+  the first view matches the familiar one.
+- Charts and the map change colour without fetching data again and without losing the map position.
+- The button uses `aria-pressed` and a text label ("Light theme", "Dark theme"), not just an icon.
 
-### 6.5 Memuat
+### 6.5 Loading
 
-Sistem lama tidak punya keadaan memuat (semua data sudah di halaman). v2 mengambil data per tab, jadi:
+The old system has no loading state (all data is already in the page). v2 fetches data per tab, so:
 
-- **Kerangka langsung tampil**: sidebar, header, judul tab. Tidak pernah layar kosong.
-- **Kerangka abu (skeleton)** seukuran isi akhirnya: baris KPI, kartu chart 280 px, tabel 6 baris. Tidak ada
-  pemutar di tengah layar. Ukuran tetap supaya halaman tidak melompat ketika data tiba.
-- Kerangka abu baru muncul bila data belum tiba dalam **200 ms**, agar perpindahan cepat tidak berkedip.
-- **Satu permintaan per halaman** (TRD §5.3): seluruh kartu halaman tampil bersamaan ketika datanya tiba
-  (U31). Yang dimuat terpisah hanya lanjutan tabel ("tampilkan berikutnya", filter, urut): saat itu hanya
-  badan tabel tersebut yang meredup.
-- Ganti folder di tab yang sama: isi lama tetap terlihat tetapi diredupkan (60 %) sampai yang baru tiba.
-- Sidebar: selama daftar layanan folder baru belum tiba, daftar lama tetap tampil.
-- `aria-busy` pada `<main>`; pembaca layar mendapat "Memuat …" lalu "Selesai" lewat wilayah `aria-live` sopan.
+- **The frame appears immediately**: sidebar, header, tab title. Never a blank screen.
+- **Grey skeletons** the size of the final content: KPI row, 280 px chart cards, 6-row tables. No
+  spinner in the middle of the screen. Fixed sizes so the page does not jump when the data arrives.
+- Skeletons only appear if the data has not arrived within **200 ms**, so fast switches do not flicker.
+- **One request per page** (TRD §5.3): all cards of a page appear together when their data arrives
+  (U31). The only things loaded separately are table continuations ("show next", filter, sort): then only
+  the body of that table dims.
+- Changing folder on the same tab: the old content stays visible but dimmed (60 %) until the new one arrives.
+- Sidebar: while the service list of the new folder has not arrived, the old list stays visible.
+- `aria-busy` on `<main>`; screen readers get "Loading …" then "Done" via a polite `aria-live` region.
 
-### 6.6 Kosong
+### 6.6 Empty
 
-Kosong selalu **menjelaskan sebabnya** dan, bila ada, apa yang bisa dilakukan. Teks lama dipertahankan.
+Empty states always **explain the cause** and, if possible, what can be done. The old texts are kept.
 
-| Halaman | Kondisi | Tampilan |
+| Page | Condition | Display |
 |---|---|---|
-| Semua | Belum ada folder ter-ingest | Satu kartu di tengah: "Belum ada data." Untuk admin: tombol ke layar Ingest & impor; untuk user: "Hubungi admin." |
-| Layar admin | **Tidak punya akses**: user biasa membuka alamat layar admin | Di `<main>`: "Tidak punya akses. Halaman ini hanya untuk admin." + tombol "Ke Overview". Sidebar dan header tetap |
-| Semua | Folder terpilih praktis kosong atau rusak | Pita kuning di atas isi: "Folder ini hanya berisi N baris; M file rusak" + tautan ke tab Pod |
-| Overview | Tanpa ingress nginx | KPI HTTP dan bagian "Traffic HTTP" tidak tampil (lama) |
-| Peta IP | Tanpa ingress nginx | Catatan: "Peta butuh log ingress nginx; folder ini tidak memilikinya." |
-| Peta IP | Data peta dasar atau database lokasi belum ada | Peta diganti catatan; KPI dan tabel alur tetap tampil, kolom Lokasi "Tidak diketahui" |
-| Tren | Hanya satu folder | Chart tetap tampil; kolom perubahan kosong |
-| Keamanan | Tanpa nginx | Catatan "deteksi serangan per URL tidak tersedia"; bagian login tetap |
-| Keamanan | Tanpa temuan | Kotak "Temuan utama" tidak tampil (lama) |
-| Akar Masalah | Tidak ada pola | Catatan "Tidak ada pola akar masalah yang terdeteksi untuk folder ini." |
-| Ketersediaan | Tanpa nginx | Catatan "Analisis ketersediaan memakai log ingress nginx…" |
-| Pod | — | Selalu ada isi selama ada file |
-| Bisnis | Tanpa simpel-loop | KPI bernilai 0 (lama) + catatan baru "Log simpel-loop tidak ada di folder ini" |
-| Pelacakan | Tanpa korelasi | Catatan "Pelacakan butuh log om-be-simpel-loop dan ingress nginx…" |
-| Layanan | 0 baris | "Tidak ada log untuk layanan ini di tanggal ini (file kosong)." |
-| Layanan | Hanya baris rusak | Sama + tag "Rusak" dan jumlah file rusak |
-| Tabel mana pun | 0 baris | Satu baris `muted` "Tidak ada data" (lama) |
-| Chart mana pun | 0 titik | Kartu tidak dirender (lama) |
+| All | No folder ingested yet | One card in the centre: "No data yet." For admins: a button to the Ingest & import screen; for users: "Contact an admin." |
+| Admin screen | **No access**: a regular user opens the address of an admin screen | In `<main>`: "No access. This page is for admins only." + a "Go to Overview" button. Sidebar and header stay |
+| All | The selected folder is practically empty or corrupt | Yellow band above the content: "This folder contains only N lines; M corrupt files" + a link to the Pods tab |
+| Overview | No ingress nginx | HTTP KPIs and the "HTTP traffic" section are not shown (old) |
+| IP Map | No ingress nginx | Note: "The map needs ingress nginx logs; this folder has none." |
+| IP Map | Base map data or location database not present | The map is replaced by a note; KPIs and the flow table are still shown, Location column "Unknown" |
+| Trends | Only one folder | Charts are still shown; the change column is empty |
+| Security | No nginx | Note "per-URL attack detection is unavailable"; the login part stays |
+| Security | No findings | The "Key findings" box is not shown (old) |
+| Root Causes | No patterns | Note "No root cause patterns detected for this folder." |
+| Availability | No nginx | Note "Availability analysis uses the ingress nginx log…" |
+| Pods | — | Always has content as long as there are files |
+| Business | No simpel-loop | KPIs with value 0 (old) + a new note "No simpel-loop log in this folder" |
+| Tracing | No correlation | Note "Tracing needs om-be-simpel-loop and ingress nginx logs…" |
+| Service | 0 lines | "No logs for this service on this date (empty file)." |
+| Service | Only corrupt lines | Same + a "Corrupt" tag and the number of corrupt files |
+| Any table | 0 rows | One `muted` row "No data" (old) |
+| Any chart | 0 points | The card is not rendered (old) |
 
-Perubahan U16: angka 0 karena **log tidak ada** dibedakan dari 0 karena **memang tidak terjadi**. Yang
-pertama tampil sebagai "–" dengan keterangan; sekarang keduanya "0" (contoh: tab Bisnis pada folder tanpa
-simpel-loop). **ASUMSI D3**; ini mengubah tampilan beberapa KPI, bukan angkanya.
+Change U16: a 0 because **the log is missing** is distinguished from a 0 because **it really did not happen**. The
+former is shown as "–" with an explanation; currently both are "0" (example: the Business tab on a folder without
+simpel-loop). **ASSUMPTION D3**; this changes how some KPIs are displayed, not their numbers.
 
-### 6.7 Gagal
+### 6.7 Failure
 
-Sistem lama tidak bisa gagal sebagian. v2 bisa:
+The old system cannot partially fail. v2 can:
 
-| Kegagalan | Tampilan |
+| Failure | Display |
 |---|---|
-| Seluruh halaman gagal mengambil data | Di `<main>`: judul, penjelasan satu kalimat, **Coba lagi**; sidebar dan header tetap berfungsi |
-| Lanjutan tabel gagal ("tampilkan berikutnya", filter, urut) | Baris pesan di bawah tabel itu + **Coba lagi**; baris yang sudah tampil tetap |
-| **Sesi habis** (server menjawab "belum masuk" di tengah pemakaian) | Pindah ke layar Masuk dengan keterangan "Sesi Anda berakhir"; setelah masuk kembali ke alamat yang sama (tab, folder, modul) |
-| Tindakan admin gagal (simpan user, ingest, impor) | Pesan di dalam dialog/kartu tindakan itu, menyebut sebab dan tindakan; isian tidak hilang |
-| Server dashboard tidak terjangkau | Pita merah di atas: "Tidak tersambung ke server dashboard" + coba lagi otomatis tiap 5 detik (maks. 1 menit), lalu manual |
-| Folder di alamat tidak ada | Pindah ke folder terbaru + pemberitahuan (§1.3) |
-| Peta gagal dirender (WebGL tidak ada) | Peta diganti catatan; tabel alur tetap sebagai pengganti |
+| The whole page fails to fetch data | In `<main>`: title, one-sentence explanation, **Try again**; sidebar and header keep working |
+| A table continuation fails ("show next", filter, sort) | A message row below that table + **Try again**; rows already shown stay |
+| **Session expired** (the server answers "not signed in" in the middle of use) | Go to the Sign in screen with the note "Your session has ended"; after signing in, back to the same address (tab, folder, module) |
+| An admin action fails (save user, ingest, import) | A message inside that action's dialog/card, stating cause and action; the input is not lost |
+| Dashboard server unreachable | Red band at the top: "Not connected to the dashboard server" + automatic retry every 5 seconds (max. 1 minute), then manual |
+| Folder in the address does not exist | Go to the latest folder + a notice (§1.3) |
+| The map fails to render (no WebGL) | The map is replaced by a note; the flow table stays as the substitute |
 
-Pesan gagal ditulis untuk pengguna, bukan pengembang: tanpa kode galat mentah di teks utama; rincian teknis
-di bawah "Detail" yang bisa dibuka. Pesan gagal memakai `role="alert"`.
+Failure messages are written for users, not developers: no raw error codes in the main text; technical details
+under an expandable "Details". Failure messages use `role="alert"`.
 
-### 6.8 Lain-lain
+### 6.8 Miscellaneous
 
-- Pindah tab: posisi gulir ke atas; fokus pindah ke judul halaman.
-- Angka yang berubah tidak dianimasikan.
-- Pembaruan data: tidak ada pembaruan otomatis (A7). Tombol kecil "Muat ulang" di header mengambil ulang
-  tab aktif dan daftar folder; berguna setelah ingest folder baru.
+- Switching tabs: scroll position to the top; focus moves to the page title.
+- Changing numbers are not animated.
+- Data refresh: there is no automatic refresh (A7). A small "Reload" button in the header re-fetches the
+  active tab and the folder list; useful after ingesting a new folder.
 
-### 6.9 Masuk, sesi, dan peran
+### 6.9 Sign-in, sessions, and roles
 
-- **Sebelum masuk** tidak ada data dashboard yang dimuat; hanya layar Masuk. Bahasa dan tema bisa diganti
-  di layar itu dan terbawa setelah masuk.
-- **Setelah masuk**: ke alamat yang tadi diminta, atau Overview folder terbaru. Bila sandi wajib diganti,
-  layar Ganti sandi dulu.
-- **Sesi** berakhir setelah 60 menit tanpa aktivitas atau 12 jam (TRD §8.2). Lima menit sebelum berakhir
-  karena tidak aktif, pita kecil di atas: "Sesi berakhir dalam 5 menit" + "Tetap masuk". Sesi habis → §6.7.
-- **Keluar**: langsung, tanpa konfirmasi; kembali ke layar Masuk; data di layar dibersihkan.
-- **Peran**: user dan admin melihat dashboard yang sama. Bedanya hanya menu user (dua butir admin) dan dua
-  layar admin. Tidak ada elemen yang "abu-abu karena tidak berhak" di halaman data.
-- Perubahan peran atau penonaktifan oleh admin berlaku pada permintaan berikutnya: user yang dinonaktifkan
-  diperlakukan seperti sesi habis.
-- Pemberitahuan singkat ("User ditambahkan", "Sandi diganti") muncul di pojok selama 4 detik, memakai
-  `role="status"`, dan tidak menutupi tombol.
+- **Before signing in** no dashboard data is loaded; only the Sign in screen. Language and theme can be changed
+  on that screen and carry over after signing in.
+- **After signing in**: to the address that was requested, or the Overview of the latest folder. If the password must be changed,
+  the Change password screen comes first.
+- A **session** ends after 60 minutes without activity or after 12 hours (TRD §8.2). Five minutes before it ends
+  due to inactivity, a small band at the top: "Your session ends in 5 minutes" + "Stay signed in". Session expired → §6.7.
+- **Sign out**: immediate, without confirmation; back to the Sign in screen; the data on screen is cleared.
+- **Roles**: users and admins see the same dashboard. The only differences are the user menu (two admin items) and the two
+  admin screens. There are no elements "greyed out for lack of permission" on the data pages.
+- A role change or deactivation by an admin applies on the next request: a deactivated user
+  is treated like an expired session.
+- Short notices ("User added", "Password changed") appear in a corner for 4 seconds, use
+  `role="status"`, and do not cover buttons.
 
 ---
 
-## 7. Peta IP asal → IP tujuan (MapLibre)
+## 7. Source IP → destination IP map (MapLibre)
 
-### 7.1 Yang dipertahankan dari peta lama
+### 7.1 What is kept from the old map
 
-Tema sama (laut `--card2`, daratan `--land`), titik bercincin aksen per lokasi, titik server oranye
-berlabel "Server SIMPEL4 + IP", busur melengkung dari lokasi ke server dengan tebal 1–4 px menurut jumlah
-request, preset **Indonesia** dan **Dunia**, tombol +/−, label negara → provinsi → kabupaten/kota yang
-muncul bertahap, legenda, dan kalimat "N request dari luar Indonesia · M dari IP internal / tanpa lokasi".
+Same theme (sea `--card2`, land `--land`), accent ringed dots per location, an orange server dot
+labelled "Server SIMPEL4 + IP", curved arcs from location to server with a thickness of 1–4 px according to the number of
+requests, the **Indonesia** and **World** presets, +/− buttons, country → province → regency/city labels that
+appear progressively, the legend, and the sentence "N requests from outside Indonesia · M from internal / unlocated IPs".
 
-### 7.2 Peta dasar: tanpa mengirim data pengguna
+### 7.2 Base map: without sending user data
 
-Syarat (PRD §5.4 butir 3): browser tidak boleh meminta apa pun ke domain luar. Peta ubin daring (OSM,
-MapTiler, Carto) mengirim alamat IP pembuka dashboard dan koordinat yang dilihat ke pihak ketiga, jadi
-**tidak dipakai**. Ada dua sumber yang memenuhi syarat:
+Requirement (PRD §5.4 item 3): the browser must not request anything from external domains. Online tile maps (OSM,
+MapTiler, Carto) send the IP address of whoever opens the dashboard and the coordinates being viewed to third parties, so they
+are **not used**. There are two sources that meet the requirement:
 
-| Pilihan | Isi | Ukuran | Lisensi | Penilaian |
+| Option | Contents | Size | Licence | Assessment |
 |---|---|--:|---|---|
-| **A. GeoJSON Natural Earth, dilayani dashboard sendiri** | daratan, batas negara, batas provinsi | ±2–4 MB | public domain | **Dipilih.** Sama dengan sumber peta lama; cukup untuk peta titik tingkat kota |
-| B. Ubin vektor satu file (Protomaps/OSM) dilayani sendiri | jalan, kota, sungai, batas rinci | ratusan MB untuk Indonesia | ODbL, wajib atribusi OSM | Lebih rinci daripada akurasi data (lokasi IP hanya tingkat kota); ditunda |
+| **A. Natural Earth GeoJSON, served by the dashboard itself** | land, country borders, province borders | ±2–4 MB | public domain | **Chosen.** Same as the old map's source; enough for a city-level dot map |
+| B. Single-file vector tiles (Protomaps/OSM) served in-house | roads, cities, rivers, detailed borders | hundreds of MB for Indonesia | ODbL, OSM attribution required | More detailed than the data's accuracy (IP locations are city-level only); postponed |
 
-**ASUMSI D4**: pilihan A. Gaya peta tidak memuat `sprite` maupun `glyphs` dari luar; huruf label dibundel
-bersama aplikasi.
+**ASSUMPTION D4**: option A. The map style does not load `sprite` or `glyphs` from outside; label fonts are bundled
+with the application.
 
-### 7.3 Lapisan
+### 7.3 Layers
 
-| Urutan | Lapisan | Sumber | Tampil pada |
+| Order | Layer | Source | Shown at |
 |--:|---|---|---|
-| 1 | Laut (latar) | — | selalu |
-| 2 | Daratan | Natural Earth 50m land | selalu |
-| 3 | Garis pantai | sama | selalu, 0,5 px `--coast` |
-| 4 | Batas negara | Natural Earth 50m admin-0 boundary lines | selalu, 0,75 px `--coast` |
-| 5 | Batas provinsi Indonesia | Natural Earth 10m admin-1, disaring Indonesia | zoom ≥ 4, garis putus 0,5 px |
-| 6 | Busur lokasi → server | data alur | selalu, aksen 45 % |
-| 7 | Kelompok titik | data alur | §7.5 |
-| 8 | Titik lokasi | data alur | §7.5 |
-| 9 | Titik server | konfigurasi | selalu, di atas semua titik |
-| 10 | Label negara | Natural Earth | selalu; negara kecil mulai zoom ≥ 3 |
-| 11 | Label provinsi | GeoNames | zoom ≥ 4 |
-| 12 | Label kabupaten/kota | GeoNames | zoom ≥ 7 |
-| 13 | Label lokasi IP | data alur | 6 terbesar selalu; lainnya saat tidak bertabrakan |
+| 1 | Sea (background) | — | always |
+| 2 | Land | Natural Earth 50m land | always |
+| 3 | Coastline | same | always, 0.5 px `--coast` |
+| 4 | Country borders | Natural Earth 50m admin-0 boundary lines | always, 0.75 px `--coast` |
+| 5 | Indonesian province borders | Natural Earth 10m admin-1, filtered to Indonesia | zoom ≥ 4, 0.5 px dashed line |
+| 6 | Location → server arcs | flow data | always, accent 45 % |
+| 7 | Dot clusters | flow data | §7.5 |
+| 8 | Location dots | flow data | §7.5 |
+| 9 | Server dot | configuration | always, above all dots |
+| 10 | Country labels | Natural Earth | always; small countries from zoom ≥ 3 |
+| 11 | Province labels | GeoNames | zoom ≥ 4 |
+| 12 | Regency/city labels | GeoNames | zoom ≥ 7 |
+| 13 | IP location labels | flow data | 6 largest always; others when they do not collide |
 
-Catatan:
+Notes:
 
-- **Garis batas baru**: peta lama hanya punya daratan tanpa batas apa pun. Batas negara dan provinsi
-  ditambahkan karena diminta dan karena membantu membaca "titik ini di provinsi mana".
-- **Batas kabupaten/kota tidak digambar**; hanya labelnya (seperti sekarang). Data batas kabupaten yang
-  lisensinya bebas dan bisa dibundel belum dipastikan (pertanyaan Q3).
-- Natural Earth mungkin belum memuat pemekaran provinsi Papua (2022), sedangkan label GeoNames sudah 38
-  provinsi. Bila begitu, garis batas dan label di Papua tidak cocok (Q3).
-- **Tabrakan label diatur mesin peta**: label yang bertumpuk disembunyikan menurut prioritas (lokasi IP >
-  negara > provinsi > kabupaten). Di peta lama semua label digambar sehingga saling menimpa, terlihat jelas
-  di tangkapan layar (Jawa dan Sulawesi tidak terbaca).
-- Label negara: nama Indonesia atau Inggris mengikuti bahasa; huruf besar berjarak, seperti sekarang.
-- Huruf label di dalam peta adalah **Noto Sans**, bukan Outfit: mesin peta butuh berkas huruf dalam format
-  khusus yang ikut dibundel (TRD §6.4, T4). Label titik dan tooltip di atas peta tetap Outfit.
+- **New border lines**: the old map only had land without any borders. Country and province borders
+  are added because they were requested and because they help to read "which province is this dot in".
+- **Regency/city borders are not drawn**; only their labels (as now). Regency border data with a
+  free licence that can be bundled has not been confirmed yet (question Q3).
+- Natural Earth may not yet include the 2022 split of Papua province, while the GeoNames labels already have 38
+  provinces. If so, the border lines and labels in Papua do not match (Q3).
+- **Label collisions are handled by the map engine**: overlapping labels are hidden by priority (IP location >
+  country > province > regency). On the old map all labels were drawn so they overlapped each other, clearly visible
+  in the screenshot (Java and Sulawesi are unreadable).
+- Country labels: Indonesian or English name according to the language; spaced capitals, as now.
+- The label font inside the map is **Noto Sans**, not Outfit: the map engine needs font files in a
+  special format that are bundled too (TRD §6.4, T4). Dot labels and tooltips above the map stay Outfit.
 
-### 7.4 Proyeksi dan tampilan awal
+### 7.4 Projection and initial view
 
-- Proyeksi **Web Mercator** (bawaan MapLibre). Peta lama memakai derajat lurus (equirectangular), jadi
-  bentuk di lintang tinggi berbeda; untuk Indonesia (dekat khatulistiwa) praktis sama (U17).
-- Preset **Indonesia**: bujur 94–142, lintang −12–8 (sama dengan kotak lama). Preset **Dunia**: bujur
-  −168–168, lintang −60–80. Preset memakai *fit bounds* sehingga menyesuaikan ukuran wadah.
-- Zoom dibatasi: minimum = seluruh dunia terlihat; maksimum zoom 10 (± tingkat kota). Lebih dalam tidak
-  ada isinya dan memberi kesan akurasi yang tidak dimiliki data.
-- Peta tidak bisa dimiringkan atau diputar.
-- Rasio wadah 2,4 : 1 pada layar lebar (lama); di layar sempit lihat §8.
+- **Web Mercator** projection (MapLibre default). The old map used plain degrees (equirectangular), so
+  shapes at high latitudes differ; for Indonesia (near the equator) it is practically the same (U17).
+- **Indonesia** preset: longitude 94–142, latitude −12–8 (same as the old box). **World** preset: longitude
+  −168–168, latitude −60–80. Presets use *fit bounds* so they adapt to the container size.
+- Zoom is limited: minimum = the whole world visible; maximum zoom 10 (± city level). Deeper has
+  no content and suggests an accuracy the data does not have.
+- The map cannot be tilted or rotated.
+- Container ratio 2.4 : 1 on wide screens (old); for narrow screens see §8.
 
-### 7.5 Titik dan pengelompokan
+### 7.5 Dots and clustering
 
-Peta lama menggabungkan IP hanya bila koordinatnya **persis sama** (satu kota). Kota-kota berdekatan tetap
-bertumpuk; di tampilan Indonesia, Jabodetabek dan Jawa menjadi gumpalan.
+The old map merged IPs only when their coordinates were **exactly the same** (one city). Nearby cities still
+overlapped; in the Indonesia view, Jabodetabek and Java became blobs.
 
-- **Titik lokasi** = satu kota (IP dengan koordinat sama), seperti lama. Ukuran tetap 14 px.
-- **Kelompok**: titik lokasi yang berjarak < 40 px di layar digabung menjadi satu lingkaran berisi angka
-  **jumlah request** (disingkat: `18,9 rb`). Diameter 24–44 px menurut jumlah request (skala akar).
-  Warna aksen pekat, teks gelap. Pengelompokan dihitung ulang tiap zoom.
-- Klik/ketuk kelompok → peta memperbesar sampai kelompok itu pecah.
-- Zoom ≥ 8: pengelompokan mati; semua titik lokasi tampil.
-- **Busur**: tetap satu per lokasi (bukan per kelompok), supaya gambaran "dari mana saja" tidak hilang saat
-  titik dikelompokkan. Tebal 1–4 px menurut request lokasi itu; opasitas 45 %; lokasi kecil (< 1 % dari
-  terbesar) 25 %.
-- **Titik server** tidak pernah masuk kelompok; label selalu tampil, di kiri titik.
-- Urutan gambar: lokasi terbesar paling atas (lama).
+- **Location dot** = one city (IPs with the same coordinates), as in the old map. Fixed size 14 px.
+- **Cluster**: location dots less than 40 px apart on screen are merged into one circle showing the
+  **number of requests** (abbreviated: `18.9k`). Diameter 24–44 px according to the number of requests (square-root scale).
+  Solid accent colour, dark text. Clustering is recomputed at every zoom.
+- Click/tap a cluster → the map zooms in until that cluster splits.
+- Zoom ≥ 8: clustering off; all location dots are shown.
+- **Arcs**: still one per location (not per cluster), so the picture of "where from" is not lost when
+  dots are clustered. Thickness 1–4 px according to that location's requests; opacity 45 %; small locations (< 1 % of the
+  largest) 25 %.
+- The **server dot** is never clustered; its label is always shown, to the left of the dot.
+- Drawing order: largest location on top (old).
 
-**ASUMSI D5**: angka di kelompok = request, bukan jumlah IP. Request adalah ukuran yang juga dipakai tebal
-busur dan kolom tabel.
+**ASSUMPTION D5**: the number in a cluster = requests, not the number of IPs. Requests are the measure also used for arc thickness
+and the table columns.
 
-### 7.6 Zoom, geser, sentuh
+### 7.6 Zoom, pan, touch
 
-| Masukan | Perilaku |
+| Input | Behaviour |
 |---|---|
-| Seret (mouse) | menggeser |
-| Roda mouse | **Ctrl/⌘ + roda** memperbesar ke arah kursor. Roda saja menggulir halaman, dengan petunjuk singkat "Tahan Ctrl untuk memperbesar peta" |
-| Klik ganda | memperbesar satu tingkat |
-| Tombol + / − | memperbesar / memperkecil satu tingkat |
-| Tombol ⤢ | kembali ke preset aktif |
-| Cubit dua jari | memperbesar / memperkecil |
-| Geser dua jari | menggeser peta |
-| Geser satu jari | menggulir **halaman**, dengan petunjuk "Gunakan dua jari untuk menggeser peta" |
-| Keyboard (peta terfokus) | panah menggeser; `+` `−` zoom; `0` kembali ke preset; `Esc` menutup tooltip |
+| Drag (mouse) | pans |
+| Mouse wheel | **Ctrl/⌘ + wheel** zooms in towards the cursor. The wheel alone scrolls the page, with a short hint "Hold Ctrl to zoom the map" |
+| Double click | zooms in one level |
+| + / − buttons | zoom in / out one level |
+| ⤢ button | back to the active preset |
+| Two-finger pinch | zooms in / out |
+| Two-finger drag | pans the map |
+| One-finger drag | scrolls the **page**, with the hint "Use two fingers to move the map" |
+| Keyboard (map focused) | arrows pan; `+` `−` zoom; `0` back to the preset; `Esc` closes the tooltip |
 
-Perubahan U18: di peta lama roda mouse langsung memperbesar dan satu jari langsung menggeser, sehingga
-pengguna yang menggulir halaman **terjebak** di peta; di ponsel halaman tidak bisa digulir melewati peta
-(`touch-action: none`). MapLibre menyediakan mode "gerakan kooperatif" untuk tepat masalah ini.
+Change U18: on the old map the mouse wheel zoomed immediately and one finger panned immediately, so
+users scrolling the page got **trapped** in the map; on phones the page could not be scrolled past the map
+(`touch-action: none`). MapLibre provides a "cooperative gestures" mode for exactly this problem.
 
 ### 7.7 Tooltip
 
-Muncul saat kursor di atas titik (mouse), saat titik diketuk (sentuh), atau saat titik terfokus (keyboard).
+Appears when the cursor is over a dot (mouse), when a dot is tapped (touch), or when a dot is focused (keyboard).
 
 ```
 ┌───────────────────────────────────────┐
 │ Pagatan, Kalimantan Selatan, Indonesia│
-│ 1 IP asal · 6.425 request             │
-│ → om-be-simpel-loop (5.277)           │
-│   om-fe-inhouse (1.148)               │
-│ [Lihat di tabel]                      │
+│ 1 source IP · 6,425 requests          │
+│ → om-be-simpel-loop (5,277)           │
+│   om-fe-inhouse (1,148)               │
+│ [Show in table]                       │
 └───────────────────────────────────────┘
 ```
 
-- Isi sama dengan tooltip lama (`title`), ditambah tombol **Lihat di tabel** yang mengisi filter tabel alur
-  dengan nama kota itu dan menggulir ke tabel.
-- Kelompok: "N lokasi · N IP asal · N request" + tiga lokasi terbesar + "Klik untuk memperbesar".
-- Server: "Server tujuan `<ip>` · Jakarta, ID".
-- Tooltip lama memakai atribut `title`: muncul lambat, tidak bisa di layar sentuh, tidak terbaca di tema
-  gelap sistem. Diganti kotak bergaya tooltip chart (U19).
-- Hanya satu tooltip terbuka; tertutup saat peta digeser, `Esc`, atau ketuk di luar.
+- Same contents as the old tooltip (`title`), plus a **Show in table** button that fills the flow table filter
+  with that city's name and scrolls to the table.
+- Cluster: "N locations · N source IPs · N requests" + the three largest locations + "Click to zoom in".
+- Server: "Destination server `<ip>` · Jakarta, ID".
+- The old tooltip used the `title` attribute: it appears slowly, does not work on touch screens, and is unreadable in the system
+  dark theme. Replaced by a box styled like the chart tooltip (U19).
+- Only one tooltip open at a time; it closes when the map is panned, on `Esc`, or on a tap outside.
 
-### 7.8 Atribusi
+### 7.8 Attribution
 
-Kontrol atribusi di pojok kanan bawah **setiap** peta, selalu terlihat (tidak dilipat):
-"Data GeoLite2 oleh MaxMind · GeoNames · Natural Earth", dua yang pertama bertaut ke situsnya (B08, F22).
-Sumber lokasi IP diganti dari DB-IP ke MaxMind GeoLite2 atas keputusan pemilik (TRD §3.6); catatan di
-bawah tabel alur menyebut MaxMind, bukan DB-IP.
-Tautan dibuka di tab baru dengan `rel="noreferrer"`. Catatan panjang di bawah tabel alur dipertahankan.
+An attribution control in the bottom-right corner of **every** map, always visible (not collapsed):
+"GeoLite2 data by MaxMind · GeoNames · Natural Earth", the first two linking to their sites (B08, F22).
+The IP location source was changed from DB-IP to MaxMind GeoLite2 by owner decision (TRD §3.6); the note
+below the flow table mentions MaxMind, not DB-IP.
+Links open in a new tab with `rel="noreferrer"`. The long note below the flow table is kept.
 
-### 7.9 Pengganti peta
+### 7.9 Map substitute
 
-Peta bukan satu-satunya jalan ke informasinya: tabel "Alur IP asal → IP tujuan" memuat data yang sama dan
-selalu ada di bawahnya. Peta diberi `role="application"` dengan label "Peta asal request; data yang sama ada
-di tabel di bawah", dan tautan lompat "Lewati peta".
+The map is not the only way to its information: the "Source IP → destination IP flows" table holds the same data and
+is always below it. The map gets `role="application"` with the label "Map of request origins; the same data is in
+the table below", and a "Skip the map" skip link.
 
 ---
 
-## 8. Layar sempit
+## 8. Narrow screens
 
-Titik henti: **900 px** (lama) dan **560 px** (baru, ponsel).
+Breakpoints: **900 px** (old) and **560 px** (new, phones).
 
-**Diputuskan pemilik: tampilan ponsel dikerjakan serius.** Seluruh bagian ini wajib, termasuk tabel lebar
-menjadi kartu baris, dan diperiksa di ponsel sungguhan (bukan hanya emulasi) pada lebar 360–390 px.
+**Decided by the owner: the phone view is done seriously.** This whole section is mandatory, including wide tables
+becoming row cards, and is checked on a real phone (not only emulation) at widths of 360–390 px.
 
-### 8.1 Masalah yang terlihat di tangkapan layar 390 px
+### 8.1 Problems visible in the 390 px screenshot
 
-1. Baris alat header meluber: tombol tema terpotong di tepi kanan.
-2. Peta tingginya ±130 px; label saling menimpa sampai tidak terbaca.
-3. Tabel alur 5 kolom terpotong; kolom ke-3 dst. hanya terlihat bila digulir, tanpa petunjuk.
-4. Navigasi mendatar menampilkan 4 dari 16 butir tanpa tanda bahwa bisa digulir; tab layanan praktis
-   tersembunyi.
-5. Subjudul dan teks WIB memakan tiga baris sebelum isi.
+1. The header toolbar overflows: the theme button is cut off at the right edge.
+2. The map is about 130 px tall; labels overlap until they are unreadable.
+3. The 5-column flow table is cut off; the 3rd column onwards is only visible when scrolled, with no hint.
+4. The horizontal navigation shows 4 of 16 items with no sign that it can be scrolled; the service tabs are practically
+   hidden.
+5. The subtitle and the WIB text take three lines before the content.
 
-### 8.2 Tata letak ≤ 900 px
+### 8.2 Layout ≤ 900 px
 
 ```
 ┌──────────────────────────────────────┐
-│ [☰] SIMPEL4 Log      [Folder ▾] [⋯] │  ← bar atas lekat, 52px
+│ [☰] SIMPEL4 Log      [Folder ▾] [⋯] │  ← sticky top bar, 52px
 ├──────────────────────────────────────┤
-│ Peta IP                              │
-│ Folder 6 Okt · log 5 Okt 09.00–00.59 │
-│ [Semua Modul ▾]                      │
-│ [KPI] [KPI]                          │  ← 2 kolom
+│ IP Map                               │
+│ Folder 6 Oct · log 5 Oct 09:00–00:59 │
+│ [All modules ▾]                      │
+│ [KPI] [KPI]                          │  ← 2 columns
 │ [KPI] [KPI]                          │
-│ ┌ peta, rasio 4:3, min. 300px ─────┐ │
+│ ┌ map, ratio 4:3, min. 300px ──────┐ │
 │ └──────────────────────────────────┘ │
-│ ┌ tabel → kartu baris (≤560px) ────┐ │
+│ ┌ table → row cards (≤560px) ──────┐ │
 └──────────────────────────────────────┘
 ```
 
-- **Navigasi**: tombol ☰ membuka laci dari kiri berisi sidebar lengkap (dua grup, lencana). Menggantikan
-  pita gulir mendatar (U20). Laci menutup setelah memilih, dengan `Esc`, atau ketuk di luar; fokus terkunci
-  di dalam selama terbuka.
-- **Bar atas**: pemilih folder tetap terlihat; bahasa, tema, muat ulang, dan isi menu user (nama, ganti
-  sandi, butir admin, keluar) masuk menu `⋯`.
-- **Layar Masuk dan dialog** (tambah user, konfirmasi): selebar layar; kolom isian tinggi ≥ 44 px dan huruf
-  ≥ 16 px agar ponsel tidak memperbesar halaman saat kolom disentuh; papan ketik tidak menutupi tombol kirim.
-- **KPI**: 2 kolom (≥ 360 px), 1 kolom di bawahnya. Nilai 28 px.
-- **Grid kartu**: 1 kolom. Chart tetap 280 px; label sumbu waktu dikurangi otomatis.
-- **Chart batang horizontal**: label dipotong 28 karakter (bukan 48).
-- **Peta**: rasio 4 : 3, tinggi minimum 300 px; tombol layar penuh ⤢ membuka peta setinggi layar. Tombol
-  +/− berukuran 44 px.
-- **Tabel ≤ 4 kolom**: tetap tabel; kolom pertama membungkus.
-- **Tabel > 4 kolom pada ≤ 560 px**: tiap baris menjadi **kartu** bertumpuk: kolom pertama sebagai judul,
-  kolom lain sebagai pasangan "label: nilai". Berlaku untuk: alur IP, endpoint serangan, IP sumber serangan,
-  analisis akun, login gagal, jejak request, insiden, error koneksi, kinerja endpoint, kesehatan pod,
-  sebaran traffic pod, daftar user, riwayat impor, catatan audit.
-- **Tabel > 4 kolom pada 561–900 px**: gulir mendatar di dalam kartu, kolom pertama terkunci, bayangan di
-  tepi kanan sebagai tanda masih ada isi.
-- **Tabel Tren** (kolom = folder): selalu gulir mendatar dengan kolom "Layanan" terkunci.
-- Target sentuh minimum **44 × 44 px** untuk tombol, butir navigasi, dan kontrol peta.
-- Tidak ada gulir mendatar pada tingkat halaman di lebar ≥ 320 px.
+- **Navigation**: the ☰ button opens a drawer from the left containing the full sidebar (two groups, badges). It replaces
+  the horizontally scrolling strip (U20). The drawer closes after a choice, with `Esc`, or a tap outside; focus is trapped
+  inside while it is open.
+- **Top bar**: the folder picker stays visible; language, theme, reload, and the user menu contents (name, change
+  password, admin items, sign out) go into the `⋯` menu.
+- **Sign in screen and dialogs** (add user, confirmation): full screen width; input fields ≥ 44 px tall and font
+  ≥ 16 px so phones do not zoom the page when a field is touched; the keyboard does not cover the submit button.
+- **KPIs**: 2 columns (≥ 360 px), 1 column below that. Value 28 px.
+- **Card grid**: 1 column. Charts stay 280 px; time axis labels are reduced automatically.
+- **Horizontal bar charts**: labels truncated at 28 characters (not 48).
+- **Map**: ratio 4 : 3, minimum height 300 px; the ⤢ full-screen button opens the map at screen height. The
+  +/− buttons are 44 px.
+- **Tables with ≤ 4 columns**: stay tables; the first column wraps.
+- **Tables with > 4 columns at ≤ 560 px**: each row becomes a stacked **card**: the first column as the title,
+  the other columns as "label: value" pairs. Applies to: IP flows, attack endpoints, attack source IPs,
+  account analysis, failed logins, request traces, incidents, connection errors, endpoint performance, pod health,
+  pod traffic distribution, user list, import history, audit log.
+- **Tables with > 4 columns at 561–900 px**: horizontal scroll inside the card, first column locked, a shadow on the
+  right edge as a sign that there is more content.
+- **Trends tables** (columns = folders): always scroll horizontally with the "Service" column locked.
+- Minimum touch target **44 × 44 px** for buttons, navigation items, and map controls.
+- No horizontal scrolling at page level at widths ≥ 320 px.
 
 ---
 
-## 9. Dasar aksesibilitas
+## 9. Accessibility basics
 
-Target: WCAG 2.1 tingkat AA untuk hal-hal di bawah. Bukan audit penuh.
+Target: WCAG 2.1 level AA for the items below. Not a full audit.
 
-### 9.1 Kontras
+### 9.1 Contrast
 
-- Teks ≥ 4,5 : 1; teks besar (≥ 24 px, atau ≥ 18,7 px tebal) dan elemen grafik ≥ 3 : 1. Nilai token di §5
-  sudah dihitung; yang gagal sudah diganti (§5.6).
-- Teks `muted` hanya di atas `--card`, `--bg`, `--bg2`; tidak di atas warna.
-- Navigasi grup ("ANALISIS") sekarang `muted` dengan opasitas 70 % (≈ 3,0–3,4 : 1): opasitas dihapus.
-- Angka KPI bergradien: ujung gradien paling terang pun ≥ 3 : 1 terhadap kartu (teks besar).
+- Text ≥ 4.5 : 1; large text (≥ 24 px, or ≥ 18.7 px bold) and graphical elements ≥ 3 : 1. The token values in §5
+  have been calculated; the failing ones have been replaced (§5.6).
+- `muted` text only on `--card`, `--bg`, `--bg2`; not on colours.
+- Navigation groups ("ANALYSIS") are currently `muted` with 70 % opacity (≈ 3.0–3.4 : 1): the opacity is removed.
+- Gradient KPI numbers: even the lightest end of the gradient is ≥ 3 : 1 against the card (large text).
 
-### 9.2 Tidak bergantung warna
+### 9.2 Not dependent on colour
 
-- Status HTTP selalu menampilkan kodenya; tag bahaya selalu menampilkan nama kategori; ▲/▼ selalu disertai
-  persen dan kata; "Rusak"/"Kosong" berupa teks.
-- Chart bertumpuk multi-seri: legenda bisa diklik untuk menyembunyikan seri; tooltip menyebut nama seri.
-- Batang sukses/gagal (PDF, Uptime-Kuma) dibedakan juga oleh urutan tetap (sukses dulu) dan label tooltip.
+- HTTP statuses always show their code; severity tags always show the category name; ▲/▼ always come with
+  a percentage and a word; "Corrupt"/"Empty" are text.
+- Multi-series stacked charts: the legend can be clicked to hide a series; the tooltip names the series.
+- Success/failure bars (PDF, Uptime-Kuma) are also distinguished by a fixed order (success first) and the tooltip label.
 
 ### 9.3 Keyboard
 
-- Urutan tab: tautan "Lewati ke isi" → navigasi → header (folder, bahasa, tema) → isi.
-- Semua kontrol bisa dicapai dan dijalankan dengan keyboard: butir navigasi, pemilih, grup tombol, filter,
-  header tabel yang bisa diurut, baris pesan yang bisa dibuka, tombol "Tampilkan berikutnya", legenda chart,
-  kontrol peta.
-- **Fokus selalu terlihat**: garis 2 px `--accent` (terang: `--accent-text`) berjarak 2 px. CSS lama
-  menghapus `outline` pada input dan menggantinya bayangan tipis; tombol navigasi tidak punya gaya fokus (U21).
-- Pintasan: `[` `]` folder sebelumnya/berikutnya; `/` fokus ke filter pertama di halaman; `g` lalu huruf
-  awal tab tidak dipakai (hindari bentrok dengan pembaca layar). Pintasan tidak aktif saat mengetik di input.
-- Tidak ada jebakan fokus; laci navigasi dan tooltip peta menutup dengan `Esc`.
+- Tab order: "Skip to content" link → navigation → header (folder, language, theme) → content.
+- All controls can be reached and operated with the keyboard: navigation items, pickers, button groups, filters,
+  sortable table headers, expandable message rows, the "Show next" button, chart legends,
+  map controls.
+- **Focus is always visible**: a 2 px `--accent` outline (light: `--accent-text`) with a 2 px offset. The old CSS
+  removed the `outline` on inputs and replaced it with a faint shadow; navigation buttons had no focus style (U21).
+- Shortcuts: `[` `]` previous/next folder; `/` focuses the first filter on the page; `g` followed by the first letter
+  of a tab is not used (avoids clashing with screen readers). Shortcuts are inactive while typing in an input.
+- No focus traps; the navigation drawer and map tooltips close with `Esc`.
 
-### 9.4 Struktur dan pembaca layar
+### 9.4 Structure and screen readers
 
-- Tengara: `<nav>` (sidebar), `<header>`, `<main>`. Satu `<h1>` per halaman (judul tab); judul kartu `<h2>`.
-  Sekarang judul kartu `<h3>` tanpa `<h2>`.
-- Tab aktif: `aria-current="page"`. Lencana punya teks tersembunyi: "14 IP sumber serangan", "125 error".
-- Tabel: `<th scope="col">`, `<caption>` tersembunyi = judul kartu; header yang bisa diurut memakai
+- Landmarks: `<nav>` (sidebar), `<header>`, `<main>`. One `<h1>` per page (tab title); card titles `<h2>`.
+  Currently card titles are `<h3>` without an `<h2>`.
+- Active tab: `aria-current="page"`. Badges have hidden text: "14 attack source IPs", "125 errors".
+- Tables: `<th scope="col">`, a hidden `<caption>` = card title; sortable headers use
   `aria-sort`.
-- Filter: `<label>` tersembunyi "Filter tabel <judul>"; jumlah hasil diumumkan lewat `aria-live`.
-- Baris pesan yang bisa dibuka: `<details>/<summary>` (lama, sudah benar).
-- Chart: alternatif teks (§4.2). Peta: §7.9.
-- Ikon saja (☀ ☾ + − ⤢ ☰ ⋯ ×) selalu punya nama aksesibel.
-- Bahasa dokumen mengikuti pilihan; data berbahasa lain tidak ditandai (terlalu banyak, manfaat kecil).
+- Filter: a hidden `<label>` "Filter table <title>"; the number of results is announced via `aria-live`.
+- Expandable message rows: `<details>/<summary>` (old, already correct).
+- Charts: text alternative (§4.2). Map: §7.9.
+- Icon-only controls (☀ ☾ + − ⤢ ☰ ⋯ ×) always have an accessible name.
+- The document language follows the choice; data in other languages is not marked (too much, little benefit).
 
-### 9.5 Lain-lain
+### 9.5 Miscellaneous
 
-- Teks bisa diperbesar sampai 200 % tanpa kehilangan isi; ukuran memakai `rem`.
-- `prefers-reduced-motion`: transisi, animasi chart, dan gerak terbang peta dimatikan.
-- Tooltip yang muncul saat hover juga muncul saat fokus, bisa ditutup `Esc`, dan tidak hilang saat kursor
-  pindah ke atasnya.
-- Tidak ada isi yang berkedip atau bergerak sendiri.
+- Text can be enlarged up to 200 % without losing content; sizes use `rem`.
+- `prefers-reduced-motion`: transitions, chart animations, and map fly movements are turned off.
+- Tooltips that appear on hover also appear on focus, can be closed with `Esc`, and do not disappear when the cursor
+  moves onto them.
+- No content blinks or moves on its own.
 
 ---
 
-## 10. Yang berubah dari tampilan lama
+## 10. Changes from the old look
 
-Semua yang tidak disebut di sini **sama dengan tampilan lama**.
+Everything not mentioned here is **the same as the old look**.
 
-| # | Perubahan | Alasan | Sifat |
+| # | Change | Reason | Kind |
 |--:|---|---|---|
-| U1 | Alamat menyimpan folder dan modul, bukan hanya tab | Tautan bisa dibagikan; tombol kembali berfungsi | tambahan |
-| U2 | Subjudul memuat rentang waktu log sebenarnya | Nama folder bukan tanggal isinya (B06) | tambahan |
-| U3 | Bar pemilih folder menempel saat digulir | Halaman panjang; folder sering diganti | tata letak |
-| U4 | Tren: pemilih rentang; tabel gulir mendatar; pemilih folder nonaktif | 365 folder tidak muat; pemilih folder memang tidak berpengaruh di sini | tambahan |
-| U5 | Baris KPI seimbang (mis. 4 + 4), tanpa baris yatim | Keterbacaan | tata letak |
-| U6 | Peta di halaman layanan terlipat secara bawaan | Elemen terberat; duplikat tab Peta IP; mendorong chart utama ke bawah | perilaku |
-| U7 | Tidak ada tanda "berbeda dari sistem lama" di antarmuka | Selisih dicatat di laporan kesetaraan | keputusan |
-| U8 | Keterangan `(i)` pada KPI yang definisinya tidak jelas | Beberapa definisi mengejutkan (inv. §8 butir 7, 9) | tambahan |
-| U9 | Chart punya alternatif teks dan "Lihat sebagai tabel" | Aksesibilitas; data chart bisa disalin | tambahan |
-| U10 | Sumbu waktu tanpa pengulangan tanggal | Label miring dan berulang sulit dibaca | tampilan |
-| U11 | Tabel bisa diurut; "Menampilkan N dari M" + muat berikutnya; filter mencari seluruh data | B04 | tambahan |
-| U12 | Tombol salin pada IP dan baris log | Pekerjaan paling sering setelah menemukan IP | tambahan |
-| U13 | Kalimat panjang tidak lagi *Capitalize Each Word* | Sulit dibaca | tampilan |
-| U14 | Panah ◀ ▶ dan pintasan untuk folder sebelum/berikut | Membandingkan hari berurutan | tambahan |
-| U15 | Terjemahan dari kamus berkunci, bukan penggantian teks di DOM | Tanpa kedipan; data tidak ikut diterjemahkan | internal |
-| U16 | "–" untuk angka yang tidak ada karena log tidak ada | 0 yang menyesatkan (ASUMSI D3) | tampilan |
-| U17 | Proyeksi peta Web Mercator | Bawaan MapLibre | tak terhindarkan |
-| U18 | Zoom peta dengan Ctrl + roda; geser dengan dua jari | Peta lama menjebak gulir halaman, terutama di ponsel | perilaku |
-| U19 | Tooltip peta berupa kotak, bukan atribut `title` | Tidak berfungsi di layar sentuh | perbaikan |
-| U20 | Layar sempit: navigasi laci; tabel lebar jadi kartu baris; peta 4 : 3 | §8.1 | tata letak |
-| U21 | Gaya fokus terlihat; struktur judul dan tengara | Aksesibilitas | perbaikan |
-| U22 | Peta: garis pantai, batas negara dan provinsi; tabrakan label diatur; titik berdekatan dikelompokkan | Diminta; label dan titik bertumpuk di peta lama | perbaikan |
-| U23 | Atribusi di setiap peta | B08 | kepatuhan |
-| U24 | Keadaan memuat dan gagal per halaman (dan per lanjutan tabel) | Data kini diambil per halaman | tak terhindarkan |
-| U25 | Token warna baru untuk teks aksen, batas kontrol, garis pantai, palet chart terang | Kontras (§5.6) | perbaikan |
-| U26 | Huruf dan pustaka dibundel; JetBrains Mono benar-benar dimuat | B09 | internal |
-| U27 | Label dan tanda baru: "File rusak", "Pod dengan retry", "Refresh token kedaluwarsa" | B05, B10, B07 | tambahan |
-| U28 | Layar Masuk dan Ganti sandi; menu user di header; peringatan sesi | Dashboard dibuka banyak komputer (keputusan pemilik) | baru |
-| U29 | Layar admin: Kelola user, Ingest & impor (termasuk impor S3 dan catatan audit) | Keputusan pemilik | baru |
-| U30 | Tabel alur IP menampilkan 100 baris pertama, bukan 3.000 | Kini bisa dilanjutkan dan difilter di seluruh data; 3.000 baris adalah beban render terbesar | perilaku |
-| U31 | Kartu satu halaman tampil bersamaan, bukan satu per satu | Satu permintaan per halaman (TRD) | perilaku |
-| U33 | Nama sistem (layanan, pod, namespace, host, upstream, modul) huruf kecil apa adanya | Keputusan pemilik 2026-10-06: nama sistem dibaca sebagai pengenal teknis | tampilan |
-| U32 | Angka dan chart yang berubah karena perbaikan definisi: chart error per jam nginx/frontend memuat baris error log; donat level simpel-loop memakai tingkat efektif; "lambat ≥ 5 dtk" memuat 3xx | Keputusan pemilik (TRD §4.4); diberi keterangan `(i)` | perbaikan |
+| U1 | The address stores folder and module, not just the tab | Links can be shared; the back button works | addition |
+| U2 | The subtitle shows the actual log time range | The folder name is not the date of its contents (B06) | addition |
+| U3 | The folder picker bar sticks while scrolling | Long pages; the folder is changed often | layout |
+| U4 | Trends: range picker; tables scroll horizontally; folder picker disabled | 365 folders do not fit; the folder picker has no effect here anyway | addition |
+| U5 | Balanced KPI rows (e.g. 4 + 4), no orphan row | Readability | layout |
+| U6 | The map on the service page is collapsed by default | Heaviest element; duplicates the IP Map tab; pushes the main charts down | behaviour |
+| U7 | No "differs from the old system" mark in the interface | Differences are recorded in the parity report | decision |
+| U8 | `(i)` explanation on KPIs whose definition is unclear | Some definitions are surprising (inv. §8 items 7, 9) | addition |
+| U9 | Charts have a text alternative and "View as table" | Accessibility; chart data can be copied | addition |
+| U10 | Time axis without repeated dates | Slanted, repeated labels are hard to read | display |
+| U11 | Tables can be sorted; "Showing N of M" + load next; the filter searches all data | B04 | addition |
+| U12 | Copy button on IPs and log lines | The most frequent task after finding an IP | addition |
+| U13 | Long sentences no longer *Capitalize Each Word* | Hard to read | display |
+| U14 | ◀ ▶ arrows and shortcuts for the previous/next folder | Comparing consecutive days | addition |
+| U15 | Translation from a keyed dictionary, not text replacement in the DOM | No flicker; data is not translated by accident | internal |
+| U16 | "–" for numbers that are missing because the log is missing | A misleading 0 (ASSUMPTION D3) | display |
+| U17 | Web Mercator map projection | MapLibre default | unavoidable |
+| U18 | Map zoom with Ctrl + wheel; pan with two fingers | The old map trapped page scrolling, especially on phones | behaviour |
+| U19 | Map tooltip as a box, not a `title` attribute | Does not work on touch screens | fix |
+| U20 | Narrow screens: drawer navigation; wide tables become row cards; map 4 : 3 | §8.1 | layout |
+| U21 | Visible focus style; heading and landmark structure | Accessibility | fix |
+| U22 | Map: coastlines, country and province borders; label collisions handled; nearby dots clustered | Requested; labels and dots overlapped on the old map | fix |
+| U23 | Attribution on every map | B08 | compliance |
+| U24 | Loading and failure states per page (and per table continuation) | Data is now fetched per page | unavoidable |
+| U25 | New colour tokens for accent text, control borders, coastlines, light chart palette | Contrast (§5.6) | fix |
+| U26 | Fonts and libraries bundled; JetBrains Mono actually loaded | B09 | internal |
+| U27 | New labels and marks: "Corrupt files", "Pods with retries", "Expired refresh tokens" | B05, B10, B07 | addition |
+| U28 | Sign in and Change password screens; user menu in the header; session warning | The dashboard is opened from many computers (owner decision) | new |
+| U29 | Admin screens: Manage users, Ingest & import (including S3 import and the audit log) | Owner decision | new |
+| U30 | The IP flow table shows the first 100 rows, not 3,000 | It can now be continued and filtered across all data; 3,000 rows were the largest rendering load | behaviour |
+| U31 | The cards of a page appear together, not one by one | One request per page (TRD) | behaviour |
+| U33 | System names (services, pods, namespaces, hosts, upstreams, modules) lowercase as they are | Owner decision 2026-10-06: system names read as technical identifiers | display |
+| U32 | Numbers and charts that change due to definition fixes: the nginx/frontend errors-per-hour chart includes error log lines; the simpel-loop level donut uses the effective level; "slow ≥ 5 s" includes 3xx | Owner decision (TRD §4.4); given an `(i)` explanation | fix |
 
-Tidak berubah meski sempat dipertimbangkan: urutan dan nama tab; warna dan gaya kartu; jenis chart tiap
-kartu; isi kolom tabel; batas top-N tampilan awal; teks temuan otomatis; tema bawaan gelap; bahasa bawaan ID.
-
----
-
-## 11. Asumsi dan pertanyaan terbuka
-
-### 11.1 ASUMSI desain
-
-| # | ASUMSI | Bila salah |
-|--:|---|---|
-| D1 | Pemilih folder tetap `select` (dikelompokkan per bulan bila banyak), bukan kalender | Ganti komponen; halaman lain tidak terpengaruh |
-| D2 | Tema bawaan gelap, tidak mengikuti preferensi sistem | Satu baris logika |
-| D3 | "–" menggantikan 0 bila lognya tidak ada | Kembalikan ke 0 |
-| D4 | Peta dasar = GeoJSON Natural Earth yang dilayani sendiri (tanpa ubin) | Pilihan B di §7.2; komponen peta sama |
-| D5 | Angka kelompok titik = jumlah request | Ganti ke jumlah IP |
-| D6 | Semua perubahan U1–U27 boleh masuk sebelum uji kesetaraan karena tidak mengubah **angka** | Tunda yang "tambahan" sampai setelah serah terima (PRD R9) |
-| D7 | **[Gugur sebagian]** Per folder kini keputusan. "Hanya lokal tanpa login" gugur: ada login dua peran (§3.11, §6.9). Tanpa internet/tanpa domain luar (A4) tetap asumsi | — |
-
-### 11.2 Pertanyaan untuk pemilik produk
-
-| # | Pertanyaan | Asumsi sementara |
-|--:|---|---|
-| Q1 | ~~Seberapa serius tampilan ponsel?~~ **Terjawab: serius.** §8 wajib seluruhnya | — |
-| Q2 | ~~Perlu login?~~ **Terjawab: ya**, dua peran, akun lokal. Layarnya di §3.11 | — |
-| Q3 | Batas wilayah: cukup negara + provinsi dari Natural Earth? Bolehkah garis provinsi Papua belum memuat pemekaran 2022? Perlukah batas kabupaten/kota (butuh sumber data berlisensi jelas)? | Negara + provinsi; kabupaten hanya label |
-| Q4 | Tren: rentang bawaan 30 folder terakhir sudah sesuai? | 30 |
-| Q5 | Peta di halaman layanan: setuju terlipat secara bawaan (U6), atau justru dihapus dari sana? | Terlipat |
-| Q6 | "–" vs 0 (U16): setuju? Ini satu-satunya perubahan yang mengubah apa yang tertulis di KPI. | Ya |
-| Q7 | Perubahan "tambahan" di §10 (urut tabel, salin, pintasan, `(i)`): dikerjakan dalam migrasi, atau setelah kesetaraan terbukti? | Dalam migrasi, setelah P0 |
-| Q8 | Adakah identitas visual Ombudsman RI (logo, warna resmi) yang harus dipakai? Sekarang logonya kotak "S4". **Nama aplikasi diputuskan 2026-10-06: "SIMPeL4 Dashboard"; diganti pemilik 2026-10-07 menjadi "MoniShield"** (`web/src/brand.js`) | Tanda logo "MS", ikon tab perisai |
+Unchanged although considered: tab order and names; card colours and style; chart type of each
+card; table column contents; initial top-N display limits; automatic finding texts; dark default theme; default language ID.
 
 ---
 
-## 12. Permintaan 2026-10-06: gaya referensi dan Command Center (gaya diterapkan di Tahap 12a)
+## 11. Assumptions and open questions
 
-Pemilik mengirim gambar referensi (dashboard gelap bergaya "Fleet Overview") dan meminta modul **Command Center**
-realtime. Yang terlihat di referensi dan dampaknya ke dokumen ini:
+### 11.1 Design ASSUMPTIONS
 
-| Unsur referensi | Bandingkan dengan v2 sekarang | Usulan |
+| # | ASSUMPTION | If wrong |
+|--:|---|---|
+| D1 | The folder picker stays a `select` (grouped by month when there are many), not a calendar | Replace the component; other pages are unaffected |
+| D2 | Dark default theme, not following the system preference | One line of logic |
+| D3 | "–" replaces 0 when the log is missing | Revert to 0 |
+| D4 | Base map = self-served Natural Earth GeoJSON (no tiles) | Option B in §7.2; the map component stays the same |
+| D5 | Dot cluster number = number of requests | Switch to number of IPs |
+| D6 | All changes U1–U27 may go in before the parity test because they do not change **numbers** | Postpone the "addition" ones until after handover (PRD R9) |
+| D7 | **[Partly dropped]** Per folder is now a decision. "Local only without login" is dropped: there is a two-role login (§3.11, §6.9). No internet / no external domains (A4) remains an assumption | — |
+
+### 11.2 Questions for the product owner
+
+| # | Question | Interim assumption |
+|--:|---|---|
+| Q1 | ~~How serious is the phone view?~~ **Answered: serious.** §8 is mandatory in full | — |
+| Q2 | ~~Is a login needed?~~ **Answered: yes**, two roles, local accounts. The screens are in §3.11 | — |
+| Q3 | Region borders: are country + province from Natural Earth enough? Is it acceptable that the Papua province lines do not yet include the 2022 split? Are regency/city borders needed (requires a data source with a clear licence)? | Country + province; regencies as labels only |
+| Q4 | Trends: is the default range of the last 30 folders right? | 30 |
+| Q5 | Map on the service page: agree that it is collapsed by default (U6), or should it rather be removed from there? | Collapsed |
+| Q6 | "–" vs 0 (U16): agreed? This is the only change that alters what is written in a KPI. | Yes |
+| Q7 | The "addition" changes in §10 (table sorting, copy, shortcuts, `(i)`): done during the migration, or after parity is proven? | During the migration, after P0 |
+| Q8 | Is there an Ombudsman RI visual identity (logo, official colours) that must be used? Currently the logo is an "S4" square. **App name decided 2026-10-06: "SIMPeL4 Dashboard"; changed by the owner on 2026-10-07 to "MoniShield"** (`web/src/brand.js`) | "MS" logo mark, shield tab icon |
+
+---
+
+## 12. Request 2026-10-06: reference style and Command Center (style applied in Stage 12a)
+
+The owner sent a reference image (a dark dashboard in a "Fleet Overview" style) and asked for a realtime **Command Center**
+module. What can be seen in the reference and its impact on this document:
+
+| Reference element | Compared with the current v2 | Proposal |
 |---|---|---|
-| Latar navy gelap, aksen teal, kartu bersudut besar, garis tipis | Sudah sama arah (token §5) | Pertahankan token; kontras §5.6 tetap berlaku |
-| Sidebar bergrup dengan **ikon** per butir, logo kiri atas, kartu aksi di kaki | Sidebar tanpa ikon, titik penanda | Tambah ikon garis (SVG dibundel, tanpa CDN) |
-| Bar judul berisi **baris status ringkas** (`37/40 healthy · 2 failing …`) | Subjudul folder + rentang waktu | Baris status ringkas di bawah judul halaman |
-| KPI ringkas dengan ikon, angka besar + badge perubahan, menu `⋯` | KPI tanpa ikon | Ikon + badge perubahan berwarna (tetap disertai teks, §9.2) |
-| Kartu **"What needs your attention"** bernomor dengan tautan aksi | "Temuan utama" berupa daftar | Kartu perhatian bernomor; tiap butir menaut ke halaman/tabel terkait |
-| Tabel status ringkas + pil status (Healthy / Stuck / Cost spike) | Tag keparahan §4.5 | Pil status memakai tag §4.5 |
-| Penanda **"streaming · last event 2s ago"** dan tombol **Live** | Tidak ada pembaruan otomatis (A7, §6.8) | **Ditunda**: folder log tetap sumber utama (keputusan 2026-10-06); sementara diganti "data folder 6 Okt · di-ingest 17.51 WIB" |
+| Dark navy background, teal accent, cards with large corners, thin lines | Already in the same direction (tokens §5) | Keep the tokens; the §5.6 contrast still applies |
+| Grouped sidebar with an **icon** per item, logo top-left, action card in the footer | Sidebar without icons, marker dots | Add line icons (bundled SVG, no CDN) |
+| Title bar with a **compact status line** (`37/40 healthy · 2 failing …`) | Folder subtitle + time range | Compact status line below the page title |
+| Compact KPIs with icons, large number + change badge, `⋯` menu | KPIs without icons | Icon + coloured change badge (still accompanied by text, §9.2) |
+| Numbered **"What needs your attention"** card with action links | "Key findings" as a list | Numbered attention card; each item links to the related page/table |
+| Compact status table + status pills (Healthy / Stuck / Cost spike) | Severity tags §4.5 | Status pills use the §4.5 tags |
+| A **"streaming · last event 2s ago"** indicator and a **Live** button | No automatic refresh (A7, §6.8) | **Postponed**: log folders remain the primary source (decision 2026-10-06); meanwhile replaced by "data of folder 6 Oct · ingested 17:51 WIB" |
 
-Ini menyimpang dari prinsip "tampilan lama dipertahankan" di awal dokumen, jadi butuh persetujuan pemilik (TRD R6).
-**Diputuskan pemilik 2026-10-06**: gaya baru untuk **seluruh dashboard** (token dan komponen bersama; susunan dan isi
-tiap halaman tetap menurut §3). **Overview tetap**; Command Center adalah **layar peta dunia**. **ASUMSI**: tab "Peta IP"
-digabung ke Command Center di posisi yang sama di sidebar.
+This departs from the "old look is kept" principle at the start of the document, so it needs the owner's approval (TRD R6).
+**Decided by the owner 2026-10-06**: the new style for **the whole dashboard** (tokens and shared components; the layout and contents
+of each page remain as in §3). **Overview stays**; Command Center is a **world map screen**. **ASSUMPTION**: the "IP Map" tab
+is merged into Command Center at the same position in the sidebar.
 

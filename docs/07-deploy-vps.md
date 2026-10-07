@@ -1,139 +1,139 @@
-# Deploy MoniShield ke VPS baru sampai bisa dibuka lewat domain
+# Deploying MoniShield to a new VPS until it can be opened via a domain
 
-Alur: **DNS → siapkan VPS (pengguna, firewall, Docker) → ambil kode → isi `.env` → build + jalankan profil `https`
-(sertifikat Let's Encrypt otomatis) → masuk → atur sumber data (S3 / Kafka)**. Perkiraan waktu: 30–60 menit.
+Flow: **DNS → prepare the VPS (user, firewall, Docker) → fetch the code → fill in `.env` → build + run the `https` profile
+(automatic Let's Encrypt certificate) → sign in → set up the data sources (S3 / Kafka)**. Estimated time: 30–60 minutes.
 
-Semua perintah di bawah dijalankan di VPS kecuali disebut lain. Ganti `monishield.domainanda.id`, `IP_VPS`, dan
-`admin@domainanda.id` dengan milik Anda.
+All commands below are run on the VPS unless stated otherwise. Replace `monishield.domainanda.id`, `IP_VPS`, and
+`admin@domainanda.id` with your own.
 
 ---
 
-## 0. Yang dibutuhkan
+## 0. What you need
 
-| Kebutuhan | Minimal | Catatan |
+| Requirement | Minimum | Notes |
 |---|---|---|
-| VPS | Ubuntu 24.04 LTS (atau 22.04), 2 vCPU, **4 GB RAM**, 40 GB SSD | +2 GB RAM bila memakai Kafka di VPS yang sama (profil `kafka`) |
-| Domain | satu (sub)domain, mis. `monishield.domainanda.id` | akses ke pengaturan DNS-nya |
-| Akses GitHub | repo `apisdsn/MoniShield` | repo privat: token GitHub (fine-grained, *Contents: read*) atau deploy key |
-| Port terbuka dari internet | 22 (SSH), 80, 443 | 80 wajib untuk verifikasi Let's Encrypt + pengalihan ke https |
-| Akses keluar VPS | internet | unduh image/paket saat build, data rujukan peta & IP (lihat `06-docker.md` §7) |
+| VPS | Ubuntu 24.04 LTS (or 22.04), 2 vCPU, **4 GB RAM**, 40 GB SSD | +2 GB RAM if running Kafka on the same VPS (`kafka` profile) |
+| Domain | one (sub)domain, e.g. `monishield.domainanda.id` | access to its DNS settings |
+| GitHub access | repo `apisdsn/MoniShield` | private repo: a GitHub token (fine-grained, *Contents: read*) or a deploy key |
+| Ports open from the internet | 22 (SSH), 80, 443 | 80 is required for Let's Encrypt verification + the redirect to https |
+| VPS outbound access | internet | downloading images/packages at build time, map & IP reference data (see `06-docker.md` §7) |
 
 ---
 
-## 1. Arahkan domain ke VPS
+## 1. Point the domain to the VPS
 
-Di panel DNS domain Anda buat record:
+In your domain's DNS panel create the records:
 
-| Tipe | Nama | Nilai | TTL |
+| Type | Name | Value | TTL |
 |---|---|---|---|
 | `A` | `monishield` | `IP_VPS` | 300 |
-| `AAAA` (bila VPS punya IPv6) | `monishield` | IPv6 VPS | 300 |
+| `AAAA` (if the VPS has IPv6) | `monishield` | VPS IPv6 | 300 |
 
-Cek dari komputer Anda (boleh menunggu beberapa menit):
+Check from your computer (may take a few minutes):
 
 ```sh
-dig +short monishield.domainanda.id      # harus menampilkan IP_VPS
+dig +short monishield.domainanda.id      # must show IP_VPS
 ```
 
-> **Cloudflare**: saat pertama kali, set record ke **DNS only** (awan abu-abu) agar Let's Encrypt bisa memverifikasi.
-> Bila ingin memakai proxy Cloudflare (awan oranye) sesudahnya, set SSL/TLS ke **Full (strict)**.
+> **Cloudflare**: the first time, set the record to **DNS only** (grey cloud) so Let's Encrypt can verify.
+> If you want to use the Cloudflare proxy (orange cloud) afterwards, set SSL/TLS to **Full (strict)**.
 
 ---
 
-## 2. Siapkan VPS (sekali)
+## 2. Prepare the VPS (once)
 
-Masuk sebagai root (atau pengguna sudo dari penyedia VPS):
+Sign in as root (or the sudo user from the VPS provider):
 
 ```sh
 ssh root@IP_VPS
 
-# pengguna khusus + kunci SSH yang sama
+# dedicated user + the same SSH key
 adduser monishield
 usermod -aG sudo monishield
 rsync --archive --chown=monishield:monishield ~/.ssh /home/monishield
 
-# pembaruan + alat
+# updates + tools
 apt update && apt -y upgrade
 apt -y install git curl ufw fail2ban unattended-upgrades
-dpkg-reconfigure -plow unattended-upgrades        # pembaruan keamanan otomatis: pilih "Yes"
+dpkg-reconfigure -plow unattended-upgrades        # automatic security updates: choose "Yes"
 
-# firewall: hanya SSH, http, https
+# firewall: only SSH, http, https
 ufw allow OpenSSH
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw allow 443/udp
 ufw enable
 
-# RAM 4 GB: tambah swap 2 GB agar build dan ingest pertama tidak kehabisan memori
+# 4 GB RAM: add 2 GB of swap so the build and the first ingest do not run out of memory
 fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 ```
 
-Keluar, lalu masuk lagi sebagai pengguna baru: `ssh monishield@IP_VPS`.
-(Opsional, disarankan: matikan login root & sandi SSH — `PermitRootLogin no`, `PasswordAuthentication no` di
-`/etc/ssh/sshd_config`, lalu `sudo systemctl restart ssh`. Pastikan login dengan kunci sudah berhasil dulu.)
+Log out, then sign in again as the new user: `ssh monishield@IP_VPS`.
+(Optional, recommended: disable root login & SSH passwords — `PermitRootLogin no`, `PasswordAuthentication no` in
+`/etc/ssh/sshd_config`, then `sudo systemctl restart ssh`. Make sure key-based login works first.)
 
 ---
 
-## 3. Pasang Docker
+## 3. Install Docker
 
 ```sh
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker monishield
-newgrp docker                                   # atau keluar-masuk SSH
-docker version && docker compose version       # Docker 24+ dan Compose v2
+newgrp docker                                   # or log out and back in over SSH
+docker version && docker compose version       # Docker 24+ and Compose v2
 ```
 
-> **Penting — Docker melewati ufw** untuk port yang dipublikasikan container. Compose MoniShield sengaja hanya
-> mempublikasikan 80/443 (proxy https) ke internet; app, pgAdmin, DbGate, dan Kafka terikat ke `127.0.0.1`.
-> Jangan mengubah ikatan itu ke `0.0.0.0` tanpa aturan `DOCKER-USER` (lihat §9).
+> **Important — Docker bypasses ufw** for ports published by containers. The MoniShield compose file deliberately only
+> publishes 80/443 (https proxy) to the internet; app, pgAdmin, DbGate, and Kafka are bound to `127.0.0.1`.
+> Do not change that binding to `0.0.0.0` without `DOCKER-USER` rules (see §9).
 
 ---
 
-## 4. Ambil kode
+## 4. Fetch the code
 
 ```sh
 sudo mkdir -p /srv && sudo chown monishield: /srv
 cd /srv
-git clone https://github.com/apisdsn/MoniShield.git             # repo privat: username GitHub + token sebagai sandi
+git clone https://github.com/apisdsn/MoniShield.git             # private repo: GitHub username + token as the password
 cd MoniShield
-git checkout prd                                                 # branch produksi (dev -> stg -> prd, lihat CONTRIBUTING.md)
-mkdir -p /srv/logs                                               # folder log tanggal (boleh kosong bila memakai S3/Kafka)
+git checkout prd                                                 # production branch (dev -> stg -> prd, see CONTRIBUTING.md)
+mkdir -p /srv/logs                                               # date log folders (may stay empty when using S3/Kafka)
 ```
 
-Folder log tanggal (`YYYY-MM-DD/<namespace>/<layanan>/…`) tidak ada di repo. Salin folder log lama ke `/srv/logs`
-bila ingin riwayatnya tampil, atau biarkan kosong dan isi lewat sinkron S3, Kafka, atau **Unggah folder** di layar.
+The date log folders (`YYYY-MM-DD/<namespace>/<service>/…`) are not in the repo. Copy old log folders to `/srv/logs`
+if you want their history to show, or leave it empty and fill it via S3 sync, Kafka, or **Upload log folder** in the UI.
 
 ---
 
-## 5. Isi `.env`
+## 5. Fill in `.env`
 
 ```sh
 cp .env.example .env
-# tiga rahasia acak (jalankan 3 kali, salin masing-masing)
+# three random secrets (run 3 times, copy each one)
 python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 nano .env
 ```
 
-Isi minimal (cari barisnya di `.env.example`; baris berawalan `#` dihapus `#`-nya):
+Minimum contents (find the lines in `.env.example`; for lines starting with `#`, remove the `#`):
 
 ```sh
-DOCKER_LOG_DIR=/srv/logs                       # folder log di host (dipasang hanya-baca)
-POSTGRES_PASSWORD=<rahasia acak 1>
-S4_JWT_SECRET=<rahasia acak 2>
-S4_JOB_TOKEN=<rahasia acak 3>
+DOCKER_LOG_DIR=/srv/logs                       # log folder on the host (mounted read-only)
+POSTGRES_PASSWORD=<random secret 1>
+S4_JWT_SECRET=<random secret 2>
+S4_JOB_TOKEN=<random secret 3>
 S4_ADMIN_USER=admin
-S4_ADMIN_PASSWORD=<sandi admin pertama, min. 12 karakter>
-S4_COOKIE_SECURE=true                          # wajib true di https
+S4_ADMIN_PASSWORD=<first admin password, min. 12 characters>
+S4_COOKIE_SECURE=true                          # must be true on https
 DOCKER_DOMAIN=monishield.domainanda.id
-DOCKER_ACME_EMAIL=admin@domainanda.id          # pemberitahuan Let's Encrypt
+DOCKER_ACME_EMAIL=admin@domainanda.id          # Let's Encrypt notifications
 ```
 
-Opsional sekarang (bisa juga nanti dari layar **Konfigurasi**): `MAXMIND_ACCOUNT_ID`/`MAXMIND_LICENSE_KEY` (lokasi IP
-di peta), `S4_IMPORT_BUCKETS` + kunci AWS (impor S3), `S4_KAFKA_*` (log dari Rancher), notifikasi.
-`S4_IMPORT_BUCKETS` hanya bisa diisi di `.env`.
+Optional now (can also be done later from the **Configuration** page): `MAXMIND_ACCOUNT_ID`/`MAXMIND_LICENSE_KEY` (IP locations
+on the map), `S4_IMPORT_BUCKETS` + AWS keys (S3 import), `S4_KAFKA_*` (logs from Rancher), notifications.
+`S4_IMPORT_BUCKETS` can only be set in `.env`.
 
-Izinkan container (uid/gid 10001) membaca **dan menulis** `.env` (layar Konfigurasi menyimpan ke sana):
+Allow the container (uid/gid 10001) to read **and write** `.env` (the Configuration page saves to it):
 
 ```sh
 sudo chgrp 10001 .env && chmod 660 .env
@@ -141,56 +141,56 @@ sudo chgrp 10001 .env && chmod 660 .env
 
 ---
 
-## 6. Build dan jalankan
+## 6. Build and run
 
 ```sh
-docker compose build                           # ±3–6 menit pertama kali
-docker compose --profile https up -d           # app + PostgreSQL + Caddy (https otomatis)
+docker compose build                           # ±3–6 minutes the first time
+docker compose --profile https up -d           # app + PostgreSQL + Caddy (automatic https)
 docker compose ps                              # app "healthy", https "running"
-docker compose logs -f https                   # tunggu "certificate obtained successfully", lalu Ctrl+C
+docker compose logs -f https                   # wait for "certificate obtained successfully", then Ctrl+C
 ```
 
-Saat mulai pertama app meng-ingest semua folder di `DOCKER_LOG_DIR` dan mengunduh data rujukan peta/IP; lihat
-kemajuannya dengan `docker compose logs -f app`. Docker menyalakan ulang semua layanan sendiri setelah VPS reboot
+On its first start the app ingests all folders in `DOCKER_LOG_DIR` and downloads the map/IP reference data; follow
+its progress with `docker compose logs -f app`. Docker restarts all services by itself after a VPS reboot
 (`restart: unless-stopped`).
 
-> Docker Hub membatasi unduhan anonim. Bila build/up gagal `429 Too Many Requests`: `docker login` (akun gratis),
-> lalu ulangi.
+> Docker Hub rate-limits anonymous pulls. If build/up fails with `429 Too Many Requests`: `docker login` (free account),
+> then retry.
 
 ---
 
-## 7. Cek dari internet
+## 7. Check from the internet
 
 ```sh
 curl -I http://monishield.domainanda.id        # 308 -> https://…
 curl -s https://monishield.domainanda.id/api/health    # {"ok":true}
 ```
 
-Buka `https://monishield.domainanda.id` → masuk `admin` + `S4_ADMIN_PASSWORD` → ganti sandi saat diminta.
+Open `https://monishield.domainanda.id` → sign in as `admin` + `S4_ADMIN_PASSWORD` → change the password when asked.
 
 ---
 
-## 8. Setelah masuk pertama kali
+## 8. After the first sign-in
 
-1. **Menu user → Konfigurasi** (semua disimpan ke `.env`, langsung berlaku):
-   - **AWS S3** + **Folder S3 otomatis** (mis. `s3://simpel4-backup/k8s-logs`) → *Uji koneksi*.
-   - **Kafka** (bila log realtime dari Rancher; §9) → *Cek pesan di topic*.
-   - **MaxMind GeoLite2** → *Uji koneksi*.
-   - **Notifikasi**: alamat dashboard = `https://monishield.domainanda.id`; Telegram/Discord/email → *Kirim uji*.
-2. **Menu user → Kelola user**: buat akun untuk anggota tim (peran *user* = hanya melihat).
-3. **Ingest & impor**: periksa status ingest, kartu S3 dan Kafka.
+1. **User menu → Configuration** (everything is saved to `.env` and takes effect immediately):
+   - **AWS S3** + **Automatic S3 folders** (e.g. `s3://simpel4-backup/k8s-logs`) → *Test connection*.
+   - **Kafka** (for realtime logs from Rancher; §9) → *Check messages in topic*.
+   - **MaxMind GeoLite2** → *Test connection*.
+   - **Notifications**: dashboard address = `https://monishield.domainanda.id`; Telegram/Discord/email → *Send test*.
+2. **User menu → Manage users**: create accounts for team members (role *user* = view only).
+3. **Ingest & import**: check the ingest status and the S3 and Kafka cards.
 
 ---
 
-## 9. (Opsional) Log realtime dari Rancher lewat Kafka
+## 9. (Optional) Realtime logs from Rancher via Kafka
 
-**A. Kafka kantor sudah ada (disarankan, ber-SASL/TLS)**: isi broker, topic, keamanan, nama pengguna & sandi di
-**Konfigurasi → Kafka**. VPS hanya perlu bisa menghubungi broker itu (keluar).
+**A. An office Kafka already exists (recommended, with SASL/TLS)**: enter the broker, topic, security, username & password in
+**Configuration → Kafka**. The VPS only needs to be able to reach that broker (outbound).
 
-**B. Kafka di VPS ini** (profil `kafka`). Tambahkan ke `.env`:
+**B. Kafka on this VPS** (`kafka` profile). Add to `.env`:
 
 ```sh
-DOCKER_KAFKA_HOST=IP_VPS                       # alamat yang diisi di Rancher
+DOCKER_KAFKA_HOST=IP_VPS                       # address entered in Rancher
 DOCKER_KAFKA_BIND=0.0.0.0
 DOCKER_KAFKA_PORT=9094
 S4_KAFKA_BROKERS=kafka:9092
@@ -201,63 +201,63 @@ S4_KAFKA_TOPIC=k8s-logs
 docker compose --profile https --profile kafka up -d
 ```
 
-Listener ini **tanpa sandi dan tanpa enkripsi** — log berisi alamat IP pengguna. Batasi port 9094 hanya untuk IP keluar
-node cluster (ufw tidak berlaku untuk port Docker, jadi pakai rantai `DOCKER-USER`):
+This listener has **no password and no encryption** — the logs contain user IP addresses. Restrict port 9094 to the outbound IPs of the
+cluster nodes only (ufw does not apply to Docker ports, so use the `DOCKER-USER` chain):
 
 ```sh
-IP_CLUSTER=203.0.113.10                         # IP publik keluar node Rancher (tanya admin jaringan)
+IP_CLUSTER=203.0.113.10                         # public outbound IP of the Rancher nodes (ask the network admin)
 sudo iptables -I DOCKER-USER -p tcp -m conntrack --ctorigdstport 9094 -j DROP
 sudo iptables -I DOCKER-USER -p tcp -m conntrack --ctorigdstport 9094 -s $IP_CLUSTER -j ACCEPT
 sudo apt -y install iptables-persistent && sudo netfilter-persistent save
 ```
 
-Lebih aman lagi: hubungkan cluster dan VPS lewat VPN (mis. WireGuard) dan isi `DOCKER_KAFKA_HOST` dengan alamat VPN.
+Safer still: connect the cluster and the VPS via a VPN (e.g. WireGuard) and set `DOCKER_KAFKA_HOST` to the VPN address.
 
-Di **Rancher → Cluster → Tools → Logging → Kafka**: Endpoint Type **Broker**, Endpoint `IP_VPS:9094`, Topic
-`k8s-logs`, Flush Interval **5–10** detik, **Enable JSON Parsing tidak dicentang** → Save. Dalam beberapa detik kartu
-**Log dari Kafka** di layar Ingest & impor menunjukkan pesan masuk; peta menampilkan lencana **LANGSUNG**.
+In **Rancher → Cluster → Tools → Logging → Kafka**: Endpoint Type **Broker**, Endpoint `IP_VPS:9094`, Topic
+`k8s-logs`, Flush Interval **5–10** seconds, **Enable JSON Parsing unticked** → Save. Within a few seconds the
+**Logs from Kafka** card on the Ingest & import page shows incoming messages; the map shows the **LIVE** badge.
 
 ---
 
-## 10. Cadangan
+## 10. Backups
 
 ```sh
 mkdir -p /srv/backup
-# akun, sesi, audit, riwayat (wajib): tiap malam pukul 01.30
+# accounts, sessions, audit, history (required): every night at 01.30
 ( crontab -l 2>/dev/null; echo '30 1 * * * cd /srv/MoniShield && docker compose exec -T postgres pg_dump -U monishield monishield | gzip > /srv/backup/pg-$(date +\%F).sql.gz && find /srv/backup -name "pg-*.sql.gz" -mtime +14 -delete' ) | crontab -
-cp /srv/MoniShield/.env /srv/backup/env-$(date +%F)    # setelah mengubah konfigurasi (berisi rahasia: simpan aman)
+cp /srv/MoniShield/.env /srv/backup/env-$(date +%F)    # after changing the configuration (contains secrets: store it safely)
 ```
 
-Log mentah hasil impor S3/Kafka ada di volume `monishield_s4-inbox`; basis data DuckDB (`s4-data`) bisa dibangun ulang
-dari log. Rincian: `06-docker.md` §8.
+Raw logs from S3/Kafka import are in the `monishield_s4-inbox` volume; the DuckDB database (`s4-data`) can be rebuilt
+from the logs. Details: `06-docker.md` §8.
 
 ---
 
-## 11. Pembaruan aplikasi
+## 11. Application updates
 
 ```sh
-cd /srv/MoniShield && git pull                 # branch prd
-docker compose build && docker compose --profile https up -d     # tambahkan --profile kafka bila dipakai
+cd /srv/MoniShield && git pull                 # prd branch
+docker compose build && docker compose --profile https up -d     # add --profile kafka if used
 ```
 
-Data, akun, dan sertifikat tetap (ada di volume).
+Data, accounts, and certificates are kept (they live in volumes).
 
 ---
 
-## 12. Masalah umum
+## 12. Common problems
 
-| Gejala | Penyebab / tindakan |
+| Symptom | Cause / action |
 |---|---|
-| `https` gagal mendapat sertifikat (`docker compose logs https`) | DNS belum mengarah ke VPS (`dig`), port 80/443 tertutup di firewall penyedia VPS, atau proxy Cloudflare oranye saat pertama. Perbaiki lalu `docker compose restart https`. Jangan mengulang terlalu sering (batas Let's Encrypt). |
-| Container `https` langsung berhenti: "isi DOCKER_DOMAIN dan DOCKER_ACME_EMAIL" | Dua baris itu belum diisi di `.env`. |
-| Halaman 502 | app belum sehat: `docker compose ps`, `docker compose logs app` (ingest pertama bisa beberapa menit). |
-| Masuk berhasil tapi langsung keluar lagi | `S4_COOKIE_SECURE` harus `true` di https dan alamat dibuka lewat `https://`. |
-| Layar Konfigurasi: "file .env tidak bisa ditulis" | `sudo chgrp 10001 .env && chmod 660 .env` di `/srv/MoniShield`. |
-| Peta tanpa lokasi | MaxMind belum diisi (Konfigurasi → MaxMind) atau VPS tidak bisa keluar ke `download.maxmind.com`. |
-| Membuka pgAdmin / DbGate | hanya dari VPS: dari komputer Anda `ssh -L 5050:127.0.0.1:5050 -L 5051:127.0.0.1:5051 monishield@IP_VPS`, lalu `docker compose --profile pgadmin --profile dbgate up -d` dan buka `http://localhost:5050` / `:5051`. |
+| `https` fails to obtain a certificate (`docker compose logs https`) | DNS does not point to the VPS yet (`dig`), ports 80/443 are closed in the VPS provider's firewall, or the Cloudflare proxy was orange the first time. Fix it, then `docker compose restart https`. Do not retry too often (Let's Encrypt rate limits). |
+| The `https` container stops immediately: "set DOCKER_DOMAIN and DOCKER_ACME_EMAIL in .env" | Those two lines are not filled in `.env` yet. |
+| 502 page | the app is not healthy yet: `docker compose ps`, `docker compose logs app` (the first ingest can take a few minutes). |
+| Sign-in succeeds but you are signed out right away | `S4_COOKIE_SECURE` must be `true` on https and the address must be opened via `https://`. |
+| Configuration page: "The server cannot write this file" (`.env`) | `sudo chgrp 10001 .env && chmod 660 .env` in `/srv/MoniShield`. |
+| Map without locations | MaxMind not set yet (Configuration → MaxMind) or the VPS cannot reach `download.maxmind.com`. |
+| Opening pgAdmin / DbGate | only from the VPS: from your computer `ssh -L 5050:127.0.0.1:5050 -L 5051:127.0.0.1:5051 monishield@IP_VPS`, then `docker compose --profile pgadmin --profile dbgate up -d` and open `http://localhost:5050` / `:5051`. |
 
 ---
 
-*Diverifikasi 2026-10-07 di lingkungan pengembang (Docker 29.8.2): profil `https` dengan Caddy 2.10.2 — http → https
-(308), HSTS, login dengan cookie `Secure; HttpOnly` lewat https; sertifikat Let's Encrypt sungguhan tidak bisa diuji di
-sana (butuh domain publik), jadi langkah 6–7 adalah pemeriksaan pertama di VPS Anda.*
+*Verified 2026-10-07 in the developer environment (Docker 29.8.2): `https` profile with Caddy 2.10.2 — http → https
+(308), HSTS, login with a `Secure; HttpOnly` cookie over https; a real Let's Encrypt certificate could not be tested
+there (it needs a public domain), so steps 6–7 are the first check on your VPS.*
