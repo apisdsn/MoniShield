@@ -1,7 +1,9 @@
-# MoniShield (v2) — dashboard log & keamanan
+# MoniShield — dashboard log & keamanan
 
 Dashboard log dan keamanan: FastAPI + DuckDB di server, Svelte di browser. Rancangan lengkap ada di `docs/`
-(PRD, DRD, TRD, rencana); folder log lama di folder induk tetap menjadi sumber utama.
+(PRD, DRD, TRD, rencana). Dulu folder `v2/` di repo `dashboard-logging`; sejak 2026-10-07 berdiri sendiri di repo ini
+(riwayat commit ikut dipindah). Ringkasan semua tambahan atas permintaan pemilik: `CHANGELOG.md`. Aturan commit dan
+branch (`dev` → `stg` → `prd`): `CONTRIBUTING.md`.
 
 ## Cara menjalankan
 
@@ -11,12 +13,12 @@ Dashboard log dan keamanan: FastAPI + DuckDB di server, Svelte di browser. Ranca
 |---|---|---|
 | Python | 3.12 atau lebih baru | server (FastAPI + DuckDB) |
 | Node.js + npm | 20.19 atau lebih baru (diuji 22) | membangun tampilan (Svelte/Vite); tidak dibutuhkan saat server berjalan |
-| Folder log | `YYYY-MM-DD/<namespace>/<layanan>/…` | data; bawaan: folder induk `v2/` (mis. `../2026-10-06/`) |
+| Folder log | `YYYY-MM-DD/<namespace>/<layanan>/…` | data; bawaan: `logs/` di folder proyek (mis. `logs/2026-10-06/`), atau S3 / Kafka / unggah dari browser |
 
 ### 2. Siapkan konfigurasi
 
 ```sh
-cd v2
+git clone https://github.com/apisdsn/MoniShield.git && cd MoniShield
 cp .env.example .env && chmod 600 .env
 ```
 
@@ -27,7 +29,7 @@ Isi minimal di `.env`:
 | `S4_JWT_SECRET` | rahasia acak ≥ 32 karakter, mis. hasil `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `S4_ADMIN_PASSWORD` | sandi admin pertama (≥ 12 karakter); wajib diganti saat masuk pertama |
 | `S4_COOKIE_SECURE` | `true` di server ber-HTTPS; **`false` hanya untuk mencoba di komputer sendiri** lewat `http://` |
-| `S4_LOG_DIR` | folder log, bila bukan folder induk `v2/` |
+| `S4_LOG_DIR` | folder log, bila bukan `logs/` di folder proyek |
 | `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY` | opsional: lokasi IP di peta (GeoLite2, gratis; bisa juga diisi di layar **Konfigurasi**). Tanpa ini, atau dengan `S4_OFFLINE=true`, peta tetap jalan tanpa lokasi baru |
 
 Pilihan lain (port, impor S3, aturan deteksi serangan, PostgreSQL untuk akun) dijelaskan di `.env.example`.

@@ -22,7 +22,7 @@ Prasyarat: Docker Engine 26+ dengan Compose 2.30+ (diuji Engine 29.8, Compose 5.
 `volume.subpath` di layanan `dbgate`.
 
 ```sh
-cd v2
+cd MoniShield
 cp .env.example .env && chmod 600 .env       # isi: lihat tabel di bawah; .env tidak ikut git maupun image
 sudo chgrp 10001 .env && chmod 660 .env      # pengguna container (gid 10001) boleh membaca + menulis .env (layar Konfigurasi)
 docker compose build                         # ±1–3 menit pertama kali

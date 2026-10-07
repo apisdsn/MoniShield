@@ -14,7 +14,7 @@ Semua perintah di bawah dijalankan di VPS kecuali disebut lain. Ganti `monishiel
 |---|---|---|
 | VPS | Ubuntu 24.04 LTS (atau 22.04), 2 vCPU, **4 GB RAM**, 40 GB SSD | +2 GB RAM bila memakai Kafka di VPS yang sama (profil `kafka`) |
 | Domain | satu (sub)domain, mis. `monishield.domainanda.id` | akses ke pengaturan DNS-nya |
-| Akses GitHub | repo `apisdsn/dashboard-logging` | repo privat: token GitHub (fine-grained, *Contents: read*) atau deploy key |
+| Akses GitHub | repo `apisdsn/MoniShield` | repo privat: token GitHub (fine-grained, *Contents: read*) atau deploy key |
 | Port terbuka dari internet | 22 (SSH), 80, 443 | 80 wajib untuk verifikasi Let's Encrypt + pengalihan ke https |
 | Akses keluar VPS | internet | unduh image/paket saat build, data rujukan peta & IP (lihat `06-docker.md` §7) |
 
@@ -95,15 +95,14 @@ docker version && docker compose version       # Docker 24+ dan Compose v2
 ```sh
 sudo mkdir -p /srv && sudo chown monishield: /srv
 cd /srv
-git clone https://github.com/apisdsn/dashboard-logging.git      # repo privat: username GitHub + token sebagai sandi
-cd dashboard-logging
-git checkout claude/magical-euler-hkpo4j                         # atau "main" setelah perubahan digabung
-cd v2
+git clone https://github.com/apisdsn/MoniShield.git             # repo privat: username GitHub + token sebagai sandi
+cd MoniShield
+git checkout prd                                                 # branch produksi (dev -> stg -> prd, lihat CONTRIBUTING.md)
+mkdir -p /srv/logs                                               # folder log tanggal (boleh kosong bila memakai S3/Kafka)
 ```
 
-Repo ini juga berisi folder log lama (`2026-09-26/` …) di akar repo; folder itu bisa langsung dipakai sebagai folder
-log awal (`DOCKER_LOG_DIR=/srv/dashboard-logging`, langkah 5). Bila ingin folder log terpisah:
-`sudo mkdir -p /srv/logs && sudo chown monishield: /srv/logs`.
+Folder log tanggal (`YYYY-MM-DD/<namespace>/<layanan>/…`) tidak ada di repo. Salin folder log lama ke `/srv/logs`
+bila ingin riwayatnya tampil, atau biarkan kosong dan isi lewat sinkron S3, Kafka, atau **Unggah folder** di layar.
 
 ---
 
@@ -119,7 +118,7 @@ nano .env
 Isi minimal (cari barisnya di `.env.example`; baris berawalan `#` dihapus `#`-nya):
 
 ```sh
-DOCKER_LOG_DIR=/srv/dashboard-logging          # folder log di host (dipasang hanya-baca)
+DOCKER_LOG_DIR=/srv/logs                       # folder log di host (dipasang hanya-baca)
 POSTGRES_PASSWORD=<rahasia acak 1>
 S4_JWT_SECRET=<rahasia acak 2>
 S4_JOB_TOKEN=<rahasia acak 3>
@@ -225,8 +224,8 @@ Di **Rancher → Cluster → Tools → Logging → Kafka**: Endpoint Type **Brok
 ```sh
 mkdir -p /srv/backup
 # akun, sesi, audit, riwayat (wajib): tiap malam pukul 01.30
-( crontab -l 2>/dev/null; echo '30 1 * * * cd /srv/dashboard-logging/v2 && docker compose exec -T postgres pg_dump -U monishield monishield | gzip > /srv/backup/pg-$(date +\%F).sql.gz && find /srv/backup -name "pg-*.sql.gz" -mtime +14 -delete' ) | crontab -
-cp /srv/dashboard-logging/v2/.env /srv/backup/env-$(date +%F)    # setelah mengubah konfigurasi (berisi rahasia: simpan aman)
+( crontab -l 2>/dev/null; echo '30 1 * * * cd /srv/MoniShield && docker compose exec -T postgres pg_dump -U monishield monishield | gzip > /srv/backup/pg-$(date +\%F).sql.gz && find /srv/backup -name "pg-*.sql.gz" -mtime +14 -delete' ) | crontab -
+cp /srv/MoniShield/.env /srv/backup/env-$(date +%F)    # setelah mengubah konfigurasi (berisi rahasia: simpan aman)
 ```
 
 Log mentah hasil impor S3/Kafka ada di volume `monishield_s4-inbox`; basis data DuckDB (`s4-data`) bisa dibangun ulang
@@ -237,8 +236,8 @@ dari log. Rincian: `06-docker.md` §8.
 ## 11. Pembaruan aplikasi
 
 ```sh
-cd /srv/dashboard-logging && git pull
-cd v2 && docker compose build && docker compose --profile https up -d     # tambahkan --profile kafka bila dipakai
+cd /srv/MoniShield && git pull                 # branch prd
+docker compose build && docker compose --profile https up -d     # tambahkan --profile kafka bila dipakai
 ```
 
 Data, akun, dan sertifikat tetap (ada di volume).
@@ -253,7 +252,7 @@ Data, akun, dan sertifikat tetap (ada di volume).
 | Container `https` langsung berhenti: "isi DOCKER_DOMAIN dan DOCKER_ACME_EMAIL" | Dua baris itu belum diisi di `.env`. |
 | Halaman 502 | app belum sehat: `docker compose ps`, `docker compose logs app` (ingest pertama bisa beberapa menit). |
 | Masuk berhasil tapi langsung keluar lagi | `S4_COOKIE_SECURE` harus `true` di https dan alamat dibuka lewat `https://`. |
-| Layar Konfigurasi: "file .env tidak bisa ditulis" | `sudo chgrp 10001 .env && chmod 660 .env` di folder `v2`. |
+| Layar Konfigurasi: "file .env tidak bisa ditulis" | `sudo chgrp 10001 .env && chmod 660 .env` di `/srv/MoniShield`. |
 | Peta tanpa lokasi | MaxMind belum diisi (Konfigurasi → MaxMind) atau VPS tidak bisa keluar ke `download.maxmind.com`. |
 | Membuka pgAdmin / DbGate | hanya dari VPS: dari komputer Anda `ssh -L 5050:127.0.0.1:5050 -L 5051:127.0.0.1:5051 monishield@IP_VPS`, lalu `docker compose --profile pgadmin --profile dbgate up -d` dan buka `http://localhost:5050` / `:5051`. |
 
