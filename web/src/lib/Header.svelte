@@ -1,5 +1,6 @@
 <!-- Page header (DRD §2.1 U3, §8.2, §12 style). Wide screen: one sticky card holding the title + compact status line
-     (left) and the folder picker, language, theme, reload, user menu (right). ≤ 900 px: sticky 52 px bar
+     (left) and the folder picker, language, theme, reload, user menu (right); when both do not fit on one line, the tools
+     move to a second line. ≤ 900 px: sticky 52 px bar
      [☰] MoniShield [Folder ▾] [⋯] (language, theme, reload, user menu contents go into ⋯); the title flows below it.
      DOM order = Tab order: tools first, title (h1, tabindex -1) after; visual placement set by the grid. -->
 <script>
@@ -64,14 +65,16 @@
 <style>
   .top {
     position: sticky; top: 10px; z-index: 20; margin: 14px 0 10px;
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'ttl tools'; align-items: center; gap: 12px 18px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px;
     padding: 14px 18px; border-radius: var(--r-card); border: 1px solid var(--card-border);
     background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(10px); box-shadow: var(--glow);
   }
   .bar { display: contents; }
-  .tools { grid-area: tools; display: flex; align-items: center; gap: 10px; min-width: 0; }
-  .ttl { grid-area: ttl; min-width: 0; }
-  h1 { font-size: 1.375rem; font-weight: 600; line-height: 1.25; color: var(--heading); text-transform: capitalize; overflow-wrap: anywhere; }
+  /* the title keeps at least ~22rem; when the tools do not fit next to it they move to their own line (right-aligned)
+     instead of squeezing the title into one word per line (owner report 2026-10-08, 1280 px in English) */
+  .tools { order: 1; flex: 0 1 auto; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px; min-width: 0; }
+  .ttl { order: 0; flex: 1 1 22rem; min-width: 0; }
+  h1 { font-size: 1.375rem; font-weight: 600; line-height: 1.25; color: var(--heading); text-transform: capitalize; overflow-wrap: break-word; text-wrap: balance; }
   h1:focus { outline: none; }
   h1:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .sfx { color: var(--muted); font-weight: 500; white-space: nowrap; }
@@ -82,10 +85,6 @@
   .wide-only { display: flex; align-items: center; gap: 8px; }
   .narrow-only, .burger, .brand { display: none; }
   .seg button { min-width: 2.5rem; }
-  @media (max-width: 1180px) {
-    .top { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'tools' 'ttl'; }
-    .tools { justify-content: flex-end; }
-  }
   @media (max-width: 900px) {
     .top { display: contents; }
     .bar {
@@ -96,7 +95,7 @@
     .burger, .narrow-only { display: inline-grid; }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; white-space: nowrap; }
     .wide-only { display: none; }
-    .tools { flex: 1; justify-content: flex-end; gap: 8px; }
+    .tools { flex: 1; flex-wrap: nowrap; margin-left: 0; justify-content: flex-end; gap: 8px; }
     .tools :global(.fp) { flex: 1; justify-content: flex-end; max-width: 60vw; }
     .ttl { margin: 6px 0 12px; }
     h1 { font-size: 1.5rem; }

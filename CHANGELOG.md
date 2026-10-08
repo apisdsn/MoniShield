@@ -32,6 +32,8 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 
 ### Changed
+- The page title in the header no longer breaks into one word per line on medium screens (around 1280 px, English):
+  the header tools move to a second line instead.
 - The repo stands alone: the contents of the `v2/` folder of the `apisdsn/dashboard-logging` repo were moved to `apisdsn/MoniShield` together with
   their commit history. The default log folder is now `logs/` in the project folder (formerly the parent folder of `v2/`).
 - Branches: `dev` (development) → `stg` (testing/staging) → `prd` (production); rules in `CONTRIBUTING.md`.
