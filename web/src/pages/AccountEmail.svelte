@@ -3,19 +3,20 @@
      the NEW email, so a stolen session alone cannot move the account to another address.
      embedded = inside the account dialog (lib/AccountDialogs.svelte), which supplies the card and the title. -->
 <script>
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { errText } from '../srv.js';
   import { toast } from '../lib/Toast.svelte';
   import Icon from '../lib/Icon.svelte';
+  import OtpInput from '../lib/OtpInput.svelte';
   import Note from '../lib/Note.svelte';
   import Skeleton from '../lib/Skeleton.svelte';
   let { ondone = null, embedded = false } = $props();
 
-  let v = $state.raw(null), busy = $state(false), err = $state(null), sentOld = $state(''), sentNew = $state('');
+  let v = $state.raw(null), busy = $state(false), err = $state(null), wrong = $state(false);
   let f = $state({ email: '', password: '', old: '', nw: '' });
-  let codeEl = $state();
+  let oldEl = $state(), newEl = $state();
   async function load() { try { v = await api.get('/api/me/email'); err = null; } catch (e) { err = $errText(e); } }
   onMount(load);
 
@@ -28,22 +29,27 @@
     busy = true;
     try {
       const r = await api.post('/api/me/email/start', { new_email: f.email.trim(), password: f.password, lang: $lang });
-      v = r; sentOld = r.sent_old || ''; sentNew = r.sent_new; f.password = ''; f.old = ''; f.nw = '';
-      await tick(); codeEl?.focus();
+      v = r; f.password = ''; f.old = ''; f.nw = ''; wrong = false;
+      await tick(); (r.pending?.needs_old ? oldEl : newEl)?.focus();
     } catch (e2) { err = $errText(e2); } finally { busy = false; }
   }
   async function confirm(e) {
     e.preventDefault();
+    if (!ready) return;
     err = null; busy = true;
     try {
       v = await api.post('/api/me/email/confirm', { old_code: f.old.trim(), new_code: f.nw.trim(), lang: $lang });
       f = { email: '', password: '', old: '', nw: '' };
       toast($t('em.done', { email: v.email })); ondone?.();
-    } catch (e2) { err = $errText(e2); if (e2.code === 'too_many_attempts' || e2.code === 'email_change_missing') await load(); }
-    finally { busy = false; }
+    } catch (e2) {
+      err = $errText(e2); wrong = e2.code === 'wrong_code';
+      if (e2.code === 'too_many_attempts' || e2.code === 'email_change_missing') await load();
+      else if (wrong) { busy = false; await tick(); const el = v.pending?.needs_old ? oldEl : newEl; el?.focus(); el?.select(); }
+    } finally { busy = false; }
   }
   async function cancel() { busy = true; try { v = await api.del('/api/me/email/start'); err = null; } catch (e2) { err = $errText(e2); } finally { busy = false; } }
-  const digits = (s) => s.replace(/\D/g, '').slice(0, 6);
+  const ready = $derived(!!v?.pending && f.nw.length === 6 && (!v.pending.needs_old || f.old.length === 6));
+  $effect(() => { void f.old; void f.nw; untrack(() => { if (wrong) { wrong = false; err = null; } }); });   // typing clears the red boxes and the message
 </script>
 
 {#if !v && !err}
@@ -53,28 +59,31 @@
     {#if !embedded}<h2 id="em-h">{$t('em.change')}</h2>{/if}
     <p class="cur"><Icon name="mail" /><span>{$t('em.current')}</span>
       <b>{v?.email || $t('em.none')}</b></p>
-    <p class="muted small">{$t('em.why')}</p>
+    {#if !v?.pending}<p class="muted small">{$t('em.why')}</p>{/if}
 
     {#if v && !v.mail_ready}
       <Note wide={false}>{$t('em.no_mail')}</Note>
     {:else if v?.pending}
-      <form onsubmit={confirm} novalidate>
-        <p class="small">{v.pending.needs_old ? $t('em.sent_both', { old: sentOld || $t('em.old_addr'), new: v.pending.new_email }) : $t('em.sent_new', { new: v.pending.new_email })}</p>
+      <form class="codes" onsubmit={confirm} novalidate>
+        <p class="lead">{v.pending.needs_old ? $t('em.enter_both') : $t('em.enter_one')}</p>
         {#if v.pending.needs_old}
-          <label for="em-old">{$t('em.code_old')}</label>
-          <input id="em-old" bind:this={codeEl} inputmode="numeric" autocomplete="one-time-code" maxlength="6" value={f.old} oninput={(e) => (f.old = e.currentTarget.value = digits(e.currentTarget.value))} />
+          <div class="codebox">
+            <div class="ch"><span class="ic"><Icon name="mail" /></span>
+              <span><label for="em-old">{$t('em.code_old')}</label><span class="addr">{$t('em.sent_to', { email: v.email })}</span></span></div>
+            <OtpInput id="em-old" bind:value={f.old} bind:ref={oldEl} invalid={wrong} describedby="em-help"
+              oncomplete={() => (f.nw.length === 6 ? null : newEl?.focus())} />
+          </div>
         {/if}
-        <label for="em-new">{$t('em.code_new')}</label>
-        {#if v.pending.needs_old}
-          <input id="em-new" inputmode="numeric" autocomplete="one-time-code" maxlength="6" value={f.nw} oninput={(e) => (f.nw = e.currentTarget.value = digits(e.currentTarget.value))} />
-        {:else}
-          <input id="em-new" bind:this={codeEl} inputmode="numeric" autocomplete="one-time-code" maxlength="6" value={f.nw} oninput={(e) => (f.nw = e.currentTarget.value = digits(e.currentTarget.value))} />
-        {/if}
-        <p class="muted small">{$t('em.code_help')}</p>
+        <div class="codebox">
+          <div class="ch"><span class="ic"><Icon name="mail" /></span>
+            <span><label for="em-new">{$t('em.code_new')}</label><span class="addr">{$t('em.sent_to', { email: v.pending.new_email })}</span></span></div>
+          <OtpInput id="em-new" bind:value={f.nw} bind:ref={newEl} invalid={wrong} describedby="em-help" />
+        </div>
+        <p id="em-help" class="muted small">{$t('em.code_help')}</p>
         {#if err}<p class="err" role="alert">{err}</p>{/if}
         <div class="acts">
-          <button class="btn primary" type="submit" disabled={busy || f.nw.length !== 6 || (v.pending.needs_old && f.old.length !== 6)}>{busy ? $t('action.saving') : $t('em.confirm')}</button>
-          <button class="btn" type="button" disabled={busy} onclick={cancel}>{$t('action.cancel')}</button>
+          <button class="btn primary" type="submit" disabled={busy || !ready}>{busy ? $t('action.saving') : $t('em.confirm')}</button>
+          <button class="btn" type="button" disabled={busy} onclick={cancel}>{$t('em.restart')}</button>
         </div>
       </form>
     {:else}
@@ -108,7 +117,16 @@
   form { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
   label { font-size: 0.8125rem; color: var(--kpi-label); margin-top: 12px; }
   input { width: 100%; border-radius: 12px; min-height: var(--touch); font-size: 1rem; }
-  input[inputmode='numeric'] { padding-left: 14px; font-family: var(--mono, ui-monospace, monospace); letter-spacing: 0.3em; font-size: 1.125rem; }
+  .lead { margin: 4px 0 6px; }
+  .codebox { display: flex; flex-direction: column; gap: 10px; padding: 14px; margin-top: 8px; border: 1px solid var(--line); border-radius: 14px;
+    background: color-mix(in srgb, var(--accent) 4%, transparent); }
+  .ch { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .ch > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+  .ch label { margin: 0; color: var(--heading); font-weight: 600; font-size: 0.875rem; }
+  .ic { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-text); }
+  .addr { font-size: 0.8125rem; color: var(--muted); word-break: break-all; }
+  .codes .acts .btn { flex: 1 1 140px; }
   .steps { margin: 12px 0 0; padding-left: 20px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
   .err { color: var(--err); font-size: 0.8125rem; margin: 8px 0 0; }
   .acts { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }

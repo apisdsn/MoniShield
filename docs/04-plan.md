@@ -1090,6 +1090,10 @@ Follow-up (owner request): *Change password* and *Account email* open as pop-ups
 The old addresses `#/sandi` and `#/email` open the same pop-up over the Overview. The forced password change after
 sign-in stays a full screen.
 
+Follow-up (owner request): the code step uses six digit boxes per code (`lib/OtpInput.svelte`: one real input over
+the boxes, so paste, `autocomplete="one-time-code"` and screen readers keep working), a card per code naming the address
+it was sent to, auto-advance to the second code, red boxes and focus back on a wrong code, cleared when typing again.
+
 ---
 
 ## Deviation notes
