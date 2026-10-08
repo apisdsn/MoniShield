@@ -279,17 +279,17 @@ sudo install -d -o deploy -g deploy /srv/MoniShield       # where the repo is cl
 sudo install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 ```
 
-On your own computer, create a key pair for GitHub only and put the public half on the server. `/home/deploy/.ssh`
-belongs to `deploy` (mode 700), so the key is copied to `/tmp` first and appended with `sudo tee`; a plain
-`cat >> …` as your own user fails with *Permission denied*:
+On your own computer (Linux, macOS, or Git Bash on Windows), create a key pair for GitHub only and put the public half
+on the server. `/home/deploy/.ssh` belongs to `deploy` (mode 700), so the key is appended with `sudo tee`; a plain
+`cat >> …` as your own user fails with *Permission denied*. The key text travels inside the command, so no file has
+to be copied first, and `-t` lets `sudo` ask for your password:
 
 ```sh
-ssh-keygen -t ed25519 -C monishield-deploy -N "" -f monishield-deploy
-scp monishield-deploy.pub ubuntu@SERVER_IP:/tmp/
-ssh -t ubuntu@SERVER_IP 'sudo tee -a /home/deploy/.ssh/authorized_keys < /tmp/monishield-deploy.pub > /dev/null \
-  && sudo chown deploy:deploy /home/deploy/.ssh/authorized_keys && sudo chmod 600 /home/deploy/.ssh/authorized_keys \
-  && rm /tmp/monishield-deploy.pub'
-ssh -i monishield-deploy deploy@SERVER_IP 'id && docker ps --format "{{.Names}}"'   # no password prompt; groups include docker
+ssh-keygen -t ed25519 -C monishield-deploy -N "" -f ~/monishield-deploy
+KEY=$(cat ~/monishield-deploy.pub)
+ssh -t ubuntu@SERVER_IP "echo '$KEY' | sudo tee -a /home/deploy/.ssh/authorized_keys > /dev/null \
+  && sudo chown deploy:deploy /home/deploy/.ssh/authorized_keys && sudo chmod 600 /home/deploy/.ssh/authorized_keys && echo OK"
+ssh -i ~/monishield-deploy deploy@SERVER_IP 'id && docker ps --format "{{.Names}}"'   # no password prompt; groups include docker
 ssh-keyscan -p 22 SERVER_IP                         # copy the output for DEPLOY_KNOWN_HOSTS
 ```
 
