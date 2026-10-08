@@ -14,10 +14,12 @@ class NewUser(BaseModel):
     display_name: str = ''
     role: str = 'user'
     password: str = ''
+    email: str = ''
 
 
 class EditUser(BaseModel):
     display_name: Optional[str] = None
+    email: Optional[str] = None   # '' = remove
     role: Optional[str] = None
     active: Optional[bool] = None
 
@@ -28,12 +30,12 @@ def list_users(request: Request): return dict(users=request.app.state.auth.list_
 
 @router.post('/users', status_code=201)
 def create_user(body: NewUser, request: Request, admin=Depends(require_admin)):
-    return request.app.state.auth.create_user(body.username, body.display_name, body.role, body.password, by=admin, ip=client_ip(request))
+    return request.app.state.auth.create_user(body.username, body.display_name, body.role, body.password, by=admin, ip=client_ip(request), email=body.email)
 
 
 @router.patch('/users/{user_id}')
 def edit_user(user_id: int, body: EditUser, request: Request, admin=Depends(require_admin)):
-    return request.app.state.auth.update_user(user_id, admin, client_ip(request), body.display_name, body.role, body.active)
+    return request.app.state.auth.update_user(user_id, admin, client_ip(request), body.display_name, body.role, body.active, body.email)
 
 
 @router.post('/users/{user_id}/reset-password')

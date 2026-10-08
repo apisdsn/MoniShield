@@ -8,6 +8,7 @@ import dataclasses, os, re, tomllib
 
 from monishield.domain.config_model import ALERT_EVENTS, SECRETS, Config, env_name   # noqa: F401  (re-exported through this module)
 from monishield.domain.config_model import cast as _cast
+from monishield.domain import alerts, retention
 
 V2_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # project root (formerly the v2/ folder in the dashboard-logging repo)
 DOTENV = os.path.join(V2_DIR, '.env')   # read by load(); the Configuration page writes here (monishield/envfile.py)
@@ -62,6 +63,10 @@ def load(env=None, dotenv=None):
     if cfg.kafka_sasl_mechanism.upper() not in ('PLAIN', 'SCRAM-SHA-256', 'SCRAM-SHA-512'): raise SystemExit('S4_KAFKA_SASL_MECHANISM must be PLAIN, SCRAM-SHA-256, or SCRAM-SHA-512')
     if cfg.kafka_offset_reset not in ('earliest', 'latest'): raise SystemExit("S4_KAFKA_OFFSET_RESET must be 'earliest' or 'latest'")
     if not 1 <= cfg.kafka_ingest_minutes <= 1440: raise SystemExit('S4_KAFKA_INGEST_MINUTES must be 1..1440')
+    if msg := retention.validate(cfg.retention_days, cfg.retention_inbox_days): raise SystemExit(f'S4_RETENTION_DAYS / S4_RETENTION_INBOX_DAYS: {msg}')
+    try: alerts.parse_spike(cfg.alert_spike); alerts.parse_service_spike(cfg.alert_service_spike)
+    except alerts.AlertFail as e: raise SystemExit(f'S4_ALERT_SPIKE / S4_ALERT_SERVICE_SPIKE: {e}') from None
+    if not 5 <= cfg.password_reset_minutes <= 1440: raise SystemExit('S4_PASSWORD_RESET_MINUTES must be 5..1440')
     if not 1 <= cfg.geo_max_age_days <= 30: raise SystemExit('S4_GEO_MAX_AGE_DAYS must be 1..30 (GeoLite2 license)')
     if cfg.url_maxmind.count('{}') != 1: raise SystemExit('S4_URL_MAXMIND must contain exactly one {} (edition name)')
     for k in ('url_maxmind', 'url_ip2asn', 'url_land', 'url_borders', 'url_provinces', 'url_countries', 'url_geonames', 'telegram_api'):

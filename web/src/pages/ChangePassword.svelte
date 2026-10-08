@@ -1,12 +1,13 @@
 <!-- Change password (DRD §3.11): rules are stated before typing; per-field errors below the field (aria-describedby).
-     forced = required (first login / after reset): shown alone, without "Batal"; the only other way out is "Keluar". -->
+     forced = required (first login / after reset): shown alone, without "Batal"; the only other way out is "Keluar".
+     embedded = inside the account dialog (lib/AccountDialogs.svelte), which supplies the card and the title. -->
 <script>
   import { srv, errText } from '../srv.js';
   import { t } from '../i18n.js';
   import { api } from '../api.js';
   import { toast } from '../lib/Toast.svelte';
   import Note from '../lib/Note.svelte';
-  let { forced = false, ondone, oncancel = null, onlogout = null } = $props();
+  let { forced = false, embedded = false, ondone, oncancel = null, onlogout = null } = $props();
 
   const MIN = 12;
   let old = $state(''), nw = $state(''), again = $state(''), busy = $state(false);
@@ -37,8 +38,8 @@
 </script>
 
 <div class:screen={forced}>
-  <section class="card pwc" aria-labelledby="pw-title">
-    {#if forced}<h1 id="pw-title">{$t('pw.title')}</h1>{:else}<h2 id="pw-title" class="sr-only">{$t('pw.title')}</h2>{/if}
+  <section class="pwc" class:card={!embedded} aria-labelledby={embedded ? undefined : 'pw-title'}>
+    {#if forced}<h1 id="pw-title">{$t('pw.title')}</h1>{:else if !embedded}<h2 id="pw-title" class="sr-only">{$t('pw.title')}</h2>{/if}
     {#if forced}<Note wide={false}>{$t('pw.forced')}</Note>{/if}
     <form onsubmit={submit} novalidate>
       <label for="pw-old">{$t('pw.old')}</label>

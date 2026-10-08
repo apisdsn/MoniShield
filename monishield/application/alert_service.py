@@ -22,7 +22,7 @@ def deliver(ctx, cfg, key, event, title, text, channels=None, force=False):
     out = {}
     for name, ch in cfg['channels'].items():
         if (channels and name not in channels) or (not channels and not ch['enabled']): continue
-        try: ctx.channels.send(name, ch, title, text); out[name] = None
+        try: ctx.channels.send(name, dict(ch, lang=cfg['lang']) if name == 'email' else ch, title, text); out[name] = None
         except AlertFail as e: out[name] = str(e)
         except Exception as e: out[name] = type(e).__name__   # noqa: BLE001
         auth.alert_add(key, event, name, out[name] is None, summary=title, error=out[name])
@@ -31,7 +31,10 @@ def deliver(ctx, cfg, key, event, title, text, channels=None, force=False):
 
 # ------------------------------------------------------------------ page (admin)
 def view(ctx):
-    return dict(alerts.public(alerts.load(ctx.cfg)), events_all=list(alerts.EVENTS), history=ctx.auth.alert_list(30))
+    try: services = ctx.warehouse.services()
+    except Exception: services = []   # noqa: BLE001  database not open yet
+    return dict(alerts.public(alerts.load(ctx.cfg)), events_all=list(alerts.EVENTS), spike_all=list(alerts.SPIKE), services=services,
+                history=ctx.auth.alert_list(30))
 
 
 def update(ctx, body):

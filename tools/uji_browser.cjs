@@ -43,12 +43,12 @@ async function login(page, user, pw) {
   await page.screenshot({ path: `${OUT}/01-masuk-1440.png` });
   await login(page, 'admin', 'salah-sandi-xx');
   await page.waitForSelector('[role=alert]');
-  cek('wrong password: one-sentence message + focus back on password', (await page.textContent('[role=alert]')).includes('Nama user atau sandi salah') &&
+  cek('wrong password: one-sentence message + focus back on password', (await page.textContent('[role=alert]')).includes('Nama user atau kata sandi salah') &&
       (await page.evaluate(() => document.activeElement.id)) === 'p');
   // ------------------------------------------------------------------ 2. forced password change
   await login(page, 'admin', PW0);
   await page.waitForSelector('#pw-old');
-  cek('forced password change shown on its own', (await page.locator('aside').count()) === 0 && (await page.textContent('body')).includes('harus mengganti sandi'));
+  cek('forced password change shown on its own', (await page.locator('aside').count()) === 0 && (await page.textContent('body')).includes('harus mengganti kata sandi'));
   await page.fill('#pw-old', PW0); await page.fill('#pw-new', 'pendek'); await page.fill('#pw-again', 'pendek');
   await page.click('button[type=submit]');
   cek('per-field error below the field', await page.locator('#pw-new-e').isVisible());
@@ -152,7 +152,7 @@ async function login(page, user, pw) {
   cek('user sidebar same as admin', navUser === navAdmin);
   await u.page.click('button[aria-haspopup=menu] >> visible=true');
   const menu = await u.page.textContent('#user-menu');
-  cek('user menu without "Kelola user" and "Ingest & impor"', !menu.includes('Kelola user') && !menu.includes('Ingest') && menu.includes('Ganti sandi') && menu.includes('Keluar'), menu.replace(/\s+/g, ' '));
+  cek('user menu without "Kelola user" and "Ingest & impor"', !menu.includes('Kelola user') && !menu.includes('Ingest') && menu.includes('Ganti kata sandi') && menu.includes('Keluar'), menu.replace(/\s+/g, ' '));
   await u.page.keyboard.press('Escape');
   await page.click('button[aria-haspopup=menu] >> visible=true');
   const menuA = await page.textContent('#user-menu');
@@ -205,7 +205,7 @@ async function login(page, user, pw) {
     cek(`${w}px: Esc closes the drawer, focus back on ☰`, await m.page.evaluate(() => !document.querySelector('aside.open') && document.activeElement.classList.contains('burger')));
     await m.page.click('button[aria-label="Menu lainnya"]');
     const isi = await m.page.textContent('#user-menu');
-    cek(`${w}px: ⋯ menu has language, theme, reload, user menu`, ['English', 'Tema terang', 'Muat ulang', 'Ganti sandi', 'Keluar'].every((k) => isi.includes(k)));
+    cek(`${w}px: ⋯ menu has language, theme, reload, user menu`, ['English', 'Tema terang', 'Muat ulang', 'Ganti kata sandi', 'Keluar'].every((k) => isi.includes(k)));
     await m.page.screenshot({ path: `${OUT}/07-menu-${w}.png` });
     await m.ctx.close();
   }

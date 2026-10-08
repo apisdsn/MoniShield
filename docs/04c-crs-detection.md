@@ -1,7 +1,7 @@
 # 04c — Attack detection: OWASP CRS + CAPEC (Stage 21)
 
 Comparison report of the old detection rules (the old system's patterns, `attack_cat`) with the OWASP Core Rule Set
-(CRS) rules that v2 has used since Stage 21. Technical details: TRD §4.6; plan: `04-rencana.md` Stage 21.
+(CRS) rules that v2 has used since Stage 21. Technical details: TRD §4.6; plan: `04-plan.md` Stage 21.
 The figures below were computed from the real database (11 folders, 308,158 ingress nginx log lines) at paranoia
 level 1 and an anomaly score threshold of 5.
 

@@ -2,6 +2,7 @@
 background thread; derive/delete folder hold the same lock so they never run alongside ingest."""
 import datetime, threading, time
 
+from monishield.domain import retention
 from monishield.domain.errors import Busy, Fail
 
 
@@ -80,7 +81,8 @@ class IngestService:
 def new_folders(ctx):
     """Date folders in the log folder / inbox that are not yet in the database (and not ignored)."""
     w = ctx.warehouse
-    return ctx.logfolders.new_folders(w.known_folders() | w.ignored())
+    cut = retention.cutoff(retention.today_wib(datetime.datetime.now(datetime.timezone.utc)), ctx.cfg.retention_days)
+    return retention.keep(ctx.logfolders.new_folders(w.known_folders() | w.ignored()), cut)   # past the keeping period: not offered
 
 
 def _exclusive(ctx):

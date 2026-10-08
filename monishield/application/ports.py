@@ -8,11 +8,12 @@ Services receive `ctx` (on the server: `app.state`, assembled in monishield/inte
   s3             S3Gateway          S3 download, folder listing, connection test    infrastructure/importer.py (S3Gateway)
   env            EnvStore           .env file + environment variables               infrastructure/envfile.py (EnvStore)
   channels       NotificationChannels Telegram / Discord / email                   infrastructure/notify_channels.py (Channels)
+  mailer         Mailer             letters through the mail server (SMTP)          infrastructure/mailer.py (Mailer)
   kafka_client   KafkaClient        consumer + Kafka message check                  infrastructure/kafka_client.py (KafkaClient)
   inbox          Inbox (factory)    buffer of Kafka lines -> inbox files            infrastructure/inbox.py (Spool)
   uploads        UploadStore        temporary upload files                          infrastructure/uploads.py (Uploads)
   maxmind        MaxMindProbe       MaxMind key test                                infrastructure/refdata.py (probe_maxmind)
-  ingest, imports, alerts, kafka    other application services (calling each other through ctx)
+  ingest, imports, alerts, kafka, retention, resets, emails    other application services (calling each other through ctx)
 
 User-facing errors are raised as monishield.domain.errors.Fail (code + message + status); the interface layer
 translates them to HTTP. The Protocols below are only documentation + type checking; nothing inherits from them.
@@ -50,6 +51,7 @@ class Warehouse(Protocol):
     def unignore(self, folder: str) -> bool: ...
     def folder_facts(self, folder: str, crs: bool) -> dict: ...
     def ip_locations(self) -> Mapping[str, tuple]: ...
+    def services(self) -> list: ...
 
 
 class LogFolders(Protocol):
@@ -80,6 +82,11 @@ class EnvStore(Protocol):
     def exists(self) -> bool: ...
     def writable(self) -> bool: ...
     def write(self, changes: dict) -> list: ...
+
+
+class Mailer(Protocol):
+    def ready(self) -> bool: ...
+    def send(self, letter: dict, to: str) -> None: ...
 
 
 class NotificationChannels(Protocol):

@@ -149,7 +149,7 @@ def test_incidents_sama(old, real):
 
 def test_ip_owner_sama(old, real):
     path = os.path.join(CACHE, 'ip2asn-v4.tsv.gz')
-    if not os.path.exists(path): pytest.skip('cache ip2asn tidak ada')
+    if not os.path.exists(path): pytest.skip('ip2asn cache is missing')
     db = refdata.load_ip2asn(path, max_age_days=10**6)  # unlimited age: the test must not download
     old_db = getattr(old, '_db_uji', None) or old.load_ip2asn(max_age_days=10**6)
     assert db == old_db
@@ -161,7 +161,7 @@ def test_ip_owner_sama(old, real):
 
 def test_geo_scan_sama(old, real):
     path = os.path.join(CACHE, 'dbip-city-lite.csv.gz')
-    if not os.path.exists(path): pytest.skip('cache DB-IP tidak ada')
+    if not os.path.exists(path): pytest.skip('DB-IP cache is missing')
     need = sorted((rules.ip_int(ip), ip) for ip in real['ips'] if re.fullmatch(r'[\d.]+', ip))
     with gzip.open(path, 'rt', encoding='utf-8', newline='') as fh: a = rules.geo_scan(need, csv.reader(fh))
     with gzip.open(path, 'rt', encoding='utf-8', newline='') as fh: b = old.geo_scan(need, csv.reader(fh))
@@ -172,6 +172,6 @@ def test_geo_scan_sama(old, real):
 
 def test_map_labels_sama(old):
     files = os.path.join(CACHE, 'ne_110m_countries.geojson'), os.path.join(CACHE, 'geonames-ID.zip')
-    if not all(map(os.path.exists, files)): pytest.skip('cache label peta tidak ada')
+    if not all(map(os.path.exists, files)): pytest.skip('map label cache is missing')
     out = refdata.map_labels(*files)
     assert out == old.map_labels() and {k: len(v) for k, v in out.items()} == dict(c=177, p=38, k=514)

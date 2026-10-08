@@ -28,6 +28,12 @@
     calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
     'side-close': 'M4 4h16v16H4zM9 4v16M16 9.5L13.5 12l2.5 2.5',   // left panel + arrow: collapse navigation
     'side-open': 'M4 4h16v16H4zM9 4v16M13.5 9.5L16 12l-2.5 2.5',
+    mail: 'M4 6h16v12H4zM4 7l8 6 8-6',
+    sun: 'M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4',
+    moon: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
+    settings: 'M4 7h9M17 7h3M15 5v4M4 12h3M11 12h9M9 10v4M4 17h11M19 17h1M17 15v4',   // sliders: configuration
+    code: 'M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14',
+    database: 'M12 3c4.4 0 8 1.3 8 3s-3.6 3-8 3s-8-1.3-8-3s3.6-3 8-3M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
   };
 </script>
 

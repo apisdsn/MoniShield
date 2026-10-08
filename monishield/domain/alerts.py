@@ -13,7 +13,8 @@ count, IP count, categories), without IP addresses; as a last safeguard every IP
 before sending (`scrub`).
 
 Events:
-  spike           a number in the new folder ≥ 2× the average of comparable folders (Command Center `baseline`) and up by at least N
+  spike           a number in the new folder ≥ 2× the average of comparable folders (Command Center `baseline`) and up by at least N;
+                  also the errors of each service against that service's average (thresholds: S4_ALERT_SPIKE, S4_ALERT_SERVICE_SPIKE)
   critical        critical-severity attack requests in the new folder
   ingest_failed   ingest failed or some file failed to parse
   sync_failed     the S3 sync check ended with an error / failed folder
@@ -36,8 +37,13 @@ DEFAULT = dict(
     events=dict(spike=True, critical=True, ingest_failed=True, sync_failed=True, folder_missing=True, summary=False),
     lang='id', dashboard_url='', missing_hour=10)
 SECRETS = {'telegram': ('bot_token',), 'discord': ('webhook_url',), 'email': ('password',)}
-# spike threshold per number: (times the average, minimum increase)
+# spike threshold per number: (times the average, minimum increase); S4_ALERT_SPIKE overrides them, "off" turns one off
 SPIKE = dict(n5xx=(2, 20), errors=(2, 100), upstream_errors=(2, 20), atk_req=(2, 20), attack_ips=(2, 3), login_fail_ips=(2, 5))
+# errors of ONE service vs that service's own average (owner request 2026-10-08): a busy service and a quiet one need
+# different thresholds. S4_ALERT_SERVICE_SPIKE: default=2:50 plus per-service overrides; "off" mutes a service.
+SERVICE_DEFAULT = (2, 50)
+_SERVICE = re.compile(r'[a-z0-9][a-z0-9._-]{0,99}')
+MAX_SERVICE_LINES = 5
 
 # IPv4; IPv6 full (8 groups) or compressed (contains '::'). Times like 10:00:59 do not match.
 _IP = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b|\b(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}\b|(?:[0-9a-f]{1,4}:){1,7}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})?|::(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})', re.I)
@@ -53,6 +59,75 @@ class AlertFail(Fail):
 
     def __str__(self): return self.message
 
+# ------------------------------------------------------------------ thresholds
+def _pair(name, value):
+    """'2:50' -> (2.0, 50); 'off' -> None. Bad text -> AlertFail."""
+    v = str(value).strip().lower()
+    if v == 'off': return None
+    f, sep, m = v.partition(':')
+    try:
+        f, m = float(f), int(m) if sep else 0
+    except ValueError: raise AlertFail(f'Threshold for {name} must look like 2:50 (times the average : minimum increase) or off.') from None
+    if not (1 < f <= 100 and 0 <= m <= 10 ** 9): raise AlertFail(f'Threshold for {name}: the factor must be above 1 and at most 100, the minimum increase 0 or more.')
+    return (int(f) if f == int(f) else round(f, 2), m)
+
+
+def _items(text):
+    for part in (p.strip() for p in str(text or '').split(',')):
+        if not part: continue
+        k, sep, v = part.partition('=')
+        if not sep: raise AlertFail(f'"{part[:60]}" must be name=factor:minimum (e.g. n5xx=3:50).')
+        yield k.strip().lower(), v
+
+
+def parse_spike(text):
+    """S4_ALERT_SPIKE -> {number: (factor, minimum) | None}, defaults filled in."""
+    out = dict(SPIKE)
+    for k, v in _items(text):
+        if k not in SPIKE: raise AlertFail(f'Unknown number "{k[:40]}" in the spike thresholds; use {", ".join(SPIKE)}.')
+        out[k] = _pair(k, v)
+    return out
+
+
+def parse_service_spike(text):
+    """S4_ALERT_SERVICE_SPIKE -> dict(default=(factor, minimum) | None, services={service: (factor, minimum) | None})."""
+    out = dict(default=SERVICE_DEFAULT, services={})
+    for k, v in _items(text):
+        if k == 'default': out['default'] = _pair('all services', v); continue
+        if not _SERVICE.fullmatch(k): raise AlertFail(f'"{k[:60]}" is not a service name.')
+        out['services'][k] = _pair(k, v)
+    return out
+
+
+def _fmt(pair): return 'off' if pair is None else f'{pair[0]}:{pair[1]}'
+
+
+def format_spike(d): return ','.join(f'{k}={_fmt(d[k])}' for k in SPIKE if d.get(k, SPIKE[k]) != SPIKE[k])
+
+
+def format_service_spike(d):
+    return ','.join([f"default={_fmt(d['default'])}"] + [f'{s}={_fmt(p)}' for s, p in sorted(d['services'].items())])
+
+
+def service_threshold(d, service):
+    """(factor, minimum) for one service, or None when its spikes are not reported."""
+    s = str(service).lower()
+    return d['services'][s] if s in d['services'] else d['default']
+
+
+def is_spike(value, avg, pair):
+    return pair is not None and value is not None and avg is not None and value >= pair[0] * avg and value - avg >= pair[1]
+
+
+def _pairs_json(d): return {k: None if p is None else dict(factor=p[0], min=p[1]) for k, p in d.items()}
+
+
+def _pair_in(name, v):
+    if v is None or v == 'off': return None
+    if isinstance(v, dict): return _pair(name, f"{v.get('factor')}:{v.get('min', 0)}")
+    return _pair(name, v)
+
+
 # ------------------------------------------------------------------ settings
 def load(cfg):
     """Notification settings from the server configuration (.env) -> the dict shape used by this module and the page."""
@@ -62,7 +137,8 @@ def load(cfg):
                       discord=dict(enabled=cfg.alert_discord, webhook_url=cfg.discord_webhook_url),
                       email=dict(enabled=cfg.alert_email, host=cfg.smtp_host, port=cfg.smtp_port, security=cfg.smtp_security,
                                  username=cfg.smtp_username, password=cfg.smtp_password, sender=cfg.smtp_from, to=cfg.smtp_to)),
-        events={e: e in on for e in EVENTS}, lang=cfg.alert_lang, dashboard_url=cfg.dashboard_url, missing_hour=cfg.alert_missing_hour)
+        events={e: e in on for e in EVENTS}, lang=cfg.alert_lang, dashboard_url=cfg.dashboard_url, missing_hour=cfg.alert_missing_hour,
+        spike=parse_spike(cfg.alert_spike), service_spike=parse_service_spike(cfg.alert_service_spike))
 
 
 def to_fields(d):
@@ -74,7 +150,7 @@ def to_fields(d):
                 alert_email=bool(e['enabled']), smtp_host=e['host'], smtp_port=int(e['port']), smtp_security=e['security'],
                 smtp_username=e['username'], smtp_password=e['password'], smtp_from=e['sender'], smtp_to=e['to'],
                 alert_events=','.join(k for k in EVENTS if d['events'].get(k)), alert_lang=d['lang'], dashboard_url=d['dashboard_url'],
-                alert_missing_hour=int(d['missing_hour']))
+                alert_missing_hour=int(d['missing_hour']), alert_spike=format_spike(d['spike']), alert_service_spike=format_service_spike(d['service_spike']))
 
 
 def from_db(cfg, v):
@@ -90,7 +166,9 @@ def from_db(cfg, v):
 
 def public(cfg):
     """For the browser: credentials only as 'set' (True/False), their values are never returned."""
-    out = json.loads(json.dumps(cfg))
+    out = json.loads(json.dumps(dict(cfg, spike=None, service_spike=None)))
+    out['spike'] = _pairs_json(cfg['spike'])
+    out['service_spike'] = dict(default=_pairs_json(dict(d=cfg['service_spike']['default']))['d'], services=_pairs_json(cfg['service_spike']['services']))
     out['channels']['telegram'].pop('api', None)   # API address from .env, not a page field
     for ch, keys in SECRETS.items():
         for k in keys: out['channels'][ch][k] = bool(cfg['channels'][ch][k])
@@ -100,7 +178,21 @@ def public(cfg):
 def merge(cfg, body):
     """Merge page input into the settings. Empty credential field = unchanged (not erased); `clear: [channel.field]`
     to erase. -> new settings (validated)."""
-    new = json.loads(json.dumps(cfg))
+    new = json.loads(json.dumps(dict(cfg, spike=None, service_spike=None)))
+    new['spike'], new['service_spike'] = dict(cfg['spike']), dict(default=cfg['service_spike']['default'], services=dict(cfg['service_spike']['services']))
+    if isinstance(body.get('spike'), dict):
+        for k, v in body['spike'].items():
+            if k in SPIKE: new['spike'][k] = _pair_in(k, v)
+    if isinstance(body.get('service_spike'), dict):
+        s = body['service_spike']
+        if 'default' in s: new['service_spike']['default'] = _pair_in('all services', s['default'])
+        if isinstance(s.get('services'), dict):
+            svc = {}
+            for name, v in s['services'].items():
+                name = str(name).strip().lower()
+                if not _SERVICE.fullmatch(name): raise AlertFail(f'"{name[:60]}" is not a service name.')
+                svc[name] = _pair_in(name, v)
+            new['service_spike']['services'] = svc
     for ch, d in (body.get('channels') or {}).items():
         if ch not in new['channels'] or not isinstance(d, dict): continue
         for k, v in d.items():
@@ -156,14 +248,16 @@ T = dict(
             avg='rata-rata {n} folder: {v}', open='Buka', n5xx='Respons 5xx', errors='Error (semua layanan)', upstream_errors='Error koneksi upstream',
             atk_req='Request serangan', attack_ips='IP sumber serangan', login_fail_ips='IP dengan login gagal', requests='Request HTTP',
             crit='{n} request serangan kritis dari {ips} IP. Kategori: {cats}.', newest='Folder terbaru: {d}. Periksa kiriman log / sinkron S3.',
-            failed_files='{n} file gagal di-parse', run='ingest #{id}', folders='Folder: {list}'),
+            failed_files='{n} file gagal di-parse', run='ingest #{id}', folders='Folder: {list}',
+            svc_head='Error per layanan:', svc_more='… dan {n} layanan lain'),
     en=dict(spike='Spike in folder {d}', critical='Critical attacks in folder {d}', ingest_failed='Ingest failed',
             sync_failed='S3 sync problem', folder_missing='Log folder {d} has not arrived', summary='Summary of folder {d}',
             test='MoniShield test message', test_text='This channel is connected. Future notifications will be sent here.',
             avg='{n}-folder average: {v}', open='Open', n5xx='5xx responses', errors='Errors (all services)', upstream_errors='Upstream connection errors',
             atk_req='Attack requests', attack_ips='Attack source IPs', login_fail_ips='IPs with failed logins', requests='HTTP requests',
             crit='{n} critical attack requests from {ips} IPs. Categories: {cats}.', newest='Newest folder: {d}. Check log delivery / S3 sync.',
-            failed_files='{n} files failed to parse', run='ingest #{id}', folders='Folders: {list}'))
+            failed_files='{n} files failed to parse', run='ingest #{id}', folders='Folders: {list}',
+            svc_head='Errors per service:', svc_more='… and {n} more services'))
 
 
 def _t(cfg, k, **p): return T[cfg['lang'] if cfg['lang'] in T else 'id'][k].format(**p)
@@ -185,13 +279,21 @@ def folder_events(cfg, folder, facts):
     vals = dict(a['kpi'], atk_req=a['atk_req'])
     avgs = dict(b['kpi'], atk_req=b['atk_req'])
     lines = []
-    for k, (fac, add) in SPIKE.items():
+    for k in SPIKE:
         v, m = vals.get(k), avgs.get(k)
-        if v is None or m is None: continue
-        if v >= fac * m and v - m >= add:
-            n = b['n_nginx'] if k in ngx_keys or k == 'atk_req' else b['n_all']
-            fac_txt = f'; ×{v / m:.1f}' if m else ''
-            lines.append(f"• {_t(cfg, k)}: {_num(v, lang)} ({_t(cfg, 'avg', n=n, v=_num(m, lang))}{fac_txt})")
+        if not is_spike(v, m, cfg['spike'].get(k)): continue
+        n = b['n_nginx'] if k in ngx_keys or k == 'atk_req' else b['n_all']
+        fac_txt = f'; ×{v / m:.1f}' if m else ''
+        lines.append(f"• {_t(cfg, k)}: {_num(v, lang)} ({_t(cfg, 'avg', n=n, v=_num(m, lang))}{fac_txt})")
+    # errors per service, each against its own average and threshold (largest increase first)
+    svc = sorted(((e - b['svc'][s], s, e, b['svc'][s]) for s, (e, _) in (a.get('svc') or {}).items()
+                  if is_spike(e, (b.get('svc') or {}).get(s), service_threshold(cfg['service_spike'], s))), reverse=True)
+    if svc:
+        lines.append(_t(cfg, 'svc_head'))
+        for _, s, e, m in svc[:MAX_SERVICE_LINES]:
+            fac_txt = f'; ×{e / m:.1f}' if m else ''
+            lines.append(f"• {s}: {_num(e, lang)} ({_t(cfg, 'avg', n=b['n_all'], v=_num(m, lang))}{fac_txt})")
+        if len(svc) > MAX_SERVICE_LINES: lines.append(_t(cfg, 'svc_more', n=len(svc) - MAX_SERVICE_LINES))
     if lines and cfg['events']['spike']:
         out.append(('spike', f'spike:{folder}', _t(cfg, 'spike', d=folder), '\n'.join(lines) + _link(cfg, folder)))
     if a['crit_req'] and cfg['events']['critical']:

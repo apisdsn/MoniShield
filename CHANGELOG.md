@@ -10,23 +10,51 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 - Automatic deployment: a push to `prd` that passes CI is deployed to the server over SSH
   (`deploy/remote-deploy.sh`, `docs/07-deploy-vps.md` §13); the first run can migrate the old checkout.
 - Kafka folders are labelled "(Kafka)" in the folder picker, page title and folder management.
+- `docs/09-status.md` (state, owner requests, next steps), `docs/README.md` (document index) and `CLAUDE.md`
+  (working rules for Claude Code) for continuing the work on another machine.
+- `docs/10-user-guide.md`: the detailed usage, command line, Kafka and S3 sections formerly in the README.
+- Encrypted request and response bodies between the web UI and the API (ECDH P-256 + AES-256-GCM per page load,
+  `S4_API_ENCRYPTION`); Swagger, the ingest job and curl keep plain JSON.
+- Data retention: `S4_RETENTION_DAYS` (database) and `S4_RETENTION_INBOX_DAYS` (inbox files), cleaned daily and from
+  Configuration → Data retention.
+- Forgot password by email: a unique temporary password (letters, digits, special characters) valid 30 minutes,
+  the old password keeps working until it is used; users get an email address (Manage users).
+- One MoniShield email letter with the logo for every email (password reset, OTP code, notifications, test email),
+  and a Mail server (SMTP) section on the Configuration page with a test email.
+- Users change their own email (user menu → Account email) with their password and a code sent to the old and to the
+  new address; the old address gets a notice.
+- The sign-in page always shows a *Forgot password?* button; without a mail server it explains that an admin resets
+  the password.
+- *Change password* and *Account email* open as pop-ups over the current page instead of separate pages.
+- Verification codes are entered in six digit boxes (`lib/OtpInput.svelte`; paste and the phone's code suggestion work),
+  centred, each with the address it was sent to.
+- Notification thresholds per number (`S4_ALERT_SPIKE`) and per service (`S4_ALERT_SERVICE_SPIKE`), editable under
+  Configuration → Notifications; the Command Center uses the same per-service thresholds.
 
 ### Changed
+- Saving a section of the Configuration page only checks that section: an invalid value elsewhere (for example an AWS
+  key from the process environment) no longer blocks saving the mail server, retention or other sections.
+- The page title in the header no longer breaks into one word per line on medium screens (around 1280 px, English):
+  the header tools move to a second line instead.
 - The repo stands alone: the contents of the `v2/` folder of the `apisdsn/dashboard-logging` repo were moved to `apisdsn/MoniShield` together with
   their commit history. The default log folder is now `logs/` in the project folder (formerly the parent folder of `v2/`).
 - Branches: `dev` (development) → `stg` (testing/staging) → `prd` (production); rules in `CONTRIBUTING.md`.
 - Code comments, documentation, commit messages, server error messages, API responses and CLI output are now in English;
   API status values are English (old values in existing databases are migrated on start). The web UI remains bilingual.
+- Document file names are English: `00-reference.json`, `00-inventory.md`, `04-plan.md`, `04a-measurements.md`,
+  `04b-page-checklist.md`, `04c-crs-detection.md`; the plan gained stages 26–31 and the TRD shows the current folder layout.
+- `README.md` rewritten in the layout of Best-README-Template.
+- Deploy settings `DEPLOY_DIR`, `DEPLOY_PROFILES`, `DEPLOY_MIGRATE_FROM` may be GitHub environment variables or secrets.
 
 ## [2.0.0] — 2026-10-07
 
 Replacement for the old static HTML dashboard (`build_dashboard.py` → `dashboard.html`): FastAPI + DuckDB on the server, Svelte in the
 browser, role-based accounts (admin/user), two languages (ID/EN), light/dark theme, usable on phones. Its key numbers are tested
-to match the old system. Design: `docs/` (PRD, DRD, TRD, plan `04-rencana.md`).
+to match the old system. Design: `docs/` (PRD, DRD, TRD, plan `04-plan.md`).
 
 ### Additions at the owner's request
 
-Summarized from the plan notes (`docs/04-rencana.md`, stages 12a–25 and deviation lines 25 (a)–(s)).
+Summarized from the plan notes (`docs/04-plan.md`, stages 12a–25 and deviation lines 25 (a)–(s)).
 
 **Accounts, security, and database**
 - Login sessions use **JWT**; accounts, sessions, audit, and import history are in **PostgreSQL via an ORM (SQLAlchemy)**
@@ -79,6 +107,5 @@ Summarized from the plan notes (`docs/04-rencana.md`, stages 12a–25 and deviat
 - Documents on architecture, mechanisms, usage, and data flow (separate artifact).
 
 ### Known issues / not yet done
-- Not yet tested on a real phone (only 390/360 px emulation).
 - Kafka not yet tested against a real Rancher cluster; Let's Encrypt certificates only tested with Caddy's local certificates.
 - Credentials entered via the UI are stored in `.env` without additional encryption (protect the file permissions and the server).

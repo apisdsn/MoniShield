@@ -15,14 +15,15 @@ Two roles: 'admin' and 'user'. Per-module restrictions are deferred (TRD §8.3).
 import contextlib, datetime, hmac, re, secrets, threading, time
 
 import jwt
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, create_engine, delete, func, select, update
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, create_engine, delete, func, inspect, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from monishield.domain import accounts
-from monishield.domain.accounts import PASSWORD_MAX, ROLES, AuthError, check_password, check_username, hash_password, job_token_ok   # noqa: F401
+from monishield.domain.accounts import PASSWORD_MAX, ROLES, AuthError, check_email, check_password, check_username, hash_password, job_token_ok   # noqa: F401
 
 MAX_FAILED, LOCK_MINUTES = 5, 15
+RESET_GAP_S = 60   # forgot password: at most one temporary password per account per minute
 JOB_STATUS = {'berjalan': 'running', 'selesai': 'done', 'gagal': 'failed', 'coba': 'dry_run'}   # old -> current
 IP_MAX_FAILED, IP_WINDOW_S = 20, 15 * 60   # per-IP limiter, in memory
 JWT_ALG, JWT_ISS, JWT_SECRET_MIN = 'HS256', 'monishield', 32
@@ -49,6 +50,34 @@ class User(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
     created_by: Mapped[str | None] = mapped_column(String(32))
     last_login_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
+    email: Mapped[str | None] = mapped_column(String(254))   # lower case; unique index ux_app_user_email (created in Auth.__init__)
+
+
+class PasswordReset(Base):
+    """Pending temporary password from "forgot password" (owner request 2026-10-08). The old password keeps working until the
+    temporary one is used (so nobody can lock a user out by asking for resets); it expires, and is used at most once."""
+    __tablename__ = 'password_reset'
+    user_id: Mapped[int] = mapped_column(ForeignKey('app_user.user_id', ondelete='CASCADE'), primary_key=True)
+    password_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    password_salt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    hash_params: Mapped[str] = mapped_column(String(16), nullable=False)
+    requested_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    ip: Mapped[str | None] = mapped_column(String(64))
+
+
+class EmailChange(Base):
+    """Pending own email change (owner request 2026-10-08): codes sent to the old address (when there is one) and to the
+    new one, stored as keyed hashes; expires after CODE_MINUTES, at most CODE_ATTEMPTS wrong tries."""
+    __tablename__ = 'email_change'
+    user_id: Mapped[int] = mapped_column(ForeignKey('app_user.user_id', ondelete='CASCADE'), primary_key=True)
+    new_email: Mapped[str] = mapped_column(String(254), nullable=False)
+    old_hash: Mapped[bytes | None] = mapped_column(LargeBinary)
+    new_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    salt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    requested_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
 
 
 class Session(Base):
@@ -133,8 +162,16 @@ class Auth:
         # dummy salt: verification is still computed for nonexistent users, so response time does not leak whether a user exists
         self._dummy_salt = secrets.token_bytes(16)
         Base.metadata.create_all(self.engine)   # ponytail: no migration tool; add Alembic when the account schema first changes
+        self._migrate()
         with self.engine.begin() as c:   # import job status was Indonesian before 2026-10-08
             for a, b in JOB_STATUS.items(): c.execute(update(ImportJob).where(ImportJob.status == a).values(status=b))
+
+    def _migrate(self):
+        """Columns added after the first release (create_all does not alter existing tables)."""
+        cols = {c['name'] for c in inspect(self.engine).get_columns('app_user')}
+        with self.engine.begin() as c:
+            if 'email' not in cols: c.execute(text('ALTER TABLE app_user ADD COLUMN email VARCHAR(254)'))
+            c.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS ux_app_user_email ON app_user (email)'))
 
     @contextlib.contextmanager
     def _tx(self):
@@ -234,7 +271,7 @@ class Auth:
     # ---------------------------------------------------------------- user
     @staticmethod
     def _public(u):
-        return dict(user_id=u.user_id, username=u.username, display_name=u.display_name, role=u.role, active=bool(u.active),
+        return dict(user_id=u.user_id, username=u.username, display_name=u.display_name, email=u.email, role=u.role, active=bool(u.active),
                     must_change_password=bool(u.must_change_password), created_at=iso(u.created_at), last_login_at=iso(u.last_login_at),
                     locked=bool(u.locked_until and u.locked_until > now()))
 
@@ -253,14 +290,16 @@ class Auth:
     def get_user(self, user_id):
         with self._tx() as s: return self._public(self._get(s, user_id))
 
-    def create_user(self, username, display_name, role, password, by=None, ip=None, must_change=True):
+    def create_user(self, username, display_name, role, password, by=None, ip=None, must_change=True, email=None):
         username = check_username(username.strip().lower() if isinstance(username, str) else username)
+        email = check_email(email)
         if role not in ROLES: raise AuthError('invalid_role', "Role must be 'admin' or 'user'.")
         display_name = (display_name or username).strip()[:80] or username
         h, salt = hash_password(check_password(password, username))
         with self._tx() as s:
+            if email and s.scalar(select(User.user_id).where(User.email == email)): raise AuthError('email_taken', 'This email address is already used by another account.', 409)
             u = User(username=username, display_name=display_name, role=role, password_hash=h, password_salt=salt, hash_params=':'.join(map(str, accounts.SCRYPT)),
-                     must_change_password=must_change, active=True, failed_logins=0, created_at=now(), created_by=by['username'] if by else None)
+                     must_change_password=must_change, active=True, failed_logins=0, created_at=now(), created_by=by['username'] if by else None, email=email)
             s.add(u)
             try: s.flush()
             except IntegrityError:
@@ -272,7 +311,9 @@ class Auth:
     def _admins_left(s, excluding):
         return s.scalar(select(func.count()).select_from(User).where(User.role == 'admin', User.active.is_(True), User.user_id != excluding))
 
-    def update_user(self, user_id, by, ip=None, display_name=None, role=None, active=None):
+    def update_user(self, user_id, by, ip=None, display_name=None, role=None, active=None, email=None):
+        """email: None = unchanged, '' = removed."""
+        new_email = check_email(email) if email is not None else None
         with self._tx() as s:
             u = self._get(s, user_id, lock=True)
             if role is not None and role not in ROLES: raise AuthError('invalid_role', "Role must be 'admin' or 'user'.")
@@ -284,6 +325,11 @@ class Auth:
                 u.display_name = display_name.strip()[:80] or u.username; changes.append('name')
             if role is not None and role != u.role:
                 changes.append(f'role {u.role} -> {role}'); u.role = role
+            if email is not None and new_email != u.email:
+                if new_email and s.scalar(select(User.user_id).where(User.email == new_email, User.user_id != user_id)):
+                    raise AuthError('email_taken', 'This email address is already used by another account.', 409)
+                u.email = new_email; changes.append('email ' + ('changed' if new_email else 'removed'))
+                s.execute(delete(PasswordReset).where(PasswordReset.user_id == user_id))   # a pending reset went to the old address
             if active is not None and bool(active) != bool(u.active):
                 u.active, u.failed_logins, u.locked_until = bool(active), 0, None
                 changes.append('activated' if active else 'deactivated')
@@ -309,11 +355,12 @@ class Auth:
 
     def reset_password(self, user_id, by, ip=None):
         """New temporary password (returned ONCE); all the user's sessions are revoked; must be changed at login."""
-        temp = secrets.token_urlsafe(12)
+        temp = accounts.temp_password()
         with self._tx() as s:
             u = self._get(s, user_id, lock=True)
             self._set_password(u, temp, True)
             s.execute(delete(Session).where(Session.user_id == user_id))
+            s.execute(delete(PasswordReset).where(PasswordReset.user_id == user_id))
             self._audit(s, 'user.reset_password', by, u.username, ip)
         return temp
 
@@ -326,7 +373,102 @@ class Auth:
             if hmac.compare_digest(old, new): raise AuthError('invalid_password', 'The new password must differ from the current password.')
             self._set_password(u, new, False)
             s.execute(delete(Session).where(Session.user_id == u.user_id, Session.sid != (keep or '')))   # other sessions revoked
+            s.execute(delete(PasswordReset).where(PasswordReset.user_id == u.user_id))
             self._audit(s, 'user.change_password', user, None, ip)
+
+    # ---------------------------------------------------------------- forgot password (owner request 2026-10-08)
+    def request_reset(self, login, minutes, ip=None):
+        """Issue a temporary password for the account with this username or email. -> (user, temporary password) to be
+        emailed, or None when there is nothing to send (unknown account, no email, deactivated, asked less than a minute
+        ago). Never says which: the caller answers the same in every case."""
+        login = login.strip().lower()[:254] if isinstance(login, str) else ''
+        with self._tx() as s:
+            u = s.scalar(select(User).where(User.email == login if '@' in login else User.username == login).with_for_update()) if login else None
+            if not u or not u.active or not u.email:
+                self._audit(s, 'password.forgot', u, 'nothing sent: ' + ('no email on the account' if u and not u.email else 'account inactive' if u else f'unknown login {login[:40]}'), ip)
+                return None
+            r = s.get(PasswordReset, u.user_id)
+            t = now()
+            if r and r.requested_at > t - datetime.timedelta(seconds=RESET_GAP_S):
+                self._audit(s, 'password.forgot', u, 'nothing sent: asked again within a minute', ip); return None
+            temp = accounts.temp_password()
+            h, salt = hash_password(temp)
+            if not r: r = PasswordReset(user_id=u.user_id); s.add(r)
+            r.password_hash, r.password_salt, r.hash_params = h, salt, ':'.join(map(str, accounts.SCRYPT))
+            r.requested_at, r.expires_at, r.ip = t, t + datetime.timedelta(minutes=minutes), ip
+            self._audit(s, 'password.forgot', u, f'temporary password issued, valid {minutes} minutes', ip)
+            return self._public(u), temp
+
+    def cancel_reset(self, user_id, reason, ip=None):
+        """The email could not be sent: drop the temporary password and record why (never the password itself)."""
+        with self._tx() as s:
+            s.execute(delete(PasswordReset).where(PasswordReset.user_id == user_id))
+            u = s.get(User, user_id)
+            self._audit(s, 'password.forgot', u, f'email not sent: {reason}'[:300], ip)
+
+    # ---------------------------------------------------------------- own email change (owner request 2026-10-08)
+    def email_change_start(self, user, password, new_email, ip=None):
+        """Check the current password, then create the codes. -> dict(user, old_email, new_email, old_code | None, new_code).
+        The codes leave this method only to be emailed."""
+        new_email = check_email(new_email)
+        if not new_email: raise AuthError('invalid_email', 'Invalid email address.')
+        with self._tx() as s:
+            u = s.scalar(select(User).where(User.user_id == user['user_id']).with_for_update())
+            if not u or not isinstance(password, str) or not self._verify(u, password[:PASSWORD_MAX]):
+                self._audit(s, 'email.change_start', u, 'refused: wrong password', ip)
+                raise AuthError('wrong_password', 'Current password is wrong.', 403)
+            if new_email == u.email: raise AuthError('email_same', 'This is already the email of your account.')
+            if s.scalar(select(User.user_id).where(User.email == new_email, User.user_id != u.user_id)):
+                raise AuthError('email_taken', 'This email address is already used by another account.', 409)
+            r, t = s.get(EmailChange, u.user_id), now()
+            if r and r.requested_at > t - datetime.timedelta(seconds=RESET_GAP_S):
+                raise AuthError('too_soon', 'New codes can be requested once a minute.', 429)
+            salt = secrets.token_bytes(16)
+            old_code, new_code = (accounts.code() if u.email else None), accounts.code()
+            if not r: r = EmailChange(user_id=u.user_id); s.add(r)
+            r.new_email, r.salt, r.attempts, r.requested_at = new_email, salt, 0, t
+            r.expires_at = t + datetime.timedelta(minutes=accounts.CODE_MINUTES)
+            r.old_hash = accounts.code_hash(salt, old_code) if old_code else None
+            r.new_hash = accounts.code_hash(salt, new_code)
+            self._audit(s, 'email.change_start', u, 'codes sent to the ' + ('old and new addresses' if old_code else 'new address'), ip)
+            return dict(user=self._public(u), old_email=u.email, new_email=new_email, old_code=old_code, new_code=new_code)
+
+    def email_change_pending(self, user):
+        with self._tx() as s:
+            r = s.get(EmailChange, user['user_id'])
+            if not r or r.expires_at <= now(): return None
+            return dict(new_email=r.new_email, needs_old=r.old_hash is not None, expires_at=iso(r.expires_at))
+
+    def email_change_cancel(self, user, ip=None, reason=None):
+        with self._tx() as s:
+            n = s.execute(delete(EmailChange).where(EmailChange.user_id == user['user_id'])).rowcount
+            if n: self._audit(s, 'email.change_cancel', user, reason, ip)
+
+    def email_change_confirm(self, user, old_code, new_code, ip=None):
+        """Both codes right -> the email is changed. -> (user, previous email)."""
+        with self._tx() as s:
+            u = s.scalar(select(User).where(User.user_id == user['user_id']).with_for_update())
+            r = s.get(EmailChange, user['user_id'])
+            if not u or not r or r.expires_at <= now():
+                if r: s.delete(r)
+                raise AuthError('email_change_missing', 'No email change is waiting, or its codes expired. Start again.', 400)
+            if r.attempts >= accounts.CODE_ATTEMPTS:
+                s.delete(r); raise AuthError('too_many_attempts', 'Too many wrong codes. Start again.', 429)
+            ok_new = hmac.compare_digest(accounts.code_hash(r.salt, new_code or ''), r.new_hash)
+            ok_old = r.old_hash is None or hmac.compare_digest(accounts.code_hash(r.salt, old_code or ''), r.old_hash)
+            if not (ok_new and ok_old):
+                r.attempts += 1
+                self._audit(s, 'email.change_fail', u, f'wrong code ({r.attempts}/{accounts.CODE_ATTEMPTS})', ip)
+                raise AuthError('wrong_code', 'A code is wrong.' if r.old_hash else 'The code is wrong.', 400)
+            if s.scalar(select(User.user_id).where(User.email == r.new_email, User.user_id != u.user_id)):
+                s.delete(r); raise AuthError('email_taken', 'This email address is already used by another account.', 409)
+            old = u.email
+            u.email = r.new_email
+            s.delete(r)
+            s.execute(delete(PasswordReset).where(PasswordReset.user_id == u.user_id))   # a pending reset went to the old address
+            self._audit(s, 'email.change', u, 'own email changed (verified)', ip)
+            s.flush()
+            return self._public(u), old
 
     # ---------------------------------------------------------------- JWT
     def _encode(self, user_id, sid, issued, expires):
@@ -373,12 +515,20 @@ class Auth:
             if u.locked_until and u.locked_until > now():
                 self._audit(s, 'login.locked', u, None, ip)
                 raise AuthError('too_many_attempts', f'Too many attempts. Try again in {LOCK_MINUTES} minutes.', 429)
-            if not self._verify(u, password) or not u.active:
+            ok, reset = self._verify(u, password), s.get(PasswordReset, u.user_id)
+            # temporary password from "forgot password": becomes the password and must be changed right away
+            via_reset = bool(u.active and not ok and reset and reset.expires_at > now() and self._verify(reset, password))
+            if not via_reset and (not ok or not u.active):
                 gagal = u.failed_logins + 1
                 kunci = gagal >= MAX_FAILED
                 u.failed_logins, u.locked_until = (0, now() + datetime.timedelta(minutes=LOCK_MINUTES)) if kunci else (gagal, None)
                 self._ip_failed(ip); self._audit(s, 'login.fail', u, 'account locked' if kunci else None, ip)
                 raise salah
+            if via_reset:
+                self._set_password(u, password, True)
+                s.execute(delete(Session).where(Session.user_id == u.user_id))
+                self._audit(s, 'password.reset_used', u, None, ip)
+            if reset: s.delete(reset)   # used, or no longer needed: the user knows a valid password
             t = now(); habis = t + datetime.timedelta(hours=self.max_hours)
             sid = secrets.token_urlsafe(16)
             s.add(Session(sid=sid, user_id=u.user_id, created_at=t, last_seen_at=t, expires_at=habis, ip=ip, user_agent=(user_agent or '')[:200]))

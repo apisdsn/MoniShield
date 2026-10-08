@@ -4,7 +4,7 @@ import datetime, threading
 
 from monishield.application import settings_service
 from monishield.application.ingest_service import now
-from monishield.domain import s3_import
+from monishield.domain import retention, s3_import
 from monishield.domain.errors import Busy, Fail
 from monishield.domain.s3_import import ImportFail
 
@@ -141,7 +141,8 @@ class ImportService:
                 except Exception as e:  # noqa: BLE001
                     x = s3.error(e); res['errors'].append(dict(code=x.code, where=f's3://{bucket}/{base}', message=x.message)); continue
                 seen.update(folders)
-                take, again, waiting = s3_import.pick(folders, known, from_s3, today, cfg.s3_watch_days, cfg.s3_watch_recheck_days, cfg.s3_watch_max_folders)
+                take, again, waiting = s3_import.pick(folders, known, from_s3, today, retention.watch_days(cfg.s3_watch_days, cfg.retention_days),
+                                                     cfg.s3_watch_recheck_days, cfg.s3_watch_max_folders)
                 res['sources'].append(dict(source=f's3://{bucket}/{base}', folders=len(folders), new=len(take) + waiting))
                 res['waiting'] += waiting
                 todo += [(bucket, base, f, False) for f in take]

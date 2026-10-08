@@ -57,7 +57,7 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   const okTambah = await toast(pa, /User rina ditambahkan/);
   await pa.waitForFunction(() => !document.querySelector('dialog[open]'));
   const r1 = await baris(pa, U);
-  cek('add user "rina" (user role): notification, new row "User · Aktif · Wajib ganti sandi"', okTambah && r1 && r1[2] === 'User' && /Aktif/i.test(r1[3]) && /Wajib ganti sandi/.test(r1[3]), JSON.stringify(r1));
+  cek('add user "rina" (user role): notification, new row "User · Aktif · Wajib ganti kata sandi"', okTambah && r1 && r1[2] === 'User' && /Aktif/i.test(r1[3]) && /Wajib ganti kata sandi/.test(r1[3]), JSON.stringify(r1));
   // Esc closes the dialog, focus back on the trigger
   await pa.click('button:has-text("Tambah user")'); await pa.waitForSelector('dialog[open]'); await pa.keyboard.press('Escape');
   await pa.waitForFunction(() => !document.querySelector('dialog[open]'));
@@ -68,7 +68,7 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   await pr.goto(BASE + '/#/overview');
   await masuk(pr, U, PW_U0);
   await pr.waitForSelector('#pw-old');
-  const wajib = /Anda harus mengganti sandi/.test(await teks(pr)) && !(await pr.$('aside nav'));
+  const wajib = /Anda harus mengganti kata sandi/.test(await teks(pr)) && !(await pr.$('aside nav'));
   await pr.fill('#pw-old', PW_U0); await pr.fill('#pw-new', PW_U1); await pr.fill('#pw-again', PW_U1); await pr.click('button[type=submit]');
   await pr.waitForSelector('main .kpi'); await pr.waitForLoadState('networkidle');
   cek('new user signs in: forced password change (no sidebar), then sees the dashboard', wajib && (await pr.$$('main .kpi')).length >= 6);
@@ -115,9 +115,9 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   cek('demoting the last admin (stale list): rejected with a message in the dialog; stays admin', /Admin aktif terakhir tidak bisa/.test(tolak) && me1.role === 'admin', tolak);
 
   // ------------------------------------------------------------------ password reset: user session ends at once; temporary password shown once
-  await aksi(pa, U, 'Reset sandi'); await pa.waitForSelector('dialog[open]');
+  await aksi(pa, U, 'Reset kata sandi'); await pa.waitForSelector('dialog[open]');
   const konf = await pa.textContent('dialog[open]');
-  await dialog(pa).locator('button.primary', { hasText: 'Reset sandi' }).click();
+  await dialog(pa).locator('button.primary', { hasText: 'Reset kata sandi' }).click();
   await pa.waitForSelector('dialog[open] code.pw');
   const temp = (await pa.textContent('dialog[open] code.pw')).trim();
   const sekali = /tidak akan ditampilkan lagi/.test(await pa.textContent('dialog[open]')) && !!(await pa.$('dialog[open] button:has-text("Salin")'));
@@ -143,7 +143,7 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   await pr.waitForSelector('#u', { timeout: 10000 }).catch(() => {});
   const habis2 = /Sesi Anda berakhir/.test(await teks(pr));
   await masuk(pr, U, PW_U3); await pr.waitForSelector('.err, [role=alert]');
-  const ditolak = /Nama user atau sandi salah/.test(await teks(pr));
+  const ditolak = /Nama user atau kata sandi salah/.test(await teks(pr));
   cek('deactivate rina (confirmation names her): status "Nonaktif"; her session ends at once; sign-in rejected with a generic message',
     /rina/.test(konfN) && /Nonaktif/.test(r2?.[3] || '') && habis2 && ditolak, JSON.stringify(r2));
   await aksi(pa, U, 'Aktifkan'); await toast(pa, /rina diaktifkan/);

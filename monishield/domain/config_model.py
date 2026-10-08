@@ -40,6 +40,8 @@ class Config:
     auth_database_url: str = ''   # postgresql+psycopg://user:password@host:5432/db ; empty = SQLite in state_dir (test/local)
     session_idle_minutes: int = 60
     session_max_hours: int = 12
+    password_reset: bool = True       # "forgot password" on the sign-in page emails a temporary password (needs the mail server)
+    password_reset_minutes: int = 30  # how long that temporary password works
     server_ip: str = rules.SERVER_IP
     server_fallback: list = dataclasses.field(default_factory=lambda: list(rules.SERVER_FALLBACK))
     hosts: dict = dataclasses.field(default_factory=lambda: dict(rules.HOSTS))
@@ -86,6 +88,8 @@ class Config:
     alert_lang: str = 'id'
     dashboard_url: str = ''           # dashboard address for links in messages, e.g. https://monishield.kantor.go.id
     alert_missing_hour: int = 10      # hour (WIB) of the "today's log folder has not arrived" check
+    alert_spike: str = ''             # spike thresholds per number, "key=factor:minimum increase", e.g. n5xx=3:50,errors=off; empty = defaults
+    alert_service_spike: str = 'default=2:50'   # service errors vs their own average, e.g. default=2:50,om-be-report=3:200,coredns=off
     # logs from Kafka (Rancher cluster logging -> Kafka; monishield/kafka_in.py)
     kafka_enabled: bool = True        # false = consumer turned off without erasing the broker address
     kafka_brokers: str = ''           # host:9092[,host2:9092]; empty = Kafka not used
@@ -112,6 +116,10 @@ class Config:
     asn_max_age_days: int = 7         # ip2asn re-downloaded when older
     map_max_age_days: int = 3650      # map files (land, borders, labels)
     upload_session_hours: int = 6     # abandoned folder upload sessions are cleaned up after this
+    api_encryption: bool = True       # web UI request/response bodies encrypted with a per-page AES-GCM key (monishield/interfaces/api/wire.py)
+    # data retention (monishield/domain/retention.py); 0 = keep forever
+    retention_days: int = 0           # folders older than N days are removed from the database (log files are not touched)
+    retention_inbox_days: int = 0     # inbox folders (S3 imports, uploads, Kafka) older than N days are deleted from disk
 
     @property
     def db_path(self): return os.path.join(self.data_dir, 'monishield.duckdb')

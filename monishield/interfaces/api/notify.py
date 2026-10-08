@@ -25,6 +25,8 @@ class AlertsBody(BaseModel):
     lang: str | None = None
     dashboard_url: str | None = None
     missing_hour: int | None = None
+    spike: dict | None = None            # {number: {factor, min} | null (off)}
+    service_spike: dict | None = None    # {default: {factor, min} | null, services: {service: {factor, min} | null}}
     clear: list = []
 
 
