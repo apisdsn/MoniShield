@@ -136,7 +136,7 @@ export const srv = derived(lang, (l) => (s) => (typeof s !== 'string' || !s ? s 
 // Error messages that carry details (allowed buckets, limits, names): in Indonesian mode the whole sentence is translated
 // so the details are kept; errors not listed here use the per-code dictionary. [English sentence, Indonesian]
 const ERR_ID = [
-  [/^The mail server rejected the username or password\.$/, 'Server email menolak nama pengguna atau sandi.'],
+  [/^The mail server rejected the username or password\.$/, 'Server email menolak nama pengguna atau kata sandi.'],
   [/^The mail server refused the recipient address\.$/, 'Server email menolak alamat penerima.'],
   [/^The mail server could not be reached or refused the message \((\w+)\)\.$/, 'Server email tidak bisa dihubungi atau menolak pesan ($1).'],
   [/^The mail server \(SMTP\) is not set up: fill in Configuration → Mail server\.$/, 'Server email (SMTP) belum diatur: isi Konfigurasi → Server email.'],
