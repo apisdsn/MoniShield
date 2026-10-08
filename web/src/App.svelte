@@ -102,6 +102,8 @@
   const folders = $derived(meta?.folders || []);
   const folder = $derived(folders.some((f) => f.folder === $route.folder) ? $route.folder : folders[0]?.folder ?? null);
   const folderInfo = $derived(folders.find((f) => f.folder === folder) || null);
+  // folder date as shown; folders filled by the Kafka consumer are labelled "(Kafka)"
+  const folderName = $derived(folder ? (folderInfo?.source === 'kafka' ? $t('folder.kafka', { date: dLabel(folder, $lang) }) : dLabel(folder, $lang)) : '');
   const isAdminTab = $derived(ADMIN.includes($route.tab));
   const isDataTab = $derived(!isAdminTab && $route.tab !== 'sandi');
 
@@ -176,7 +178,7 @@
   const subtitle = $derived.by(() => {
     if (!isDataTab || !folder) return '';
     if ($route.tab === 'tren') return $t('sub.trends', { n: num(folders.length, $lang) });
-    const parts = [$t('sub.folder', { date: dLabel(folder, $lang) })];
+    const parts = [$t('sub.folder', { date: folderName })];
     const rng = logRange(folderInfo?.range_start, folderInfo?.range_end, $lang);
     if (rng) parts.push($t('sub.contains', { range: rng }));
     if (folderInfo?.derived_at) parts.push($t('sub.derived', { time: tWIB(folderInfo.derived_at, $lang) }));
@@ -195,7 +197,7 @@
     if ($route.tab !== 'layanan' && summary.attack_ip_count) out.push({ tone: 'err', n: num(summary.attack_ip_count, $lang), text: $t('status.attack_ips') });
     return out;
   });
-  const suffix = $derived(isDataTab && folder && $route.tab !== 'tren' ? dLabel(folder, $lang) : '');
+  const suffix = $derived(isDataTab && folder && $route.tab !== 'tren' ? folderName : '');
   $effect(() => { document.title = screen === 'app' ? `${title} · ${APP_NAME}` : APP_NAME; });
   const sparse = $derived(isDataTab && $route.tab !== 'tren' && folderInfo && folderInfo.lines < SPARSE_LINES);
 

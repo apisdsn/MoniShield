@@ -103,6 +103,7 @@ def test_masuk_cookie_dan_wajib_ganti_sandi(client):
     assert (r.status_code, kode(r)) == (403, 'must_change_password')            # only /api/me and change password are allowed
     assert client.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
     assert client.get('/api/meta').status_code == 200 and client.get('/api/me').json()['must_change_password'] is False
+    assert {f['source'] for f in client.get('/api/meta').json()['folders']} == {'log'}   # from the main log folder (not Kafka/S3/upload)
 
 
 def test_cookie_secure_bila_dikonfigurasi(cfg, auth_url, monkeypatch):

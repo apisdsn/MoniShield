@@ -28,7 +28,8 @@
     return [...g.values()];
   });
   function label(f) {
-    let s = compact ? dLabel(f.folder, $lang) : $t('folder.option', { date: dLabel(f.folder, $lang) });
+    const d = f.source === 'kafka' ? $t('folder.kafka', { date: dLabel(f.folder, $lang) }) : dLabel(f.folder, $lang);   // Kafka folders are labelled
+    let s = compact ? d : $t('folder.option', { date: d });
     if (!compact && f.range_start) s += ` · ${$t('folder.log_of', { date: dShort(f.range_start, $lang) })}`;
     if (!f.lines) s += ` · ${f.files_corrupt ? $t('folder.corrupt') : $t('folder.empty')}`;
     return s;

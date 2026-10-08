@@ -106,7 +106,7 @@ def folders(ctx):
     for f in sorted(set(rows_db) | set(ign) | in_log | in_inbox, reverse=True):
         log, inbox = ctx.logfolders.on_disk(f)
         if f not in rows_db and f not in ign and not (log or inbox): continue   # empty date folder on disk
-        rows.append(dict(folder=f, in_db=f in rows_db, **(rows_db.get(f) or dict(lines=0, files=0, files_corrupt=0)), log=log, inbox=inbox,
+        rows.append(dict(folder=f, source=ctx.logfolders.source(f), in_db=f in rows_db, **(rows_db.get(f) or dict(lines=0, files=0, files_corrupt=0)), log=log, inbox=inbox,
                          ignored=f in ign, ignored_by=(ign.get(f) or {}).get('by'), ignored_at=(ign.get(f) or {}).get('at')))
     return dict(rows=rows, log_dir_readonly=True)
 

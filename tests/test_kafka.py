@@ -133,7 +133,10 @@ def test_status_ingest_dan_folder_muncul(client):
     assert r.status_code == 200, r.text
     st = tunggu_ingest(client)
     assert st['last']['folders_changed'] == [B] and st['last']['files_failed'] == 0
-    assert B in json.dumps(client.get('/api/meta', headers=X).json()['folders'])
+    meta = {f['folder']: f for f in client.get('/api/meta', headers=X).json()['folders']}
+    assert meta[B]['source'] == 'kafka'   # labelled "(Kafka)" in the UI
+    rows = {r['folder']: r for r in client.get('/api/admin/folders', headers=X).json()['rows']}
+    assert rows[B]['source'] == 'kafka' and rows[B]['inbox']
     n_ngx = lambda: client.app.state.con.cursor().execute('SELECT count(*) FROM nginx_access').fetchone()[0]
     before, kpi = n_ngx(), client.get(f'/api/folders/{B}/command', headers=X).json()['kpi']['requests']
     assert before > 0 and kpi > 0
