@@ -240,7 +240,8 @@ cd /srv/MoniShield && git pull                 # prd branch
 docker compose build && docker compose --profile https up -d     # add --profile kafka if used
 ```
 
-Data, accounts, and certificates are kept (they live in volumes).
+Data, accounts, and certificates are kept (they live in volumes). With automatic deployment (§13) this happens by
+itself on every push to `prd`.
 
 ---
 
@@ -255,6 +256,62 @@ Data, accounts, and certificates are kept (they live in volumes).
 | Configuration page: "The server cannot write this file" (`.env`) | `sudo chgrp 10001 .env && chmod 660 .env` in `/srv/MoniShield`. |
 | Map without locations | MaxMind not set yet (Configuration → MaxMind) or the VPS cannot reach `download.maxmind.com`. |
 | Opening pgAdmin / DbGate | only from the VPS: from your computer `ssh -L 5050:127.0.0.1:5050 -L 5051:127.0.0.1:5051 monishield@IP_VPS`, then `docker compose --profile pgadmin --profile dbgate up -d` and open `http://localhost:5050` / `:5051`. |
+
+---
+
+## 13. Automatic deployment with GitHub Actions
+
+Every push to `prd` runs the CI checks (commit messages, Python tests, web build); when all pass, the **Deploy** job
+connects to the server over SSH and runs `deploy/remote-deploy.sh`: fetch the exact tested commit, build, restart, and
+wait until the app's healthcheck reports `healthy`. A failed check never deploys. `.env` (all secrets) stays on the
+server; GitHub only holds an SSH key.
+
+The first run can also migrate an older checkout (e.g. `/srv/dashboard-logging/v2`): it clones the repo and copies the
+old `.env`. Both checkouts use the compose project name `monishield`, so the same containers and volumes (data,
+accounts, inbox, Kafka, certificates) are reused — nothing is lost and no `down` is needed.
+
+### Once on the server (as root)
+
+```sh
+adduser --disabled-password --gecos "" deploy        # dedicated user for deployments
+usermod -aG docker deploy                            # note: the docker group is root-equivalent; keep this key safe
+install -d -o deploy -g deploy /srv/MoniShield       # where the repo is cloned
+install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+```
+
+On your own computer, create a key pair for GitHub only and put the public half on the server:
+
+```sh
+ssh-keygen -t ed25519 -C monishield-deploy -N "" -f monishield-deploy
+ssh root@SERVER_IP 'cat >> /home/deploy/.ssh/authorized_keys && chown deploy: /home/deploy/.ssh/authorized_keys && chmod 600 /home/deploy/.ssh/authorized_keys' < monishield-deploy.pub
+ssh-keyscan -p 22 SERVER_IP                         # copy the output for DEPLOY_KNOWN_HOSTS
+```
+
+GitHub's hosted runners connect from changing addresses, so SSH (port 22, key only — `PasswordAuthentication no` in
+`/etc/ssh/sshd_config`) must be reachable from the internet; keep the Kafka (9094) and other ports restricted as in §2.
+
+### Once on GitHub
+
+Repository **Settings → Environments → New environment `production`** (optionally add *Required reviewers* so every
+deploy waits for an approval click), then in that environment:
+
+| Kind | Name | Value |
+|---|---|---|
+| Secret | `DEPLOY_HOST` | server IP or host name |
+| Secret | `DEPLOY_USER` | `deploy` |
+| Secret | `DEPLOY_SSH_KEY` | contents of the private key `monishield-deploy` |
+| Secret | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan` above |
+| Secret (optional) | `DEPLOY_PORT` | SSH port when not 22 |
+| Variable | `DEPLOY_DIR` | `/srv/MoniShield` (default) |
+| Variable | `DEPLOY_PROFILES` | compose profiles, comma-separated, e.g. `https,kafka` (default `https`) |
+| Variable (first run only) | `DEPLOY_MIGRATE_FROM` | `/srv/dashboard-logging/v2` to copy its `.env`; remove after the first deploy |
+
+### Every release
+
+Merge `dev` → `stg` → `prd` (CONTRIBUTING.md). The push to `prd` deploys; the run is listed under **Actions → CI**.
+To deploy the current `prd` again without a new commit: **Actions → CI → Run workflow → branch `prd`**.
+If the job fails, its log shows the last 40 lines of the app log; the previous containers keep running when the build
+fails.
 
 ---
 

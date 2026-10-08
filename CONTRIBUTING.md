@@ -6,7 +6,7 @@
 |---|---|---|
 | `dev` | day-to-day development; always runnable | feature branches (`feat/…`, `fix/…`) via pull request |
 | `stg` | shared testing / staging before release | `dev` via pull request |
-| `prd` | production (what is deployed on the VPS, `docs/07-deploy-vps.md`) | `stg` via pull request |
+| `prd` | production: every push that passes CI is deployed to the VPS automatically (`docs/07-deploy-vps.md` §13) | `stg` via pull request |
 
 Flow: create a branch from `dev` → pull request to `dev` → after testing on `dev`, PR `dev` → `stg` → after passing staging
 tests, PR `stg` → `prd`. Production hotfixes: a `fix/…` branch from `prd`, PR to `prd`, then merge back into
@@ -65,7 +65,7 @@ tools/cek_commit.sh origin/dev..HEAD          # check commits before pushing
 ```
 
 CI (`.github/workflows/ci.yml`) checks the commit messages on every pull request and push to `dev`/`stg`/`prd`, then
-runs the Python tests and the UI build.
+runs the Python tests and the UI build. On `prd` a final **Deploy** job ships the tested commit to the server.
 
 ## Before opening a pull request
 

@@ -6,6 +6,11 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 
 ## [Unreleased]
 
+### Added
+- Automatic deployment: a push to `prd` that passes CI is deployed to the server over SSH
+  (`deploy/remote-deploy.sh`, `docs/07-deploy-vps.md` §13); the first run can migrate the old checkout.
+- Kafka folders are labelled "(Kafka)" in the folder picker, page title and folder management.
+
 ### Changed
 - The repo stands alone: the contents of the `v2/` folder of the `apisdsn/dashboard-logging` repo were moved to `apisdsn/MoniShield` together with
   their commit history. The default log folder is now `logs/` in the project folder (formerly the parent folder of `v2/`).

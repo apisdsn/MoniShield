@@ -5,29 +5,30 @@ on:
     branches: [dev, stg, prd, master]
   pull_request:
     branches: [dev, stg, prd]
-  workflow_dispatch:   # "Run workflow" button in the Actions tab
+  workflow_dispatch:   # "Run workflow" button in the Actions tab (on prd it also re-deploys)
 
 permissions:
   contents: read
 
-# a newer push to the same branch cancels the run that is still going
+# a newer push to the same branch cancels the checks that are still running (never a deploy in progress, see below)
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/prd' }}
 
 jobs:
   commits:
     name: Conventional Commits
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the code
+        uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - name: Check new commit messages
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
-          # first push of a branch (before = 000…) or rewritten history: no range to check
+          # first push of a branch (before = 000…), manual run, or rewritten history: no range to check
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             echo "no range of new commits to check"; exit 0
           fi
@@ -37,22 +38,73 @@ jobs:
     name: Python tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Check out the code
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
         with: { python-version: "3.13", cache: pip, cache-dependency-path: pyproject.toml }
-      - run: pip install -e ".[test,s3,kafka]"
-      - run: python -m pytest -q
+      - name: Install the package with test, S3 and Kafka extras
+        run: pip install -e ".[test,s3,kafka]"
+      - name: Run pytest (unit, API, ingest, architecture rules)
+        run: python -m pytest -q
 
   web:
     name: Web UI build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out the code
+        uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
         with: { node-version: "22", cache: npm, cache-dependency-path: web/package-lock.json }
-      - run: npm ci
+      - name: Install web dependencies
+        run: npm ci
         working-directory: web
-      - run: npm run build
+      - name: Build the web UI
+        run: npm run build
         working-directory: web
-      - run: node tools/cek_i18n.mjs
-      - run: node --test tests/test_format.mjs
+      - name: Check that the Indonesian and English dictionaries match
+        run: node tools/cek_i18n.mjs
+      - name: Run the formatter tests
+        run: node --test tests/test_format.mjs
+
+  deploy:
+    name: Deploy to the production server
+    # only the prd branch, only after every check above passed; pull requests never deploy
+    if: github.ref == 'refs/heads/prd' && github.event_name != 'pull_request'
+    needs: [commits, python, web]
+    runs-on: ubuntu-latest
+    environment: production   # Settings -> Environments -> production: secrets below, optional required reviewers
+    concurrency: { group: deploy-production, cancel-in-progress: false }
+    env:
+      HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+      - name: Check that the deploy secrets are set
+        run: |
+          missing=""
+          for v in HOST DEPLOY_USER SSH_KEY KNOWN_HOSTS; do [ -n "${!v}" ] || missing="$missing $v"; done
+          if [ -n "$missing" ]; then
+            echo "::error::Deploy secrets not set:$missing (DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS; see docs/07-deploy-vps.md §13)"
+            exit 1
+          fi
+      - name: Set up the SSH key and the server's host key
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Pull, build and restart on the server
+        env:
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/srv/MoniShield' }}
+          DEPLOY_PROFILES: ${{ vars.DEPLOY_PROFILES || 'https' }}
+          DEPLOY_MIGRATE_FROM: ${{ vars.DEPLOY_MIGRATE_FROM }}
+        run: |
+          remote_env=$(printf 'DEPLOY_DIR=%q DEPLOY_BRANCH=prd DEPLOY_SHA=%q DEPLOY_PROFILES=%q DEPLOY_MIGRATE_FROM=%q' \
+            "$DEPLOY_DIR" "$GITHUB_SHA" "$DEPLOY_PROFILES" "$DEPLOY_MIGRATE_FROM")
+          ssh -i ~/.ssh/deploy_key -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$HOST" \
+            "$remote_env bash -s" < deploy/remote-deploy.sh
