@@ -94,7 +94,7 @@ def test_format_galat(client):
 # ------------------------------------------------------------------ login and session
 def test_masuk_cookie_dan_wajib_ganti_sandi(client):
     r = masuk(client)
-    assert r.json() == dict(username='admin', display_name='Administrator', role='admin', must_change_password=True, session_idle_minutes=60)
+    assert r.json() == dict(username='admin', display_name='Administrator', email=None, role='admin', must_change_password=True, session_idle_minutes=60)
     ck = r.headers['set-cookie'].lower()
     assert 's4_session=' in ck and 'httponly' in ck and 'samesite=strict' in ck and 'path=/' in ck and 'secure' not in ck  # cookie_secure=False in tests
     assert PW not in r.text and client.get('/api/me').json()['must_change_password'] is True

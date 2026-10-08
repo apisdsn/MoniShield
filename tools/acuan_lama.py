@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Reference numbers from the OLD build, for the v2 equivalence test -> v2/docs/00-acuan.json.
+"""Reference numbers from the OLD build, for the equivalence test -> docs/00-reference.json.
 
-  python3 v2/tools/acuan_lama.py
+  python3 tools/acuan_lama.py     (the old dashboard-logging checkout must be the parent folder of this repo)
 
 Runs build_dashboard.build() as is (dashboard.html is rewritten too) and captures the RAW
 statistics before the top-N cut, because numbers such as the unique IP count are not in dashboard.html.
-Re-run whenever there is a new log folder: the numbers in 00-acuan.json only hold for the folder contents at that time.
+Re-run whenever there is a new log folder: the numbers in 00-reference.json only hold for the folder contents at that time.
 """
 import json, os, sys, time
 
@@ -67,6 +67,6 @@ out = dict(
               request_id_nginx=len(bd.REQ), file_log=len(D['files']), ip_dengan_pemilik=len(D['ipinfo']), ip_dengan_lokasi=len(D['geo']),
               label_peta={k: len(x) for k, x in D['labels'].items()}, server=D['server']),
     days=days)
-dst = os.path.join(ROOT, 'v2', 'docs', '00-acuan.json')
+dst = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'docs', '00-reference.json')
 json.dump(out, open(dst, 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
 print('->', os.path.relpath(dst, ROOT), out['meta'], file=sys.stderr)

@@ -3,6 +3,7 @@
 // 403 -> coded error (e.g. "tidak punya akses"); server unreachable -> "Tidak tersambung" band + automatic
 // retry every 5 seconds for 1 minute, then manual.
 import { writable, get } from 'svelte/store';
+import { forget, open, seal, wireKey } from './wire.js';
 
 export class ApiError extends Error {
   constructor(status, code, message) { super(message || code); this.status = status; this.code = code; }
@@ -17,22 +18,28 @@ export const lastActivity = writable(Date.now());
 
 let retryTimer = null;
 
-async function request(method, path, body) {
+async function request(method, path, body, retried = false) {
   const headers = { Accept: 'application/json' };
   if (method !== 'GET') headers['X-Requested-With'] = 'monishield-web';
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  let payload = body === undefined ? undefined : JSON.stringify(body);
+  const k = await wireKey();   // encrypted bodies when the server agreed on a key (wire.js)
+  if (k) {
+    headers['X-MS-Enc'] = k.kid;
+    if (payload !== undefined) { payload = await seal(k, method, path, payload); headers['Content-Type'] = 'application/octet-stream'; }
+  } else if (payload !== undefined) headers['Content-Type'] = 'application/json';
   let r;
   try {
-    r = await fetch(path, { method, headers, credentials: 'same-origin', body: body === undefined ? undefined : JSON.stringify(body) });
+    r = await fetch(path, { method, headers, credentials: 'same-origin', body: payload });
   } catch (e) {
     startRetry();
     throw new ApiError(0, 'network', e.message);
   }
   if (get(offline)) stopRetry();
   let data = null;
-  try { data = await r.json(); } catch { /* not JSON */ }
+  try { data = k && r.headers.get('X-MS-Enc') ? await open(k, method, path, await r.arrayBuffer()) : await r.json(); } catch { /* not JSON */ }
   if (r.ok) { lastActivity.set(Date.now()); return data; }
   const err = data?.error || {};
+  if (k && !retried && (err.code === 'enc_key_unknown' || err.code === 'enc_invalid')) { forget(); return request(method, path, body, true); }
   if (r.status === 401 && path !== '/api/auth/login' && path !== '/api/me') session.set('expired');
   throw new ApiError(r.status, err.code || String(r.status), err.message);
 }

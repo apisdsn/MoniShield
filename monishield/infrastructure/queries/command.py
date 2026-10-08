@@ -8,13 +8,15 @@ Stage 24: previous-folder KPIs (▲/▼ change), hourly charts (requests, 5xx, a
 2026-10-07: average of comparable folders as the comparison (`baseline`), also used by notifications (monishield/alerts.py).
 """
 
+from monishield.domain import alerts
 from monishield.infrastructure.queries.sql import H, _all, _one
 from .map import ipmap
 from .tables import NG, SEV_SQL
 
 
-# ASSUMPTION (Stage 24): "spike" threshold vs the previous folder = at least 2× AND an increase of at least N
-JUMP_FACTOR, JUMP_MIN_ERR, JUMP_MIN_JWT = 2, 50, 20
+# ASSUMPTION (Stage 24): "spike" threshold vs the previous folder = at least 2× AND an increase of at least N.
+# Service errors use the configurable per-service thresholds instead (S4_ALERT_SERVICE_SPIKE, default 2× and +50).
+JUMP_FACTOR, JUMP_MIN_JWT = 2, 20
 
 
 def _kpi(cur, folder, crs):
@@ -81,14 +83,16 @@ def command(cur, folder, cfg, module=None):
     if a['kpi']['n5xx']: att.append(dict(key='n5xx', tone='err', tab='ketersediaan', n=a['kpi']['n5xx'],
                                          upstream=a['top5'][0] if a['top5'] else None, top=a['top5'][1] if a['top5'] else 0))
     if a['uk_fail']: att.append(dict(key='uptime', tone='err', tab='ketersediaan', n=a['uk_fail'], total=a['uk_n']))
-    # services whose errors spiked vs the comparable-folder average (or the previous folder when there is not enough data yet)
+    # services whose errors spiked vs the comparable-folder average (or the previous folder when there is not enough data yet);
+    # thresholds per service from S4_ALERT_SERVICE_SPIKE, the same ones the notifications use
+    th = alerts.parse_service_spike(cfg.alert_service_spike)
     naik = []
     for s, (e, ln) in a['svc'].items():
         if use_avg: pe = base['svc'].get(s)
         else:
             pe, pl = p['svc'].get(s, (None, 0)) if p else (None, 0)
             if pl < 0.5 * ln: pe = None
-        if pe is not None and _jump(e, pe, JUMP_MIN_ERR): naik.append((e - pe, s, e, pe))
+        if pe is not None and alerts.is_spike(e, pe, alerts.service_threshold(th, s)): naik.append((e - pe, s, e, pe))
     for _, s, e, pe in sorted(naik, reverse=True)[:3]:
         att.append(dict(key='svc_jump', tone='err', tab='layanan', service=s, n=e, prev=pe, prev_folder=str(prev_f),
                         basis='avg' if use_avg else 'prev', days=base['n_all']))

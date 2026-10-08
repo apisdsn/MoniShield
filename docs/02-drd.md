@@ -1,6 +1,6 @@
 # DRD — Design requirements for the SIMPEL4 log dashboard (v2)
 
-Look and interaction of v2. Based on: [`00-inventaris.md`](00-inventaris.md) (contents of each tab), [`01-prd.md`](01-prd.md)
+Look and interaction of v2. Based on: [`00-inventory.md`](00-inventory.md) (contents of each tab), [`01-prd.md`](01-prd.md)
 (priorities and assumptions), the CSS in `dashboard_template.html`, and screenshots of `dashboard.html` built on
 2026-10-06 (Overview, IP Map, Security and Availability tabs and the ingress nginx page at 1440 px width; IP Map
 at 390 px; all in the dark theme, Indonesian language).

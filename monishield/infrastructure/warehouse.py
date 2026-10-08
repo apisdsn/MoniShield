@@ -63,6 +63,10 @@ class DuckWarehouse:
     def ignored(self):
         with self._cur() as cur: return ingest.ignored(cur)
 
+    def services(self):
+        """Service names seen in any folder (for the per-service notification thresholds)."""
+        with self._cur() as cur: return [r[0] for r in cur.execute('SELECT DISTINCT service FROM agg_service ORDER BY 1').fetchall()]
+
     def newest_folder(self):
         with self._cur() as cur: r = cur.execute('SELECT max(folder) FROM folder_state').fetchone()[0]
         return None if r is None else str(r)

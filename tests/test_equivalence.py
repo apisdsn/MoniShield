@@ -1,7 +1,7 @@
 """Equivalence tests v2 vs the old system over REAL log folders (TRD §9.3, PRD §6.2).
 
 E1 reference numbers, E2 list contents vs API, E3 IP network owners, E4 closed list of expected differences.
-Needs: data/monishield.duckdb from ingest, ../dashboard.html, and docs/00-acuan.json (created by
+Needs: data/monishield.duckdb from ingest, ../dashboard.html, and docs/00-reference.json (created by
 `python3 tools/acuan_lama.py`). If any is missing, the tests are skipped with an explanation.
 """
 import json, os, sys
@@ -11,24 +11,24 @@ import pytest
 V2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(V2, 'tools'))
 DB = os.path.join(V2, 'data', 'monishield.duckdb')
-ACUAN = os.path.join(V2, 'docs', '00-acuan.json')
+ACUAN = os.path.join(V2, 'docs', '00-reference.json')
 LAMA = os.path.join(os.path.dirname(V2), 'dashboard.html')
 
 
 @pytest.fixture(scope='module')
 def bahan():
     import duckdb
-    for path, pesan in ((DB, 'database belum ada; jalankan: python -m monishield ingest'),
-                        (LAMA, 'dashboard.html sistem lama tidak ada'),
-                        (ACUAN, 'docs/00-acuan.json belum dibuat; jalankan: python3 tools/acuan_lama.py')):
+    for path, pesan in ((DB, 'no database yet; run: python -m monishield ingest'),
+                        (LAMA, 'the old system\'s dashboard.html is missing'),
+                        (ACUAN, 'docs/00-reference.json not created yet; run: python3 tools/acuan_lama.py')):
         if not os.path.exists(path): pytest.skip(pesan)
     import ekstrak_dashboard, kesetaraan
     acuan = json.load(open(ACUAN, encoding='utf-8'))
     con = duckdb.connect(DB, read_only=True)
     folder_db = {str(r[0]) for r in con.execute('SELECT DISTINCT folder FROM ingest_file').fetchall()}
     if folder_db != set(acuan['days']):
-        pytest.skip(f'acuan dan database tidak sepadan ({len(acuan["days"])} vs {len(folder_db)} folder); '
-                    'jalankan ulang tools/acuan_lama.py dan python -m monishield ingest')
+        pytest.skip(f'reference and database do not match ({len(acuan["days"])} vs {len(folder_db)} folder); '
+                    'run tools/acuan_lama.py and python -m monishield ingest again')
     return kesetaraan, acuan, con, ekstrak_dashboard.load()
 
 
@@ -125,7 +125,7 @@ def e2(bahan):
     import duckdb
     con.close()                                   # the app opens the database read-write: release this test's read connection
     try: tc = kesetaraan.klien_api()
-    except duckdb.IOException: pytest.skip('database sedang dipakai proses lain (server berjalan?)')
+    except duckdb.IOException: pytest.skip('database is in use by another process (is the server running?)')
     try: yield kesetaraan.e2(lambda path: tc.get(path).json(), D), tc
     finally: tc.__exit__(None, None, None)
 

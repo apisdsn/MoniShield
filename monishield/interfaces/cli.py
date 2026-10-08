@@ -1,4 +1,4 @@
-"""Command line: python -m monishield <command>. Subcommands grow per stage (docs/04-rencana.md)."""
+"""Command line: python -m monishield <command>. Subcommands grow per stage (docs/04-plan.md)."""
 import argparse, os, sys
 
 from monishield import __version__

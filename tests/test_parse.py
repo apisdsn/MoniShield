@@ -185,7 +185,7 @@ def wib(ts, n=16): return (datetime.datetime.fromisoformat(ts) + datetime.timede
 @pytest.mark.parametrize('service', SERVICES)
 def test_sama_dengan_parser_lama(old, tmp_path, folder, service):
     files = sorted(glob.glob(os.path.join(ROOT, folder, '**', service, '*.log'), recursive=True))
-    if not files: pytest.skip(f'{service} tidak ada di {folder}')
+    if not files: pytest.skip(f'{service} is not in {folder}')
     s = old.new_stats(); T = collections.defaultdict(list); counters = C(); samples = {}
     for i, f in enumerate(files):
         pod = rules.pod_name(service, os.path.basename(f)); s['_pod'] = pod; e0, w0, n = s['err'], s['warn'], 0
