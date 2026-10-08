@@ -1,17 +1,17 @@
-# Salin menjadi config.toml (opsional). Semua kunci punya nilai bawaan = perilaku sistem lama.
-# Variabel lingkungan S4_* menimpa isi berkas ini. Rahasia (sandi admin, token, kunci AWS) HANYA lewat
-# variabel lingkungan / .env, jangan ditulis di sini.
+# Copy to config.toml (optional). Every key has a default = the old system's behavior.
+# S4_* environment variables override this file. Secrets (admin password, tokens, AWS keys) ONLY through
+# environment variables / .env, never write them here.
 
-# log_dir   = "/path/ke/folder-log"   # S4_LOG_DIR; bawaan: folder induk v2/
+# log_dir   = "/path/ke/folder-log"   # S4_LOG_DIR; default: the parent folder of v2/
 # data_dir  = "data"                  # S4_DATA_DIR
-# cache_dir = "/path/ke/.cache"       # S4_CACHE_DIR; bawaan: <log_dir>/.cache
+# cache_dir = "/path/ke/.cache"       # S4_CACHE_DIR; default: <log_dir>/.cache
 # state_dir = "data"                  # S4_STATE_DIR (auth.db)
 # inbox_dir = "data/inbox"            # S4_INBOX_DIR
 # bind = "127.0.0.1:8000"             # S4_BIND
 # ingest_on_start = true              # S4_INGEST_ON_START
-# cookie_secure = true                # S4_COOKIE_SECURE; false hanya untuk lokal tanpa HTTPS
+# cookie_secure = true                # S4_COOKIE_SECURE; false only for local use without HTTPS
 
-# Titik tujuan di peta = IP publik server (hasil resolve api-simpel4.ombudsman.go.id).
+# Destination point on the map = public IP of the server (resolved from api-simpel4.ombudsman.go.id).
 # server_ip = "103.170.104.228"
 # server_fallback = ["Jakarta", "Jakarta", "ID", -6.2, 106.82]
 # dns_upstream = "10.88.1.100"
@@ -20,11 +20,11 @@
 # session_idle_minutes = 60
 # session_max_hours = 12
 
-# Deteksi serangan (Tahap 21): "crs" = OWASP CRS + CAPEC, "lama" = aturan sistem lama (uji kesetaraan).
+# Attack detection (Stage 21): "crs" = OWASP CRS + CAPEC, "lama" = the old system's rules (equivalence test).
 # attack_rules = "crs"               # S4_ATTACK_RULES
 # attack_paranoia = 1                 # S4_ATTACK_PARANOIA, 1..4
 
-# Impor S3: kosong = fitur mati. Bentuk: bucket -> daftar awalan yang boleh.
+# S3 import: empty = feature off. Form: bucket -> list of allowed prefixes.
 # import_region = "ap-southeast-3"
 # import_max_objects = 500
 # import_max_object_mb = 1024
@@ -33,6 +33,6 @@
 # [import_buckets]
 # simpel4-backup = ["k8s-logs/"]
 
-# Base URL produksi per upstream (untuk menampilkan URL lengkap).
+# Production base URL per upstream (to show full URLs).
 # [hosts]
 # om-be-simpel-loop-3000 = "https://api-simpel4.ombudsman.go.id"

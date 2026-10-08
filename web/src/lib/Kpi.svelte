@@ -1,7 +1,7 @@
-<!-- Kartu KPI (DRD §4.1, gaya §12): ikon dalam kotak + label (+ keterangan "(i)"), angka besar dengan akhiran redup
-     (mis. "/40") dan lencana perubahan ▲/▼ di sebelahnya, lalu baris kecil (perbandingan atau titik status).
-     value null = log yang dibutuhkan tidak ada -> "–" + keterangan (U16, Q6). tone mewarnai angka bila bermakna
-     ('err' | 'warn' | 'ok' | 'muted'); netral = putih. Perubahan selalu disertai teks untuk pembaca layar (§9.2). -->
+<!-- KPI card (DRD §4.1, §12 style): icon in a box + label (+ "(i)" tooltip), large number with a dimmed suffix
+     (e.g. "/40") and a ▲/▼ change badge next to it, then a small line (comparison or status dot).
+     value null = the required log is missing -> "–" + explanation (U16, Q6). tone colors the number when meaningful
+     ('err' | 'warn' | 'ok' | 'muted'); neutral = white. Changes always come with text for screen readers (§9.2). -->
 <script>
   import { lang, t } from '../i18n.js';
   import { num } from '../format.js';

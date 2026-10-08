@@ -1,6 +1,6 @@
-<!-- Menu user (DRD §2.1 U28, §8.2): tombol berisi nama tampilan; daftar: nama + peran, Ganti sandi, (admin) Kelola
-     user, Ingest & impor, Keluar. Pola menu standar: Enter/Spasi membuka, panah berpindah, Esc menutup dan
-     mengembalikan fokus. `extended` (layar sempit, tombol ⋯): bahasa, tema, dan muat ulang ikut masuk menu. -->
+<!-- User menu (DRD §2.1 U28, §8.2): button holding the display name; list: name + role, Change password, (admin) Manage
+     users, Ingest & import, Log out. Standard menu pattern: Enter/Space opens, arrows move, Esc closes and
+     returns focus. `extended` (narrow screen, ⋯ button): language, theme, and reload are moved into the menu too. -->
 <script>
   import { tick } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -32,7 +32,7 @@
   }
   function outside(e) { if (open && !btn?.contains(e.target) && !list?.contains(e.target)) open = false; }
   const link = (tab) => build({ ...route, tab, service: null, q: null });
-  // avatar inisial (gaya referensi): tanpa foto, tanpa layanan luar
+  // initials avatar (reference style): no photo, no outside service
   const initials = $derived((me.display_name || me.username).split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join(''));
 </script>
 

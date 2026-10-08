@@ -1,76 +1,85 @@
-# Berkontribusi ke MoniShield
+# Contributing to MoniShield
 
-## Branch
+## Branches
 
-| Branch | Untuk | Masuk dari |
+| Branch | For | Merged from |
 |---|---|---|
-| `dev` | pengembangan sehari-hari; selalu bisa dijalankan | branch fitur (`feat/…`, `fix/…`) lewat pull request |
-| `stg` | uji bersama / staging sebelum rilis | `dev` lewat pull request |
-| `prd` | produksi (yang dipasang di VPS, `docs/07-deploy-vps.md`) | `stg` lewat pull request |
+| `dev` | day-to-day development; always runnable | feature branches (`feat/…`, `fix/…`) via pull request |
+| `stg` | shared testing / staging before release | `dev` via pull request |
+| `prd` | production: every push that passes CI is deployed to the VPS automatically (`docs/07-deploy-vps.md` §13) | `stg` via pull request |
 
-Alur: buat branch dari `dev` → pull request ke `dev` → setelah diuji di `dev`, PR `dev` → `stg` → setelah lolos uji
-staging, PR `stg` → `prd`. Perbaikan darurat produksi: branch `fix/…` dari `prd`, PR ke `prd`, lalu gabungkan balik ke
-`stg` dan `dev`. (`master` = salinan awal saat repo dibuat.)
+Flow: create a branch from `dev` → pull request to `dev` → after testing on `dev`, PR `dev` → `stg` → after passing staging
+tests, PR `stg` → `prd`. Production hotfixes: a `fix/…` branch from `prd`, PR to `prd`, then merge back into
+`stg` and `dev`.
 
-Disarankan di GitHub → Settings → Branches: lindungi `stg` dan `prd` (wajib PR + CI hijau), dan jadikan `dev` branch bawaan.
+Promotions (`dev` → `stg`, `stg` → `prd`) are merged with **Create a merge commit**, never squash or rebase, so the three
+branches keep the same commits; title them `chore(release): promote dev to stg` / `chore(release): promote stg to prd`.
+Step-by-step guide: `docs/07-deploy-vps.md` §13.
 
-## Pesan commit: Conventional Commits
+Recommended in GitHub → Settings → Branches: protect `stg` and `prd` (PR + green CI required), and keep `prd` as the default branch (what visitors see).
 
-Setiap commit memakai [Conventional Commits 1.0](https://www.conventionalcommits.org/id/v1.0.0/):
+## Language
+
+Commit messages (Conventional Commits, below), code comments, documentation, server error messages and API responses are
+written in **English**. The web UI stays bilingual (Indonesian/English) via `web/src/i18n` (`id.json`, `en.json`).
+
+## Commit messages: Conventional Commits
+
+Every commit uses [Conventional Commits 1.0](https://www.conventionalcommits.org/id/v1.0.0/):
 
 ```
-<tipe>[(<cakupan>)][!]: <ringkasan singkat>
+<type>[(<scope>)][!]: <short summary>
 
-[isi: apa dan mengapa, boleh beberapa paragraf]
+[body: what and why, may be several paragraphs]
 
-[BREAKING CHANGE: … bila memutus kompatibilitas]
+[BREAKING CHANGE: … if it breaks compatibility]
 ```
 
-| Tipe | Kapan |
+| Type | When |
 |---|---|
-| `feat` | fitur baru untuk pengguna |
-| `fix` | perbaikan bug |
-| `docs` | dokumentasi saja |
-| `style` | format kode tanpa mengubah perilaku |
-| `refactor` | perubahan kode tanpa fitur/perbaikan baru |
-| `perf` | percepatan |
-| `test` | menambah/membetulkan uji |
-| `build` | sistem build, dependensi, Docker |
+| `feat` | new feature for users |
+| `fix` | bug fix |
+| `docs` | documentation only |
+| `style` | code formatting without changing behavior |
+| `refactor` | code change without a new feature/fix |
+| `perf` | speed-up |
+| `test` | adding/fixing tests |
+| `build` | build system, dependencies, Docker |
 | `ci` | GitHub Actions |
-| `chore` | pemeliharaan lain |
-| `revert` | membatalkan commit |
+| `chore` | other maintenance |
+| `revert` | reverting a commit |
 
-Cakupan yang lazim (huruf kecil): `api`, `ingest`, `kafka`, `s3`, `peta`, `ui`, `config`, `auth`, `alerts`, `docker`,
-`deps`, `i18n`. Contoh:
+Common scopes (lowercase): `api`, `ingest`, `kafka`, `s3`, `peta`, `ui`, `config`, `auth`, `alerts`, `docker`,
+`deps`, `i18n`. Examples:
 
 ```
-feat(kafka): tulis pesan Rancher menjadi folder seperti ekspor S3
-fix(peta): partikel berhenti saat tab disembunyikan
-docs: panduan deploy VPS
-build(deps)!: naikkan DuckDB ke 2.x
+feat(kafka): write Rancher messages into folders like the S3 export
+fix(peta): particles stop when the tab is hidden
+docs: VPS deploy guide
+build(deps)!: bump DuckDB to 2.x
 
-BREAKING CHANGE: berkas basis data lama harus di-ingest ulang.
+BREAKING CHANGE: old database files must be re-ingested.
 ```
 
-Pemeriksaan otomatis:
+Automatic checks:
 
 ```sh
-git config core.hooksPath .githooks          # sekali per clone: commit yang tidak sesuai ditolak di komputer Anda
-tools/cek_commit.sh origin/dev..HEAD          # periksa commit sebelum push
+git config core.hooksPath .githooks          # once per clone: non-conforming commits are rejected on your computer
+tools/cek_commit.sh origin/dev..HEAD          # check commits before pushing
 ```
 
-CI (`.github/workflows/ci.yml`) memeriksa pesan commit di setiap pull request dan push ke `dev`/`stg`/`prd`, lalu
-menjalankan uji Python dan build tampilan.
+CI (`.github/workflows/ci.yml`) checks the commit messages on every pull request and push to `dev`/`stg`/`prd`, then
+runs the Python tests and the UI build. On `prd` a final **Deploy** job ships the tested commit to the server.
 
-## Sebelum membuat pull request
+## Before opening a pull request
 
 ```sh
 .venv/bin/pip install -e ".[test,s3,kafka]"
-.venv/bin/python -m pytest -q                 # semua uji
-(cd web && npm ci && npm run build) && node tools/cek_i18n.mjs   # build tampilan + kamus ID/EN lengkap
+.venv/bin/python -m pytest -q                 # all tests
+(cd web && npm ci && npm run build) && node tools/cek_i18n.mjs   # UI build + complete ID/EN dictionaries
 ```
 
-Di repo ini ±60 uji pembanding dengan sistem lama (`build_dashboard.py`, `dashboard.html`, folder log asli) otomatis
-**dilewati**: berkas-berkas itu hanya ada di repo lama `apisdsn/dashboard-logging`. Uji lainnya harus lulus.
+In this repo ±60 comparison tests against the old system (`build_dashboard.py`, `dashboard.html`, real log folders) are automatically
+**skipped**: those files only exist in the old repo `apisdsn/dashboard-logging`. All other tests must pass.
 
-Jangan pernah meng-commit `.env` (berisi rahasia; sudah di `.gitignore`).
+Never commit `.env` (it contains secrets; it is already in `.gitignore`).

@@ -1,6 +1,6 @@
-<!-- "Temuan utama" Keamanan (inv. §2.4, 9 aturan) disusun dari komponen dan kamus berkunci, bukan HTML dalam string:
-     tiap butir = bagian tebal + kalimat, keduanya dua bahasa; nilai data (IP, akun, organisasi) masuk sebagai
-     parameter teks; kalimat lanjutan di kamus memuat spasi/tanda baca awalnya sendiri ("…internet</b>: 25 …" seperti lama). items: [{key, b: {param}, t: {param}}]. Kosong -> kartu tidak tampil (lama). -->
+<!-- Security "Temuan utama" (key findings) (inv. §2.4, 9 rules) built from components and keyed dictionaries, not HTML in strings:
+     each item = bold part + sentence, both bilingual; data values (IP, account, organization) go in as
+     text parameters; continuation sentences in the dictionary carry their own leading space/punctuation ("…internet</b>: 25 …" like the old one). items: [{key, b: {param}, t: {param}}]. Empty -> the card is not shown (old). -->
 <script>
   import { t } from '../i18n.js';
   let { items = [] } = $props();

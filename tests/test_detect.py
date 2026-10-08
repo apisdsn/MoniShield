@@ -1,19 +1,20 @@
-"""Deteksi serangan OWASP CRS + CAPEC (Tahap 21, TRD §4.6).
+"""OWASP CRS + CAPEC attack detection (Stage 21, TRD §4.6).
 
-(a) muatan serangan yang dikenal per kategori -> kena, dengan CAPEC yang sesuai;
-(b) path nyata yang "bersih" menurut aturan lama -> tingkat salah-tuduh diukur dan dilaporkan (< 0,5 % pada tingkat paranoia 1);
-(c) request yang kena aturan lama -> dicatat mana yang juga kena CRS dan mana yang tidak (laporan, bukan syarat).
-(b) dan (c) memakai database nyata (data/monishield.duckdb) bila ada; selain itu dilewati.
+(a) known attack payloads per category -> hit, with the matching CAPEC;
+(b) real paths that are "clean" under the old rules -> false-positive rate measured and reported (< 0.5 % at paranoia level 1);
+(c) requests hit by the old rules -> records which are also hit by CRS and which are not (a report, not a requirement).
+(b) and (c) use the real database (data/monishield.duckdb) when present; otherwise skipped.
 """
 import collections, json, os
 
 import pytest
 
-from monishield import config, detect
+from monishield.infrastructure import config
+from monishield.domain import detect
 
 V2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-SERANGAN = [   # (kategori, metode, path, UA, CAPEC yang diharapkan)
+SERANGAN = [   # (category, method, path, UA, expected CAPEC)
     ('SQLi', 'GET', "/api/x?id=1' UNION SELECT username,password FROM users--", 'Mozilla/5.0', '66'),
     ('SQLi waktu', 'GET', "/api/x?q=1';WAITFOR DELAY '0:0:5'--", 'Mozilla/5.0', '66'),
     ('XSS', 'GET', '/search?q=<script>alert(document.cookie)</script>', 'Mozilla/5.0', '242'),
@@ -53,7 +54,7 @@ def test_request_normal_bersih(meth, path, ua):
 
 
 def test_keterbatasan_tautologi_sql_tanpa_libinjection():
-    """942100 (libinjection) dilewati: tautologi ' OR 1=1 tidak kena di PL1, kena di PL2 (dicatat di docs/04c)."""
+    """942100 (libinjection) skipped: the ' OR 1=1 tautology is not hit at PL1, hit at PL2 (recorded in docs/04c)."""
     p = '/api/x?id=1%27%20OR%201%3D1--'
     assert detect.classify('GET', p, '', 1) is None
     assert detect.classify('GET', p, '', 2)['capec'] == '66'
@@ -68,11 +69,11 @@ def test_tiap_kategori_punya_contoh_yang_kena():
 def test_aturan_terkunci_dan_lengkap():
     d = detect.DATA
     assert d['version'] == 'v4.30.0' and len(d['commit']) == 40 and d['license'] == 'Apache-2.0'
-    assert os.path.exists(os.path.join(V2, 'monishield', 'CRS-LICENSE.txt'))
+    assert os.path.exists(os.path.join(V2, 'monishield', 'domain', 'CRS-LICENSE.txt'))
     assert {r['file'][8:11] for r in d['rules']} == {'913', '930', '931', '932', '933', '934', '941', '942', '944'}
-    assert all(s['reason'] for s in d['skipped'])                         # yang dilewati selalu beralasan
+    assert all(s['reason'] for s in d['skipped'])                         # skipped ones always have a reason
     assert len(detect.rules(1)) == d['counts']['by_pl']['1'] and len(detect.rules(2)) > len(detect.rules(1))
-    assert {r['capec'] for r in d['rules']} <= set(detect.CAPEC['capec'])  # semua CAPEC punya nama dua bahasa
+    assert {r['capec'] for r in d['rules']} <= set(detect.CAPEC['capec'])  # every CAPEC has a bilingual name
 
 
 def test_transformasi():
@@ -83,7 +84,7 @@ def test_transformasi():
     assert detect.transform('/*x*/SELECT', ('replaceComments', 'lowercase')) == ' select'
 
 
-# ------------------------------------------------------------------ data nyata
+# ------------------------------------------------------------------ real data
 @pytest.fixture(scope='module')
 def nyata():
     cfg = config.load(dotenv=False)
@@ -96,7 +97,7 @@ def nyata():
 
 
 def test_salah_tuduh_lalu_lintas_normal(nyata, capsys):
-    """Path unik yang BERSIH menurut aturan lama: berapa persen dituduh serangan oleh CRS PL1? Syarat < 0,5 %."""
+    """Unique paths that are CLEAN under the old rules: what percentage does CRS PL1 flag as attacks? Requirement < 0.5 %."""
     pasangan = nyata.execute("""SELECT method, path, any_value(ua) FROM nginx_access WHERE attack_cat IS NULL
                                 GROUP BY method, path""").fetchall()
     kena = [(m, p, detect.classify(m, p, '', 1)) for m, p, _ in pasangan]
@@ -109,7 +110,7 @@ def test_salah_tuduh_lalu_lintas_normal(nyata, capsys):
 
 
 def test_banding_aturan_lama(nyata, capsys):
-    """Request yang kena aturan lama: per kategori lama, berapa yang juga kena CRS (laporan untuk docs/04c)."""
+    """Requests hit by the old rules: per old category, how many are also hit by CRS (report for docs/04c)."""
     rows = nyata.execute('SELECT attack_cat, method, path, ua, count(*) FROM nginx_access WHERE attack_cat IS NOT NULL GROUP BY ALL').fetchall()
     per = collections.defaultdict(lambda: [0, 0])
     for cat, m, p, u, n in rows:

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Ambil objek data `D` dari dashboard.html sistem lama -> JSON, untuk uji kesetaraan.
+"""Extract the data object `D` from the old system's dashboard.html -> JSON, for the equivalence test.
 
-  python3 tools/ekstrak_dashboard.py [keluaran.json]
+  python3 tools/ekstrak_dashboard.py [output.json]
 
-Bawaan keluaran: v2/data/dashboard-lama.json (tidak masuk git). dashboard.html hanya dibaca.
+Default output: v2/data/dashboard-lama.json (not in git). dashboard.html is only read.
 """
 import json, os, sys
 
@@ -17,7 +17,7 @@ def extract(path=SRC):
 
 
 def load(path=None, src=SRC):
-    """Baca hasil ekstraksi; buat bila belum ada atau lebih tua dari dashboard.html."""
+    """Read the extraction result; create it when missing or older than dashboard.html."""
     path = path or os.path.join(V2, 'data', 'dashboard-lama.json')
     if not os.path.exists(path) or os.path.getmtime(path) < os.path.getmtime(src):
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -30,4 +30,4 @@ if __name__ == '__main__':
     D = extract()
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, 'w', encoding='utf-8') as fh: json.dump(D, fh, ensure_ascii=False)
-    print(f'-> {out}: {len(D["days"])} folder, {len(D["files"])} file, {len(D["ipinfo"])} ipinfo, {len(D["geo"])} geo', file=sys.stderr)
+    print(f'-> {out}: {len(D["days"])} folders, {len(D["files"])} files, {len(D["ipinfo"])} ipinfo, {len(D["geo"])} geo', file=sys.stderr)

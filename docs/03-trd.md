@@ -1,252 +1,252 @@
-# TRD — Kebutuhan teknis dashboard log SIMPEL4 (v2)
+# TRD — Technical requirements for the SIMPEL4 log dashboard (v2)
 
-Keputusan teknis untuk migrasi. Dasar: [`00-inventaris.md`](00-inventaris.md) ("inv. §x"),
-[`01-prd.md`](01-prd.md) (F/B/T/A/P-nn), [`02-drd.md`](02-drd.md) (U/D/Q-nn), ketiganya dibaca ulang dari
-file. Dokumen ini tidak berisi kode implementasi; nama tabel, kolom, dan endpoint adalah kontrak.
+Technical decisions for the migration. Basis: [`00-inventaris.md`](00-inventaris.md) ("inv. §x"),
+[`01-prd.md`](01-prd.md) (F/B/T/A/P-nn), [`02-drd.md`](02-drd.md) (U/D/Q-nn), all three re-read from
+file. This document contains no implementation code; table, column, and endpoint names are a contract.
 
-Stack sudah ditetapkan di konteks: Python + FastAPI, DuckDB, Svelte + Vite, Chart.js, MapLibre GL JS.
+The stack is already fixed in the context: Python + FastAPI, DuckDB, Svelte + Vite, Chart.js, MapLibre GL JS.
 
-**ASUMSI** teknis diberi nomor T-nn dan dirangkum di [§11](#11-asumsi-dan-pertanyaan-terbuka).
+Technical **ASSUMPTIONS** are numbered T-nn and summarized in [§11](#11-assumptions-and-open-questions).
 
-### Keputusan pemilik produk (diterima 2026-10-06, saat dokumen ini ditulis)
+### Product owner decisions (received 2026-10-06, while this document was being written)
 
-Empat pertanyaan PRD dijawab. Jawaban ini **mengalahkan** asumsi PRD/DRD yang bertentangan; dampaknya ke
-dokumen lain didaftar di §10.
+Four PRD questions were answered. These answers **override** conflicting PRD/DRD assumptions; their impact on
+other documents is listed in §10.
 
-| PRD | Jawaban pemilik | Akibat teknis |
+| PRD | Owner's answer | Technical consequence |
 |---|---|---|
-| P1, X10 | Ada login dengan dua peran, **admin** dan **user**. **Untuk sementara** hanya itu: user biasa melihat seluruh dashboard; admin juga bisa menambah user. Pembatasan per modul (permintaan awal P1) **ditunda**. | Autentikasi, sesi, dua peran: §8.2–§8.4, §2.6, §5.6 |
-| P2 | "Hari" **tetap per folder**. Rencana: otomatisasi; ketika tautan folder di bucket dikirim, folder diunduh dan diolah otomatis. | A1 menjadi keputusan. Impor dari tautan: §3.8, §5.5 |
-| X1 | Akun **lokal** di basis data aplikasi ini; bukan SSO. | T6 menjadi keputusan: §8.2 |
-| X11 | Rincian perbaikan definisi **disetujui**: sesuai praktik yang baik. | T11 menjadi keputusan: §4.4 |
-| DRD Q1 | Tampilan ponsel dikerjakan **serius**. | DRD §8 berlaku penuh, termasuk tabel lebar menjadi kartu baris |
-| X9 | Tautan berbentuk awalan S3, mis. `s3://simpel4-backup/k8s-logs/2026-09-26/`. Kredensialnya **kunci akses tetap**, dibuat lewat situs AWS; kunci itu **hanya bisa membaca** (tidak bisa menulis atau menghapus), tetapi bisa melihat **semua bucket di wilayah Jakarta**. | Klien S3, kredensial di `.env`, impor bisa otomatis: §3.8. Karena kuncinya luas, pembatasan di sisi aplikasi wajib |
-| P3 | Dashboard dibuka dari **banyak komputer**. | Diakses lewat jaringan, wajib HTTPS dan login; A3 gugur: §7, §8 |
-| P4 | Definisi yang salah/janggal **diperbaiki** sesuai praktik yang baik. | Daftar perbaikan dan selisih yang diharapkan: §4.4, §9.3 |
+| P1, X10 | There is a login with two roles, **admin** and **user**. **For now** that is all: a regular user sees the whole dashboard; an admin can also add users. Per-module restrictions (the original P1 request) are **postponed**. | Authentication, sessions, two roles: §8.2–§8.4, §2.6, §5.6 |
+| P2 | "Day" **stays per folder**. Plan: automation; when a link to a folder in the bucket is sent, the folder is downloaded and processed automatically. | A1 becomes a decision. Import from a link: §3.8, §5.5 |
+| X1 | **Local** accounts in this application's database; not SSO. | T6 becomes a decision: §8.2 |
+| X11 | The details of the definition fixes are **approved**: in line with good practice. | T11 becomes a decision: §4.4 |
+| DRD Q1 | The phone layout is done **seriously**. | DRD §8 applies in full, including wide tables becoming row cards |
+| X9 | The link is an S3 prefix, e.g. `s3://simpel4-backup/k8s-logs/2026-09-26/`. The credential is a **long-term access key**, created through the AWS website; the key **can only read** (it cannot write or delete), but it can see **all buckets in the Jakarta region**. | S3 client, credentials in `.env`, import can be automatic: §3.8. Because the key is broad, restriction on the application side is mandatory |
+| P3 | The dashboard is opened from **many computers**. | Accessed over the network, HTTPS and login are mandatory; A3 is dropped: §7, §8 |
+| P4 | Wrong/odd definitions are **fixed** in line with good practice. | List of fixes and the expected differences: §4.4, §9.3 |
 
-Isi: [1 Arsitektur](#1-arsitektur-dan-alur-data) · [2 Skema](#2-skema-duckdb) · [3 Ingest](#3-ingest) ·
-[4 Pakai ulang vs SQL](#4-yang-dipakai-ulang-dan-yang-diganti-sql) · [5 API](#5-kontrak-api) ·
-[6 Struktur](#6-struktur-folder-cara-menjalankan-dependensi) · [7 Deploy](#7-deploy-dengan-docker-compose) ·
-[8 Keamanan](#8-keamanan) · [9 Uji](#9-strategi-uji) · [10 Dampak ke dokumen lain](#10-dampak-ke-dokumen-lain) ·
-[11 Asumsi](#11-asumsi-dan-pertanyaan-terbuka)
+Contents: [1 Architecture](#1-architecture-and-data-flow) · [2 Schema](#2-duckdb-schema) · [3 Ingest](#3-ingest) ·
+[4 Reuse vs SQL](#4-what-is-reused-and-what-is-replaced-by-sql) · [5 API](#5-api-contract) ·
+[6 Structure](#6-folder-structure-how-to-run-dependencies) · [7 Deployment](#7-deployment-with-docker-compose) ·
+[8 Security](#8-security) · [9 Tests](#9-test-strategy) · [10 Impact on other documents](#10-impact-on-other-documents) ·
+[11 Assumptions](#11-assumptions-and-open-questions)
 
 ---
 
-## 1. Arsitektur dan alur data
+## 1. Architecture and data flow
 
-### 1.1 Gambaran
+### 1.1 Overview
 
 ```
- folder log (baca-saja)                         satu proses "app"
- <tgl>/[ns/]<layanan>/*.log(.gz)   ┌──────────────────────────────────────────────┐
+ log folder (read-only)                         one "app" process
+ <date>/[ns/]<service>/*.log(.gz)  ┌──────────────────────────────────────────────┐
         │                          │  FastAPI (1 worker)                          │
-        │  1. pindai + sidik jari  │   ├─ /api/...      baca tabel agregat        │
-        ▼                          │   ├─ /api/admin/ingest   picu ingest         │
- ┌──────────────┐  2. parse        │   └─ berkas statis: aplikasi Svelte, peta    │
- │ proses parser│  (subproses,     │                                              │
- │ rules.py     │   per file)      │  Ingest (thread di proses yang sama)         │
- └──────┬───────┘                  │   3. muat CSV → tabel mentah   ┐ satu        │
-        │ CSV sementara            │   4. turunkan agregat (SQL)    │ transaksi   │
-        └─────────────────────────►│   5. catat status file         ┘ per folder  │
+        │  1. scan + fingerprint   │   ├─ /api/...      read aggregate tables     │
+        ▼                          │   ├─ /api/admin/ingest   trigger ingest      │
+ ┌──────────────┐  2. parse        │   └─ static files: Svelte app, map           │
+ │ parser proc. │  (subprocess,    │                                              │
+ │ rules.py     │   per file)      │  Ingest (thread in the same process)         │
+ └──────┬───────┘                  │   3. load CSV → raw tables     ┐ one         │
+        │ temporary CSV            │   4. derive aggregates (SQL)   │ transaction │
+        └─────────────────────────►│   5. record file status        ┘ per folder  │
                                    │                                              │
- database IP (unduhan) ──────────► │   6. lengkapi pemilik & lokasi IP (offline)  │
+ IP databases (downloaded) ──────► │   6. fill in IP owner & location (offline)   │
  .cache: ip2asn, GeoLite2,         │                                              │
- Natural Earth, GeoNames           │        simpel4.duckdb  (satu file)           │
+ Natural Earth, GeoNames           │        simpel4.duckdb  (one file)            │
                                    └──────────────────────────────────────────────┘
                                                       ▲
-                                    browser ──────────┘  hanya ke server ini
+                                    browser ──────────┘  only to this server
 ```
 
-### 1.2 Keputusan
+### 1.2 Decisions
 
-| # | Keputusan | Alasan |
+| # | Decision | Reason |
 |--:|---|---|
-| K1 | **Satu proses memiliki file DuckDB**: proses API. Ingest berjalan **di dalam proses itu** (thread latar), bukan proses terpisah. | DuckDB hanya mengizinkan satu proses penulis, dan penulis mengunci file dari proses lain termasuk pembaca. Di dalam satu proses, pembaca dan satu penulis berjalan bersamaan dengan aman (MVCC). Ini menghapus seluruh masalah "bentrok" tanpa mekanisme tukar file. |
-| K2 | **Parsing di subproses**, hasilnya CSV sementara; proses utama hanya memuat CSV dan menjalankan SQL. | Parsing adalah pekerjaan CPU Python murni; di thread ia akan menahan GIL dan memperlambat API. Subproses tidak membuka DuckDB, jadi K1 tetap berlaku. `read_csv` juga cara tercepat memasukkan ratusan ribu baris ke DuckDB tanpa pustaka tambahan. |
-| K3 | **Dua lapis data**: tabel mentah (satu baris per baris log yang bermakna) dan tabel agregat per folder yang **dimaterialkan saat ingest**. API hanya membaca agregat. | Waktu respons tidak bergantung pada ukuran data mentah (target PRD §5.1 pada data setahun). Data mentah tetap ada untuk menurunkan ulang agregat tanpa parse ulang, untuk korelasi lintas folder, dan untuk analisis lintas folder (T02) kelak. |
-| K4 | **Agregat disimpan tanpa dipotong**; top-N diterapkan saat query. | Menyelesaikan M3/B03/B04: KPI dihitung dari data lengkap, tabel bisa "tampilkan berikutnya", filter mencari seluruh data. Batas lama (inv. §5.2) menjadi `limit` bawaan. |
-| K5 | **Aturan parse dan klasifikasi dipakai ulang dari sistem lama**, disalin apa adanya ke satu modul; hanya penjumlahan yang pindah ke SQL. | Kesetaraan angka (PRD §6.2) paling mudah dijamin bila regex dan fungsi keputusan tidak ditulis ulang. Rincian di §4. |
-| K6 | **Satuan data = folder ekspor** (A1). Setiap baris mentah membawa `folder` dan cap waktu UTC aslinya. | Angka bisa dibandingkan langsung dengan acuan; tampilan per tanggal kalender (T01) tetap mungkin nanti karena waktu asli tersimpan. |
-| K7 | **Satu transaksi per folder**: hapus baris lama folder/file yang berubah, muat yang baru, turunkan agregat, catat status. | Pembaca tidak pernah melihat folder setengah jadi; ingest yang terputus tidak meninggalkan sisa; mengulang ingest menghasilkan keadaan yang sama. |
-| K8 | **Frontend dibangun menjadi berkas statis** dan dilayani oleh FastAPI yang sama. | Satu layanan, satu port, tanpa CORS; cukup untuk pemakaian internal. |
-| K9 | **Teks yang sekarang menjadi data tetap berbahasa Indonesia sebagai pengenal** (kategori serangan, tanda akun, metrik bisnis, kelompok JWT). Terjemahan dilakukan frontend lewat kamus (U15). | Sama dengan sistem lama dan dengan kunci di `00-acuan.json`; API tidak perlu parameter bahasa. |
-| K10 | **Kalimat temuan otomatis disusun di frontend** dari data, seperti sekarang. | Kalimatnya dua bahasa dan memuat markup; aturan (inv. §2.4, §2.5) tetap di satu tempat bersama tampilannya. |
-| K11 | **Akun, sesi, dan catatan audit disimpan di PostgreSQL lewat ORM (SQLAlchemy)**, terpisah dari DuckDB. *(Diputuskan pemilik 2026-10-06: "untuk token gunakan jwt untuk database gunakan postgresql dan pakai orm".)* | DuckDB dirancang untuk analitik, bukan banyak tulis kecil; dan file DuckDB harus bisa dihapus lalu dibangun ulang dari log tanpa kehilangan akun. ORM membuat kode akun sama di PostgreSQL (server) dan SQLite (uji, jalan lokal tanpa server basis data; dipakai bila `S4_AUTH_DATABASE_URL` kosong). **ASUMSI T16**: keputusan itu berlaku untuk akun, sesi, audit, dan catatan impor saja; data log tetap di DuckDB, karena menggantinya berarti mengulang Tahap 3–9 (skema, ingest, agregat, kesetaraan, gerbang ukuran 4,75 GB/20 ms) dan bertentangan dengan stack di `migrate/00-konteks.md`. Perlu dikonfirmasi pemilik. |
-| K12 | **Peran ditegakkan di API**, di satu tempat; menyembunyikan menu admin di frontend hanya kenyamanan. | Banyak komputer berarti API bisa dipanggil langsung; satu-satunya batas yang berarti ada di server. |
-| K13 | **Impor dari bucket hanya menambah folder ke direktori "kotak masuk"** lalu memicu ingest biasa. | Satu jalur ingest untuk semua sumber; folder log asli tetap baca-saja. |
+| K1 | **One process owns the DuckDB file**: the API process. Ingest runs **inside that process** (background thread), not as a separate process. | DuckDB allows only one writer process, and the writer locks the file against other processes, including readers. Within one process, readers and one writer run concurrently and safely (MVCC). This removes the whole "conflict" problem without a file-swap mechanism. |
+| K2 | **Parsing in a subprocess**, producing temporary CSV; the main process only loads the CSV and runs SQL. | Parsing is pure-Python CPU work; in a thread it would hold the GIL and slow the API down. The subprocess does not open DuckDB, so K1 still holds. `read_csv` is also the fastest way to get hundreds of thousands of rows into DuckDB without extra libraries. |
+| K3 | **Two data layers**: raw tables (one row per meaningful log line) and per-folder aggregate tables **materialized at ingest**. The API reads only aggregates. | Response time does not depend on the size of the raw data (PRD §5.1 target on one year of data). Raw data is kept to re-derive aggregates without re-parsing, for cross-folder correlation, and for cross-folder analysis (T02) later. |
+| K4 | **Aggregates are stored untruncated**; top-N is applied at query time. | Resolves M3/B03/B04: KPIs are computed from complete data, tables can "show next", filters search all data. The old limits (inv. §5.2) become the default `limit`. |
+| K5 | **Parse and classification rules are reused from the old system**, copied as-is into one module; only the counting moves to SQL. | Equal numbers (PRD §6.2) are easiest to guarantee if the regexes and decision functions are not rewritten. Details in §4. |
+| K6 | **Data unit = export folder** (A1). Every raw row carries `folder` and its original UTC timestamp. | Numbers can be compared directly with the reference; a per-calendar-date view (T01) remains possible later because the original time is stored. |
+| K7 | **One transaction per folder**: delete the old rows of the changed folder/file, load the new ones, derive aggregates, record status. | Readers never see a half-finished folder; an interrupted ingest leaves nothing behind; repeating an ingest yields the same state. |
+| K8 | **The frontend is built into static files** and served by the same FastAPI. | One service, one port, no CORS; sufficient for internal use. |
+| K9 | **Text that is currently data stays in Indonesian as identifiers** (attack categories, account flags, business metrics, JWT buckets). Translation is done by the frontend via a dictionary (U15). | Same as the old system and as the keys in `00-acuan.json`; the API needs no language parameter. |
+| K10 | **Automatic finding sentences are composed in the frontend** from data, as they are now. | The sentences are bilingual and contain markup; the rules (inv. §2.4, §2.5) stay in one place together with their display. |
+| K11 | **Accounts, sessions, and the audit log are stored in PostgreSQL via an ORM (SQLAlchemy)**, separate from DuckDB. *(Decided by the owner 2026-10-06: "untuk token gunakan jwt untuk database gunakan postgresql dan pakai orm" (for tokens use JWT, for the database use PostgreSQL and use an ORM).)* | DuckDB is designed for analytics, not for many small writes; and the DuckDB file must be deletable and rebuildable from the logs without losing accounts. The ORM makes the account code the same on PostgreSQL (server) and SQLite (tests, running locally without a database server; used when `S4_AUTH_DATABASE_URL` is empty). **ASSUMPTION T16**: that decision applies to accounts, sessions, audit, and import records only; log data stays in DuckDB, because replacing it would mean redoing Stages 3–9 (schema, ingest, aggregates, equivalence, the 4.75 GB/20 ms size gate) and would contradict the stack in `migrate/00-konteks.md`. Needs confirmation by the owner. |
+| K12 | **Roles are enforced in the API**, in one place; hiding the admin menu in the frontend is only a convenience. | Many computers means the API can be called directly; the only meaningful boundary is on the server. |
+| K13 | **Import from the bucket only adds folders to the "inbox" directory** and then triggers a normal ingest. | One ingest path for all sources; the original log folder stays read-only. |
 
 ---
 
-## 2. Skema DuckDB
+## 2. DuckDB schema
 
-Satu file: `simpel4.duckdb`. Konvensi:
+One file: `simpel4.duckdb`. Conventions:
 
-- `folder` bertipe `DATE` (nama folder ekspor). Waktu disimpan sebagai `TIMESTAMP` **UTC**; WIB dihitung
-  saat menurunkan agregat (`+ 7 jam`). Agregat per jam menyimpan `hour_wib`.
-- Kunci tabel mentah adalah `(file_id, line_no)`; **tidak** dipasang sebagai `PRIMARY KEY` di DuckDB.
-  Alasan: indeks kunci pada puluhan juta baris memperlambat muat massal dan memakan memori; keunikan sudah
-  dijamin oleh pola hapus-lalu-muat per file (K7) dan diperiksa oleh uji (§9.4).
-- Tabel agregat kecil; kuncinya dipasang sebagai `PRIMARY KEY`.
-- Baris dimuat urut folder, sehingga penyaringan `folder = ?` dilayani statistik min/maks blok DuckDB.
-- Teks tidak dipotong saat disimpan. Pemotongan lama (inv. §5.3) diterapkan saat menurunkan agregat, di
-  tempat yang sama dengan sistem lama, karena memengaruhi pengelompokan.
+- `folder` has type `DATE` (the export folder name). Times are stored as `TIMESTAMP` **UTC**; WIB is computed
+  when deriving aggregates (`+ 7 hours`). Hourly aggregates store `hour_wib`.
+- The key of raw tables is `(file_id, line_no)`; it is **not** declared as a `PRIMARY KEY` in DuckDB.
+  Reason: a key index over tens of millions of rows slows bulk loading and uses memory; uniqueness is already
+  guaranteed by the per-file delete-then-load pattern (K7) and checked by tests (§9.4).
+- Aggregate tables are small; their keys are declared as `PRIMARY KEY`.
+- Rows are loaded in folder order, so `folder = ?` filtering is served by DuckDB's block min/max statistics.
+- Text is not truncated when stored. The old truncation (inv. §5.3) is applied when deriving aggregates, at
+  the same place as in the old system, because it affects grouping.
 
-### 2.1 Tabel kendali
+### 2.1 Control tables
 
-**`ingest_file`** — satu baris per file log logis. PK `file_id`; unik `relpath`.
+**`ingest_file`** — one row per logical log file. PK `file_id`; unique `relpath`.
 
-| Kolom | Tipe | Isi |
+| Column | Type | Content |
 |---|---|---|
-| `file_id` | INTEGER | nomor urut |
-| `relpath` | VARCHAR | path relatif **tanpa** akhiran `.gz` (identitas logis, §3.2) |
-| `source_ext` | VARCHAR | `.log` atau `.log.gz`: berkas yang benar-benar dibaca |
-| `folder` | DATE | komponen path pertama |
-| `ns` | VARCHAR | komponen tengah, atau `-` |
-| `service` | VARCHAR | folder induk file |
-| `pod` | VARCHAR | dari nama file (aturan lama, inv. §1.1) |
-| `size_bytes` | BIGINT | ukuran berkas yang dibaca (sama dengan `D.files.size`) |
-| `mtime_ns` | BIGINT | waktu ubah berkas |
-| `sha256` | VARCHAR | sidik jari isi **setelah didekompresi** |
-| `lines` | BIGINT | semua baris, termasuk yang tidak ter-parse |
-| `err`, `warn` | INTEGER | penghitung lama per file (inv. §4.9) |
-| `corrupt_lines` | INTEGER | baris `unsupported log format` (B05) |
+| `file_id` | INTEGER | sequence number |
+| `relpath` | VARCHAR | relative path **without** the `.gz` suffix (logical identity, §3.2) |
+| `source_ext` | VARCHAR | `.log` or `.log.gz`: the file actually read |
+| `folder` | DATE | first path component |
+| `ns` | VARCHAR | middle component, or `-` |
+| `service` | VARCHAR | parent folder of the file |
+| `pod` | VARCHAR | from the file name (old rule, inv. §1.1) |
+| `size_bytes` | BIGINT | size of the file read (same as `D.files.size`) |
+| `mtime_ns` | BIGINT | file modification time |
+| `sha256` | VARCHAR | fingerprint of the content **after decompression** |
+| `lines` | BIGINT | all lines, including those not parsed |
+| `err`, `warn` | INTEGER | old per-file counters (inv. §4.9) |
+| `corrupt_lines` | INTEGER | `unsupported log format` lines (B05) |
 | `status` | VARCHAR | `ok`, `kosong`, `rusak`, `gagal` |
-| `rules_version` | INTEGER | versi aturan parse saat diproses |
+| `rules_version` | INTEGER | parse rules version at processing time |
 | `ingested_at` | TIMESTAMP | |
 
-**`file_counter`** — penghitung per file untuk baris yang tidak layak disimpan satu per satu.
+**`file_counter`** — per-file counters for lines not worth storing one by one.
 PK `(file_id, kind, key)`.
 
-| Kolom | Tipe | Isi |
+| Column | Type | Content |
 |---|---|---|
 | `file_id` | INTEGER | |
 | `kind` | VARCHAR | `level` (inv. `extra`), `biz`, `mail` |
-| `key` | VARCHAR | mis. `INFO`, `Hibernate SQL`, `Email Terkirim`, `Email Gagal`, jenis email notifikasi |
+| `key` | VARCHAR | e.g. `INFO`, `Hibernate SQL`, `Email Terkirim`, `Email Gagal`, notification email type |
 | `n` | BIGINT | |
 
-Alasan: ±31 ribu baris `Hibernate:` per hari hanya perlu dihitung.
+Reason: the ±31 thousand `Hibernate:` lines per day only need to be counted.
 
 **`folder_state`** — PK `folder`: `derived_at`, `rules_version`, `range_start_utc`, `range_end_utc`,
-`lines`, `files`, `files_empty`, `files_corrupt`. Sumber daftar folder dan label rentang waktu (B06).
+`lines`, `files`, `files_empty`, `files_corrupt`. Source of the folder list and the time range label (B06).
 
 **`ip_info`** — PK `ip`: `asn` INTEGER, `cc` VARCHAR, `org` VARCHAR, `is_private` BOOLEAN, `city`,
 `region`, `country` VARCHAR, `lat`, `lon` DOUBLE, `geo_checked` BOOLEAN, `asn_db_date`, `geo_db_date` DATE.
-Menggantikan `D.ipinfo`, `D.geo`, dan `.cache/geo.json`. Diisi untuk **semua** IP yang muncul, bukan hanya
-yang tampil.
+Replaces `D.ipinfo`, `D.geo`, and `.cache/geo.json`. Filled for **all** IPs that appear, not only those
+displayed.
 
-**`ingest_run`** — riwayat ingest: `run_id`, `started_at`, `finished_at`, `status`, `files_seen`,
+**`ingest_run`** — ingest history: `run_id`, `started_at`, `finished_at`, `status`, `files_seen`,
 `files_changed`, `message`.
 
-### 2.2 Tabel mentah
+### 2.2 Raw tables
 
-Semua punya `file_id` INTEGER, `line_no` INTEGER, `folder` DATE (tidak diulang di bawah).
+All have `file_id` INTEGER, `line_no` INTEGER, `folder` DATE (not repeated below).
 
-**`nginx_access`** — baris access ingress nginx yang cocok regex (inv. §3.1). ±130 ribu baris/hari.
+**`nginx_access`** — ingress nginx access lines that match the regex (inv. §3.1). ±130 thousand lines/day.
 
-| Kolom | Tipe | Isi |
+| Column | Type | Content |
 |---|---|---|
-| `ts_utc` | TIMESTAMP | presisi detik |
-| `ip` | VARCHAR | IP klien |
+| `ts_utc` | TIMESTAMP | second precision |
+| `ip` | VARCHAR | client IP |
 | `method` | VARCHAR | |
-| `path` | VARCHAR | path + query, mentah |
-| `path_key` | VARCHAR | hasil `path_key()` |
+| `path` | VARCHAR | path + query, raw |
+| `path_key` | VARCHAR | result of `path_key()` |
 | `status` | SMALLINT | |
-| `bytes` | BIGINT | ukuran respons |
-| `ua` | VARCHAR | User-Agent utuh |
-| `request_time` | DOUBLE | detik |
-| `upstream` | VARCHAR | tanpa awalan `ombudsman-ombudsman-`; `-` bila kosong |
-| `request_id` | VARCHAR | NULL bila ekor baris tidak cocok |
-| `pod_final` | VARCHAR | alamat pod yang menjawab; `-` bila tidak ada (aturan lama) |
-| `up_addrs` | VARCHAR[] | daftar alamat percobaan; NULL bila ekor tidak berisi 4 bagian |
-| `up_statuses` | VARCHAR[] | status tiap percobaan, sejajar `up_addrs` |
-| `attack_cat` | VARCHAR | hasil `classify()`; NULL bila bersih |
-| `is_uptime_kuma` | BOOLEAN | UA memuat `Uptime-Kuma` |
+| `bytes` | BIGINT | response size |
+| `ua` | VARCHAR | full User-Agent |
+| `request_time` | DOUBLE | seconds |
+| `upstream` | VARCHAR | without the `ombudsman-ombudsman-` prefix; `-` when empty |
+| `request_id` | VARCHAR | NULL when the line tail does not match |
+| `pod_final` | VARCHAR | address of the pod that answered; `-` when there is none (old rule) |
+| `up_addrs` | VARCHAR[] | list of attempted addresses; NULL when the tail does not contain 4 parts |
+| `up_statuses` | VARCHAR[] | status of each attempt, parallel to `up_addrs` |
+| `attack_cat` | VARCHAR | result of `classify()`; NULL when clean |
+| `is_uptime_kuma` | BOOLEAN | UA contains `Uptime-Kuma` |
 
-**`nginx_error`** — baris error log yang cocok regex (inv. §3.2); dipakai juga untuk error log frontend.
+**`nginx_error`** — error log lines that match the regex (inv. §3.2); also used for the frontend error log.
 
-| Kolom | Tipe | Isi |
+| Column | Type | Content |
 |---|---|---|
-| `service` | VARCHAR | `nginx-ingress-controller` atau `om-fe-inhouse` |
+| `service` | VARCHAR | `nginx-ingress-controller` or `om-fe-inhouse` |
 | `ts_utc` | TIMESTAMP | |
 | `level` | VARCHAR | `error`, `warn`, `crit`, … |
-| `message` | VARCHAR | sampai `, client:` |
-| `upstream_host` | VARCHAR | alamat pod; NULL bila bukan error upstream |
-| `kind` | VARCHAR | pesan tanpa nomor errno, 100 karakter (aturan lama) |
-| `request` | VARCHAR | `METODE path`, 120 karakter |
+| `message` | VARCHAR | up to `, client:` |
+| `upstream_host` | VARCHAR | pod address; NULL when not an upstream error |
+| `kind` | VARCHAR | message without the errno number, 100 characters (old rule) |
+| `request` | VARCHAR | `METHOD path`, 120 characters |
 
-**`fe_access`** — access log frontend (inv. §3.3). ±86 ribu baris/hari.
-Kolom: `ts_utc` TIMESTAMP, `ip` VARCHAR (entri pertama X-Forwarded-For), `method`, `path`, `path_key`
+**`fe_access`** — frontend access log (inv. §3.3). ±86 thousand lines/day.
+Columns: `ts_utc` TIMESTAMP, `ip` VARCHAR (first X-Forwarded-For entry), `method`, `path`, `path_key`
 VARCHAR, `status` SMALLINT.
 
-**`sl_event`** — event HTTP simpel-loop (JSON ber-`statusCode`, inv. §3.4). ±60 ribu baris/hari.
+**`sl_event`** — simpel-loop HTTP events (JSON with `statusCode`, inv. §3.4). ±60 thousand lines/day.
 
-| Kolom | Tipe | Isi |
+| Column | Type | Content |
 |---|---|---|
-| `level` | VARCHAR | dari `[OM-<level>]` |
+| `level` | VARCHAR | from `[OM-<level>]` |
 | `request_id` | VARCHAR | |
 | `event` | VARCHAR | `http.request.completed` / `.failed` |
 | `method`, `path`, `path_key` | VARCHAR | |
 | `status` | SMALLINT | |
-| `ip` | VARCHAR | NULL pada event gagal |
-| `duration_ms` | DOUBLE | 0 bila tidak ada |
+| `ip` | VARCHAR | NULL on failed events |
+| `duration_ms` | DOUBLE | 0 when absent |
 | `failed` | BOOLEAN | |
 | `err_name`, `err_message` | VARCHAR | |
 
-Tidak ada kolom waktu: log ini tidak bercap waktu (inv. §8 butir 4).
+No time column: this log has no timestamps (inv. §8 item 4).
 
-**`spring_line`** — setiap baris Spring Boot yang cocok regex utama (inv. §3.5). ±7 ribu baris/hari.
+**`spring_line`** — every Spring Boot line that matches the main regex (inv. §3.5). ±7 thousand lines/day.
 
-| Kolom | Tipe | Isi |
+| Column | Type | Content |
 |---|---|---|
 | `service` | VARCHAR | |
 | `ts_utc` | TIMESTAMP | |
 | `level` | VARCHAR | |
 | `thread`, `logger` | VARCHAR | |
-| `restart_app` | VARCHAR | dari `Started <App> in …` |
+| `restart_app` | VARCHAR | from `Started <App> in …` |
 | `restart_seconds` | DOUBLE | |
-| `jwt_expired_ms` | BIGINT | selisih milidetik |
+| `jwt_expired_ms` | BIGINT | difference in milliseconds |
 | `refresh_expired` | BOOLEAN | |
-| `pdf_template` | VARCHAR | diisi pada baris `Jasper template path` (template diingat per thread oleh parser) |
+| `pdf_template` | VARCHAR | filled on `Jasper template path` lines (the parser remembers the template per thread) |
 | `pdf_failed` | BOOLEAN | path `null` |
 | `login_kind` | VARCHAR | `fail`, `lock`, `ok` |
-| `login_account` | VARCHAR | teks asli di log |
+| `login_account` | VARCHAR | original text in the log |
 | `login_ip` | VARCHAR | |
 
-**`coredns_error`** — inv. §3.6. Kolom: `level`, `domain`, `rtype`, `message` VARCHAR.
+**`coredns_error`** — inv. §3.6. Columns: `level`, `domain`, `rtype`, `message` VARCHAR.
 
-**`log_message`** — satu baris per pesan ERROR/WARN/EXC yang masuk pengelompokan (setiap pemanggilan
-`add_msg` di sistem lama). ±15 ribu baris/hari.
-Kolom: `service`, `level` VARCHAR, `msg_key` VARCHAR (`LEVEL | pesan ternormalisasi`), `raw` VARCHAR (baris
-asli 600 karakter, **hanya diisi pada kemunculan pertama kunci itu dalam file**; selain itu NULL).
-Alasan: contoh baris hanya butuh yang pertama; menyimpan semuanya menggandakan ukuran tanpa guna.
+**`log_message`** — one row per ERROR/WARN/EXC message that enters grouping (every `add_msg` call in the
+old system). ±15 thousand lines/day.
+Columns: `service`, `level` VARCHAR, `msg_key` VARCHAR (`LEVEL | normalized message`), `raw` VARCHAR (original
+line, 600 characters, **only filled on the first occurrence of that key in the file**; otherwise NULL).
+Reason: a sample line only needs the first one; storing all of them doubles the size for nothing.
 
-Yang sengaja **tidak** disimpan: baris yang tidak cocok aturan mana pun (banner, stack trace, log pengendali
-ingress, lanjutan multi-baris). Mereka hanya menambah `ingest_file.lines`, seperti di sistem lama.
+Intentionally **not** stored: lines that match no rule (banners, stack traces, ingress controller logs,
+multi-line continuations). They only add to `ingest_file.lines`, as in the old system.
 
-### 2.3 Tabel agregat
+### 2.3 Aggregate tables
 
-Semua berkunci `folder` (+ kolom lain). Diisi ulang per folder pada langkah "turunkan" (§3.4).
+All are keyed by `folder` (+ other columns). Refilled per folder in the "derive" step (§3.4).
 
-| Tabel | Kunci | Kolom lain | Sumber |
+| Table | Key | Other columns | Source |
 |---|---|---|---|
-| `agg_service` | folder, service | lines, err, warn, err_http, err_log, files, files_empty, files_corrupt, requests, n4xx, n5xx, ip_unique, users_ok | `ingest_file`, tabel mentah |
-| `agg_hour` | folder, service, hour_wib | total, err | nginx/fe/spring; simpel-loop dari korelasi |
+| `agg_service` | folder, service | lines, err, warn, err_http, err_log, files, files_empty, files_corrupt, requests, n4xx, n5xx, ip_unique, users_ok | `ingest_file`, raw tables |
+| `agg_hour` | folder, service, hour_wib | total, err | nginx/fe/spring; simpel-loop from correlation |
 | `agg_status` | folder, service, status | n | nginx, fe, sl |
 | `agg_endpoint` | folder, service, key | requests, n4xx, n5xx, dur_n, dur_avg, dur_max, p50, p95, p99 | nginx, fe, sl; coredns (`key` = domain) |
-| `agg_endpoint_error` | folder, service, status, key | n | nginx/fe: semua 4xx/5xx; sl: hanya event gagal |
+| `agg_endpoint_error` | folder, service, status, key | n | nginx/fe: all 4xx/5xx; sl: failed events only |
 | `agg_ip` | folder, service, ip | requests, n4xx, ua_first_4xx | nginx, fe, sl |
 | `agg_upstream` | folder, upstream | requests, n5xx | nginx |
 | `agg_ua` | folder, ua90 | n | nginx |
 | `agg_level` | folder, service, level | n | `file_counter` |
 | `agg_message` | folder, service, msg_key | level, n, sample_raw | `log_message` |
-| `agg_slow` | folder, seq | duration_ms, key, status | `sl_event` ≥ 1.000 ms |
+| `agg_slow` | folder, seq | duration_ms, key, status | `sl_event` ≥ 1,000 ms |
 | `agg_attack_url` | folder, category, method_path | hits, ip_count, top_ip, status_counts MAP(VARCHAR,INTEGER), sizes BIGINT[], upstreams VARCHAR[], ua_first, first_wib, last_wib | nginx |
 | `agg_attack_ip` | folder, ip | hits, cats MAP, status_counts MAP, ua_top, first_wib, last_wib | nginx |
 | `agg_attack_hour` | folder, hour_wib | n | nginx |
 | `agg_login_ip` | folder, ip | fail, lock, ok, accounts VARCHAR[], first_wib, last_wib | `spring_line` |
 | `agg_login_hour` | folder, hour_wib | fail, ok | `spring_line` |
-| `agg_account` | folder, account | fail, lock, ok, fail_ips VARCHAR[], ok_ips VARCHAR[], flags VARCHAR[], first_wib, last_wib, notes VARCHAR[] | fungsi `accounts()` lama |
-| `agg_incident` | folder, seq | start_wib, end_wib, n, upstreams MAP, statuses MAP | fungsi `incidents()` lama |
+| `agg_account` | folder, account | fail, lock, ok, fail_ips VARCHAR[], ok_ips VARCHAR[], flags VARCHAR[], first_wib, last_wib, notes VARCHAR[] | old `accounts()` function |
+| `agg_incident` | folder, seq | start_wib, end_wib, n, upstreams MAP, statuses MAP | old `incidents()` function |
 | `agg_c401` | folder, ip, key | n, peak_per_min, first_wib, last_wib | nginx status 401 |
 | `agg_uk_hour` | folder, hour_wib | n, fail | nginx |
 | `agg_uk_target` | folder, target | n | nginx |
@@ -261,46 +261,46 @@ Semua berkunci `folder` (+ kolom lain). Diisi ulang per folder pada langkah "tur
 | `agg_jwt` | folder, service, bucket | n | `spring_line` |
 | `agg_report` | folder, template | ok, fail | `spring_line` |
 
-View (bukan tabel, karena sudah kecil dan terfilter folder):
-`v_upstream_error` (`nginx_error` dengan `upstream_host` terisi, layanan ingress), `v_restart`
-(`spring_line` dengan `restart_app` terisi, digabung `ingest_file.pod`), `v_attack_cat` (jumlah `hits` per
-kategori dari `agg_attack_url`), `v_dns` (`agg_endpoint` layanan coredns).
+Views (not tables, because they are already small and folder-filtered):
+`v_upstream_error` (`nginx_error` with `upstream_host` set, ingress service), `v_restart`
+(`spring_line` with `restart_app` set, joined with `ingest_file.pod`), `v_attack_cat` (sum of `hits` per
+category from `agg_attack_url`), `v_dns` (`agg_endpoint` for the coredns service).
 
-`agg_service` dan beberapa agregat kecil lain adalah satu-satunya yang dibaca tab Tren, jadi 365 folder
-berarti beberapa ribu baris.
+`agg_service` and a few other small aggregates are the only ones read by the Trends tab, so 365 folders
+means a few thousand rows.
 
-### 2.4 Pemetaan field inventaris → kolom
+### 2.4 Mapping of inventory fields → columns
 
-Field = keluaran `summarize()` sistem lama (inv. §1.3). "N" = batas lama, kini `limit` bawaan.
+Field = output of the old system's `summarize()` (inv. §1.3). "N" = old limit, now the default `limit`.
 
-| Field lama | Di v2 | Catatan |
+| Old field | In v2 | Notes |
 |---|---|---|
 | `lines` | `agg_service.lines` = Σ `ingest_file.lines` | |
-| `err`, `warn` | `agg_service.err/warn` = Σ `ingest_file.err/warn` | Penghitung per file dari parser; definisi lama kecuali perbaikan §4.4. `err` kini punya rincian `err_http` + `err_log` |
+| `err`, `warn` | `agg_service.err/warn` = Σ `ingest_file.err/warn` | Per-file counters from the parser; old definition except for the §4.4 fixes. `err` now has a breakdown `err_http` + `err_log` |
 | `hour` | `agg_hour.total` | |
-| `herr` | `agg_hour.err` | **diperbaiki**: nginx/FE kini memuat juga baris error log (§4.4 butir 2) |
+| `herr` | `agg_hour.err` | **fixed**: nginx/FE now also include error log lines (§4.4 item 2) |
 | `status` | `agg_status` | |
 | `paths` (N=20) | `agg_endpoint.requests`; coredns: `key` = domain | |
 | `perr` (20) | `agg_endpoint_error` | |
 | `pe` | `agg_endpoint.n4xx/n5xx` | |
 | `ips` (15) | `agg_ip.requests` | |
-| `ip4` (20) | `agg_ip.n4xx`, `ua_first_4xx` | UA dipotong 100 saat diturunkan |
+| `ip4` (20) | `agg_ip.n4xx`, `ua_first_4xx` | UA truncated to 100 when derived |
 | `up` (12), `up5` | `agg_upstream` | |
-| `ua` (12) | `agg_ua` | kunci = 90 karakter pertama |
-| `extra` | `agg_level` | **diperbaiki** untuk simpel-loop (§4.4 butir 4) |
-| `dur` (15) | `agg_endpoint.dur_avg/dur_max` | tidak ditampilkan (inv. §8 butir 16); disimpan karena gratis |
-| `ep` (150, min. 5) | `agg_endpoint` di mana `dur_n ≥ 5` | persentil dengan aturan indeks lama (§4.3) |
+| `ua` (12) | `agg_ua` | key = first 90 characters |
+| `extra` | `agg_level` | **fixed** for simpel-loop (§4.4 item 4) |
+| `dur` (15) | `agg_endpoint.dur_avg/dur_max` | not displayed (inv. §8 item 16); stored because it is free |
+| `ep` (150, min. 5) | `agg_endpoint` where `dur_n ≥ 5` | percentiles with the old index rule (§4.3) |
 | `slow` (15) | `agg_slow` | |
-| `msgs` (40) + `samples` | `agg_message` | contoh = `raw` pertama menurut (urutan file, `line_no`) |
-| `atk` (300) | `agg_attack_url` | `sizes` = 5 terkecil; `ua_first` = UA kemunculan pertama |
+| `msgs` (40) + `samples` | `agg_message` | sample = first `raw` by (file order, `line_no`) |
+| `atk` (300) | `agg_attack_url` | `sizes` = 5 smallest; `ua_first` = UA of the first occurrence |
 | `atk_ip` (100) | `agg_attack_ip` | |
 | `atk_h` | `agg_attack_hour` | |
 | `atk_cat` | `v_attack_cat` | |
-| `login` (100) | `agg_login_ip` di mana `fail > 0` atau `lock > 0` | |
+| `login` (100) | `agg_login_ip` where `fail > 0` or `lock > 0` | |
 | `login_h` | `agg_login_hour.fail` | |
 | `login_okh` | `agg_login_hour.ok` | |
 | `login_ok` | Σ `agg_login_hour.ok` | |
-| `users_ok` | jumlah akun unik ber-`login_kind = 'ok'` di `spring_line` (disimpan di `agg_service` sebagai kolom tambahan appsmanager: `users_ok`) | |
+| `users_ok` | number of unique accounts with `login_kind = 'ok'` in `spring_line` (stored in `agg_service` as an extra appsmanager column: `users_ok`) | |
 | `acct` (150) | `agg_account` | |
 | `incidents` | `agg_incident` | |
 | `c401` (30) | `agg_c401` | |
@@ -308,387 +308,388 @@ Field = keluaran `summarize()` sistem lama (inv. §1.3). "N" = batas lama, kini 
 | `uk_t` (5) | `agg_uk_target` | |
 | `pod` | `agg_pod` | |
 | `retry` (30) | `agg_retry` | |
-| `uperr` (200 terakhir) | `v_upstream_error` | |
+| `uperr` (last 200) | `v_upstream_error` | |
 | `corr` | `agg_corr` | |
 | `trace` (300) | `agg_trace` | |
 | `biz` | `agg_biz` | |
 | `mail` | `agg_mail` | |
 | `act` (20) | `agg_activity` | |
 | `restart` | `v_restart` | |
-| `jwt` | `agg_jwt` | termasuk `Refresh Token Kedaluwarsa` (B07) |
+| `jwt` | `agg_jwt` | includes `Refresh Token Kedaluwarsa` (B07) |
 | `rep` | `agg_report` | |
-| `flow` (3.000; 3 pod) | `agg_flow` | disimpan per pod; "3 pod teratas" saat query |
+| `flow` (3,000; 3 pods) | `agg_flow` | stored per pod; "top 3 pods" at query time |
 | `D.files` | `ingest_file` | |
 | `D.ipinfo`, `D.geo` | `ip_info` | |
-| `D.hosts`, `D.server` | konfigurasi (§6.3), dikirim lewat `/api/meta` | |
-| `D.land` | berkas statis GeoJSON (§5.7) | bukan lagi string path SVG |
-| `D.labels` | berkas statis `labels.json` | isi sama |
+| `D.hosts`, `D.server` | configuration (§6.3), sent via `/api/meta` | |
+| `D.land` | static GeoJSON file (§5.7) | no longer an SVG path string |
+| `D.labels` | static file `labels.json` | same content |
 
-`err_http` (respons 5xx) dan `err_log` (baris log ber-level error) adalah rincian `err`; lihat §4.4.
+`err_http` (5xx responses) and `err_log` (log lines with error level) are the breakdown of `err`; see §4.4.
 
-### 2.5 Perkiraan ukuran
+### 2.5 Size estimate
 
-| Tabel | Baris/hari (folder penuh) | Baris/tahun |
+| Table | Rows/day (full folder) | Rows/year |
 |---|--:|--:|
-| `nginx_access` | 130 ribu | 48 juta |
-| `fe_access` | 86 ribu | 31 juta |
-| `sl_event` | 60 ribu | 22 juta |
-| `log_message` | 15 ribu | 5,5 juta |
-| `spring_line` | 7 ribu | 2,6 juta |
-| semua agregat | beberapa ribu | ±2 juta |
+| `nginx_access` | 130 thousand | 48 million |
+| `fe_access` | 86 thousand | 31 million |
+| `sl_event` | 60 thousand | 22 million |
+| `log_message` | 15 thousand | 5.5 million |
+| `spring_line` | 7 thousand | 2.6 million |
+| all aggregates | a few thousand | ±2 million |
 
-Anggaran PRD ≤ 10 GB/tahun (A8). **ASUMSI T1**: tercapai berkat kompresi kolom DuckDB (path, UA, dan IP
-sangat berulang). Angka ini **belum diukur**; pengukurannya adalah pekerjaan pertama setelah ingest jalan
-(§9.7). Bila meleset, kolom terboros (`ua`, `path`) dipindah ke tabel kamus; skema lain tidak berubah.
+PRD budget ≤ 10 GB/year (A8). **ASSUMPTION T1**: achieved thanks to DuckDB column compression (paths, UAs, and
+IPs are highly repetitive). This figure has **not been measured yet**; measuring it is the first job once ingest
+runs (§9.7). If it misses, the most wasteful columns (`ua`, `path`) move to a dictionary table; the rest of the
+schema does not change.
 
-### 2.6 Akun (PostgreSQL lewat ORM, K11)
+### 2.6 Accounts (PostgreSQL via ORM, K11)
 
-Model SQLAlchemy di `monishield/auth.py`; tabel dibuat saat aplikasi mulai (`create_all`). Nama tabel diberi
-awalan `app_` karena `user` dan `session` adalah kata kunci di PostgreSQL.
+SQLAlchemy models in `monishield/auth.py`; tables are created when the application starts (`create_all`). Table
+names have the `app_` prefix because `user` and `session` are keywords in PostgreSQL.
 
-| Tabel | Kunci | Kolom |
+| Table | Key | Columns |
 |---|---|---|
-| `app_user` | `user_id` | `username` (unik, huruf kecil), `display_name`, `role` (`admin` \| `user`), `password_hash`, `password_salt`, `hash_params`, `must_change_password` (0/1), `active` (0/1), `failed_logins`, `locked_until`, `created_at`, `created_by`, `last_login_at` |
-| `app_session` | `sid` (acak, dimuat di JWT) | `user_id`, `created_at`, `last_seen_at`, `expires_at`, `ip`, `user_agent` |
+| `app_user` | `user_id` | `username` (unique, lowercase), `display_name`, `role` (`admin` \| `user`), `password_hash`, `password_salt`, `hash_params`, `must_change_password` (0/1), `active` (0/1), `failed_logins`, `locked_until`, `created_at`, `created_by`, `last_login_at` |
+| `app_session` | `sid` (random, carried in the JWT) | `user_id`, `created_at`, `last_seen_at`, `expires_at`, `ip`, `user_agent` |
 | `audit_log` | `id` | `at`, `user_id`, `username`, `action`, `detail`, `ip` |
 | `import_job` | `job_id` | `requested_by`, `bucket`, `prefix`, `folder`, `status`, `bytes`, `files`, `skipped`, `message`, `started_at`, `finished_at` |
 
-Belum ada tabel hak akses per modul; bila kelak dibutuhkan, cukup menambah satu tabel `user_module`
-(§8.3) tanpa mengubah tabel `app_user`.
+There is no per-module access rights table yet; if needed later, adding one `user_module` table is enough
+(§8.3) without changing the `app_user` table.
 
-Yang tidak disimpan di sini: kata sandi asli, token sesi (JWT) maupun rahasia penanda tangannya, dan kredensial AWS (§3.8).
+Not stored here: plaintext passwords, session tokens (JWT) or their signing secret, and AWS credentials (§3.8).
 
-`ponytail:` skema dibuat dengan `create_all`, tanpa alat migrasi; tambahkan Alembic saat pertama kali ada
-perubahan kolom pada basis data yang sudah berisi akun.
+`ponytail:` the schema is created with `create_all`, without a migration tool; add Alembic the first time a column
+changes on a database that already holds accounts.
 
 ---
 
 ## 3. Ingest
 
-### 3.1 Urutan
+### 3.1 Order
 
-1. **Pindai** folder log: semua `*.log`, dan `*.log.gz` hanya bila `.log` pasangannya tidak ada (aturan
-   lama). Folder teratas harus berbentuk tanggal dan path minimal 3 komponen.
-2. **Bandingkan** dengan `ingest_file` (§3.2) → daftar file baru, berubah, hilang, dan tidak berubah.
-3. Untuk tiap folder yang punya perubahan:
-   a. **Parse** file baru/berubah di subproses (paralel per file, maksimum 4) → CSV sementara per tabel.
-   b. Dalam **satu transaksi**: hapus baris mentah milik file yang berubah/hilang; muat CSV; perbarui
-      `ingest_file` dan `file_counter`; **turunkan** semua agregat folder itu; perbarui `folder_state`.
-4. **Korelasi lintas folder** (§3.5) untuk folder lain yang terpengaruh.
-5. **Lengkapi `ip_info`** untuk IP yang belum punya data (§3.6).
-6. Hapus CSV sementara; catat `ingest_run`.
+1. **Scan** the log folder: all `*.log`, and `*.log.gz` only when their `.log` counterpart is absent (old
+   rule). The top folder must be a date and the path must have at least 3 components.
+2. **Compare** with `ingest_file` (§3.2) → list of new, changed, missing, and unchanged files.
+3. For each folder with changes:
+   a. **Parse** new/changed files in a subprocess (parallel per file, at most 4) → temporary CSV per table.
+   b. In **one transaction**: delete the raw rows belonging to changed/missing files; load the CSV; update
+      `ingest_file` and `file_counter`; **derive** all aggregates of that folder; update `folder_state`.
+4. **Cross-folder correlation** (§3.5) for other affected folders.
+5. **Fill in `ip_info`** for IPs that have no data yet (§3.6).
+6. Delete the temporary CSV; record `ingest_run`.
 
-Hanya satu ingest berjalan pada satu waktu (kunci di dalam proses). Permintaan kedua mendapat jawaban
-"sedang berjalan".
+Only one ingest runs at a time (an in-process lock). A second request gets the answer
+"already running".
 
-### 3.2 Mengenali file
+### 3.2 Recognizing files
 
-Identitas logis = `relpath` **tanpa `.gz`**. Jadi `x.log` dan `x.log.gz` adalah file yang sama.
+Logical identity = `relpath` **without `.gz`**. So `x.log` and `x.log.gz` are the same file.
 
-| Keadaan | Dikenali dari | Tindakan |
+| State | Recognized by | Action |
 |---|---|---|
-| Sudah diproses, tidak berubah | `size_bytes` dan `mtime_ns` sama, `rules_version` sama | Lewati, tanpa membaca isi |
-| Disentuh tetapi isinya sama | ukuran/mtime beda, `sha256` sama | Perbarui `mtime_ns` saja |
-| **Isinya bertambah** atau berubah | `sha256` beda | Hapus baris file itu, **parse ulang seluruh file**, turunkan ulang folder |
-| Pasangan `.log`/`.log.gz` identik | `.log` muncul setelah `.gz` diproses (atau sebaliknya `.log` hilang dan `.gz` tersisa): `sha256` isi terdekompresi sama | Ganti `source_ext` dan `size_bytes` saja; tidak parse ulang |
-| Pasangan ternyata **berbeda** | `sha256` beda | Perlakukan sebagai berubah; sumber mengikuti aturan lama (`.log` menang); catat peringatan di `ingest_run` |
-| File hilang dari folder | ada di `ingest_file`, tidak ada di disk | Hapus barisnya, turunkan ulang folder |
-| **Folder** hilang seluruhnya | tidak ada satu pun file folder itu | **Data dipertahankan** (ASUMSI T2) |
-| Aturan parse berubah | `rules_version` di kode > yang tercatat | Parse ulang semua file |
+| Already processed, unchanged | same `size_bytes` and `mtime_ns`, same `rules_version` | Skip, without reading the content |
+| Touched but content is the same | size/mtime differ, same `sha256` | Update `mtime_ns` only |
+| **Content grew** or changed | `sha256` differs | Delete the file's rows, **re-parse the whole file**, re-derive the folder |
+| Identical `.log`/`.log.gz` pair | `.log` appears after the `.gz` was processed (or conversely `.log` disappears and the `.gz` remains): same `sha256` of the decompressed content | Replace `source_ext` and `size_bytes` only; no re-parse |
+| The pair turns out to **differ** | `sha256` differs | Treat as changed; the source follows the old rule (`.log` wins); record a warning in `ingest_run` |
+| File missing from the folder | in `ingest_file`, not on disk | Delete its rows, re-derive the folder |
+| **Folder** missing entirely | not a single file of that folder exists | **Data is kept** (ASSUMPTION T2) |
+| Parse rules changed | `rules_version` in the code > the recorded one | Re-parse all files |
 
-Alasan-alasan:
+Reasons:
 
-- **Ukuran + mtime dulu, baru hash**: menjalankan ingest tanpa perubahan harus ≤ 5 detik (PRD §5.2);
-  membaca 47 GB/tahun untuk hash tiap kali tidak mungkin. Hash hanya dihitung untuk file yang ukurannya
-  atau mtime-nya berubah, dan untuk file baru.
-- **Parse ulang seluruh file, bukan melanjutkan dari offset**: parser punya keadaan (template PDF per
-  thread, lanjutan multi-baris, "contoh pertama"), dan file terbesar ±60 MB selesai dalam beberapa detik.
-  Melanjutkan dari offset menghemat sedikit dan membuka kelas bug yang sulit diuji. Batasnya: bila satu
-  file kelak mencapai gigabyte dan ditulis terus-menerus, ini perlu ditinjau.
-- **Hash isi terdekompresi**: satu-satunya cara membuktikan pasangan `.log`/`.log.gz` identik (PRD P5),
-  dan sekaligus menjawabnya dengan data: perbedaan tercatat sebagai peringatan.
-- **T2 (folder hilang → data dipertahankan)**: log mentah ±47 GB/tahun kemungkinan besar akan dipindahkan
-  dari server sebelum setahun; dashboard tidak boleh ikut kehilangan sejarah. Sistem lama berperilaku
-  sebaliknya (folder hilang = hilang dari dashboard). Penghapusan disediakan sebagai perintah eksplisit.
+- **Size + mtime first, then hash**: running an ingest without changes must take ≤ 5 seconds (PRD §5.2);
+  reading 47 GB/year to hash every time is impossible. The hash is only computed for files whose size
+  or mtime changed, and for new files.
+- **Re-parse the whole file, not continue from an offset**: the parser has state (PDF template per
+  thread, multi-line continuations, "first sample"), and the largest file (±60 MB) finishes in a few seconds.
+  Continuing from an offset saves little and opens a class of bugs that is hard to test. The limit: if a
+  single file one day reaches gigabytes and is written continuously, this needs to be revisited.
+- **Hash of the decompressed content**: the only way to prove that a `.log`/`.log.gz` pair is identical (PRD P5),
+  and at the same time to answer it with data: differences are recorded as warnings.
+- **T2 (missing folder → data kept)**: the raw logs (±47 GB/year) will most likely be moved off the
+  server before a year has passed; the dashboard must not lose history along with them. The old system behaves
+  the other way around (missing folder = gone from the dashboard). Deletion is provided as an explicit command.
 
-### 3.3 Aman diulang
+### 3.3 Safe to repeat
 
-- Semua tulis untuk satu folder ada di satu transaksi (K7). Proses mati di tengah = transaksi batal.
-- Tidak ada `INSERT` tanpa `DELETE` pasangannya pada kunci yang sama (file untuk tabel mentah, folder untuk
-  agregat). Menjalankan ingest dua kali menghasilkan isi tabel yang sama.
-- CSV sementara ditulis ke direktori sekali pakai di volume data dan dihapus di akhir, juga saat gagal.
-- Satu file gagal di-parse (galat tak terduga): `status = 'gagal'` + pesan; file lain di folder itu tetap
-  masuk (PRD §5.2). Baris `unsupported log format` bukan galat: dihitung sebagai baris dan menandai file
-  `rusak` (A6, B05).
+- All writes for one folder are in one transaction (K7). The process dying midway = the transaction is rolled back.
+- There is no `INSERT` without its paired `DELETE` on the same key (file for raw tables, folder for
+  aggregates). Running ingest twice yields the same table contents.
+- Temporary CSVs are written to a single-use directory on the data volume and deleted at the end, also on failure.
+- One file failing to parse (unexpected error): `status = 'gagal'` + message; the other files in that folder are
+  still loaded (PRD §5.2). An `unsupported log format` line is not an error: it is counted as a line and marks
+  the file `rusak` (A6, B05).
 
-### 3.4 Menurunkan agregat
+### 3.4 Deriving aggregates
 
-Satu berkas SQL per tabel agregat, masing-masing berbentuk "hapus baris folder ini, sisipkan hasil SELECT
-atas tabel mentah folder ini". Urutan tetap; dua agregat memakai fungsi Python lama atas hasil query kecil:
-`agg_account` (`accounts()`) dan `agg_incident` (`incidents()`).
+One SQL file per aggregate table, each of the form "delete this folder's rows, insert the result of a SELECT
+over this folder's raw tables". The order is fixed; two aggregates use old Python functions over a small query
+result: `agg_account` (`accounts()`) and `agg_incident` (`incidents()`).
 
-Perubahan definisi agregat tidak butuh parse ulang: cukup turunkan ulang semua folder dari tabel mentah
-(perintah `derive --all`).
+Changing an aggregate definition needs no re-parse: re-deriving all folders from the raw tables is enough
+(command `derive --all`).
 
-### 3.5 Korelasi nginx ↔ simpel-loop
+### 3.5 nginx ↔ simpel-loop correlation
 
-Sistem lama memakai satu kamus request id **untuk semua folder** (inv. §4.4, §8 butir 11); kemunculan
-terakhir menang. v2 meniru: `sl_event` digabung dengan `nginx_access` **tanpa** batas folder; bila satu
-request id muncul lebih dari sekali, yang dipakai adalah yang terakhir menurut (`relpath`, `line_no`).
+The old system uses one request id dictionary **for all folders** (inv. §4.4, §8 item 11); the last
+occurrence wins. v2 mimics this: `sl_event` is joined with `nginx_access` **without** a folder boundary; when a
+request id appears more than once, the one used is the last one by (`relpath`, `line_no`).
 
-Akibat untuk ingest bertahap: folder baru bisa membuat event di folder lama menjadi "cocok". Jadi setelah
-memuat folder F, agregat korelasi (`agg_corr`, `agg_trace`, `agg_hour` simpel-loop) diturunkan untuk F
-**dan** untuk folder lain yang punya event simpel-loop ber-request-id sama dengan nginx di F.
+Consequence for incremental ingest: a new folder can make events in an old folder "matched". So after
+loading folder F, the correlation aggregates (`agg_corr`, `agg_trace`, simpel-loop `agg_hour`) are derived for F
+**and** for other folders that have simpel-loop events with the same request id as nginx in F.
 
-Diukur pada data sekarang (11 folder, 308.157 request id): **0 kecocokan lintas folder dan 0 request id
-ganda**. Jadi dalam praktik langkah ini tidak mengerjakan apa-apa, tetapi tanpa itu kesetaraan tidak
-terjamin. Konsekuensi: kriteria PRD "menambah folder ke-12 tidak mengubah angka folder 1–11" berlaku
-kecuali untuk tiga agregat korelasi ini (lihat §10).
+Measured on the current data (11 folders, 308,157 request ids): **0 cross-folder matches and 0 duplicate
+request ids**. So in practice this step does nothing, but without it equivalence is not
+guaranteed. Consequence: the PRD criterion "adding a 12th folder does not change the numbers of folders 1–11"
+holds except for these three correlation aggregates (see §10).
 
-### 3.6 Pemilik dan lokasi IP
+### 3.6 IP owner and location
 
-**Diputuskan pemilik (2026-10-06): lokasi IP memakai MaxMind GeoLite2**, menggantikan DB-IP City Lite.
-Pemilik jaringan (ASN) tetap dari ip2asn (**ASUMSI T15**: permintaannya hanya soal lokasi).
+**Decided by the owner (2026-10-06): IP location uses MaxMind GeoLite2**, replacing DB-IP City Lite.
+The network owner (ASN) still comes from ip2asn (**ASSUMPTION T15**: the request was only about location).
 
-| Hal | Keputusan |
+| Item | Decision |
 |---|---|
-| Berkas | `GeoLite2-City-CSV` (zip ±49 MB): blok jaringan IPv4 (CIDR) + tabel lokasi. Varian CSV dipilih agar cukup pustaka standar; tidak ada pustaka pembaca `.mmdb` |
-| Unduhan | `https://download.maxmind.com/geoip/databases/GeoLite2-City-CSV/download?suffix=zip` dengan `MAXMIND_ACCOUNT_ID` dan `MAXMIND_LICENSE_KEY` dari lingkungan (`.env`). Kredensial sudah diuji diterima MaxMind (2026-10-06) |
-| Privasi | Tidak berubah: yang diunduh berkas utuh; pencocokan di server sendiri; tidak ada IP yang dikirim |
-| Pencocokan | Blok CIDR diubah menjadi rentang awal–akhir terurut, lalu dicocokkan dengan sapuan yang sama seperti `geo_scan()` lama. Nama kota/provinsi diambil dalam bahasa Inggris (`en`), seperti DB-IP; negara tetap kode ISO |
-| Pembaruan | Diunduh ulang bila berkas lebih tua dari 7 hari. Syarat lisensi GeoLite2: tidak memakai basis data yang lebih tua dari 30 hari setelah rilis baru, jadi berkas lama **dihapus** saat yang baru berhasil diunduh |
-| Tanpa kunci atau unduhan gagal | Ingest tetap selesai; lokasi kosong untuk IP baru, dengan keterangan (PRD §5.5). **Tidak** jatuh ke DB-IP diam-diam |
-| Atribusi | "Produk ini memuat data GeoLite2 buatan MaxMind, tersedia dari https://www.maxmind.com" di setiap peta dan di catatan tabel alur |
-| Kesetaraan | Lokasi **tidak lagi** dibandingkan dengan sistem lama (sumbernya berbeda). E3 tetap berlaku untuk pemilik jaringan. Jumlah lokasi/negara di Peta IP masuk daftar selisih yang diharapkan |
-| Kredensial | Hanya di `.env`; tidak masuk repo, image, log, maupun respons API |
+| File | `GeoLite2-City-CSV` (zip ±49 MB): IPv4 network blocks (CIDR) + location table. The CSV variant is chosen so the standard library suffices; there is no `.mmdb` reader library |
+| Download | `https://download.maxmind.com/geoip/databases/GeoLite2-City-CSV/download?suffix=zip` with `MAXMIND_ACCOUNT_ID` and `MAXMIND_LICENSE_KEY` from the environment (`.env`). The credentials were tested and accepted by MaxMind (2026-10-06) |
+| Privacy | Unchanged: the whole file is downloaded; matching happens on our own server; no IP is sent |
+| Matching | CIDR blocks are converted to sorted start–end ranges, then matched with the same sweep as the old `geo_scan()`. City/province names are taken in English (`en`), as with DB-IP; the country stays an ISO code |
+| Updates | Re-downloaded when the file is older than 7 days. GeoLite2 license terms: do not use a database older than 30 days after a new release, so the old file is **deleted** once the new one has been downloaded successfully |
+| No key or failed download | Ingest still finishes; location is empty for new IPs, with an explanation (PRD §5.5). It does **not** silently fall back to DB-IP |
+| Attribution | "This product includes GeoLite2 data created by MaxMind, available from https://www.maxmind.com" on every map and in the flow table note |
+| Equivalence | Location is **no longer** compared with the old system (the source differs). E3 still applies to the network owner. The location/country counts on the IP Map go into the list of expected differences |
+| Credentials | Only in `.env`; not in the repo, image, logs, or API responses |
 
-Butir di bawah ini berlaku seperti semula kecuali kata "DB-IP" dibaca "GeoLite2":
+The items below apply as before, except that "DB-IP" is read as "GeoLite2":
 
-- Sumber, URL, dan umur cache sama dengan sistem lama (inv. §6, §5.5). Unduhan hanya mengambil file utuh;
-  tidak ada IP yang dikirim (PRD §5.4).
-- Setelah tiap ingest: IP di tabel mentah yang belum ada di `ip_info` dicocokkan dengan fungsi lama
-  (`ip_owner`, `geo_scan`). Database 86 MB hanya dibaca bila ada IP baru, seperti sekarang.
-- Bila database belum ada dan unduhan gagal: ingest tetap selesai; `ip_info` kosong untuk IP itu; dicoba
-  lagi pada ingest berikutnya (PRD §5.5).
-- **ASUMSI T3**: hasil untuk satu IP tidak diperbarui ketika database baru diunduh (sama dengan
-  `geo.json` lama yang tidak pernah kedaluwarsa). `asn_db_date`/`geo_db_date` dicatat supaya pembaruan
-  massal bisa ditambahkan kelak.
-- Data peta (daratan, batas, label) dibuat sekali menjadi berkas statis di volume data (§5.7).
+- Source, URL, and cache age are the same as in the old system (inv. §6, §5.5). Downloads only fetch whole files;
+  no IP is sent (PRD §5.4).
+- After each ingest: IPs in the raw tables that are not yet in `ip_info` are matched with the old functions
+  (`ip_owner`, `geo_scan`). The 86 MB database is only read when there are new IPs, as now.
+- If the database does not exist yet and the download fails: ingest still finishes; `ip_info` is empty for those
+  IPs; it is retried on the next ingest (PRD §5.5).
+- **ASSUMPTION T3**: the result for an IP is not updated when a new database is downloaded (same as the old
+  `geo.json`, which never expires). `asn_db_date`/`geo_db_date` are recorded so that a bulk update
+  can be added later.
+- Map data (land, borders, labels) is built once into static files on the data volume (§5.7).
 
-### 3.7 Kinerja yang dituju
+### 3.7 Target performance
 
-Parser lama memproses ±55 ribu baris/detik (774 ribu baris dalam 14 detik, termasuk peringkasan). Folder
-terbesar (359 ribu baris): parse ±7 detik satu inti, lebih cepat bila paralel; muat CSV dan turunkan agregat
-diperkirakan beberapa detik. Target PRD ≤ 60 detik punya kelonggaran besar; tetap diukur (§9.7).
+The old parser processes ±55 thousand lines/second (774 thousand lines in 14 seconds, including summarizing). The
+largest folder (359 thousand lines): parse ±7 seconds on one core, faster in parallel; loading the CSV and deriving
+aggregates is estimated at a few seconds. The PRD target of ≤ 60 seconds has a lot of headroom; it is still measured (§9.7).
 
-### 3.8 Impor otomatis dari tautan bucket (P2, X9)
+### 3.8 Automatic import from a bucket link (P2, X9)
 
-Pemilik menerima tautan berbentuk **awalan S3**, mis. `s3://simpel4-backup/k8s-logs/2026-09-26/`, dan
-kredensial AWS hanya bisa diperoleh lewat situs AWS. Dashboard harus mengunduh isi awalan itu dan mengolahnya.
+The owner receives links in the form of an **S3 prefix**, e.g. `s3://simpel4-backup/k8s-logs/2026-09-26/`, and
+AWS credentials can only be obtained through the AWS website. The dashboard must download the contents of that prefix and process them.
 
-**Alur**
+**Flow**
 
-1. Admin (lewat layar "Ingest & impor") atau sistem luar ber-**token mesin** mengirim tautan ke
+1. An admin (through the "Ingest & import" screen) or an external system with a **machine token** sends the link to
    `POST /api/admin/import` (§5.5).
-2. Server memeriksa tautan, **mendaftar objek** di awalan itu, memilih objek yang akan diambil, mengunduhnya
-   ke direktori sementara, lalu memindahkan folder `YYYY-MM-DD` secara atomik ke **kotak masuk**
+2. The server checks the link, **lists the objects** under that prefix, selects the objects to fetch, downloads them
+   to a temporary directory, then atomically moves the `YYYY-MM-DD` folder into the **inbox**
    (`S4_INBOX_DIR`).
-3. Ingest biasa (§3.1) dijalankan. Pemindai membaca dua akar: folder log dan kotak masuk. Bila folder
-   bertanggal sama ada di keduanya, folder log yang menang dan peringatan dicatat.
-4. Status dicatat di `import_job` (bucket, awalan, jumlah objek diambil/dilewati, byte) dan bisa ditanyakan
-   lewat API.
+3. A normal ingest (§3.1) is run. The scanner reads two roots: the log folder and the inbox. When a folder
+   with the same date exists in both, the log folder wins and a warning is recorded.
+4. The status is recorded in `import_job` (bucket, prefix, number of objects fetched/skipped, bytes) and can be queried
+   through the API.
 
-**Aturan tautan dan objek**
+**Link and object rules**
 
-- Bentuk wajib: `s3://<bucket>/<awalan>/<YYYY-MM-DD>/`. Komponen terakhir harus tanggal yang sah; itulah
-  nama folder. Bentuk lain ditolak.
-- `<bucket>` harus ada di **daftar izin** (`import_buckets`) dan `<awalan>` harus diawali salah satu
-  awalan yang diizinkan untuk bucket itu. Bawaan konfigurasi kosong = fitur mati. Nilai yang diharapkan:
-  bucket `simpel4-backup`, awalan `k8s-logs/`.
-- Kunci objek, setelah awalan dibuang, harus cocok pola `[ns/]<layanan>/<nama>.log` atau `.log.gz` (pola
-  yang sama dengan pemindai, §3.1). Objek lain (mis. `.DS_Store`) dilewati dan dihitung di `skipped`.
-  Kunci berisi `..`, garis miring ganda, atau karakter kendali ditolak.
-- **Hemat unduhan**: bila `x.log` dan `x.log.gz` sama-sama ada, hanya `.log` yang diambil (aturan lama:
-  `.gz` hanya dibaca bila `.log` tidak ada). Objek yang ukuran dan ETag-nya sama dengan unduhan sebelumnya
-  tidak diunduh lagi, sehingga mengirim tautan yang sama dua kali murah dan aman.
-- Batas: jumlah objek, ukuran per objek, ukuran total (bawaan 500 objek / 1 GB / 5 GB), dan batas waktu.
-  Melewati batas = impor gagal tanpa menyentuh kotak masuk.
-- Server hanya menghubungi titik akhir S3 resmi untuk wilayah yang dikonfigurasi. Tidak ada URL bebas dari
-  pengguna yang diambil, jadi tidak ada celah "server mengambil alamat sembarang".
-- Satu impor pada satu waktu; berbagi kunci dengan ingest.
+- Required form: `s3://<bucket>/<prefix>/<YYYY-MM-DD>/`. The last component must be a valid date; that is the
+  folder name. Other forms are rejected.
+- `<bucket>` must be on the **allowlist** (`import_buckets`) and `<prefix>` must start with one of the
+  prefixes allowed for that bucket. The configuration default is empty = feature off. Expected value:
+  bucket `simpel4-backup`, prefix `k8s-logs/`.
+- The object key, after the prefix is stripped, must match the pattern `[ns/]<service>/<name>.log` or `.log.gz` (the
+  same pattern as the scanner, §3.1). Other objects (e.g. `.DS_Store`) are skipped and counted in `skipped`.
+  Keys containing `..`, double slashes, or control characters are rejected.
+- **Download economy**: when both `x.log` and `x.log.gz` exist, only the `.log` is fetched (old rule:
+  `.gz` is only read when the `.log` is absent). Objects whose size and ETag equal those of a previous download
+  are not downloaded again, so sending the same link twice is cheap and safe.
+- Limits: number of objects, size per object, total size (default 500 objects / 1 GB / 5 GB), and a time limit.
+  Exceeding a limit = the import fails without touching the inbox.
+- The server only contacts the official S3 endpoint for the configured region. No free-form URL from
+  users is fetched, so there is no "server fetches an arbitrary address" hole.
+- One import at a time; it shares the lock with ingest.
 
-**Kredensial AWS** (diputuskan pemilik, X9)
+**AWS credentials** (decided by the owner, X9)
 
-Kredensialnya **kunci akses tetap** yang dibuat lewat situs AWS. Diberikan ke dashboard lewat variabel
-lingkungan standar AWS di `.env` server (tidak masuk image maupun repo), sehingga impor bisa berjalan
-**otomatis** tanpa orang. Wilayah bucket: Jakarta (`ap-southeast-3`), bisa diubah lewat `import_region`.
+The credential is a **long-term access key** created through the AWS website. It is given to the dashboard via the
+standard AWS environment variables in the server `.env` (not in the image or the repo), so the import can run
+**automatically** without a person. Bucket region: Jakarta (`ap-southeast-3`), changeable via `import_region`.
 
-Sebagai cadangan, admin tetap bisa menempel kredensial lain di layar impor (mis. saat kunci di server
-sedang diganti); yang ditempel hanya disimpan di memori proses dan hilang saat server dimulai ulang. Urutan
-pencarian: yang ditempel admin, lalu variabel lingkungan. Bila tidak ada keduanya, impor menjawab dengan
-pesan yang menjelaskan cara memberikannya.
+As a fallback, an admin can still paste other credentials on the import screen (e.g. while the key on the server
+is being replaced); pasted credentials are only kept in process memory and are lost when the server restarts. Lookup
+order: those pasted by the admin, then environment variables. When neither exists, the import answers with a
+message explaining how to provide them.
 
-**Kunci itu baca-saja tetapi luas**: menurut pemilik ia tidak bisa menulis atau menghapus, namun bisa
-melihat semua bucket di wilayah Jakarta. Akibatnya:
+**The key is read-only but broad**: according to the owner it cannot write or delete, but it can
+see all buckets in the Jakarta region. Consequently:
 
-- **Daftar izin bucket dan awalan di aplikasi adalah satu-satunya pembatas** antara layar impor dan bucket
-  lain. Ia tidak boleh bisa dimatikan atau dilonggarkan dari antarmuka; hanya dari konfigurasi server.
-  Dashboard tidak punya fitur "jelajahi bucket"; ia hanya menerima tautan lengkap yang lolos daftar izin.
-- Dashboard hanya memakai dua operasi baca: mendaftar objek dan mengambil objek. Tidak ada kode yang
-  menulis, menghapus, atau mendaftar bucket.
-- Bila server atau `.env` bocor, tidak ada yang bisa dirusak atau dihapus di AWS, tetapi **isi semua
-  bucket** yang bisa dijangkau kunci itu bisa dibaca, bukan hanya log. **Saran** (bukan syarat untuk mulai): buat pengguna IAM khusus dashboard dengan hak baca-saja pada
-  `simpel4-backup` awalan `k8s-logs/` saja, dan pakai kunci itu di server. Contoh kebijakannya disertakan
-  di README pada tahap pengerjaan.
-- Kunci diputar (diganti) cukup dengan mengubah `.env` dan memulai ulang `app`.
+- **The bucket and prefix allowlist in the application is the only barrier** between the import screen and other
+  buckets. It must not be possible to disable or loosen it from the interface; only from the server configuration.
+  The dashboard has no "browse bucket" feature; it only accepts complete links that pass the allowlist.
+- The dashboard uses only two read operations: listing objects and getting objects. There is no code that
+  writes, deletes, or lists buckets.
+- If the server or `.env` leaks, nothing can be damaged or deleted in AWS, but **the contents of all
+  buckets** reachable by that key can be read, not only logs. **Recommendation** (not a prerequisite for starting): create a dashboard-specific IAM user with read-only rights on
+  `simpel4-backup` prefix `k8s-logs/` only, and use that key on the server. An example policy is included
+  in the README during the implementation stage.
+- Rotating (replacing) the key only requires changing `.env` and restarting `app`.
 
-**ASUMSI T14**: susunan objek di bawah awalan sama dengan folder log lokal
-(`[ns/]<layanan>/log_<layanan>_<pod>_<tanggal>.log[.gz]`). Dibuktikan pada pemakaian pertama dengan
-**mode coba** (`simpel4 import --dry-run s3://…`), yang hanya mendaftar objek dan mencetak mana yang akan
-diambil atau dilewati, tanpa mengunduh.
+**ASSUMPTION T14**: the object layout under the prefix is the same as in the local log folder
+(`[ns/]<service>/log_<service>_<pod>_<date>.log[.gz]`). Verified on first use with
+**dry run** mode (`simpel4 import --dry-run s3://…`), which only lists objects and prints which would be
+fetched or skipped, without downloading.
 
-Kredensial tidak pernah dikirim ke browser, tidak muncul di respons API, dan tidak ditulis ke log.
-`/api/meta` hanya melaporkan "kredensial tersedia: ya/tidak, sumber, kedaluwarsa".
+Credentials are never sent to the browser, do not appear in API responses, and are not written to logs.
+`/api/meta` only reports "credentials available: yes/no, source, expiry".
 
-Fitur ini dijadwalkan **setelah** kesetaraan terbukti (PRD R9); antarmuka API-nya ditetapkan sekarang agar
-skema dan hak akses tidak berubah lagi.
+This feature is scheduled **after** equivalence is proven (PRD R9); its API interface is fixed now so that the
+schema and access rights do not change again.
 
 ---
 
-## 4. Yang dipakai ulang dan yang diganti SQL
+## 4. What is reused and what is replaced by SQL
 
-`build_dashboard.py` tidak boleh diubah dan tidak akan ikut ke dalam image. Jadi bagian yang dipakai ulang
-**disalin apa adanya** ke satu modul (`rules.py`) dengan catatan asal baris, dan sebuah uji membandingkan
-keluaran modul itu dengan modul lama selama file lama masih ada (§9.2).
+`build_dashboard.py` must not be changed and will not go into the image. So the reused parts are
+**copied as-is** into one module (`rules.py`) with notes on the original lines, and a test compares
+that module's output with the old module as long as the old file still exists (§9.2).
 
-### 4.1 Disalin apa adanya
+### 4.1 Copied as-is
 
-| Dari `build_dashboard.py` | Guna |
+| From `build_dashboard.py` | Purpose |
 |---|---|
-| Regex `NGINX`, `FE`, `JAVA`, `NGX_TAIL`, `NGX_ERR`, `LOGIN_FAIL`, `LOGIN_LOCK`, `LOGIN_OK`, pola simpel-loop dan coredns, `MON` | mencocokkan baris |
-| `ATTACKS`, `SCANNER_UA`, `path_attack()`, `classify()` | klasifikasi serangan |
-| `norm()`, `path_key()` | normalisasi pesan dan path |
-| `BIZ_EP`, `jwt_bucket()` | metrik bisnis, kelompok umur JWT |
-| `accounts()`, `incidents()`, `dt()` | analisis akun, insiden 5xx |
-| `load_ip2asn()`, `ip_owner()`, `fetch()`, `ip_int()`, `geo_scan()` | pemilik dan lokasi IP offline |
-| `map_labels()`, `kab_name()`, `PROV` | label wilayah |
-| `HOSTS`, `SERVER_IP`, `SERVER_FALLBACK` | menjadi **nilai bawaan konfigurasi** (B11) |
-| Aturan pilih file dan nama pod di `build()` | pemindaian |
-| Isi `demo()` | menjadi uji unit |
+| Regexes `NGINX`, `FE`, `JAVA`, `NGX_TAIL`, `NGX_ERR`, `LOGIN_FAIL`, `LOGIN_LOCK`, `LOGIN_OK`, simpel-loop and coredns patterns, `MON` | matching lines |
+| `ATTACKS`, `SCANNER_UA`, `path_attack()`, `classify()` | attack classification |
+| `norm()`, `path_key()` | message and path normalization |
+| `BIZ_EP`, `jwt_bucket()` | business metrics, JWT age buckets |
+| `accounts()`, `incidents()`, `dt()` | account analysis, 5xx incidents |
+| `load_ip2asn()`, `ip_owner()`, `fetch()`, `ip_int()`, `geo_scan()` | offline IP owner and location |
+| `map_labels()`, `kab_name()`, `PROV` | region labels |
+| `HOSTS`, `SERVER_IP`, `SERVER_FALLBACK` | become **configuration defaults** (B11) |
+| File selection and pod naming rules in `build()` | scanning |
+| Contents of `demo()` | become unit tests |
 
-### 4.2 Ditulis ulang dengan perilaku sama
+### 4.2 Rewritten with the same behavior
 
-| Bagian lama | Di v2 | Yang berubah |
+| Old part | In v2 | What changes |
 |---|---|---|
-| `parse()` | parser yang **mengeluarkan baris** (ke CSV) alih-alih menambah penghitung. Cabang, urutan pemeriksaan, dan penghitung `err`/`warn`/`lines` per file tetap. | Bentuk keluaran saja. Diuji baris demi baris dan terhadap penghitung parser lama (§9.3) |
-| `wib()` | Waktu disimpan UTC presisi detik; WIB dan pemotongan ke menit/jam di SQL | Detik tidak lagi dibuang saat simpan |
-| `geolocate()` | Memakai `geo_scan()` lama; cache pindah dari `geo.json` ke `ip_info` | Tempat cache |
-| `land_path()` | Diganti berkas GeoJSON untuk MapLibre (DRD §7.2) | Bentuk keluaran |
+| `parse()` | a parser that **emits rows** (to CSV) instead of incrementing counters. Branches, check order, and the per-file `err`/`warn`/`lines` counters stay. | Only the output form. Tested line by line and against the old parser's counters (§9.3) |
+| `wib()` | Time is stored as UTC with second precision; WIB and truncation to minute/hour in SQL | Seconds are no longer dropped on store |
+| `geolocate()` | Uses the old `geo_scan()`; the cache moves from `geo.json` to `ip_info` | Cache location |
+| `land_path()` | Replaced by a GeoJSON file for MapLibre (DRD §7.2) | Output form |
 
-### 4.3 Diganti SQL
+### 4.3 Replaced by SQL
 
-| Bagian lama | Pengganti |
+| Old part | Replacement |
 |---|---|
-| Semua `Counter` di `parse()` dan `add_attack()` | `GROUP BY` atas tabel mentah → tabel agregat |
-| `summarize()` (urut + potong top-N) | `ORDER BY … LIMIT` saat query; batas lama = bawaan |
-| `pct()` persentil | Durasi diurutkan per endpoint, diambil elemen ke-`min(n−1, ⌊q·n⌋)` (indeks dari 0), **bukan** fungsi kuantil bawaan DuckDB, supaya angkanya sama |
-| `correlate()` | `JOIN sl_event ⋈ nginx_access` pada request id (§3.5) |
-| `shown_ips()` | Tidak perlu: `ip_info` berisi semua IP |
-| Perhitungan `err`/`warn` per file (`D.files`) | Dikeluarkan parser per file (bukan selisih penghitung) |
+| All `Counter`s in `parse()` and `add_attack()` | `GROUP BY` over raw tables → aggregate tables |
+| `summarize()` (sort + cut top-N) | `ORDER BY … LIMIT` at query time; old limit = default |
+| `pct()` percentile | Durations sorted per endpoint, taking the element at `min(n−1, ⌊q·n⌋)` (0-based index), **not** DuckDB's built-in quantile function, so that the numbers are the same |
+| `correlate()` | `JOIN sl_event ⋈ nginx_access` on request id (§3.5) |
+| `shown_ips()` | Not needed: `ip_info` contains all IPs |
+| Per-file `err`/`warn` computation (`D.files`) | Emitted by the parser per file (not a counter difference) |
 
-Titik rawan kesetaraan yang harus dijaga di SQL:
+Equivalence pitfalls that must be guarded in SQL:
 
-- **"Yang pertama"**: contoh baris pesan, UA pertama per URL serangan, UA pertama per IP ber-4xx, URL
-  pertama per jejak. Semuanya = minimum menurut (`relpath`, `line_no`), yaitu urutan baca sistem lama.
-- **"Yang terbanyak"** (IP teratas per URL serangan, UA terbanyak per IP): bila seri, sistem lama memilih
-  yang pertama muncul. v2 memakai aturan yang sama (seri → kemunculan pertama).
-- **Pemotongan teks sebelum mengelompokkan** (UA 90, path serangan 200 setelah decode, `path_key` 120).
-- **Presisi menit** pada analisis akun, insiden, dan puncak 401 per menit.
-- **Pengecualian**: status 101 tidak masuk durasi; `ips` simpel-loop hanya dari event ber-`ipAddress`.
+- **"The first one"**: the message sample line, the first UA per attack URL, the first UA per IP with 4xx, the first
+  URL per trace. All = minimum by (`relpath`, `line_no`), i.e. the old system's read order.
+- **"The most frequent"** (top IP per attack URL, most frequent UA per IP): on a tie, the old system picks
+  the one that appeared first. v2 uses the same rule (tie → first occurrence).
+- **Text truncation before grouping** (UA 90, attack path 200 after decoding, `path_key` 120).
+- **Minute precision** in the account analysis, incidents, and the 401 peak per minute.
+- **Exclusions**: status 101 does not count toward duration; simpel-loop `ips` only from events with `ipAddress`.
 
-### 4.4 Perbaikan definisi (keputusan P4)
+### 4.4 Definition fixes (decision P4)
 
-Pemilik meminta definisi yang salah atau janggal (inv. §8 butir 6–14) diperbaiki. Rincian tiap perbaikan
-di bawah **sudah disetujui pemilik** (X11), dipilih agar angka utama tetap bisa dibandingkan dengan acuan dan
-setiap selisih bisa dijelaskan. Semuanya masuk daftar **selisih yang diharapkan** di uji kesetaraan (§9.3).
+The owner asked for wrong or odd definitions (inv. §8 items 6–14) to be fixed. The details of each fix
+below are **already approved by the owner** (X11), chosen so that the main numbers stay comparable with the reference and
+every difference can be explained. All of them go into the list of **expected differences** in the equivalence test (§9.3).
 
-| # | Inv. §8 | Lama | v2 | Angka yang berubah |
+| # | Inv. §8 | Old | v2 | Numbers that change |
 |--:|---|---|---|---|
-| 1 | 6 | KPI dihitung dari daftar terpotong (error koneksi pod, retry, IP sumber unik, IP login gagal, serangan kritis, total request dan IP tujuan di Peta IP, chart jenis error koneksi, **tabel dan chart kinerja endpoint** yang dulu dipilih dari 150 endpoint tersibuk saja) | Dihitung dari data lengkap (K4) | KPI itu, pada folder yang daftarnya melebihi batas (mis. error koneksi pod 09-30: 200 → 1.200); isi 25 endpoint ber-P95 tertinggi di nginx pada 5 dari 11 folder (endpoint lambat yang jarang dipanggil kini ikut tampil) |
-| 2 | 7 | `err` nginx/FE = 5xx + baris error log, tetapi chart per jam (`herr`) hanya 5xx | `err` tetap jumlah keduanya, kini dengan rincian `err_http` dan `err_log`; **chart per jam memuat keduanya** sehingga jumlah per jam = KPI | `herr` nginx dan FE; KPI Error **tidak** berubah |
-| 3 | 8 | `crit` = error di ingress, warning di frontend | `error`, `crit`, `alert`, `emerg` = error di **keduanya**; level lain = warning | `err`/`warn` frontend bila ada baris `crit` (pada data sekarang: 0 baris, jadi tidak ada selisih) |
-| 4 | 9 | Donat level simpel-loop memakai tag aplikasi: event gagal 4xx terhitung `ERROR` padahal KPI menghitungnya warning | Donat memakai **tingkat efektif**, sama dengan aturan KPI: event gagal 5xx → `ERROR`, event gagal lainnya → `WARN`; baris lain memakai tagnya | `extra` simpel-loop (mis. 09-29: ERROR 9.614 → 0, WARN 0 → 9.614) |
-| 5 | 10 | Baris `EXC` tampil di tabel pesan tetapi tidak menambah Error | **Tetap tidak dihitung**: baris itu rincian exception dari baris ERROR di atasnya; menghitungnya berarti menghitung ganda. Diberi keterangan di tabel (DRD U8) | tidak ada |
-| 6 | 11 | Korelasi lintas folder | **Dipertahankan** (§3.5): request di batas folder memang satu kejadian | tidak ada |
-| 7 | 12 | Analisis akun dan insiden terputus di batas folder | **Tetap per folder**, konsisten dengan P2. Menengok ke folder sebelumnya adalah T02 dan tetap ditunda | tidak ada |
-| 8 | 13 | Label "Pod dengan retry 502" | "Pod dengan retry" | teks |
-| 9 | 14 | KPI "Request lambat ≥ 5 dtk" hanya menjumlah jejak berstatus 2xx | Menjumlah semua jejak lambat yang **tidak gagal** (termasuk 3xx) | KPI itu, bila ada jejak lambat 3xx |
-| 10 | 15 | "Refresh token kedaluwarsa" dihitung tetapi tidak tampil | Ditampilkan (B07) | tampilan |
+| 1 | 6 | KPIs computed from truncated lists (pod connection errors, retries, unique source IPs, failed login IPs, critical attacks, total requests and destination IPs on the IP Map, connection error type chart, **endpoint performance table and chart**, which used to be picked from the 150 busiest endpoints only) | Computed from complete data (K4) | Those KPIs, on folders whose list exceeds the limit (e.g. pod connection errors 09-30: 200 → 1,200); the contents of the 25 endpoints with the highest P95 in nginx on 5 of 11 folders (rarely called slow endpoints now show up too) |
+| 2 | 7 | nginx/FE `err` = 5xx + error log lines, but the hourly chart (`herr`) only 5xx | `err` stays the sum of both, now with the breakdown `err_http` and `err_log`; **the hourly chart includes both**, so the hourly sum = the KPI | nginx and FE `herr`; the Error KPI does **not** change |
+| 3 | 8 | `crit` = error in the ingress, warning in the frontend | `error`, `crit`, `alert`, `emerg` = error in **both**; other levels = warning | frontend `err`/`warn` when there are `crit` lines (on current data: 0 lines, so no difference) |
+| 4 | 9 | The simpel-loop level donut uses the application tag: failed 4xx events count as `ERROR` even though the KPI counts them as warnings | The donut uses the **effective level**, same as the KPI rule: failed 5xx event → `ERROR`, other failed events → `WARN`; other lines use their tag | simpel-loop `extra` (e.g. 09-29: ERROR 9,614 → 0, WARN 0 → 9,614) |
+| 5 | 10 | `EXC` lines appear in the message table but do not add to Error | **Still not counted**: such a line is the exception detail of the ERROR line above it; counting it would double count. Explained in the table (DRD U8) | none |
+| 6 | 11 | Cross-folder correlation | **Kept** (§3.5): a request at the folder boundary really is one event | none |
+| 7 | 12 | Account and incident analysis is cut at the folder boundary | **Stays per folder**, consistent with P2. Looking back into the previous folder is T02 and stays postponed | none |
+| 8 | 13 | Label "Pod dengan retry 502" (Pods with 502 retries) | "Pod dengan retry" (Pods with retries) | text |
+| 9 | 14 | KPI "Request lambat ≥ 5 dtk" (Slow requests ≥ 5 s) only sums traces with 2xx status | Sums all slow traces that **did not fail** (including 3xx) | That KPI, when there are slow 3xx traces |
+| 10 | 15 | "Refresh token kedaluwarsa" (expired refresh tokens) counted but not displayed | Displayed (B07) | display |
 
-Yang **tidak** disentuh walau bisa diperdebatkan, karena bukan kesalahan: aturan indeks persentil, definisi
-"File kosong" (0 byte), dan baris file rusak yang tetap dihitung sebagai baris (A6).
+**Not** touched even though debatable, because they are not mistakes: the percentile index rule, the definition
+of "Empty file" (0 bytes), and corrupt file lines still being counted as lines (A6).
 
-Angka inti acuan (baris, request, 4xx, 5xx, error, warning, IP unik, alur IP) **tidak** terpengaruh oleh
-perbaikan mana pun di atas, kecuali butir 3 bila kelak muncul baris `crit` di frontend.
+The core reference numbers (lines, requests, 4xx, 5xx, errors, warnings, unique IPs, IP flows) are **not** affected by
+any of the fixes above, except item 3 if `crit` lines ever appear in the frontend.
 
-### 4.5 Dibuang
+### 4.5 Dropped
 
-Penanaman JSON ke HTML, `snapshot()` dan `watch()` (A7), `lru_cache` pada `wib()`, `.cache/geo.json`,
-dan path SVG daratan.
+Embedding JSON into HTML, `snapshot()` and `watch()` (A7), the `lru_cache` on `wib()`, `.cache/geo.json`,
+and the land SVG path.
 
-### 4.6 Rencana: deteksi serangan dengan OWASP CRS dan penamaan CAPEC
+### 4.6 Plan: attack detection with OWASP CRS and CAPEC naming
 
-Permintaan pemilik (2026-10-06). Dikerjakan di Tahap 21, **setelah** kesetaraan dengan aturan lama
-terbukti, karena mengganti aturan mengubah semua angka tab Keamanan.
+Owner request (2026-10-06). Done in Stage 21, **after** equivalence with the old rules is
+proven, because replacing the rules changes every number on the Security tab.
 
-| Hal | Keputusan | Alasan |
+| Item | Decision | Reason |
 |---|---|---|
-| Cara | **Di skrip**: pola CRS dicocokkan ke URL dan User-Agent di log nginx, saat ingest | Satu-satunya cara yang ada dalam kendali proyek dashboard. Cara **di ingress** (ModSecurity/Coraza mode deteksi) lebih akurat karena memeriksa body, header, dan cookie, tetapi mengubah konfigurasi klaster; diusulkan ke pengelola klaster, bukan dikerjakan di sini |
-| Sumber aturan | Satu rilis CRS yang versinya dikunci; diolah sekali oleh alat menjadi berkas JSON yang ikut repo | Tidak ada unduhan saat jalan; perubahan aturan terjadi lewat perubahan versi yang terlihat |
-| Berkas CRS yang dipakai | 913 pemindai, 930 LFI, 931 RFI, 932 RCE, 933 PHP, 934 generik, 941 XSS, 942 SQLi, 944 Java; hanya aturan yang sasarannya URI, argumen, atau User-Agent | Sisanya memeriksa bagian request yang tidak ada di log |
-| Kategori | Dari tag CAPEC yang sudah dibawa tiap aturan CRS; nama Indonesia dan Inggris dari kamus kecil | Penamaan baku; tidak mengarang kategori sendiri |
-| Keparahan | Dari tingkat keparahan aturan CRS (kritis/galat/peringatan/pemberitahuan), dipetakan ke tiga tingkat tag tampilan | Menggantikan tabel keparahan tulis-tangan |
-| Tingkat paranoia | 1 (**ASUMSI**, pertanyaan S1) | Paling sedikit salah-tuduh; bisa dinaikkan lewat konfigurasi |
-| Mesin regex | Pustaka standar Python. Aturan yang polanya tidak didukung dicatat dan dilewati | Tanpa dependensi baru; yang dilewati terlihat di laporan |
-| Penyimpanan | Kolom baru di `nginx_access`: `crs_rules` (daftar ID), `capec`, `crs_severity`, `crs_score`. `attack_cat` lama tetap | Uji kesetaraan lama tetap bisa dijalankan; perbandingan lama vs baru bisa dihitung |
-| Tanpa parse ulang | Klasifikasi baru dihitung dari `path` dan `ua` yang sudah tersimpan utuh, per pasangan unik | Mengganti versi CRS tidak butuh membaca log lagi |
-| Lisensi | CRS berlisensi Apache 2.0: berkas lisensi dan pemberitahuan disertakan; halaman Keamanan menyebut CRS dan versinya | Kepatuhan |
-| Kesetaraan | Angka serangan di tampilan **sengaja berbeda** dari sistem lama setelah tahap ini; dilaporkan per folder (lama vs baru) | Daftar selisih yang diharapkan bertambah satu kelompok: semua angka serangan |
+| Method | **In the script**: CRS patterns are matched against the URL and User-Agent in the nginx log, at ingest | The only method within the dashboard project's control. The **in-ingress** method (ModSecurity/Coraza in detection mode) is more accurate because it inspects the body, headers, and cookies, but it changes the cluster configuration; it is proposed to the cluster operators, not done here |
+| Rule source | One CRS release with a pinned version; processed once by a tool into a JSON file committed to the repo | No downloads at runtime; rule changes happen through a visible version change |
+| CRS files used | 913 scanners, 930 LFI, 931 RFI, 932 RCE, 933 PHP, 934 generic, 941 XSS, 942 SQLi, 944 Java; only rules whose targets are the URI, arguments, or User-Agent | The rest inspect request parts that are not in the log |
+| Categories | From the CAPEC tags each CRS rule already carries; Indonesian and English names from a small dictionary | Standard naming; no self-invented categories |
+| Severity | From the CRS rule severity (critical/error/warning/notice), mapped to three display tag levels | Replaces the hand-written severity table |
+| Paranoia level | 1 (**ASSUMPTION**, question S1) | Fewest false accusations; can be raised via configuration |
+| Regex engine | Python standard library. Rules whose patterns are not supported are recorded and skipped | No new dependencies; the skipped ones are visible in the report |
+| Storage | New columns in `nginx_access`: `crs_rules` (list of IDs), `capec`, `crs_severity`, `crs_score`. The old `attack_cat` stays | The old equivalence test can still be run; old vs new comparisons can be computed |
+| No re-parse | The new classification is computed from the `path` and `ua` already stored in full, per unique pair | Changing the CRS version does not require reading the logs again |
+| License | CRS is Apache 2.0 licensed: the license file and notice are included; the Security page mentions CRS and its version | Compliance |
+| Equivalence | Attack numbers in the display **intentionally differ** from the old system after this stage; reported per folder (old vs new) | The list of expected differences gains one group: all attack numbers |
 
-Keterbatasan yang tidak berubah: body POST, header lain, dan cookie tidak ada di log. Bila kelak ingress
-menjalankan CRS sendiri, log auditnya menjadi sumber deteksi yang lebih baik dan dashboard perlu parser
-tambahan untuk itu.
+Limitations that do not change: the POST body, other headers, and cookies are not in the log. If the ingress one day
+runs CRS itself, its audit log becomes a better detection source and the dashboard will need an additional
+parser for it.
 
 ---
 
-## 5. Kontrak API
+## 5. API contract
 
-### 5.1 Aturan umum
+### 5.1 General rules
 
-- Awalan `/api`. Hanya `GET`, kecuali pemicu ingest.
-- Waktu dalam respons: teks WIB `YYYY-MM-DD HH:MM` (jam: `YYYY-MM-DD HH`), sama dengan format data lama,
-  sehingga pemformat tampilan lama (inv. §2.0) dipakai tanpa perubahan.
-- Setiap IP dalam respons disertai pemiliknya bila ada: objek `{"ip", "asn", "cc", "org"}`; `asn` null dan
-  `cc: "-"` untuk IP privat; hanya `{"ip"}` bila tidak diketahui.
-- Respons tab berisi **KPI + seri chart + halaman pertama tiap tabel** (jumlah baris = batas lama) dan
-  `total` tiap tabel. Baris berikutnya, filter, dan urut lewat endpoint tabel (§5.4). Ini menjaga satu tab
+- Prefix `/api`. Only `GET`, except for the ingest trigger.
+- Times in responses: WIB text `YYYY-MM-DD HH:MM` (hour: `YYYY-MM-DD HH`), the same as the old data format,
+  so the old display formatters (inv. §2.0) are used without changes.
+- Every IP in a response comes with its owner when known: an object `{"ip", "asn", "cc", "org"}`; `asn` null and
+  `cc: "-"` for private IPs; only `{"ip"}` when unknown.
+- A tab response contains **KPIs + chart series + the first page of each table** (row count = the old limit) and
+  each table's `total`. Further rows, filters, and sorting go through the table endpoint (§5.4). This keeps one tab
   ≤ 500 KB (PRD §5.1).
-- Galat: `{"error": {"code": "…", "message": "…"}}` dengan status 400 (parameter salah), 401 (belum
-  masuk / sesi habis), 403 (bukan admin), 404 (folder / layanan / tabel tidak ada), 409
-  (ingest sedang berjalan), 429 (terlalu banyak percobaan masuk), 503 (belum ada data).
-- Semua endpoint selain `/api/health` dan `/api/auth/login` butuh sesi. Endpoint data terbuka untuk kedua
-  peran; `/api/admin/*` hanya admin (§8.3).
-- Cache: respons data membawa `ETag` = waktu ingest terakhir folder itu. (Tahap 11: header dikirim; jawaban 304 belum dibuat karena endpoint terlama 56 ms.)
+- Errors: `{"error": {"code": "…", "message": "…"}}` with status 400 (bad parameter), 401 (not
+  signed in / session expired), 403 (not an admin), 404 (folder / service / table does not exist), 409
+  (ingest running), 429 (too many sign-in attempts), 503 (no data yet).
+- All endpoints other than `/api/health` and `/api/auth/login` require a session. Data endpoints are open to both
+  roles; `/api/admin/*` is admin only (§8.3).
+- Cache: data responses carry `ETag` = the last ingest time of that folder. (Stage 11: the header is sent; the 304 answer is not built yet because the slowest endpoint takes 56 ms.)
 
-### 5.2 Kerangka
+### 5.2 Frame
 
-| Endpoint | Guna | Halaman DRD |
+| Endpoint | Purpose | DRD page |
 |---|---|---|
-| `GET /api/health` | Hidup (tanpa data, tanpa sesi) | — |
-| `GET /api/meta` | Daftar folder, konfigurasi tampilan, status ingest | Kerangka (§2), pemilih folder (§6.1) |
-| `GET /api/folders/{folder}` | Layanan + lencana, file, angka folder sebelumnya untuk perbandingan. | Sidebar, Overview, Pod |
+| `GET /api/health` | Liveness (no data, no session) | — |
+| `GET /api/meta` | Folder list, display configuration, ingest status | Frame (§2), folder picker (§6.1) |
+| `GET /api/folders/{folder}` | Services + badges, files, previous folder's numbers for comparison. | Sidebar, Overview, Pods |
 
-Contoh `GET /api/meta`:
+Example `GET /api/meta`:
 
 ```json
 {
@@ -708,7 +709,7 @@ Contoh `GET /api/meta`:
 }
 ```
 
-Contoh `GET /api/folders/2026-10-06` (dipersingkat):
+Example `GET /api/folders/2026-10-06` (abridged):
 
 ```json
 {
@@ -727,28 +728,28 @@ Contoh `GET /api/folders/2026-10-06` (dipersingkat):
 }
 ```
 
-Aturan "sebanding" dan teks ▲/▼ (inv. §2.0) dihitung frontend dari `prev`, seperti sekarang.
+The "comparable" rule and the ▲/▼ text (inv. §2.0) are computed by the frontend from `prev`, as now.
 
-### 5.3 Satu endpoint per halaman
+### 5.3 One endpoint per page
 
-| Endpoint | Parameter | Halaman DRD | Isi |
+| Endpoint | Parameters | DRD page | Content |
 |---|---|---|---|
-| `GET /api/folders/{folder}/overview` | — | §3.1 Overview | periode, error per jam per layanan, 25 pesan teratas lintas layanan. (KPI dan tabel layanan/file dari `/api/folders/{folder}`; bagian "Traffic HTTP" dari endpoint layanan nginx) |
-| `GET /api/folders/{folder}/map` | `module` (opsional) | §3.2 Peta IP; peta di §3.10 | daftar modul, 6 KPI, titik lokasi, angka luar negeri / tanpa lokasi, halaman pertama alur |
-| `GET /api/trends` | `last` = 14 \| 30 \| 90 \| `all` (bawaan 30) | §3.3 Tren | per folder × layanan: baris, error, warning; nginx total/4xx/5xx; serangan; password salah; reset; 5 metrik bisnis |
-| `GET /api/folders/{folder}/security` | — | §3.4 Keamanan | 8 KPI, seri 6 chart, bahan "Temuan utama", halaman pertama 5 tabel |
-| `GET /api/folders/{folder}/rootcause` | — | §3.5 Akar Masalah | bahan ringkasan, seri 4 chart, halaman pertama 3 tabel, refresh token kedaluwarsa |
-| `GET /api/folders/{folder}/availability` | — | §3.6 Ketersediaan | 7 KPI, seri 3 chart, halaman pertama 4 tabel |
-| `GET /api/folders/{folder}/pods` | — | §3.7 Pod | KPI, seri 2 chart, halaman pertama 2 tabel (kesehatan pod dari `/api/folders/{folder}`) |
-| `GET /api/folders/{folder}/business` | — | §3.8 Bisnis | 11 KPI + nilai folder sebelumnya, seri 5 chart, 2 tabel |
-| `GET /api/folders/{folder}/tracing` | — | §3.9 Pelacakan | `corr`, KPI, seri 2 chart, halaman pertama jejak |
-| `GET /api/folders/{folder}/services/{service}` | — | §3.10 Layanan; §3.1 bagian traffic | KPI, per jam, status, upstream, level, 10/20 teratas tiap daftar, kinerja endpoint, pesan |
+| `GET /api/folders/{folder}/overview` | — | §3.1 Overview | period, errors per hour per service, top 25 messages across services. (KPIs and the service/file table come from `/api/folders/{folder}`; the "HTTP traffic" part from the nginx service endpoint) |
+| `GET /api/folders/{folder}/map` | `module` (optional) | §3.2 IP Map; map in §3.10 | module list, 6 KPIs, location points, abroad / unlocated counts, first page of flows |
+| `GET /api/trends` | `last` = 14 \| 30 \| 90 \| `all` (default 30) | §3.3 Trends | per folder × service: lines, errors, warnings; nginx total/4xx/5xx; attacks; wrong passwords; resets; 5 business metrics |
+| `GET /api/folders/{folder}/security` | — | §3.4 Security | 8 KPIs, series for 6 charts, material for "Key findings", first page of 5 tables |
+| `GET /api/folders/{folder}/rootcause` | — | §3.5 Root Causes | summary material, series for 4 charts, first page of 3 tables, expired refresh tokens |
+| `GET /api/folders/{folder}/availability` | — | §3.6 Availability | 7 KPIs, series for 3 charts, first page of 4 tables |
+| `GET /api/folders/{folder}/pods` | — | §3.7 Pods | KPIs, series for 2 charts, first page of 2 tables (pod health from `/api/folders/{folder}`) |
+| `GET /api/folders/{folder}/business` | — | §3.8 Business | 11 KPIs + previous folder values, series for 5 charts, 2 tables |
+| `GET /api/folders/{folder}/tracing` | — | §3.9 Request Tracing | `corr`, KPIs, series for 2 charts, first page of traces |
+| `GET /api/folders/{folder}/services/{service}` | — | §3.10 Service; §3.1 traffic part | KPIs, per hour, status, upstream, level, top 10/20 of each list, endpoint performance, messages |
 
-Bila log yang dibutuhkan halaman tidak ada, respons tetap 200 dengan `"available": false` dan
-`"reason"` (`no_nginx`, `no_correlation`, `no_simpel_loop`, `empty`), supaya frontend menampilkan keadaan
-kosong yang tepat (DRD §6.6) dan bisa membedakan "0" dari "tidak ada log" (U16).
+When the log a page needs does not exist, the response is still 200 with `"available": false` and
+`"reason"` (`no_nginx`, `no_correlation`, `no_simpel_loop`, `empty`), so that the frontend shows the right empty
+state (DRD §6.6) and can tell "0" from "no log" (U16).
 
-Contoh `GET /api/folders/2026-10-06/security` (dipersingkat):
+Example `GET /api/folders/2026-10-06/security` (abridged):
 
 ```json
 {
@@ -787,7 +788,7 @@ Contoh `GET /api/folders/2026-10-06/security` (dipersingkat):
 }
 ```
 
-Contoh `GET /api/folders/2026-10-06/map` (dipersingkat):
+Example `GET /api/folders/2026-10-06/map` (abridged):
 
 ```json
 {
@@ -808,7 +809,7 @@ Contoh `GET /api/folders/2026-10-06/map` (dipersingkat):
 }
 ```
 
-Contoh `GET /api/trends?last=30` (dipersingkat):
+Example `GET /api/trends?last=30` (abridged):
 
 ```json
 {
@@ -825,59 +826,59 @@ Contoh `GET /api/trends?last=30` (dipersingkat):
 }
 ```
 
-Layanan yang tidak ada di suatu folder bernilai `null` pada posisi itu ("Tidak Ada" di tabel kelengkapan).
+A service that is absent from a folder has the value `null` at that position ("None" in the completeness table).
 
-### 5.4 Endpoint tabel
+### 5.4 Table endpoint
 
-`GET /api/folders/{folder}/tables/{table}` — satu kontrak untuk semua tabel yang bisa dilanjutkan,
-difilter, dan diurut (DRD §4.3).
+`GET /api/folders/{folder}/tables/{table}` — one contract for every table that can be continued,
+filtered, and sorted (DRD §4.3).
 
-| Parameter | Nilai | Bawaan |
+| Parameter | Value | Default |
 |---|---|---|
-| `service` | nama layanan; wajib untuk tabel per layanan | — |
-| `module` | modul tujuan; hanya `flows` | semua |
-| `q` | teks filter, maks. 200 karakter; substring tanpa beda huruf besar/kecil pada kolom teks tabel itu, dan pada nama pemilik jaringan IP utama baris itu (seperti filter lama yang mencari seluruh teks baris) | kosong |
-| `sort` | salah satu kolom yang diizinkan untuk tabel itu | urutan lama |
+| `service` | service name; required for per-service tables | — |
+| `module` | destination module; `flows` only | all |
+| `q` | filter text, max. 200 characters; case-insensitive substring on that table's text columns, and on the network owner name of the row's main IP (like the old filter, which searched the whole row text) | empty |
+| `sort` | one of the columns allowed for that table | old order |
 | `dir` | `asc` \| `desc` | `desc` |
-| `limit` | 1–500 | batas lama tabel itu |
+| `limit` | 1–500 | that table's old limit |
 | `offset` | ≥ 0 | 0 |
 
-Respons: `{"table": "…", "total": N, "matched": M, "limit": L, "offset": O, "rows": […]}`; bentuk tiap
-baris sama dengan yang ada di respons halaman.
+Response: `{"table": "…", "total": N, "matched": M, "limit": L, "offset": O, "rows": […]}`; the shape of each
+row is the same as in the page response.
 
-| `table` | Halaman | Per layanan | Batas bawaan | Sumber |
+| `table` | Page | Per service | Default limit | Source |
 |---|---|:-:|--:|---|
-| `endpoints` | Layanan | ya | 20 | `agg_endpoint` |
-| `endpoint-errors` | Layanan | ya | 20 | `agg_endpoint_error` |
-| `endpoint-perf` | Layanan | ya | 25 | `agg_endpoint` (`dur_n ≥ 5`) |
-| `endpoint-error-rate` | Layanan | ya | 20 | `agg_endpoint` (≥ 20 request) |
-| `slow` | Layanan | ya | 15 | `agg_slow` |
-| `ips` | Layanan | ya | 15 | `agg_ip` |
-| `user-agents` | Layanan | ya | 12 | `agg_ua` |
-| `messages` | Layanan, Overview | ya | 40 | `agg_message` |
-| `flows` | Peta IP, Layanan | — | 3.000 → **100** | `agg_flow` |
-| `attack-urls` | Keamanan | — | 300 | `agg_attack_url` |
-| `attack-ips` | Keamanan | — | 100 | `agg_attack_ip` |
-| `accounts` | Keamanan | — | 150 | `agg_account` |
-| `login-ips` | Keamanan | — | 100 | `agg_login_ip` |
-| `ip-4xx` | Keamanan | — | 20 | `agg_ip` |
-| `c401` | Akar Masalah | — | 30 | `agg_c401` |
-| `pdf-templates` | Akar Masalah, Bisnis | — | semua | `agg_report` |
-| `dns` | Akar Masalah | — | 20 | `v_dns` |
-| `upstreams` | Ketersediaan | — | 12 | `agg_upstream` |
-| `incidents` | Ketersediaan | — | semua | `agg_incident` |
-| `upstream-errors` | Ketersediaan | — | 200 | `v_upstream_error` |
-| `uptime-targets` | Ketersediaan | — | 5 | `agg_uk_target` |
-| `backend-pods` | Pod | — | semua | `agg_pod` + `agg_retry` |
-| `restarts` | Pod | — | semua | `v_restart` |
-| `activity` | Bisnis | — | 20 | `agg_activity` |
-| `trace` | Pelacakan | — | 300 | `agg_trace` |
+| `endpoints` | Service | yes | 20 | `agg_endpoint` |
+| `endpoint-errors` | Service | yes | 20 | `agg_endpoint_error` |
+| `endpoint-perf` | Service | yes | 25 | `agg_endpoint` (`dur_n ≥ 5`) |
+| `endpoint-error-rate` | Service | yes | 20 | `agg_endpoint` (≥ 20 requests) |
+| `slow` | Service | yes | 15 | `agg_slow` |
+| `ips` | Service | yes | 15 | `agg_ip` |
+| `user-agents` | Service | yes | 12 | `agg_ua` |
+| `messages` | Service, Overview | yes | 40 | `agg_message` |
+| `flows` | IP Map, Service | — | 3,000 → **100** | `agg_flow` |
+| `attack-urls` | Security | — | 300 | `agg_attack_url` |
+| `attack-ips` | Security | — | 100 | `agg_attack_ip` |
+| `accounts` | Security | — | 150 | `agg_account` |
+| `login-ips` | Security | — | 100 | `agg_login_ip` |
+| `ip-4xx` | Security | — | 20 | `agg_ip` |
+| `c401` | Root Causes | — | 30 | `agg_c401` |
+| `pdf-templates` | Root Causes, Business | — | all | `agg_report` |
+| `dns` | Root Causes | — | 20 | `v_dns` |
+| `upstreams` | Availability | — | 12 | `agg_upstream` |
+| `incidents` | Availability | — | all | `agg_incident` |
+| `upstream-errors` | Availability | — | 200 | `v_upstream_error` |
+| `uptime-targets` | Availability | — | 5 | `agg_uk_target` |
+| `backend-pods` | Pods | — | all | `agg_pod` + `agg_retry` |
+| `restarts` | Pods | — | all | `v_restart` |
+| `activity` | Business | — | 20 | `agg_activity` |
+| `trace` | Request Tracing | — | 300 | `agg_trace` |
 
-Satu penyimpangan dari batas lama: `flows` tampil 100 baris pertama (bukan 3.000) karena kini bisa
-dilanjutkan dan difilter; 3.000 baris × sel IP adalah beban render terbesar di halaman lama. KPI dan titik
-peta tetap dihitung dari semua alur.
+One deviation from the old limits: `flows` shows the first 100 rows (not 3,000) because it can now be
+continued and filtered; 3,000 rows × IP cells was the largest rendering load on the old page. The KPIs and map
+points are still computed from all flows.
 
-Contoh `GET /api/folders/2026-10-06/tables/c401?limit=2`:
+Example `GET /api/folders/2026-10-06/tables/c401?limit=2`:
 
 ```json
 {"table": "c401", "total": 555, "matched": 555, "limit": 2, "offset": 0, "rows": [
@@ -890,608 +891,608 @@ Contoh `GET /api/folders/2026-10-06/tables/c401?limit=2`:
 ]}
 ```
 
-(Angka di contoh §5.2–§5.4 ilustratif untuk bentuk respons; hanya angka yang juga ada di
-`00-acuan.json` yang nyata.)
+(The numbers in the §5.2–§5.4 examples illustrate the response shape; only numbers that also appear in
+`00-acuan.json` are real.)
 
 ### 5.5 Admin
 
-| Endpoint | Guna |
+| Endpoint | Purpose |
 |---|---|
-| `POST /api/admin/ingest` | Memulai ingest di proses API. Badan opsional `{"folder": "YYYY-MM-DD", "force": false}`. Jawaban 202 + `run_id`; 409 bila sedang berjalan |
-| `GET /api/admin/ingest/status` | Status ingest berjalan/terakhir: fase, folder, file selesai/total, peringatan |
-| `POST /api/admin/derive` | Turunkan ulang agregat dari tabel mentah (semua atau satu folder) |
-| `POST /api/admin/forget` | Hapus data satu folder (pengganti perilaku lama "folder hilang") |
+| `POST /api/admin/ingest` | Starts an ingest in the API process. Optional body `{"folder": "YYYY-MM-DD", "force": false}`. Answer 202 + `run_id`; 409 when one is running |
+| `GET /api/admin/ingest/status` | Status of the running/last ingest: phase, folder, files done/total, warnings |
+| `POST /api/admin/derive` | Re-derive aggregates from the raw tables (all or one folder) |
+| `POST /api/admin/forget` | Delete one folder's data (replacing the old "missing folder" behavior) |
 
-| `POST /api/admin/import` | Impor dari awalan S3 (§3.8). Badan `{"url": "s3://simpel4-backup/k8s-logs/2026-09-26/", "dry_run": false}`. Jawaban 202 + `job_id`; `dry_run` hanya mendaftar objek |
-| `POST /api/admin/import/credentials` | **Hanya admin** (bukan token mesin). Menyimpan kredensial AWS sementara di memori: `access_key_id`, `secret_access_key`, `session_token`. Jawaban tidak memuat nilainya |
-| `DELETE /api/admin/import/credentials` | Menghapus kredensial dari memori |
-| `GET /api/admin/import/{job_id}` | Status impor |
+| `POST /api/admin/import` | Import from an S3 prefix (§3.8). Body `{"url": "s3://simpel4-backup/k8s-logs/2026-09-26/", "dry_run": false}`. Answer 202 + `job_id`; `dry_run` only lists objects |
+| `POST /api/admin/import/credentials` | **Admin only** (not the machine token). Stores temporary AWS credentials in memory: `access_key_id`, `secret_access_key`, `session_token`. The answer does not contain the values |
+| `DELETE /api/admin/import/credentials` | Removes the credentials from memory |
+| `GET /api/admin/import/{job_id}` | Import status |
 
-Hanya untuk peran **admin**, atau untuk pemanggil mesin dengan token (§8.2): tugas `ingest` di compose dan
-sistem luar yang mengirim tautan bucket.
+Only for the **admin** role, or for machine callers with a token (§8.2): the `ingest` task in compose and
+external systems that send bucket links.
 
-### 5.6 Autentikasi dan pengelolaan user (P1)
+### 5.6 Authentication and user management (P1)
 
-| Endpoint | Siapa | Guna |
+| Endpoint | Who | Purpose |
 |---|---|---|
-| `POST /api/auth/login` | publik | Badan `{"username", "password"}` → membuat sesi (cookie). 401 dengan pesan yang sama untuk "user tidak ada" dan "sandi salah"; 429 saat dibatasi |
-| `POST /api/auth/logout` | sesi | Menghapus sesi |
-| `GET /api/me` | sesi | User, peran, `must_change_password` |
-| `POST /api/me/password` | sesi | Ganti sandi sendiri (butuh sandi lama); sesi lain user itu dicabut |
-| `GET /api/admin/users` | admin | Daftar user |
-| `POST /api/admin/users` | admin | Buat user: `username`, `display_name`, `role` (`admin` \| `user`), sandi awal (wajib diganti saat masuk pertama) |
-| `PATCH /api/admin/users/{id}` | admin | Ubah nama, peran, aktif/nonaktif |
-| `POST /api/admin/users/{id}/reset-password` | admin | Sandi sementara baru; semua sesi user dicabut |
-| `DELETE /api/admin/users/{id}` | admin | Hapus user (admin terakhir tidak bisa dihapus/diturunkan) |
-| `GET /api/admin/audit` | admin | Catatan audit, terbaru dulu, berhalaman |
+| `POST /api/auth/login` | public | Body `{"username", "password"}` → creates a session (cookie). 401 with the same message for "user does not exist" and "wrong password"; 429 when rate-limited |
+| `POST /api/auth/logout` | session | Deletes the session |
+| `GET /api/me` | session | User, role, `must_change_password` |
+| `POST /api/me/password` | session | Change one's own password (requires the old password); the user's other sessions are revoked |
+| `GET /api/admin/users` | admin | User list |
+| `POST /api/admin/users` | admin | Create a user: `username`, `display_name`, `role` (`admin` \| `user`), initial password (must be changed at first sign-in) |
+| `PATCH /api/admin/users/{id}` | admin | Change name, role, active/inactive |
+| `POST /api/admin/users/{id}/reset-password` | admin | New temporary password; all of the user's sessions are revoked |
+| `DELETE /api/admin/users/{id}` | admin | Delete a user (the last admin cannot be deleted/demoted) |
+| `GET /api/admin/audit` | admin | Audit log, newest first, paginated |
 
-Contoh `GET /api/me`:
+Example `GET /api/me`:
 
 ```json
 {"username": "rina", "display_name": "Rina", "role": "user", "must_change_password": false}
 ```
 
-Contoh `POST /api/admin/users`:
+Example `POST /api/admin/users`:
 
 ```json
-{"username": "budi", "display_name": "Budi", "role": "user", "password": "<sandi awal>"}
+{"username": "budi", "display_name": "Budi", "role": "user", "password": "<initial password>"}
 ```
 
-### 5.7 Berkas statis
+### 5.7 Static files
 
-| Path | Isi | Dibuat |
+| Path | Content | Created |
 |---|---|---|
-| `/` dan `/assets/*` | Aplikasi Svelte hasil build, termasuk Chart.js, MapLibre, huruf Outfit dan JetBrains Mono | saat build image |
-| `/map/land.geojson` | Daratan Natural Earth 50m | saat ingest pertama, dari cache unduhan |
-| `/map/borders-country.geojson` | Batas negara Natural Earth 50m | sama |
-| `/map/borders-province-id.geojson` | Batas provinsi Indonesia, Natural Earth 10m | sama |
-| `/map/labels.json` | Label negara / provinsi / kabupaten-kota (isi `D.labels`) | sama |
-| `/fonts/{fontstack}/{range}.pbf` | Glyph label peta untuk MapLibre, rentang Latin | ikut repo (§6.4) |
+| `/` and `/assets/*` | Built Svelte application, including Chart.js, MapLibre, the Outfit and JetBrains Mono fonts | at image build |
+| `/map/land.geojson` | Natural Earth 50m land | at the first ingest, from the download cache |
+| `/map/borders-country.geojson` | Natural Earth 50m country borders | same |
+| `/map/borders-province-id.geojson` | Indonesian province borders, Natural Earth 10m | same |
+| `/map/labels.json` | Country / province / regency-city labels (content of `D.labels`) | same |
+| `/fonts/{fontstack}/{range}.pbf` | Map label glyphs for MapLibre, Latin range | committed to the repo (§6.4) |
 
-Bila berkas `/map/*` belum ada (unduhan gagal), `/api/meta` melaporkannya dan frontend menampilkan keadaan
-kosong peta (DRD §6.6).
+When the `/map/*` files do not exist yet (download failed), `/api/meta` reports it and the frontend shows the map's
+empty state (DRD §6.6).
 
 ---
 
-## 6. Struktur folder, cara menjalankan, dependensi
+## 6. Folder structure, how to run, dependencies
 
-### 6.1 Struktur
+### 6.1 Structure
 
 ```
 v2/
 ├─ README.md
-├─ run.sh                    jalankan lokal: satu perintah
-├─ pyproject.toml            dependensi Python
-├─ config.example.toml       contoh konfigurasi (semua opsional)
-├─ monishield/                  paket Python
-│  ├─ config.py              baca konfigurasi + variabel lingkungan
-│  ├─ rules.py               salinan aturan lama (§4.1)
-│  ├─ parse.py               parser per layanan → baris CSV (§4.2)
-│  ├─ ingest.py              pindai, sidik jari, transaksi per folder (§3)
-│  ├─ schema.sql             definisi tabel (§2)
-│  ├─ derive/                satu .sql per tabel agregat (+ accounts, incidents)
-│  ├─ refdata.py             unduhan + pemilik/lokasi IP + berkas peta
-│  ├─ db.py                  satu koneksi DuckDB untuk seluruh proses
-│  ├─ auth.py                sandi, sesi JWT, peran, audit (ORM, §8)
-│  ├─ importer.py            impor dari awalan S3 (§3.8)
+├─ run.sh                    run locally: one command
+├─ pyproject.toml            Python dependencies
+├─ config.example.toml       example configuration (all optional)
+├─ monishield/                  Python package
+│  ├─ config.py              read configuration + environment variables
+│  ├─ rules.py               copy of the old rules (§4.1)
+│  ├─ parse.py               per-service parser → CSV rows (§4.2)
+│  ├─ ingest.py              scan, fingerprint, per-folder transaction (§3)
+│  ├─ schema.sql             table definitions (§2)
+│  ├─ derive/                one .sql per aggregate table (+ accounts, incidents)
+│  ├─ refdata.py             downloads + IP owner/location + map files
+│  ├─ db.py                  one DuckDB connection for the whole process
+│  ├─ auth.py                passwords, JWT sessions, roles, audit (ORM, §8)
+│  ├─ importer.py            import from an S3 prefix (§3.8)
 │  ├─ api/
-│  │  ├─ app.py              FastAPI, berkas statis, galat, header keamanan
-│  │  ├─ common.py           validasi parameter, sel IP, endpoint tabel
+│  │  ├─ app.py              FastAPI, static files, errors, security headers
+│  │  ├─ common.py           parameter validation, IP cell, table endpoint
 │  │  └─ overview.py map.py trends.py security.py rootcause.py availability.py
-│  │     pods.py business.py tracing.py service.py              ← satu modul per halaman
-│  │     admin.py users.py session.py                           ← ingest/impor, user, masuk/keluar
-│  └─ cli.py                 serve | ingest | derive | forget | status | user (buat admin pertama)
+│  │     pods.py business.py tracing.py service.py              ← one module per page
+│  │     admin.py users.py session.py                           ← ingest/import, users, sign-in/out
+│  └─ cli.py                 serve | ingest | derive | forget | status | user (create the first admin)
 ├─ web/                      Svelte + Vite
 │  ├─ package.json  vite.config.js  index.html
-│  ├─ public/fonts/          glyph .pbf untuk label peta
+│  ├─ public/fonts/          .pbf glyphs for map labels
 │  └─ src/
-│     ├─ App.svelte  api.js  state.js (folder, tab, modul ↔ URL)  format.js (waktu, durasi, angka)
-│     ├─ theme.css           token DRD §5
+│     ├─ App.svelte  api.js  state.js (folder, tab, module ↔ URL)  format.js (time, duration, numbers)
+│     ├─ theme.css           DRD §5 tokens
 │     ├─ i18n/  id.json  en.json
 │     ├─ lib/                Kpi, ChartCard, DataTable, IpCell, SeverityTag, Alert, Note, MapView, …
 │     └─ pages/              Overview, IpMap, Trends, Security, RootCause, Availability, Pods,
-│                            Business, Tracing, Service      ← satu berkas per halaman
+│                            Business, Tracing, Service      ← one file per page
 │                            Login, ChangePassword, AdminUsers, AdminIngest
 ├─ tests/
-│  ├─ fixtures/lines/        baris log asli per format (dari inv. §3)
+│  ├─ fixtures/lines/        original log lines per format (from inv. §3)
 │  ├─ test_rules.py  test_parse.py  test_ingest.py  test_api.py  test_auth.py  test_import.py
-│  └─ test_equivalence.py    terhadap sistem lama (§9.3)
-├─ tools/acuan_lama.py       (sudah ada) angka acuan dari sistem lama
+│  └─ test_equivalence.py    against the old system (§9.3)
+├─ tools/acuan_lama.py       (already exists) reference numbers from the old system
 ├─ docs/
-├─ Dockerfile  docker-compose.yml          (dikerjakan di langkah 7)
-└─ data/                     simpel4.duckdb, map/, inbox/, tmp/ (auth.db hanya bila tanpa PostgreSQL)     ← tidak masuk repo
+├─ Dockerfile  docker-compose.yml          (done in step 7)
+└─ data/                     simpel4.duckdb, map/, inbox/, tmp/ (auth.db only without PostgreSQL)     ← not in the repo
 ```
 
-Satu modul backend dan satu berkas frontend per halaman memenuhi PRD §5.6 (mengubah satu tab tidak
-menyentuh tab lain). Bagian yang dipakai bersama hanya `common.py` dan `web/src/lib/`.
+One backend module and one frontend file per page satisfy PRD §5.6 (changing one tab does not
+touch other tabs). The only shared parts are `common.py` and `web/src/lib/`.
 
-### 6.2 Menjalankan lokal
+### 6.2 Running locally
 
-Prasyarat: Python ≥ 3.11 dan Node.js ≥ 20 (Node hanya untuk membangun frontend).
+Prerequisites: Python ≥ 3.11 and Node.js ≥ 20 (Node only to build the frontend).
 
-`./v2/run.sh` melakukan, berurutan dan dilewati bila sudah beres: membuat lingkungan Python dan memasang
-dependensi; membangun frontend bila belum ada atau sumbernya berubah; menjalankan server di
-`127.0.0.1:8000`; server meng-ingest folder yang belum masuk; membuka browser. Pada jalan pertama skrip
-meminta nama dan sandi admin pertama (sekali saja).
+`./v2/run.sh` does the following, in order, skipping what is already done: creates the Python environment and installs
+dependencies; builds the frontend if it does not exist yet or its sources changed; runs the server on
+`127.0.0.1:8000`; the server ingests folders not yet loaded; opens the browser. On the first run the script
+asks for the name and password of the first admin (only once).
 
-Keesokan harinya, perintah yang sama memperbarui (PRD §5.5). Bila server sudah berjalan,
-`./v2/run.sh ingest` hanya memicu ingest lewat API (K1).
+The next day, the same command updates (PRD §5.5). If the server is already running,
+`./v2/run.sh ingest` only triggers an ingest through the API (K1).
 
-Mode pengembangan: server Vite dengan proxy `/api` ke FastAPI; tidak dipakai di luar pengembangan.
+Development mode: Vite server with an `/api` proxy to FastAPI; not used outside development.
 
-### 6.3 Konfigurasi
+### 6.3 Configuration
 
-Semua punya nilai bawaan = perilaku sistem lama. **Satu tempat untuk semua konfigurasi dan rahasia: `.env`**
-(keputusan pemilik 2026-10-06). Urutan prioritas: variabel lingkungan > `v2/.env` > `config.toml` (opsional)
-> nilai bawaan. Setiap kunci di bawah bisa ditulis di `.env` sebagai `S4_<NAMA>` (huruf besar); daftar dan
-kamus (`hosts`, `server_fallback`, `import_buckets`) ditulis sebagai JSON satu baris. Rahasia hanya boleh
-di `.env`/lingkungan, tidak di `config.toml`, dan tidak pernah dicetak. `.env.example` (ikut repo, tanpa
-rahasia) memuat semua kunci beserta nilai bawaannya; `.env` tidak masuk git maupun image. Kunci `S4_*`
-yang tidak dikenal di `.env` menggagalkan start, supaya salah ketik tidak diam-diam diabaikan.
+Everything has a default = the old system's behavior. **One place for all configuration and secrets: `.env`**
+(owner decision 2026-10-06). Priority order: environment variables > `v2/.env` > `config.toml` (optional)
+> default values. Every key below can be written in `.env` as `S4_<NAME>` (uppercase); lists and
+dictionaries (`hosts`, `server_fallback`, `import_buckets`) are written as single-line JSON. Secrets may only be
+in `.env`/the environment, not in `config.toml`, and are never printed. `.env.example` (in the repo, without
+secrets) contains all keys with their default values; `.env` goes into neither git nor the image. Unknown `S4_*`
+keys in `.env` make startup fail, so typos are not silently ignored.
 
-| Kunci | Bawaan | Guna |
+| Key | Default | Purpose |
 |---|---|---|
-| `S4_LOG_DIR` | folder induk `v2/` | folder log (dibaca saja) |
-| `S4_DATA_DIR` | `v2/data` | DuckDB, berkas peta, CSV sementara |
-| `S4_CACHE_DIR` | `<log dir>/.cache` | unduhan; bawaan lokal memakai cache lama agar tidak mengunduh ulang 100 MB |
-| `S4_BIND` | `127.0.0.1:8000` | alamat dengar |
-| `S4_INGEST_ON_START` | `true` | ingest saat server mulai |
-| `S4_STATE_DIR` | `v2/data` | `auth.db` SQLite, hanya bila `S4_AUTH_DATABASE_URL` kosong |
-| `S4_AUTH_DATABASE_URL` | kosong | **Rahasia.** URL PostgreSQL akun: `postgresql+psycopg://user:sandi@host:5432/db` |
-| `S4_JWT_SECRET` | — (wajib) | **Rahasia.** Penanda tangan token sesi, minimal 32 karakter acak; server menolak mulai bila kosong atau pendek |
-| `S4_INBOX_DIR` | `v2/data/inbox` | folder hasil impor bucket (§3.8) |
-| `S4_ADMIN_USER`, `S4_ADMIN_PASSWORD` | kosong | membuat admin pertama **hanya bila belum ada user**; sandi wajib diganti saat masuk pertama |
-| `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY` | kosong | unduhan GeoLite2 untuk lokasi IP (§3.6); tanpa keduanya lokasi kosong |
-| `S4_JOB_TOKEN` | kosong | token untuk pemanggil mesin: tugas `ingest` dan pengirim tautan bucket (§8.2) |
-| `S4_COOKIE_SECURE` | `true` | cookie hanya lewat HTTPS; `false` hanya untuk jalan lokal tanpa TLS |
-| `import_buckets` | kosong (impor mati) | daftar izin: bucket → awalan yang boleh, mis. `simpel4-backup` → `k8s-logs/` |
-| `import_region` | `ap-southeast-3` | wilayah bucket (Jakarta) |
-| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | kosong | kredensial baca-saja untuk impor; nama standar AWS |
-| `import_max_objects`, `import_max_object_mb`, `import_max_total_mb` | 500, 1024, 5120 | batas impor |
-| `session_idle_minutes`, `session_max_hours` | 60, 12 | umur sesi |
-| `server_ip`, `server_fallback` | nilai lama | titik tujuan peta |
-| `hosts` | 6 entri lama | upstream → base URL |
-| `dns_upstream` | `10.88.1.100` | teks Akar Masalah |
-| `upstream_prefix` | `ombudsman-ombudsman-` | awalan upstream yang dibuang |
+| `S4_LOG_DIR` | parent folder of `v2/` | log folder (read only) |
+| `S4_DATA_DIR` | `v2/data` | DuckDB, map files, temporary CSV |
+| `S4_CACHE_DIR` | `<log dir>/.cache` | downloads; the local default uses the old cache so as not to re-download 100 MB |
+| `S4_BIND` | `127.0.0.1:8000` | listen address |
+| `S4_INGEST_ON_START` | `true` | ingest when the server starts |
+| `S4_STATE_DIR` | `v2/data` | SQLite `auth.db`, only when `S4_AUTH_DATABASE_URL` is empty |
+| `S4_AUTH_DATABASE_URL` | empty | **Secret.** PostgreSQL URL for accounts: `postgresql+psycopg://user:password@host:5432/db` |
+| `S4_JWT_SECRET` | — (required) | **Secret.** Session token signing key, at least 32 random characters; the server refuses to start when it is empty or short |
+| `S4_INBOX_DIR` | `v2/data/inbox` | folder for bucket import results (§3.8) |
+| `S4_ADMIN_USER`, `S4_ADMIN_PASSWORD` | empty | creates the first admin **only when there are no users yet**; the password must be changed at first sign-in |
+| `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY` | empty | GeoLite2 download for IP location (§3.6); without both, location is empty |
+| `S4_JOB_TOKEN` | empty | token for machine callers: the `ingest` task and bucket link senders (§8.2) |
+| `S4_COOKIE_SECURE` | `true` | cookie only over HTTPS; `false` only for running locally without TLS |
+| `import_buckets` | empty (import off) | allowlist: bucket → allowed prefixes, e.g. `simpel4-backup` → `k8s-logs/` |
+| `import_region` | `ap-southeast-3` | bucket region (Jakarta) |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | empty | read-only credentials for import; standard AWS names |
+| `import_max_objects`, `import_max_object_mb`, `import_max_total_mb` | 500, 1024, 5120 | import limits |
+| `session_idle_minutes`, `session_max_hours` | 60, 12 | session lifetime |
+| `server_ip`, `server_fallback` | old values | map destination point |
+| `hosts` | 6 old entries | upstream → base URL |
+| `dns_upstream` | `10.88.1.100` | Root Causes text |
+| `upstream_prefix` | `ombudsman-ombudsman-` | upstream prefix that is stripped |
 
-### 6.4 Dependensi
+### 6.4 Dependencies
 
-Prinsip: sesedikit mungkin; pustaka standar dulu.
+Principle: as few as possible; standard library first.
 
-**Python (jalan)**
+**Python (runtime)**
 
-| Paket | Guna |
+| Package | Purpose |
 |---|---|
-| `duckdb` | penyimpanan dan query |
-| `fastapi` | API dan penyajian berkas statis |
-| `uvicorn` | server ASGI |
+| `duckdb` | storage and queries |
+| `fastapi` | API and static file serving |
+| `uvicorn` | ASGI server |
 
-| `sqlalchemy` | ORM untuk akun, sesi, audit (K11) |
-| `psycopg[binary]` | penggerak PostgreSQL |
-| `pyjwt` | membuat dan memeriksa token sesi (JWT HS256) |
+| `sqlalchemy` | ORM for accounts, sessions, audit (K11) |
+| `psycopg[binary]` | PostgreSQL driver |
+| `pyjwt` | creating and verifying session tokens (JWT HS256) |
 
-Hash sandi tetap `hashlib.scrypt` dari pustaka standar; token mesin dibandingkan dengan `hmac`.
+Password hashing stays `hashlib.scrypt` from the standard library; the machine token is compared with `hmac`.
 
-**Python (opsional, hanya untuk impor S3)**
+**Python (optional, only for S3 import)**
 
-| Paket | Guna |
+| Package | Purpose |
 |---|---|
-| `boto3` | mendaftar dan mengunduh objek S3 dengan kredensial AWS (termasuk token sesi, halaman daftar, percobaan ulang) |
+| `boto3` | listing and downloading S3 objects with AWS credentials (including session tokens, list pagination, retries) |
 
-Dipasang sebagai tambahan opsional (`simpel4[s3]`) dan hanya diimpor saat fitur dipakai; tanpa paket ini
-dashboard berjalan penuh dan impor menjawab "tidak tersedia". Alasan tidak menulis sendiri: menandatangani
-permintaan AWS dengan tangan adalah kode keamanan yang mudah salah di kasus tepi, sedangkan ini satu-satunya
-tempat dashboard memegang kredensial pihak lain.
+Installed as an optional extra (`simpel4[s3]`) and only imported when the feature is used; without this package
+the dashboard runs fully and import answers "not available". Reason for not writing it ourselves: signing
+AWS requests by hand is security code that is easy to get wrong in edge cases, and this is the only
+place where the dashboard holds a third party's credentials.
 
-Sengaja tidak dipakai: pandas/pyarrow (CSV dari pustaka standar cukup), ORM (SQL ditulis langsung),
-penjadwal (pemicu dari luar), pustaka HTTP (unduhan memakai `urllib`, seperti sekarang), pustaka geo (label
-dan lokasi sudah ditangani fungsi lama).
+Intentionally not used: pandas/pyarrow (CSV from the standard library is enough), ORM (SQL is written directly),
+scheduler (triggered from outside), HTTP libraries (downloads use `urllib`, as now), geo libraries (labels
+and locations are already handled by the old functions).
 
-**Python (uji)**: `pytest` (menjalankan uji), `httpx` (dibutuhkan klien uji FastAPI).
+**Python (tests)**: `pytest` (runs the tests), `httpx` (needed by the FastAPI test client).
 
-**Frontend (jalan)**
+**Frontend (runtime)**
 
-| Paket | Guna |
+| Package | Purpose |
 |---|---|
-| `svelte` | komponen tampilan |
-| `chart.js` | chart (sama dengan sekarang, versi 4) |
-| `maplibre-gl` | peta |
-| `@fontsource/outfit`, `@fontsource/jetbrains-mono` | huruf dibundel, tanpa Google Fonts (B09) |
+| `svelte` | view components |
+| `chart.js` | charts (same as now, version 4) |
+| `maplibre-gl` | map |
+| `@fontsource/outfit`, `@fontsource/jetbrains-mono` | bundled fonts, no Google Fonts (B09) |
 
-**Frontend (bangun)**: `vite`, `@sveltejs/vite-plugin-svelte`.
+**Frontend (build)**: `vite`, `@sveltejs/vite-plugin-svelte`.
 
-Sengaja tidak dipakai: SvelteKit dan pustaka router (tiga parameter URL ditangani `state.js`), pustaka i18n
-(dua berkas JSON dan satu fungsi), pustaka komponen UI, pustaka state, pembungkus Chart.js.
+Intentionally not used: SvelteKit and router libraries (three URL parameters are handled by `state.js`), i18n libraries
+(two JSON files and one function), UI component libraries, state libraries, Chart.js wrappers.
 
-**Aset yang ikut repo**: glyph `.pbf` untuk label peta (dua rentang Latin, dua ketebalan, ±200 KB).
-MapLibre butuh glyph dalam format ini dan biasanya mengambilnya dari server pihak ketiga; menyimpannya di
-repo adalah cara memenuhi "tanpa domain luar". **ASUMSI T4**: memakai Noto Sans (lisensi OFL) dari kumpulan
-glyph siap pakai; huruf label peta jadi berbeda dari Outfit di antarmuka.
+**Assets committed to the repo**: `.pbf` glyphs for map labels (two Latin ranges, two weights, ±200 KB).
+MapLibre needs glyphs in this format and usually fetches them from a third-party server; storing them in the
+repo is how "no external domains" is met. **ASSUMPTION T4**: uses Noto Sans (OFL license) from a ready-made
+glyph collection; the map label font therefore differs from Outfit in the interface.
 
 ---
 
-## 7. Deploy dengan Docker Compose
+## 7. Deployment with Docker Compose
 
-Berkas `Dockerfile` dan `docker-compose.yml` ditulis di langkah 7; yang diputuskan di sini:
+The `Dockerfile` and `docker-compose.yml` files are written in step 7; what is decided here:
 
-### 7.1 Pembagian layanan
+### 7.1 Service split
 
-| Layanan | Peran | Membuka DuckDB? |
+| Service | Role | Opens DuckDB? |
 |---|---|:-:|
-| `app` | Satu-satunya layanan yang berjalan terus: API + frontend statis + ingest di dalam proses. **Uvicorn 1 worker.** | **ya, satu-satunya** |
-| `ingest` | Tugas sekali jalan (profil `job`): memanggil `POST /api/admin/ingest` di `app` dengan `S4_JOB_TOKEN`, menunggu selesai, keluar dengan kode sukses/gagal. Tidak memasang volume apa pun. | tidak |
-| `proxy` | Terminasi **HTTPS** di depan `app`. Wajib ada karena dashboard dibuka dari banyak komputer (P3) dan cookie sesi hanya dikirim lewat HTTPS. Bisa proxy yang sudah ada di server, atau layanan di compose ini (ASUMSI T5). | tidak |
-| `postgres` | PostgreSQL untuk akun, sesi, audit (K11). Hanya terjangkau dari `app` di jaringan compose, tanpa port ke luar; sandi dari `.env`. | tidak |
+| `app` | The only long-running service: API + static frontend + in-process ingest. **Uvicorn 1 worker.** | **yes, the only one** |
+| `ingest` | One-shot task (profile `job`): calls `POST /api/admin/ingest` on `app` with `S4_JOB_TOKEN`, waits until done, exits with a success/failure code. Mounts no volumes at all. | no |
+| `proxy` | **HTTPS** termination in front of `app`. Required because the dashboard is opened from many computers (P3) and the session cookie is only sent over HTTPS. Can be a proxy that already exists on the server, or a service in this compose file (ASSUMPTION T5). | no |
+| `postgres` | PostgreSQL for accounts, sessions, audit (K11). Only reachable from `app` on the compose network, with no external port; password from `.env`. | no |
 
-DuckDB tetap tertanam di `app`; satu-satunya layanan basis data adalah `postgres` untuk akun. Tidak ada layanan frontend terpisah (K8).
-**ASUMSI T5**: langkah 7 menyertakan layanan `proxy` di compose dengan sertifikat yang disediakan pemilik
-server; bila server sudah punya proxy, layanan itu dilewati dan `app` cukup didaftarkan di proxy tersebut.
+DuckDB stays embedded in `app`; the only database service is `postgres` for accounts. There is no separate frontend service (K8).
+**ASSUMPTION T5**: step 7 includes a `proxy` service in compose with certificates provided by the server
+owner; if the server already has a proxy, that service is skipped and `app` is simply registered with that proxy.
 
-### 7.2 Berbagi file DuckDB tanpa bentrok
+### 7.2 Sharing the DuckDB file without conflicts
 
-Tidak dibagi: hanya `app` yang membukanya (K1). `ingest` hanya pemicu lewat HTTP. Aturan yang menjaganya:
+It is not shared: only `app` opens it (K1). `ingest` is only a trigger over HTTP. The rules that guard this:
 
-- `app` berjalan dengan **satu worker**; lebih dari satu berarti lebih dari satu proses penulis. Ini
-  ditulis sebagai konstanta, bukan konfigurasi.
-- Perintah baris (`simpel4 ingest|derive|forget`) selalu mencoba API dulu; membuka DuckDB sendiri hanya
-  bila server tidak berjalan, dan gagal dengan pesan jelas bila file terkunci.
-- Pembaca tidak pernah terblokir: ingest menulis dalam transaksi; permintaan API selama ingest melihat
-  keadaan sebelum transaksi selesai.
-- Batas yang diterima: API tidak bisa diskalakan ke banyak proses. Untuk beberapa pengguna internal dan
-  query atas agregat kecil ini bukan masalah.
+- `app` runs with **one worker**; more than one would mean more than one writer process. This is
+  written as a constant, not configuration.
+- Command-line commands (`simpel4 ingest|derive|forget`) always try the API first; they open DuckDB themselves only
+  when the server is not running, and fail with a clear message when the file is locked.
+- Readers are never blocked: ingest writes in a transaction; API requests during ingest see the
+  state before the transaction finished.
+- Accepted limitation: the API cannot be scaled to many processes. For a few internal users and
+  queries over small aggregates this is not a problem.
 
-### 7.3 Volume dan pemasangan
+### 7.3 Volumes and mounts
 
-| Pemasangan | Jenis | Mode | Isi |
+| Mount | Kind | Mode | Content |
 |---|---|---|---|
-| folder log di host → `/logs` | bind | **baca-saja** | ekspor log; mode baca-saja juga menjamin aturan "jangan ubah folder log" |
-| `s4-data` → `/data` | volume bernama | baca-tulis | `simpel4.duckdb`, berkas peta, CSV sementara |
-| `s4-cache` → `/cache` | volume bernama | baca-tulis | unduhan ip2asn, GeoLite2, Natural Earth, GeoNames (±70 MB) |
-| `s4-pgdata` → data PostgreSQL | volume bernama | baca-tulis | akun, sesi, audit, catatan impor. **Tidak bisa dibangun ulang**; wajib dicadangkan (`pg_dump`) |
-| `s4-inbox` → `/inbox` | volume bernama | baca-tulis | folder log hasil impor bucket (§3.8) |
+| host log folder → `/logs` | bind | **read-only** | log exports; read-only mode also guarantees the "do not change the log folder" rule |
+| `s4-data` → `/data` | named volume | read-write | `simpel4.duckdb`, map files, temporary CSV |
+| `s4-cache` → `/cache` | named volume | read-write | ip2asn, GeoLite2, Natural Earth, GeoNames downloads (±70 MB) |
+| `s4-pgdata` → PostgreSQL data | named volume | read-write | accounts, sessions, audit, import records. **Cannot be rebuilt**; must be backed up (`pg_dump`) |
+| `s4-inbox` → `/inbox` | named volume | read-write | log folders from bucket imports (§3.8) |
 
-Empat volume dipisah menurut sifatnya: `s4-data` bisa dibangun ulang dari log, `s4-cache` bisa diunduh
-ulang, `s4-state` tidak tergantikan, `s4-inbox` adalah log mentah yang hanya ada di sini (dan di bucket). Path folder log di host diberikan lewat variabel `.env`.
+The four volumes are split by nature: `s4-data` can be rebuilt from the logs, `s4-cache` can be downloaded
+again, `s4-state` is irreplaceable, `s4-inbox` holds raw logs that exist only here (and in the bucket). The host log folder path is given via a `.env` variable.
 
-### 7.4 Lain-lain
+### 7.4 Miscellaneous
 
-- **Image**: dua tahap; tahap Node membangun `web/`, tahap Python hanya membawa paket, hasil build, dan
-  glyph. Berjalan sebagai pengguna bukan root.
-- **Port**: `app` tidak membuka port ke luar; hanya `proxy` yang membuka 443. Bila memakai proxy server
-  yang sudah ada, port `app` dipetakan ke `127.0.0.1` host saja.
-- `app` mempercayai header `X-Forwarded-For`/`-Proto` **hanya** dari proxy itu (untuk catatan audit dan
-  pembatasan percobaan masuk).
-- **Pemeriksaan kesehatan**: `GET /api/health`.
-- **Ingest harian**: dua jalur. (a) Folder log yang dipasang: cron di host menjalankan
-  `docker compose run --rm ingest` setelah ekspor log tiba (ASUMSI T7; jam ekspor belum diketahui).
-  (b) Bucket: pengirim tautan memanggil `POST /api/admin/import` (§3.8), yang berakhir dengan ingest. `S4_INGEST_ON_START` juga menangkap folder yang terlewat saat
-  layanan dimulai ulang.
-- **Jaringan keluar**: untuk mengunduh database IP dan data peta (`iptoasn.com`, `download.maxmind.com`
-  dan penyimpanan unduhannya, `raw.githubusercontent.com`, `download.geonames.org`), dan ke S3
-  wilayah bucket (`s3.ap-southeast-3.amazonaws.com` dan `simpel4-backup.s3.ap-southeast-3.amazonaws.com`). Bila server
-  tidak punya akses keluar, volume `s4-cache` diisi manual; ingest tetap berjalan tanpa lokasi/pemilik.
-- **Cadangan**: `s4-state` wajib (akun dan audit). `s4-data` bisa dibangun ulang dari log selama log
-  masih ada; karena T2 membuatnya satu-satunya salinan setelah log lama dipindahkan, ia juga perlu ikut
-  jadwal cadangan server (salin file saat `app` berhenti, atau lewat perintah ekspor).
-- **Sumber daya**: batas memori DuckDB dan jumlah thread ditetapkan lewat konfigurasi; nilai awal 1 GB.
+- **Image**: two stages; the Node stage builds `web/`, the Python stage carries only the package, the build output, and
+  the glyphs. Runs as a non-root user.
+- **Ports**: `app` opens no external port; only `proxy` opens 443. When using the server's existing
+  proxy, the `app` port is mapped to the host's `127.0.0.1` only.
+- `app` trusts the `X-Forwarded-For`/`-Proto` headers **only** from that proxy (for the audit log and
+  sign-in attempt limiting).
+- **Health check**: `GET /api/health`.
+- **Daily ingest**: two paths. (a) Mounted log folder: a cron job on the host runs
+  `docker compose run --rm ingest` after the log export arrives (ASSUMPTION T7; the export time is not known yet).
+  (b) Bucket: the link sender calls `POST /api/admin/import` (§3.8), which ends with an ingest. `S4_INGEST_ON_START` also catches folders missed while the
+  service was restarting.
+- **Outbound network**: to download the IP databases and map data (`iptoasn.com`, `download.maxmind.com`
+  and its download storage, `raw.githubusercontent.com`, `download.geonames.org`), and to S3 in the
+  bucket region (`s3.ap-southeast-3.amazonaws.com` and `simpel4-backup.s3.ap-southeast-3.amazonaws.com`). If the server
+  has no outbound access, the `s4-cache` volume is filled manually; ingest still runs without location/owner.
+- **Backups**: `s4-state` is mandatory (accounts and audit). `s4-data` can be rebuilt from the logs as long as the logs
+  still exist; because T2 makes it the only copy once old logs are moved away, it also needs to be in the
+  server backup schedule (copy the file while `app` is stopped, or via an export command).
+- **Resources**: the DuckDB memory limit and thread count are set via configuration; initial value 1 GB.
 
 ---
 
-## 8. Keamanan
+## 8. Security
 
-### 8.1 Validasi parameter
+### 8.1 Parameter validation
 
-| Parameter | Aturan |
+| Parameter | Rule |
 |---|---|
-| `folder` | harus `YYYY-MM-DD` yang sah **dan** ada di `folder_state`; selain itu 404 |
-| `service` | harus ada di folder itu (dicocokkan dengan data, bukan pola) |
-| `table` | daftar tetap di §5.4 |
-| `sort` | daftar kolom tetap per tabel; nilai dipetakan ke nama kolom oleh kode, tidak pernah disisipkan dari masukan |
+| `folder` | must be a valid `YYYY-MM-DD` **and** exist in `folder_state`; otherwise 404 |
+| `service` | must exist in that folder (matched against data, not a pattern) |
+| `table` | fixed list in §5.4 |
+| `sort` | fixed column list per table; the value is mapped to a column name by code, never inserted from input |
 | `dir` | `asc` \| `desc` |
-| `limit`, `offset` | bilangan bulat dalam rentang; `limit` maks. 500 |
-| `module` | harus salah satu modul di folder itu |
-| `q` | maks. 200 karakter; selalu sebagai **parameter terikat**; karakter pola (`%`, `_`) di-escape |
+| `limit`, `offset` | integers within range; `limit` max. 500 |
+| `module` | must be one of the modules in that folder |
+| `q` | max. 200 characters; always as a **bound parameter**; pattern characters (`%`, `_`) are escaped |
 | `last` | `14` \| `30` \| `90` \| `all` |
-| `username` | 3–32 karakter `[a-z0-9._-]`; disimpan huruf kecil |
-| `password` | 12–128 karakter; ditolak bila sama dengan username |
+| `username` | 3–32 characters `[a-z0-9._-]`; stored lowercase |
+| `password` | 12–128 characters; rejected when equal to the username |
 | `role` | `admin` \| `user` |
-| `url` (impor) | harus `s3://<bucket>/<awalan>/<YYYY-MM-DD>/`; bucket dan awalan dari daftar izin (§3.8) |
-| kredensial AWS | panjang dan pola karakter kunci akses diperiksa; nilainya tidak pernah dipantulkan dalam galat |
+| `url` (import) | must be `s3://<bucket>/<prefix>/<YYYY-MM-DD>/`; bucket and prefix from the allowlist (§3.8) |
+| AWS credentials | the length and character pattern of the access key are checked; the value is never echoed in errors |
 
-Aturan umum:
+General rules:
 
-- Semua nilai masuk ke SQL sebagai parameter terikat. Tidak ada SQL yang dirangkai dari teks masukan.
-- Tidak ada parameter yang menjadi path berkas. Berkas statis hanya dari dua direktori tetap.
-- Isi log adalah **data tak tepercaya** (URL serangan memuat `<script>`, `${jndi:…}`). Frontend
-  menampilkannya sebagai teks; Svelte meng-escape secara bawaan dan `{@html}` **tidak dipakai** untuk apa
-  pun yang berasal dari log. Kalimat temuan yang butuh huruf tebal disusun dari komponen, bukan dari HTML
-  dalam string (di sistem lama HTML dirangkai sebagai string).
-- Header: `Content-Security-Policy` dengan `default-src 'self'` (ditambah `worker-src blob:` dan
-  `img-src 'self' data: blob:` yang dibutuhkan MapLibre), `X-Content-Type-Options: nosniff`,
-  `Referrer-Policy: no-referrer`, `frame-ancestors 'none'`. CSP sekaligus **menegakkan** aturan privasi:
-  browser menolak permintaan ke domain luar walau ada kode yang mencobanya.
-- Tanpa CORS (asal yang sama).
-- Ukuran respons dan `limit` dibatasi; query berjalan dengan batas waktu.
+- All values go into SQL as bound parameters. No SQL is assembled from input text.
+- No parameter becomes a file path. Static files come only from two fixed directories.
+- Log content is **untrusted data** (attack URLs contain `<script>`, `${jndi:…}`). The frontend
+  displays it as text; Svelte escapes by default and `{@html}` is **not used** for anything
+  that comes from the logs. Finding sentences that need bold text are composed from components, not from HTML
+  in strings (in the old system HTML was assembled as strings).
+- Headers: `Content-Security-Policy` with `default-src 'self'` (plus `worker-src blob:` and
+  `img-src 'self' data: blob:`, which MapLibre needs), `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: no-referrer`, `frame-ancestors 'none'`. The CSP also **enforces** the privacy rule:
+  the browser refuses requests to external domains even if some code tries.
+- No CORS (same origin).
+- Response size and `limit` are capped; queries run with a time limit.
 
-### 8.2 Login dan sesi (keputusan P1, P3)
+### 8.2 Login and sessions (decisions P1, P3)
 
-Dashboard dibuka dari banyak komputer dan memuat email akun, IP klien, URL lengkap, dan contoh baris log
-(inv. §8 butir 19). Maka: **semua akses lewat HTTPS dan butuh login.**
+The dashboard is opened from many computers and contains account emails, client IPs, full URLs, and sample log lines
+(inv. §8 item 19). Therefore: **all access goes over HTTPS and requires login.**
 
-| Hal | Keputusan | Alasan |
+| Item | Decision | Reason |
 |---|---|---|
-| Akun | Dibuat oleh admin. Tidak ada pendaftaran sendiri dan tidak ada "lupa sandi" lewat email; admin memberi sandi sementara. | Pengguna sedikit dan dikenal; tanpa ketergantungan email |
-| Admin pertama | Dari `S4_ADMIN_USER`/`S4_ADMIN_PASSWORD` saat belum ada user, atau perintah `simpel4 user`. Wajib ganti sandi saat masuk pertama. | Tidak ada sandi bawaan di kode |
-| Sandi | Minimal 12 karakter, tanpa aturan komposisi. Disimpan sebagai hash **scrypt** bergaram per user; parameter disimpan agar bisa dinaikkan. Perbandingan waktu-konstan. | Rekomendasi umum (panjang lebih berarti daripada komposisi); scrypt ada di pustaka standar |
-| Sesi | **JWT** (HS256, ditandatangani `S4_JWT_SECRET`) berisi `sub` (id user), `sid` (id sesi), `iat`, `exp`; dikirim hanya lewat **cookie** `HttpOnly`, `Secure`, `SameSite=Strict`, tidak diterima dari header `Authorization`. Setelah tanda tangan, penerbit, dan masa berlaku lolos, baris sesi `sid` **tetap diperiksa di basis data**. Habis setelah 60 menit tanpa aktivitas atau 12 jam total. Keluar, ganti sandi, reset, dan nonaktif mencabut sesi seketika. Peran tidak dimuat di token. | Diminta pemilik (JWT). JWT murni tidak bisa dicabut sebelum kedaluwarsa; pemeriksaan `sid` mempertahankan pencabutan seketika. Hanya algoritma HS256 yang diterima (`alg: none` dan algoritma lain ditolak). Token tidak bisa dibaca skrip halaman |
-| CSRF | `SameSite=Strict` + setiap permintaan yang mengubah data wajib membawa header khusus dan `Origin` yang cocok. | API dan halaman satu asal; tidak perlu token terpisah |
-| Percobaan masuk | Setelah 5 kali gagal: akun dikunci 15 menit; juga dibatasi per IP. Pesan galat tidak membedakan "user tidak ada" dari "sandi salah". Hash tetap dihitung untuk user yang tidak ada. | Menahan tebak sandi dan pencacahan user |
-| Pemanggil mesin | Tugas `ingest` dan pengirim tautan bucket memakai `S4_JOB_TOKEN` di header; token hanya berlaku untuk `POST /api/admin/ingest`, `POST /api/admin/import`, dan status keduanya. | Mesin tidak punya sesi; cakupan token sesempit mungkin |
-| Audit | Dicatat: masuk berhasil/gagal, keluar, ganti/reset sandi, buat/ubah/hapus user, perubahan peran, ingest, impor, `forget`. Tidak dicatat: sandi, token, isi halaman yang dibuka. | Jejak untuk tindakan yang mengubah akses atau data |
-| Tanpa sesi | API menjawab 401; frontend pindah ke halaman masuk dan kembali ke alamat semula setelah berhasil. | |
+| Accounts | Created by an admin. There is no self-registration and no "forgot password" by email; the admin gives a temporary password. | Few, known users; no dependency on email |
+| First admin | From `S4_ADMIN_USER`/`S4_ADMIN_PASSWORD` when there are no users yet, or the `simpel4 user` command. Must change the password at first sign-in. | No default password in the code |
+| Passwords | At least 12 characters, no composition rules. Stored as a per-user salted **scrypt** hash; the parameters are stored so they can be raised. Constant-time comparison. | Common recommendation (length matters more than composition); scrypt is in the standard library |
+| Sessions | **JWT** (HS256, signed with `S4_JWT_SECRET`) containing `sub` (user id), `sid` (session id), `iat`, `exp`; sent only via an `HttpOnly`, `Secure`, `SameSite=Strict` **cookie**, not accepted from the `Authorization` header. After the signature, issuer, and validity period pass, the `sid` session row is **still checked in the database**. Expires after 60 minutes without activity or 12 hours in total. Sign-out, password change, reset, and deactivation revoke sessions immediately. The role is not carried in the token. | Requested by the owner (JWT). A pure JWT cannot be revoked before it expires; the `sid` check preserves immediate revocation. Only the HS256 algorithm is accepted (`alg: none` and other algorithms are rejected). The token cannot be read by page scripts |
+| CSRF | `SameSite=Strict` + every data-changing request must carry a custom header and a matching `Origin`. | API and pages share one origin; no separate token needed |
+| Sign-in attempts | After 5 failures: the account is locked for 15 minutes; also limited per IP. The error message does not distinguish "user does not exist" from "wrong password". The hash is still computed for nonexistent users. | Resists password guessing and user enumeration |
+| Machine callers | The `ingest` task and bucket link senders use `S4_JOB_TOKEN` in a header; the token is only valid for `POST /api/admin/ingest`, `POST /api/admin/import`, and the status of both. | Machines have no session; the token scope is as narrow as possible |
+| Audit | Recorded: successful/failed sign-in, sign-out, password change/reset, user create/update/delete, role changes, ingest, import, `forget`. Not recorded: passwords, tokens, the content of pages opened. | A trail for actions that change access or data |
+| No session | The API answers 401; the frontend goes to the sign-in page and returns to the original address after success. | |
 
-**Diputuskan pemilik (X1)**: login dikelola aplikasi ini dengan akun lokal di basis data akun (K11); tidak ada SSO.
+**Decided by the owner (X1)**: login is managed by this application with local accounts in the account database (K11); there is no SSO.
 
-Di luar cakupan: autentikasi dua faktor, riwayat sandi, kedaluwarsa sandi berkala.
+Out of scope: two-factor authentication, password history, periodic password expiry.
 
-### 8.3 Peran (keputusan P1, X10)
+### 8.3 Roles (decisions P1, X10)
 
-Untuk sementara hanya dua peran, tanpa pembatasan per modul:
+For now only two roles, without per-module restrictions:
 
-| Peran | Bisa |
+| Role | Can |
 |---|---|
-| **user** | Melihat **seluruh** dashboard: semua tab analisis dan semua halaman layanan, semua folder. Mengganti sandinya sendiri |
-| **admin** | Semua yang bisa user, ditambah: menambah, mengubah, menonaktifkan, dan menghapus user; mereset sandi; memicu ingest, impor, `derive`, `forget`; melihat catatan audit |
+| **user** | See the **whole** dashboard: all analysis tabs and all service pages, all folders. Change their own password |
+| **admin** | Everything a user can, plus: add, edit, deactivate, and delete users; reset passwords; trigger ingest, import, `derive`, `forget`; view the audit log |
 
-| Endpoint | Siapa |
+| Endpoint | Who |
 |---|---|
-| `/api/health`, `/api/auth/login` | publik |
-| Semua endpoint data (§5.2–§5.4), `/api/me`, `/api/auth/logout`, `/api/me/password` | user dan admin |
-| `/api/admin/*` | admin; token mesin hanya untuk ingest dan impor (§8.2) |
+| `/api/health`, `/api/auth/login` | public |
+| All data endpoints (§5.2–§5.4), `/api/me`, `/api/auth/logout`, `/api/me/password` | user and admin |
+| `/api/admin/*` | admin; machine token only for ingest and import (§8.2) |
 
-Aturan:
+Rules:
 
-- Pemeriksaan ada di satu tempat (dependensi FastAPI yang dipasang per router), bukan di tiap fungsi.
-  Router tanpa deklarasi peran **ditolak saat aplikasi mulai** (aman secara bawaan).
-- User biasa memanggil endpoint admin → 403; frontend menampilkan "Anda tidak punya akses ke halaman ini".
-- Perubahan peran atau penonaktifan berlaku pada permintaan berikutnya (dibaca dari basis data akun per
-  permintaan; tanpa cache).
-- Admin terakhir tidak bisa dihapus, dinonaktifkan, atau diturunkan menjadi user.
+- The check is in one place (a FastAPI dependency attached per router), not in each function.
+  A router without a role declaration is **rejected when the application starts** (secure by default).
+- A regular user calling an admin endpoint → 403; the frontend shows "You do not have access to this page".
+- Role changes or deactivation take effect on the next request (read from the account database per
+  request; no cache).
+- The last admin cannot be deleted, deactivated, or demoted to user.
 
-**Pembatasan per modul ditunda**, bukan dibuang. Bila kelak diminta, penambahannya terlokalisasi: satu
-tabel `user_module`, satu pemeriksaan tambahan di dependensi yang sama, daftar centang di layar Kelola
-user, dan sidebar yang menyaring. Endpoint data sudah satu-per-halaman (§5.3), jadi tidak perlu dipecah.
-Karena itu tidak ada pekerjaan sekarang yang harus dibongkar nanti.
+**Per-module restrictions are postponed**, not dropped. If requested later, adding them is localized: one
+`user_module` table, one extra check in the same dependency, a checklist on the Manage users
+screen, and a filtering sidebar. Data endpoints are already one-per-page (§5.3), so they need not be split.
+Hence there is no work now that would have to be torn down later.
 
-### 8.4 Layar baru yang dibutuhkan (masukan untuk DRD)
+### 8.4 New screens needed (input for the DRD)
 
-DRD ditulis sebelum P1 dijawab dan belum memuat layar ini. Kebutuhan minimumnya:
+The DRD was written before P1 was answered and does not contain these screens yet. Their minimum requirements:
 
-| Layar | Isi |
+| Screen | Content |
 |---|---|
-| Masuk | Nama user, sandi, tombol; pesan galat umum; pemilih bahasa dan tema tetap ada |
-| Ganti sandi | Wajib saat masuk pertama / setelah reset; juga dari menu user |
-| Menu user (di header) | Nama, peran, "Ganti sandi", "Keluar"; untuk admin: "Kelola user", "Ingest & impor" |
-| Kelola user (admin) | Tabel user (nama, peran, aktif, terakhir masuk); tambah user (nama, peran, sandi awal); ubah peran; reset sandi; nonaktifkan; hapus |
-| Ingest & impor (admin) | Status ingest terakhir dan yang berjalan, peringatan, tombol "Ingest sekarang"; kolom tautan bucket + status impor; catatan audit |
-| Tidak punya akses | Hanya untuk user biasa yang membuka alamat layar admin (403) |
-| Sesi habis | Kembali ke layar Masuk dengan keterangan, lalu ke alamat semula |
+| Sign in | Username, password, button; generic error message; language and theme pickers remain |
+| Change password | Mandatory at first sign-in / after a reset; also from the user menu |
+| User menu (in the header) | Name, role, "Change password", "Sign out"; for admins: "Manage users", "Ingest & import" |
+| Manage users (admin) | User table (name, role, active, last sign-in); add user (name, role, initial password); change role; reset password; deactivate; delete |
+| Ingest & import (admin) | Status of the last and the running ingest, warnings, "Ingest now" button; bucket link field + import status; audit log |
+| No access | Only for regular users who open an admin screen address (403) |
+| Session expired | Back to the Sign in screen with an explanation, then to the original address |
 
-Sidebar sama untuk semua user; butir admin ("Kelola user", "Ingest & impor") hanya ada di menu user admin.
+The sidebar is the same for all users; the admin items ("Manage users", "Ingest & import") exist only in the admin's user menu.
 
-### 8.5 Lain-lain
+### 8.5 Miscellaneous
 
-- Kontainer: pengguna bukan root; folder log baca-saja.
-- Kredensial hanya lewat variabel lingkungan / `.env` yang tidak masuk repo.
-- Unduhan database: HTTPS, ditulis ke berkas sementara lalu diganti nama (seperti sekarang); isinya
-  diperlakukan sebagai data (di-parse, tidak dieksekusi).
-- Dependensi dikunci versinya (`pyproject` dengan batas versi, `package-lock.json`).
-- Log aplikasi tidak menulis isi baris log pengguna.
+- Container: non-root user; log folder read-only.
+- Credentials only via environment variables / a `.env` that is not in the repo.
+- Database downloads: HTTPS, written to a temporary file and then renamed (as now); the content is
+  treated as data (parsed, not executed).
+- Dependency versions are pinned (`pyproject` with version bounds, `package-lock.json`).
+- The application log does not write the content of users' log lines.
 
 ---
 
-## 9. Strategi uji
+## 9. Test strategy
 
-### 9.1 Uji unit parser dengan baris asli
+### 9.1 Parser unit tests with original lines
 
-- Sumber: baris asli di inv. §3 dan §4.1, disimpan per format di `tests/fixtures/lines/` (nama akun
-  disamarkan seperti di inventaris). Minimal satu baris per pola di inv. §3, termasuk: access nginx
-  normal / dengan retry / tanpa upstream / Uptime-Kuma; error nginx dengan dan tanpa upstream; access dan
-  error frontend; event simpel-loop sukses dan gagal; tiap baris teks simpel-loop yang bermakna; delapan
-  pola Spring; baris exception; baris `Hibernate:`; coredns; baris `unsupported log format`; baris yang
-  harus diabaikan.
-- Untuk tiap baris: baris keluaran yang diharapkan (tabel dan nilai kolom) dan perubahan penghitung
+- Source: the original lines in inv. §3 and §4.1, stored per format in `tests/fixtures/lines/` (account names
+  masked as in the inventory). At least one line per pattern in inv. §3, including: nginx access
+  normal / with retry / without upstream / Uptime-Kuma; nginx error with and without upstream; frontend access and
+  error; successful and failed simpel-loop events; every meaningful simpel-loop text line; the eight
+  Spring patterns; exception lines; `Hibernate:` lines; coredns; `unsupported log format` lines; lines that
+  must be ignored.
+- For each line: the expected output row (table and column values) and the counter changes
   (`lines`, `err`, `warn`, `file_counter`).
-- Isi `demo()` lama (lokasi IP, `kab_name`, alur dengan retry) dipindahkan menjadi uji.
+- The contents of the old `demo()` (IP location, `kab_name`, flows with retries) are moved into tests.
 
-### 9.2 Uji aturan terhadap modul lama
+### 9.2 Rule tests against the old module
 
-Selama `build_dashboard.py` ada di folder induk: untuk kumpulan masukan nyata (path, UA, pesan yang diambil
-dari log), `rules.py` dan modul lama harus memberi hasil identik untuk `classify`, `path_key`, `norm`,
-`jwt_bucket`, `accounts`, `incidents`, `ip_owner`, `geo_scan`. Uji ini dilewati (bukan gagal) bila modul
-lama tidak ada, mis. di dalam image.
+As long as `build_dashboard.py` is in the parent folder: for a set of real inputs (paths, UAs, messages taken
+from logs), `rules.py` and the old module must give identical results for `classify`, `path_key`, `norm`,
+`jwt_bucket`, `accounts`, `incidents`, `ip_owner`, `geo_scan`. This test is skipped (not failed) when the old
+module does not exist, e.g. inside the image.
 
-### 9.3 Uji kesetaraan
+### 9.3 Equivalence test
 
-Menjawab PRD §6.2. Dijalankan terhadap folder log nyata; butuh sistem lama.
+Answers PRD §6.2. Run against the real log folders; requires the old system.
 
-| Tingkat | Yang dibandingkan | Syarat |
+| Level | What is compared | Condition |
 |---|---|---|
-| E1 Angka acuan | Setiap angka di `00-acuan.json` (dibuat ulang oleh `tools/acuan_lama.py` tepat sebelum uji) vs query pada tabel agregat, per folder × layanan | sama persis |
-| E2 Isi daftar | Setiap daftar di `D` yang diekstrak dari `dashboard.html` (`paths`, `perr`, `ips`, `msgs`, `atk`, `atk_ip`, `login`, `acct`, `ep`, `c401`, `incidents`, `pod`, `retry`, `uperr`, `trace`, `flow`, `rep`, …) vs respons API dengan `limit` = batas lama | baris dan nilai sama; urutan boleh beda hanya di antara baris bernilai sama; persentil sama sampai pembulatan tampilan |
-| E3 Data IP | `D.ipinfo` (pemilik jaringan) vs `ip_info` untuk IP yang sama, dengan berkas ip2asn yang sama | sama. Lokasi tidak dibandingkan: sumbernya kini GeoLite2 (§3.6); diuji terhadap berkas GeoLite2 itu sendiri |
-| E4 Selisih yang diharapkan | Perbaikan §4.4: untuk tiap butir, nilai lama, nilai baru, dan nilai yang seharusnya (dari `00-acuan.json` untuk butir 1; dihitung dari data mentah sistem lama untuk butir 2, 4, 9) | nilai baru = nilai seharusnya; daftar selisih **tertutup** (butir 1, 2, 3, 4, 9 di §4.4), selisih lain = gagal |
+| E1 Reference numbers | Every number in `00-acuan.json` (regenerated by `tools/acuan_lama.py` right before the test) vs a query on the aggregate tables, per folder × service | exactly equal |
+| E2 List contents | Every list in `D` extracted from `dashboard.html` (`paths`, `perr`, `ips`, `msgs`, `atk`, `atk_ip`, `login`, `acct`, `ep`, `c401`, `incidents`, `pod`, `retry`, `uperr`, `trace`, `flow`, `rep`, …) vs the API response with `limit` = the old limit | same rows and values; order may differ only among rows with equal values; percentiles equal up to display rounding |
+| E3 IP data | `D.ipinfo` (network owner) vs `ip_info` for the same IPs, with the same ip2asn file | equal. Location is not compared: its source is now GeoLite2 (§3.6); tested against that GeoLite2 file itself |
+| E4 Expected differences | The §4.4 fixes: for each item, the old value, the new value, and the correct value (from `00-acuan.json` for item 1; computed from the old system's raw data for items 2, 4, 9) | new value = correct value; the list of differences is **closed** (items 1, 2, 3, 4, 9 in §4.4), any other difference = failure |
 
-Hasil E1–E4 ditulis ke laporan kesetaraan (langkah 8). E1 dijalankan sejak tahap ingest selesai, sebelum
-ada tampilan (PRD R2, R9).
+The E1–E4 results are written to the equivalence report (step 8). E1 runs from the moment the ingest stage is done, before
+any display exists (PRD R2, R9).
 
-### 9.4 Uji ingest
+### 9.4 Ingest tests
 
-Dengan folder log buatan kecil dari berkas contoh:
+With a small artificial log folder built from sample files:
 
-- Ingest dua kali → isi semua tabel identik (dibandingkan lewat jumlah baris dan checksum per tabel).
-- File bertambah isinya → hanya folder itu yang berubah; hasil sama dengan ingest bersih.
-- `.log.gz` saja → lalu `.log` identik muncul → tidak ada parse ulang, tidak ada baris ganda.
-- Pasangan `.log`/`.log.gz` berbeda → peringatan tercatat; `.log` yang dipakai.
-- File dihapus → barisnya hilang, agregat folder diturunkan ulang.
-- File rusak → `status = rusak`, baris dihitung, file lain tetap masuk.
-- Proses dihentikan di tengah transaksi → ingest berikutnya menghasilkan keadaan bersih.
-- `(file_id, line_no)` unik di tiap tabel mentah.
-- Folder tanpa namespace (A9) dan folder layanan tak dikenal (A10, dengan peringatan).
+- Ingest twice → the contents of all tables are identical (compared via row counts and a checksum per table).
+- A file's content grows → only that folder changes; the result equals a clean ingest.
+- `.log.gz` only → then an identical `.log` appears → no re-parse, no duplicate rows.
+- A differing `.log`/`.log.gz` pair → a warning is recorded; the `.log` is used.
+- File deleted → its rows disappear, the folder's aggregates are re-derived.
+- Corrupt file → `status = rusak`, lines counted, other files still loaded.
+- Process killed midway through a transaction → the next ingest yields a clean state.
+- `(file_id, line_no)` unique in every raw table.
+- Folders without a namespace (A9) and unknown service folders (A10, with a warning).
 
-### 9.5 Uji API
+### 9.5 API tests
 
-- Tiap endpoint: bentuk respons, `available: false` pada folder tanpa log terkait, galat 400/404.
-- Validasi: nilai di luar daftar, `q` berisi tanda kutip / `%` / skrip, `limit` di luar rentang, folder
-  yang tidak ada, upaya penyisipan SQL pada tiap parameter.
-- Ukuran respons tiap halaman ≤ 500 KB pada folder terbesar.
-- Header keamanan ada di semua respons.
+- Each endpoint: response shape, `available: false` on folders without the relevant log, 400/404 errors.
+- Validation: values outside the list, `q` containing quotes / `%` / scripts, `limit` out of range, folders
+  that do not exist, SQL injection attempts on every parameter.
+- Response size of each page ≤ 500 KB on the largest folder.
+- Security headers present on all responses.
 
-### 9.6 Uji login, peran, dan impor
+### 9.6 Login, role, and import tests
 
-- Sandi: hash tidak sama untuk sandi sama; verifikasi benar/salah; sandi pendek ditolak.
-- Sesi: tanpa cookie → 401; sesi habis → 401; keluar/reset/nonaktif mencabut sesi; cookie membawa
+- Passwords: hashes differ for the same password; correct/incorrect verification; short passwords rejected.
+- Sessions: no cookie → 401; expired session → 401; sign-out/reset/deactivation revoke sessions; the cookie carries
   `HttpOnly`, `Secure`, `SameSite=Strict`.
-- Penguncian setelah 5 gagal; pesan galat sama untuk user ada/tidak ada.
-- **Matriks peran**: untuk setiap endpoint × {tanpa sesi, user, admin, token mesin} → status yang
-  diharapkan (401 / 200 / 403). Matriks dibuat dari tabel §8.3, sehingga endpoint baru tanpa baris di
-  matriks menggagalkan uji.
-- Permintaan yang mengubah data tanpa header/`Origin` yang benar ditolak.
-- Admin terakhir tidak bisa dihapus, dinonaktifkan, atau diturunkan.
-- Token mesin hanya diterima di endpoint ingest/impor.
-- Impor, terhadap **S3 tiruan lokal** (server kecil di dalam uji, tanpa AWS sungguhan): tautan bukan
-  `s3://`, bucket di luar daftar izin, awalan di luar yang diizinkan, komponen terakhir bukan tanggal, kunci
-  berisi `..`, objek di luar pola, melebihi batas jumlah/ukuran, tanpa kredensial, kredensial ditolak S3 →
-  semuanya gagal dengan pesan jelas tanpa menulis ke kotak masuk. Awalan sah → folder muncul dan
-  ter-ingest; pasangan `.log`/`.log.gz` → hanya `.log` diunduh; tautan sama dua kali → 0 objek diunduh
-  ulang; `dry_run` → tidak ada berkas tertulis.
-- Kredensial: tidak muncul di respons, log, basis data akun, maupun audit; token mesin tidak bisa memanggil
-  endpoint kredensial; kredensial sementara hilang setelah server dimulai ulang.
-- Uji terhadap bucket sungguhan **tidak** bisa otomatis; dilakukan manual sekali dengan mode coba (T14).
+- Lockout after 5 failures; the same error message whether the user exists or not.
+- **Role matrix**: for every endpoint × {no session, user, admin, machine token} → the expected
+  status (401 / 200 / 403). The matrix is built from the §8.3 table, so a new endpoint without a row in the
+  matrix fails the test.
+- Data-changing requests without the correct header/`Origin` are rejected.
+- The last admin cannot be deleted, deactivated, or demoted.
+- The machine token is only accepted at the ingest/import endpoints.
+- Import, against a **local fake S3** (a small server inside the test, no real AWS): a link that is not
+  `s3://`, a bucket outside the allowlist, a prefix outside the allowed ones, a last component that is not a date, a key
+  containing `..`, objects outside the pattern, exceeding the count/size limits, no credentials, credentials rejected by S3 →
+  all fail with a clear message without writing to the inbox. A valid prefix → the folder appears and
+  is ingested; a `.log`/`.log.gz` pair → only the `.log` is downloaded; the same link twice → 0 objects downloaded
+  again; `dry_run` → no files written.
+- Credentials: do not appear in responses, logs, the account database, or the audit; the machine token cannot call
+  the credentials endpoint; temporary credentials are gone after the server restarts.
+- Testing against the real bucket **cannot** be automated; it is done manually once in dry run mode (T14).
 
-### 9.7 Uji kinerja dan ukuran
+### 9.7 Performance and size tests
 
-- **Data setahun buatan**: baris mentah folder `2026-09-29` digandakan ke 365 tanggal folder dengan query
-  (tanpa parse ulang), lalu agregat diturunkan. Diukur: ukuran file (target ≤ 10 GB), waktu respons tiap
-  endpoint halaman (target PRD §5.1), waktu ingest satu folder lagi di atas data itu (≤ 60 detik), waktu
-  ingest tanpa perubahan (≤ 5 detik).
-- Dilakukan **segera setelah ingest dan skema jadi**, sebelum frontend (PRD R4). Ini juga yang memastikan
-  atau membatalkan ASUMSI T1.
-- Biaya login: hash scrypt diukur dan parameternya dipilih agar satu verifikasi ±100 ms di server.
+- **Artificial one-year data**: the raw rows of folder `2026-09-29` are duplicated to 365 folder dates with a query
+  (without re-parsing), then the aggregates are derived. Measured: file size (target ≤ 10 GB), response time of each
+  page endpoint (PRD §5.1 target), time to ingest one more folder on top of that data (≤ 60 seconds), time of
+  an ingest without changes (≤ 5 seconds).
+- Done **right after ingest and the schema are ready**, before the frontend (PRD R4). This is also what confirms
+  or refutes ASSUMPTION T1.
+- Login cost: the scrypt hash is measured and its parameters chosen so that one verification takes ±100 ms on the server.
 
-### 9.8 Uji frontend dan privasi
+### 9.8 Frontend and privacy tests
 
-- Kelengkapan kamus: setiap kunci di `id.json` ada di `en.json` dan sebaliknya (skrip kecil, tanpa
-  kerangka uji).
-- Hasil build tidak memuat URL ke domain luar selain tautan atribusi (pemeriksaan teks atas `dist/`).
-- Pemeriksaan manual berdaftar periksa untuk tiap halaman × {ID, EN} × {gelap, terang} × {lebar, sempit}
-  terhadap inv. §2 dan DRD §3 (PRD §6.1), dengan jaringan dimatikan.
-- **ASUMSI T8**: tidak ada uji peramban otomatis (Playwright dsb.) di migrasi ini; daftar periksa manual
-  cukup untuk 10 halaman dan menghemat satu dependensi berat. Ditambahkan bila tampilan sering berubah.
+- Dictionary completeness: every key in `id.json` exists in `en.json` and vice versa (a small script, no
+  test framework).
+- The build output contains no URLs to external domains other than attribution links (a text check over `dist/`).
+- Manual checklist-based checks for each page × {ID, EN} × {dark, light} × {wide, narrow}
+  against inv. §2 and DRD §3 (PRD §6.1), with the network turned off.
+- **ASSUMPTION T8**: no automated browser tests (Playwright etc.) in this migration; a manual checklist
+  is enough for 10 pages and saves one heavy dependency. Added if the display changes often.
 
 ---
 
-## 10. Dampak ke dokumen lain
+## 10. Impact on other documents
 
-Hal yang diputuskan di sini dan mengubah atau mempertajam dokumen sebelumnya.
-**Status: sudah diterapkan** ke PRD dan DRD pada Tahap 1 rencana (2026-10-06); layar di §8.4 kini
-dirancang di DRD §3.11 dan §6.9.
+Things decided here that change or sharpen earlier documents.
+**Status: already applied** to the PRD and DRD in Stage 1 of the plan (2026-10-06); the screens in §8.4 are now
+designed in DRD §3.11 and §6.9.
 
-| Dokumen | Butir | Perubahan |
+| Document | Item | Change |
 |---|---|---|
-| PRD A1, P2, T01 | "hari" | **Diputuskan**: per folder. T01 (per tanggal kalender) tidak lagi direncanakan |
-| PRD A2, P4, T05 | definisi ditiru | **Diputuskan**: diperbaiki. Rinciannya §4.4; T05 sebagian besar dikerjakan sekarang |
-| PRD A3, P3, §5.4 butir 4, §7 | "hanya dibuka di komputer yang menjalankannya"; "menjalankan di server di luar cakupan" | **Gugur**: berjalan di server, diakses banyak komputer lewat HTTPS dengan login |
-| PRD A5, P1, T03, §7 | pengguna diasumsikan; login ditunda dan di luar cakupan | **Diputuskan**: login dengan dua peran masuk cakupan (§8.2–§8.4); hak akses per modul ditunda |
-| PRD A7, T04 | tanpa ingest otomatis | Ditambah jalur impor dari tautan bucket (§3.8), dijadwalkan setelah kesetaraan terbukti |
-| PRD §4 | daftar fitur | Fitur baru: login, kelola user, audit, impor bucket; ditunda: hak akses per modul |
-| PRD §5.5 | "satu perintah" | Tetap untuk lokal (`run.sh`, sekali membuat admin); di server: `docker compose up -d` |
-| PRD §6.2 | selisih yang diharapkan hanya inv. §8 butir 6 | Daftar tertutup kini butir 1, 2, 3, 4, 9 di §4.4 |
-| PRD §6.3 | "menambah folder ke-12 tidak mengubah angka folder 1–11" | Berlaku kecuali agregat korelasi (§3.5) |
-| PRD T09 | retensi | Folder log yang hilang tidak menghapus data (T2); penghapusan eksplisit lewat `forget` |
-| PRD R7 | risiko data pribadi | Ditangani login + hak akses + audit; risiko baru: pengelolaan sandi dan fitur impor (SSRF) |
-| DRD D7, Q2 | tanpa login | **Gugur**: perlu layar di §8.4 (belum dirancang di DRD) |
-| DRD Q1 | keseriusan tampilan ponsel | **Diputuskan**: serius; DRD §8 berlaku penuh |
-| DRD §1.1, §2 | kerangka | Sidebar tetap menampilkan semua tab; header mendapat menu user (admin: + "Kelola user", "Ingest & impor") |
-| DRD §6.6–§6.7 | keadaan kosong/gagal | Ditambah "tidak punya akses" dan "sesi habis" |
-| DRD U8 | keterangan `(i)` | Wajib untuk Error (rincian 5xx + log), baris `EXC`, dan level simpel-loop (§4.4) |
-| DRD §4.3, tabel alur | batas awal 3.000 | Tampilan awal 100 baris, sisanya "tampilkan berikutnya" |
-| DRD §6.5 | memuat per kartu | Satu permintaan per halaman; kartu tampil bersamaan. "Gagal per kartu" menjadi "gagal per halaman" + "gagal per tabel lanjutan" |
-| DRD §7.2–§7.3 | sumber peta | Lima berkas statis di §5.7; huruf label Noto Sans (T4) |
+| PRD A1, P2, T01 | "day" | **Decided**: per folder. T01 (per calendar date) is no longer planned |
+| PRD A2, P4, T05 | definitions copied | **Decided**: fixed. Details in §4.4; T05 is mostly done now |
+| PRD A3, P3, §5.4 item 4, §7 | "only opened on the computer that runs it"; "running on a server is out of scope" | **Dropped**: runs on a server, accessed by many computers over HTTPS with login |
+| PRD A5, P1, T03, §7 | users assumed; login postponed and out of scope | **Decided**: login with two roles is in scope (§8.2–§8.4); per-module access rights postponed |
+| PRD A7, T04 | no automatic ingest | Added an import path from bucket links (§3.8), scheduled after equivalence is proven |
+| PRD §4 | feature list | New features: login, user management, audit, bucket import; postponed: per-module access rights |
+| PRD §5.5 | "one command" | Stays for local use (`run.sh`, creates the admin once); on the server: `docker compose up -d` |
+| PRD §6.2 | expected differences only inv. §8 item 6 | The closed list is now items 1, 2, 3, 4, 9 in §4.4 |
+| PRD §6.3 | "adding a 12th folder does not change the numbers of folders 1–11" | Holds except for the correlation aggregates (§3.5) |
+| PRD T09 | retention | Log folders that disappear do not delete data (T2); explicit deletion via `forget` |
+| PRD R7 | personal data risk | Handled by login + access rights + audit; new risks: password management and the import feature (SSRF) |
+| DRD D7, Q2 | no login | **Dropped**: needs the screens in §8.4 (not yet designed in the DRD) |
+| DRD Q1 | how seriously to do the phone layout | **Decided**: seriously; DRD §8 applies in full |
+| DRD §1.1, §2 | frame | The sidebar still shows all tabs; the header gets a user menu (admin: + "Manage users", "Ingest & import") |
+| DRD §6.6–§6.7 | empty/failed states | Added "no access" and "session expired" |
+| DRD U8 | `(i)` explanations | Mandatory for Error (5xx + log breakdown), `EXC` lines, and simpel-loop levels (§4.4) |
+| DRD §4.3, flow table | initial limit 3,000 | Initial view of 100 rows, the rest via "show next" |
+| DRD §6.5 | loading per card | One request per page; cards appear together. "Failure per card" becomes "failure per page" + "failure per continued table" |
+| DRD §7.2–§7.3 | map sources | Five static files in §5.7; label font Noto Sans (T4) |
 
 ---
 
-## 11. Asumsi dan pertanyaan terbuka
+## 11. Assumptions and open questions
 
-### 11.1 ASUMSI teknis
+### 11.1 Technical ASSUMPTIONS
 
-| # | ASUMSI | Bila salah |
+| # | ASSUMPTION | If wrong |
 |--:|---|---|
-| T1 | Data mentah setahun muat dalam ≤ 10 GB berkat kompresi DuckDB | Pindahkan `ua`/`path` ke tabel kamus, atau simpan mentah hanya N bulan terakhir (agregat tetap) |
-| T2 | Folder log yang hilang dari disk **tidak** menghapus datanya dari dashboard | Jalankan `forget` otomatis saat folder hilang (perilaku lama) |
-| T3 | Pemilik/lokasi satu IP tidak diperbarui saat database baru diunduh | Tambah perintah pembaruan massal |
-| T4 | Glyph label peta = Noto Sans yang disimpan di repo | Buat glyph dari Outfit (butuh alat pembuat sekali jalan) |
-| T5 | Compose menyertakan layanan proxy HTTPS; sertifikat disediakan pemilik server | Pakai proxy yang sudah ada; `app` hanya di loopback |
-| T7 | Ingest harian dipicu cron host | Penjadwal di dalam `app` (satu konfigurasi jam) |
-| T8 | Tanpa uji peramban otomatis | Tambah Playwright |
-| T9 | Mewarisi PRD yang belum dijawab: tanpa CDN (A4), file rusak tetap dihitung (A6), folder tanpa namespace dan layanan tak dikenal didukung (A9, A10) | Lihat PRD §9 |
-| T14 | Susunan objek di bawah awalan = susunan folder log lokal | Tambah pemetaan nama di `importer.py`; diketahui dari mode coba |
-| T15 | Hanya **lokasi** yang pindah ke GeoLite2; pemilik jaringan (ASN, organisasi) tetap ip2asn | Ganti juga ke `GeoLite2-ASN-CSV` (kredensial yang sama); uji E3 pemilik gugur |
+| T1 | One year of raw data fits in ≤ 10 GB thanks to DuckDB compression | Move `ua`/`path` to a dictionary table, or keep raw data only for the last N months (aggregates stay) |
+| T2 | A log folder that disappears from disk does **not** delete its data from the dashboard | Run `forget` automatically when a folder disappears (old behavior) |
+| T3 | The owner/location of an IP is not updated when a new database is downloaded | Add a bulk update command |
+| T4 | Map label glyphs = Noto Sans stored in the repo | Build glyphs from Outfit (needs a one-off generator tool) |
+| T5 | Compose includes an HTTPS proxy service; certificates are provided by the server owner | Use the existing proxy; `app` only on loopback |
+| T7 | Daily ingest is triggered by host cron | A scheduler inside `app` (one time-of-day setting) |
+| T8 | No automated browser tests | Add Playwright |
+| T9 | Inherits unanswered PRD items: no CDN (A4), corrupt files still counted (A6), folders without a namespace and unknown services supported (A9, A10) | See PRD §9 |
+| T14 | Object layout under the prefix = local log folder layout | Add a name mapping in `importer.py`; found out from dry run mode |
+| T15 | Only **location** moves to GeoLite2; the network owner (ASN, organization) stays ip2asn | Also switch to `GeoLite2-ASN-CSV` (same credentials); the E3 owner test is dropped |
 
-### 11.2 Pertanyaan untuk pemilik produk
+### 11.2 Questions for the product owner
 
-Sudah dijawab: PRD P1, P2, P3, P4; X1 (akun lokal); X11 (perbaikan definisi); DRD Q1 (ponsel serius);
-X9 (awalan S3, kunci tetap, wilayah Jakarta); X10 (untuk sementara hanya admin dan user, tanpa
-pembatasan per modul). Yang tersisa, diurutkan menurut pengaruhnya ke langkah 5–7:
+Already answered: PRD P1, P2, P3, P4; X1 (local accounts); X11 (definition fixes); DRD Q1 (phone done seriously);
+X9 (S3 prefix, long-term key, Jakarta region); X10 (for now only admin and user, without
+per-module restrictions). The remaining ones, ordered by their impact on steps 5–7:
 
-| # | Pertanyaan | Asumsi sementara |
+| # | Question | Interim assumption |
 |--:|---|---|
-| X9 | **Impor S3** (jenis kunci, wilayah, dan sifat baca-saja sudah dijawab): siapa yang akan mengirim tautan, admin lewat layar atau sistem lain lewat API? Bisakah kelak dibuat pengguna IAM khusus yang hanya membaca `simpel4-backup/k8s-logs/`? | Keduanya didukung; kunci yang ada dipakai dulu |
-| X2 | **Server** (pemilik belum tahu; ditanyakan ke pengelola server): sudah ada reverse proxy/HTTPS dan nama domain? Ada akses keluar ke S3 Jakarta dan ke lima alamat unduhan database IP? Berapa disk dan memori? Semuanya **diperiksa dengan perintah saat deploy** (langkah 7), bukan diandaikan | Proxy ikut di compose (T5); ada akses keluar; ≥ 20 GB, ≥ 2 GB |
-| X3 | **Folder log di server**: tetap ada ekspor ke folder yang dipasang, atau semua lewat bucket? Jam berapa data tiba; berapa lama disimpan? | Keduanya didukung |
-| X4 | **Folder log yang hilang**: data dashboard dipertahankan (T2) atau ikut hilang seperti sistem lama? | Dipertahankan |
-| X5 | `.log` dan `.log.gz`: v2 mencatat peringatan bila isinya berbeda. Mana yang benar bila berbeda? (= PRD P5) | `.log` |
-| X6 | Tabel alur IP tampil 100 baris pertama, bukan 3.000: setuju? | Ya |
-| X7 | Huruf label peta berbeda dari huruf antarmuka (T4): bisa diterima? | Ya |
-| X8 | Cadangan volume `s4-state` (wajib) dan `s4-data`: ikut jadwal cadangan server? | Ya |
+| X9 | **S3 import** (key type, region, and read-only nature already answered): who will send the links, an admin through the screen or another system through the API? Can a dedicated IAM user that only reads `simpel4-backup/k8s-logs/` be created later? | Both are supported; the existing key is used first |
+| X2 | **Server** (the owner does not know yet; asked of the server operators): is there already a reverse proxy/HTTPS and a domain name? Is there outbound access to S3 Jakarta and to the five IP database download addresses? How much disk and memory? All of it is **checked with commands at deployment** (step 7), not assumed | Proxy included in compose (T5); outbound access exists; ≥ 20 GB, ≥ 2 GB |
+| X3 | **Log folder on the server**: will exports to the mounted folder continue, or will everything go through the bucket? At what time does data arrive; how long is it kept? | Both are supported |
+| X4 | **Log folders that disappear**: is the dashboard data kept (T2) or does it disappear too, like the old system? | Kept |
+| X5 | `.log` and `.log.gz`: v2 records a warning when their contents differ. Which one is correct when they differ? (= PRD P5) | `.log` |
+| X6 | The IP flow table shows the first 100 rows, not 3,000: agreed? | Yes |
+| X7 | The map label font differs from the interface font (T4): acceptable? | Yes |
+| X8 | Backups of the `s4-state` (mandatory) and `s4-data` volumes: part of the server backup schedule? | Yes |
 
-Pertanyaan DRD Q3, Q6, Q7 masih terbuka; skema dan API di atas tidak bergantung pada jawabannya.
+DRD questions Q3, Q6, Q7 are still open; the schema and API above do not depend on their answers.
 
-**Permintaan baru pemilik (2026-10-06, saat Tahap 12)**: modul **Command Center** (peta, overview, dan semua info
-di satu layar, **realtime**) karena data kelak dialirkan lewat **Kafka**. Ini mengubah K1/A7 (ingest harian, tanpa
-pembaruan otomatis); usulan dan asumsinya di §12. **Pemilik menjawab (2026-10-06): Kafka hanya untuk ke depan;
-pembaruan tetap lewat folder log sebagai sumber utama.** Jadi R1, R2, R4 baru perlu dijawab saat aliran Kafka
-benar-benar direncanakan. R5 dan R6 sudah dijawab (lihat tabel). Pertanyaan:
+**New owner request (2026-10-06, during Stage 12)**: a **Command Center** module (map, overview, and all info
+on one screen, **realtime**) because the data will later be streamed via **Kafka**. This changes K1/A7 (daily ingest, no
+automatic updates); the proposal and its assumptions are in §12. **The owner answered (2026-10-06): Kafka is only for the future;
+updates still come through the log folders as the main source.** So R1, R2, R4 only need answers when a Kafka stream
+is actually planned. R5 and R6 are already answered (see the table). Questions:
 
-| # | Pertanyaan | Asumsi sementara |
+| # | Question | Interim assumption |
 |--:|---|---|
-| R1 | **Isi aliran Kafka**: baris log mentah per layanan (format sama dengan file sekarang) atau event yang sudah terstruktur? Siapa produsennya (Fluent Bit/Vector/aplikasi)? Nama topik? | Baris log mentah, satu topik per layanan, dikirim pengumpul log klaster |
-| R2 | **Seberapa realtime**: angka di layar boleh terlambat berapa (detik/menit)? | ≤ 10 detik |
-| R3 | ~~Hubungan dengan folder harian?~~ **Terjawab 2026-10-06: folder log tetap sumber utama pembaruan**; Kafka hanya rencana ke depan | — |
-| R4 | **Akses Kafka**: alamat broker, autentikasi (SASL/TLS), bisa dijangkau dari server dashboard? | Belum diketahui; diperiksa saat deploy (seperti X2) |
-| R5 | ~~Command Center menggantikan Overview?~~ **Terjawab 2026-10-06: Overview tetap ada; Command Center adalah layar peta dunia** (peta asal IP → server sebagai isi utama, dengan KPI dan "yang perlu perhatian" di sekelilingnya). **ASUMSI**: tab "Peta IP" digabung ke Command Center (satu komponen peta, tidak ada dua halaman peta) | — |
-| R6 | ~~Gaya referensi untuk seluruh dashboard?~~ **Terjawab 2026-10-06: ya, seluruh dashboard** | — |
+| R1 | **Kafka stream content**: raw log lines per service (same format as the files now) or already-structured events? Who is the producer (Fluent Bit/Vector/the applications)? Topic names? | Raw log lines, one topic per service, sent by the cluster log collector |
+| R2 | **How realtime**: how late may the numbers on screen be (seconds/minutes)? | ≤ 10 seconds |
+| R3 | ~~Relationship with the daily folders?~~ **Answered 2026-10-06: log folders stay the main source of updates**; Kafka is only a future plan | — |
+| R4 | **Kafka access**: broker address, authentication (SASL/TLS), reachable from the dashboard server? | Not known yet; checked at deployment (like X2) |
+| R5 | ~~Does Command Center replace Overview?~~ **Answered 2026-10-06: Overview stays; Command Center is the world map screen** (map of IP origin → server as the main content, with KPIs and "what needs attention" around it). **ASSUMPTION**: the "IP Map" tab is merged into Command Center (one map component, no two map pages) | — |
+| R6 | ~~Reference style for the whole dashboard?~~ **Answered 2026-10-06: yes, the whole dashboard** | — |
 
 ---
 
-## 12. Usulan: Command Center dan aliran realtime (Kafka) — Kafka DITUNDA (masa depan)
+## 12. Proposal: Command Center and realtime streaming (Kafka) — Kafka POSTPONED (future)
 
-Ditulis saat Tahap 12 atas permintaan pemilik. **Keputusan 2026-10-06: folder log tetap sumber utama pembaruan;
-Kafka hanya untuk ke depan.** Command Center dibangun dulu di atas data folder (ingest seperti sekarang); butir
-aliran di bawah adalah rancangan untuk nanti dan tetap **ASUMSI** sampai R1, R2, R4 dijawab. Yang perlu dijaga dari
-sekarang: halaman Command Center mengambil datanya lewat satu modul (`api.js` + satu endpoint), supaya kelak
-sumbernya bisa ditambah aliran tanpa mengubah tampilan.
+Written during Stage 12 at the owner's request. **Decision 2026-10-06: log folders stay the main source of updates;
+Kafka is only for the future.** Command Center is built first on top of folder data (ingest as now); the streaming
+items below are a design for later and remain an **ASSUMPTION** until R1, R2, R4 are answered. What must be preserved from
+now on: the Command Center page gets its data through one module (`api.js` + one endpoint), so that later
+a stream can be added as a source without changing the display.
 
-- **Tetap satu proses pemilik DuckDB (K1).** Konsumen Kafka berjalan sebagai utas di proses server yang sama (seperti
-  ingest dalam proses, Tahap 10), menulis per kelompok kecil (mis. tiap 2 detik atau 5.000 pesan) ke tabel
-  `rt_*` berjendela waktu, memakai parser yang sama (`parse.py`) agar definisi angka tidak bercabang.
-- **Ke browser lewat Server-Sent Events** (`GET /api/stream`, satu arah, cookie sesi yang sama, lolos CSP `'self'`,
-  tersambung ulang otomatis). WebSocket tidak perlu karena browser tidak mengirim apa-apa.
-- **Command Center** = satu halaman yang memakai komponen bersama: KPI berjalan, peta, "yang perlu perhatian"
-  (temuan otomatis yang sudah ada: serangan, login gagal, 5xx, error koneksi pod), dan aliran kejadian terbaru;
-  penanda "streaming · kejadian terakhir N detik lalu" dan status Live/terputus.
-- **Folder harian tetap sumber kebenaran (R3)**: ingest folder menggantikan data aliran untuk tanggal itu, jadi uji
-  kesetaraan E1–E4 tetap berlaku.
-- Dependensi baru opsional `simpel4[kafka]` (`confluent-kafka`), hanya diimpor bila `S4_KAFKA_BROKERS` diisi;
-  tanpa itu dashboard berjalan seperti sekarang dan Command Center memakai data folder terbaru.
+- **Still one process owns DuckDB (K1).** The Kafka consumer runs as a thread in the same server process (like
+  in-process ingest, Stage 10), writing in small batches (e.g. every 2 seconds or 5,000 messages) to time-windowed
+  `rt_*` tables, using the same parser (`parse.py`) so that number definitions do not diverge.
+- **To the browser via Server-Sent Events** (`GET /api/stream`, one-way, the same session cookie, passes the CSP `'self'`,
+  reconnects automatically). WebSocket is not needed because the browser sends nothing.
+- **Command Center** = one page using shared components: running KPIs, the map, "what needs attention"
+  (the existing automatic findings: attacks, failed logins, 5xx, pod connection errors), and a stream of recent events;
+  a "streaming · last event N seconds ago" marker and a Live/disconnected status.
+- **The daily folders stay the source of truth (R3)**: a folder ingest replaces the stream data for that date, so the
+  equivalence tests E1–E4 still apply.
+- New optional dependency `simpel4[kafka]` (`confluent-kafka`), only imported when `S4_KAFKA_BROKERS` is set;
+  without it the dashboard runs as now and Command Center uses the latest folder data.
 

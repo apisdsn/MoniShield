@@ -1,6 +1,6 @@
-<!-- Kartu perhatian (DRD §4.6, gaya §12 "What needs your attention"): judul + jumlah, butir bernomor berisi judul
-     tebal, satu kalimat penjelasan, dan tautan tindakan ("Lihat …  →") ke halaman/tabel terkait.
-     items: [{title, text?, href?, link?, tone?: 'err'|'warn'|'accent'}]. Tanpa items: daftar butir biasa (children). -->
+<!-- Attention card (DRD §4.6, §12 style "What needs your attention"): title + count, numbered items with a bold
+     title, one explanatory sentence, and an action link ("Lihat …  →") to the related page/table.
+     items: [{title, text?, href?, link?, tone?: 'err'|'warn'|'accent'}]. Without items: a plain item list (children). -->
 <script>
   import Icon from './Icon.svelte';
   let { title, items = null, children = null, wide = false } = $props();

@@ -1,6 +1,6 @@
-"""Halaman Konfigurasi -> file .env (permintaan pemilik 2026-10-07): kredensial AWS/MaxMind, pengecualian daftar blokir,
-folder S3 otomatis, dan notifikasi ditulis ke .env, langsung berlaku tanpa mulai ulang, dan dibaca lagi saat server mulai.
-Rahasia tidak pernah keluar lagi ke browser."""
+"""Configuration page -> .env file (owner request 2026-10-07): AWS/MaxMind credentials, blocklist exclusions,
+automatic S3 folders, and notifications are written to .env, take effect without a restart, and are read again at server start.
+Secrets never go back out to the browser."""
 import dataclasses, json, os, stat, urllib.error
 
 import pytest
@@ -8,8 +8,10 @@ from fastapi.testclient import TestClient
 
 import logs_mini
 from s3_tiruan import KEY_OK, S3Tiruan
-from monishield import auth, config, envfile, importer, settings
-from monishield.api import app as appmod, config_api
+from monishield.domain import accounts
+from monishield.infrastructure import auth, config, envfile, importer, refdata
+from monishield.domain import alerts, settings
+from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
 X = {'X-Requested-With': 'uji'}
@@ -26,7 +28,7 @@ MAXMIND_LICENSE_KEY=
 """
 
 
-# ------------------------------------------------------------------ penulis .env
+# ------------------------------------------------------------------ .env writer
 def test_envfile_menulis_di_tempat_dan_menjaga_komentar(tmp_path):
     p = tmp_path / '.env'
     p.write_text(CONTOH); os.chmod(p, 0o640)
@@ -34,12 +36,12 @@ def test_envfile_menulis_di_tempat_dan_menjaga_komentar(tmp_path):
     envfile.update(str(p), {'MAXMIND_ACCOUNT_ID': MM_ID, 'S4_IMPORT_REGION': 'ap-southeast-1', 'S4_BLOCKLIST_EXCLUDE_ORG': 'A B#C',
                             'S4_SMTP_FROM': 'Tim "Ops" <ops@x.id>', 'S4_BARU': ''})
     t = p.read_text()
-    assert os.stat(p).st_ino == ino and stat.S_IMODE(os.stat(p).st_mode) == 0o640       # file yang sama (bind mount Docker)
+    assert os.stat(p).st_ino == ino and stat.S_IMODE(os.stat(p).st_mode) == 0o640       # the same file (Docker bind mount)
     assert '# contoh .env\nS4_JWT_SECRET=dibiarkan\n# [OPSIONAL] wilayah\nS4_IMPORT_REGION=ap-southeast-1\nMAXMIND_ACCOUNT_ID=123456\n' in t
     assert envfile.MARK in t
     v = config.read_dotenv(str(p))
     assert (v['S4_BLOCKLIST_EXCLUDE_ORG'], v['S4_SMTP_FROM'], v['S4_BARU']) == ('A B#C', 'Tim "Ops" <ops@x.id>', '')
-    # hapus = baris dinonaktifkan tanpa nilai lama (rahasia tidak tertinggal di komentar)
+    # delete = line disabled without the old value (secrets are not left in a comment)
     envfile.update(str(p), {'MAXMIND_ACCOUNT_ID': None})
     assert '# MAXMIND_ACCOUNT_ID=\n' in p.read_text() and MM_ID not in p.read_text() and 'MAXMIND_ACCOUNT_ID' not in config.read_dotenv(str(p))
     for bad in ('a\nS4_JAHAT=1', 'kutip \' dan "'):
@@ -76,7 +78,7 @@ def envp(tmp_path):
 
 @pytest.fixture
 def client(cfg, envp, monkeypatch, s3):
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     for k in ('AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'MAXMIND_ACCOUNT_ID', 'MAXMIND_LICENSE_KEY'): monkeypatch.delenv(k, raising=False)
     with TestClient(appmod.create_app(cfg, env_path=envp)) as tc:
         assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
@@ -115,8 +117,8 @@ def test_simpan_ke_env_langsung_berlaku(client, envp):
     assert f['S4_BLOCKLIST_EXCLUDE'] == '36.66.1.0/24, 198.51.100.7' and f['S4_JWT_SECRET'] == 'dibiarkan'
     assert (cfg.aws_access_key_id, cfg.aws_secret_access_key, cfg.maxmind_license_key) == (KEY_UI, SECRET_UI, MM_KEY)
     assert client.app.state.imports.creds.get()[0]['aws_access_key_id'] == KEY_UI
-    assert client.app.state.auth.setting_get('config') is None                          # tidak lagi di basis data
-    # rahasia kosong = tidak diubah; kolom biasa bisa diganti (baris contoh berkomentar diaktifkan di tempatnya)
+    assert client.app.state.auth.setting_get('config') is None                          # no longer in the database
+    # empty secret = unchanged; ordinary fields can be replaced (commented example line enabled in place)
     r = client.put('/api/admin/config', json=dict(aws_access_key_id=KEY_UI, aws_secret_access_key='', import_region='ap-southeast-1'), headers=X)
     assert r.status_code == 200, r.text
     assert (cfg.aws_secret_access_key, cfg.import_region) == (SECRET_UI, 'ap-southeast-1')
@@ -124,7 +126,7 @@ def test_simpan_ke_env_langsung_berlaku(client, envp):
     log = json.dumps(client.app.state.auth.audit_list(50), default=str)
     assert 'config.update' in log
     bersih(log)
-    # hapus -> baris dinonaktifkan, nilai bawaan
+    # delete -> line disabled, default value
     r = client.put('/api/admin/config', json=dict(clear=['aws_session_token', 'import_region', 'maxmind_account_id', 'maxmind_license_key']), headers=X)
     assert r.status_code == 200
     assert cfg.import_region == 'ap-southeast-3' and cfg.maxmind_license_key == ''
@@ -147,7 +149,7 @@ def test_variabel_lingkungan_mengalahkan_env_ditandai(client, monkeypatch):
 @pytest.mark.parametrize('body', [
     dict(aws_access_key_id='akia-kecil', aws_secret_access_key=SECRET_UI),
     dict(aws_access_key_id=KEY_UI, aws_secret_access_key='pendek'),
-    dict(aws_access_key_id='', clear=['aws_secret_access_key']),                       # pasangan tidak lengkap
+    dict(aws_access_key_id='', clear=['aws_secret_access_key']),                       # incomplete pair
     dict(import_region='jakarta'),
     dict(maxmind_account_id='abc', maxmind_license_key=MM_KEY),
     dict(maxmind_license_key=MM_KEY),
@@ -163,7 +165,7 @@ def test_isian_tidak_sah_ditolak_tanpa_menulis(client, envp, body):
 
 
 def test_env_tidak_bisa_ditulis(client, envp, monkeypatch):
-    monkeypatch.setattr(envfile, 'writable', lambda p: False)   # (uji berjalan sebagai root: izin file tidak berlaku)
+    monkeypatch.setattr(envfile, 'writable', lambda p: False)   # (tests run as root: file permissions do not apply)
     before = open(envp).read()
     assert client.get('/api/admin/config', headers=X).json()['file']['writable'] is False
     r = client.put('/api/admin/config', json=dict(import_region='ap-southeast-1'), headers=X)
@@ -172,8 +174,8 @@ def test_env_tidak_bisa_ditulis(client, envp, monkeypatch):
 
 
 def test_pindahan_dari_basis_data_ke_env(cfg, envp, monkeypatch, s3):
-    """Setelan lama (sebelum .env) di app_setting dipindah sekali ke .env saat server mulai, lalu dihapus dari basis data."""
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    """Old settings (before .env) in app_setting are moved once to .env at server start, then removed from the database."""
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     a = auth.Auth(cfg.auth_url)
     a.setting_set('config', dict(maxmind_account_id=MM_ID, maxmind_license_key=MM_KEY, aws_access_key_id=''), 'admin')
     a.setting_set('s3_watch', dict(url='s3://simpel4-backup/k8s-logs/', minutes=15, enabled=True), 'admin')
@@ -182,7 +184,7 @@ def test_pindahan_dari_basis_data_ke_env(cfg, envp, monkeypatch, s3):
     with TestClient(appmod.create_app(cfg, env_path=envp)) as tc:
         c = tc.app.state.cfg
         assert (c.maxmind_license_key, c.s3_watch, c.s3_watch_minutes, c.alert_discord, c.alert_lang) == (MM_KEY, 's3://simpel4-backup/k8s-logs/', 15, True, 'en')
-        assert c.aws_access_key_id == KEY_OK                                            # nilai kosong lama tidak menimpa
+        assert c.aws_access_key_id == KEY_OK                                            # old empty value does not overwrite
         assert all(tc.app.state.auth.setting_get(k) is None for k in ('config', 's3_watch', 'alerts'))
     f = config.read_dotenv(envp)
     assert (f['MAXMIND_LICENSE_KEY'], f['S4_S3_WATCH_MINUTES'], f['S4_ALERT_DISCORD'], f['DISCORD_WEBHOOK_URL']) == \
@@ -190,7 +192,7 @@ def test_pindahan_dari_basis_data_ke_env(cfg, envp, monkeypatch, s3):
 
 
 def test_pengecualian_daftar_blokir_dari_layar(client):
-    from monishield.api import ips
+    from monishield.infrastructure.queries import ips
     assert client.put('/api/admin/config', json=dict(blocklist_exclude='36.66.1.0/24', blocklist_exclude_org='TELKOM'), headers=X).status_code == 200
     c = client.app.state.cfg
     assert ips._excluded(c, '36.66.1.9', False, '') == 'list' and ips._excluded(c, '8.8.8.8', False, 'PT TELKOM INDONESIA') == 'org'
@@ -200,7 +202,7 @@ def test_pengecualian_daftar_blokir_dari_layar(client):
 def test_uji_aws(client):
     r = client.post('/api/admin/config/test', json=dict(kind='aws'), headers=X)
     assert r.status_code == 200, r.text
-    assert r.json() == dict(ok=True, kind='aws', target='s3://simpel4-backup/k8s-logs/', source='lingkungan')
+    assert r.json() == dict(ok=True, kind='aws', target='s3://simpel4-backup/k8s-logs/', source='environment')
     assert client.put('/api/admin/config', json=dict(aws_access_key_id='AKIASALAHSALAHSALAH1', aws_secret_access_key=SECRET_UI), headers=X).status_code == 200
     r = client.post('/api/admin/config/test', json=dict(kind='aws'), headers=X)
     assert r.status_code == 502 and r.json()['error']['code'] == 's3_denied'
@@ -220,7 +222,7 @@ def test_uji_maxmind(client, monkeypatch):
             seen.append((req.get_method(), req.full_url, req.get_header('Authorization')))
             raise urllib.error.HTTPError(req.full_url, self.code, 'x', {}, None)
     for code, status, err in ((302, 200, None), (401, 502, 'maxmind_denied'), (500, 502, 'maxmind_error')):
-        monkeypatch.setattr(config_api.urllib.request, 'build_opener', lambda *a, c=code: Opener(c))
+        monkeypatch.setattr(refdata.urllib.request, 'build_opener', lambda *a, c=code: Opener(c))
         r = client.post('/api/admin/config/test', json=dict(kind='maxmind'), headers=X)
         assert r.status_code == status, (code, r.text)
         if err: assert r.json()['error']['code'] == err
@@ -231,7 +233,7 @@ def test_uji_maxmind(client, monkeypatch):
 
 
 def test_tanpa_sesi_ditolak(cfg, envp, monkeypatch, s3):
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     with TestClient(appmod.create_app(cfg, env_path=envp)) as tc:
         assert tc.get('/api/admin/config', headers=X).status_code == 401
         assert tc.put('/api/admin/config', json={}, headers=X).status_code == 401
@@ -239,13 +241,34 @@ def test_tanpa_sesi_ditolak(cfg, envp, monkeypatch, s3):
 
 
 def test_alamat_dan_batas_dari_env():
-    """URL sumber unduhan, API Telegram, dan batas yang dulu tertulis di kode kini dari .env."""
+    """Download source URLs, the Telegram API, and limits that used to be hard-coded now come from .env."""
     c = config.load(env={'S4_URL_IP2ASN': 'https://cermin.kantor.go.id/ip2asn-v4.tsv.gz', 'S4_TELEGRAM_API': 'https://tg-proxy.kantor.go.id',
                          'S4_URL_MAXMIND': 'https://mm.kantor.go.id/{}.zip', 'S4_GEO_MAX_AGE_DAYS': '14', 'S4_UPLOAD_SESSION_HOURS': '2'}, dotenv=False)
     assert (c.url_ip2asn, c.telegram_api, c.url_maxmind, c.geo_max_age_days, c.upload_session_hours) == \
         ('https://cermin.kantor.go.id/ip2asn-v4.tsv.gz', 'https://tg-proxy.kantor.go.id', 'https://mm.kantor.go.id/{}.zip', 14, 2)
-    from monishield import alerts
     assert alerts.load(c)['channels']['telegram']['api'] == 'https://tg-proxy.kantor.go.id'
     for env in ({'S4_GEO_MAX_AGE_DAYS': '60'}, {'S4_URL_MAXMIND': 'https://x/tanpa-edisi'}, {'S4_URL_LAND': 'ftp://x'}):
         with pytest.raises(SystemExit): config.load(env=env, dotenv=False)
     assert settings.GROUPS['alerts'][0] == 'alert_telegram'
+
+
+def test_isian_kafka_dari_layar_tersimpan_ke_env(client, envp):
+    """The Kafka card in Configuration sends kafka_* to PUT /api/admin/config (same body as AdminConfig.svelte kfBody):
+    must be written to .env and take effect immediately; the SASL password is never returned."""
+    body = dict(kafka_enabled=True, kafka_brokers='127.0.0.1:9, 127.0.0.2:9', kafka_topic='k8s-logs', kafka_group='monishield',
+                kafka_security='sasl_plaintext', kafka_sasl_mechanism='SCRAM-SHA-512', kafka_username='monishield', kafka_password='sandiKafkaRahasia1',
+                kafka_offset_reset='latest', kafka_ingest_minutes='15')
+    r = client.put('/api/admin/config', json=body, headers=X)
+    assert r.status_code == 200, r.text
+    assert 'sandiKafkaRahasia1' not in r.text and r.json()['kafka']['kafka_password'] == dict(set=True, source='file', env='KAFKA_PASSWORD')
+    text = open(envp).read()
+    for line in ('S4_KAFKA_TOPIC=k8s-logs', 'S4_KAFKA_SECURITY=sasl_plaintext', 'S4_KAFKA_INGEST_MINUTES=15', 'KAFKA_PASSWORD='): assert line in text, line
+    c = client.app.state.cfg
+    assert (c.kafka_enabled, c.kafka_brokers, c.kafka_sasl_mechanism, c.kafka_password, c.kafka_ingest_minutes) == \
+        (True, '127.0.0.1:9, 127.0.0.2:9', 'SCRAM-SHA-512', 'sandiKafkaRahasia1', 15)
+    r = client.put('/api/admin/config', json=dict(kafka_security='sasl_ssl', kafka_password=''), headers=X)   # empty password = unchanged
+    assert r.status_code == 200 and client.app.state.cfg.kafka_password == 'sandiKafkaRahasia1'
+    r = client.put('/api/admin/config', json=dict(kafka_brokers='bukan broker'), headers=X)
+    assert r.status_code == 400 and 'host:port' in r.json()['error']['message']
+    r = client.put('/api/admin/config', json=dict(kafka_enabled=False), headers=X)   # switch from the UI (JSON bool)
+    assert r.status_code == 200 and client.app.state.cfg.kafka_enabled is False and 'S4_KAFKA_ENABLED=false' in open(envp).read()

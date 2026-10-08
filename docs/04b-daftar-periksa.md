@@ -1,228 +1,228 @@
-# Daftar periksa halaman (Tahap 13–20)
+# Page checklist (Stages 13–20)
 
-Dibuat dari inventaris §2 dan DRD §3, §6, §8. Setiap halaman diperiksa pada **8 kombinasi**: {ID, EN} × {gelap,
-terang} × {lebar 1440 px, sempit 390 px}. Yang bisa diotomatiskan diperiksa skrip Playwright (kolom "Cara");
-yang hanya bisa dinilai mata ditandai **lihat**, dengan tangkapan layar sebagai bukti.
+Built from inventory §2 and DRD §3, §6, §8. Every page is checked in **8 combinations**: {ID, EN} × {dark,
+light} × {wide 1440 px, narrow 390 px}. Whatever can be automated is checked by a Playwright script (column "Method");
+whatever can only be judged by eye is marked **look**, with screenshots as evidence.
 
-Butir umum untuk **setiap** halaman dan setiap kombinasi:
+General items for **every** page and every combination:
 
-| # | Butir | Cara |
+| # | Item | Method |
 |--:|---|---|
-| U1 | Tidak ada gulir mendatar halaman; KPI 2 kolom di 390 px; tabel > 4 kolom jadi kartu baris | skrip |
-| U2 | Atribut `lang` dan tema sesuai pilihan; tidak ada judul kartu yang tertinggal bahasa lain | skrip |
-| U3 | Tidak ada galat halaman/konsol | skrip |
-| U4 | Nama sistem (layanan, pod, upstream) huruf kecil apa adanya (DRD U33) | skrip + lihat |
-| U5 | Angka berformat bahasa (`1.234` / `1,234`), waktu WIB, durasi `dtk` / `s` | lihat |
-| U6 | Memuat: kerangka abu setelah 200 ms; ganti folder: isi lama redup sampai yang baru tiba | lihat |
-| U7 | Label chart tidak terpotong di tepi; sumbu waktu tanpa pengulangan tanggal bila satu hari | lihat |
+| U1 | No horizontal page scroll; KPIs in 2 columns at 390 px; tables with > 4 columns become row cards | script |
+| U2 | `lang` attribute and theme match the selection; no card title left behind in the other language | script |
+| U3 | No page/console errors | script |
+| U4 | System names (services, pods, upstreams) in lowercase as-is (DRD U33) | script + look |
+| U5 | Numbers formatted per language (`1.234` / `1,234`), times in WIB, durations `dtk` / `s` | look |
+| U6 | Loading: grey skeleton after 200 ms; folder change: old content dimmed until the new one arrives | look |
+| U7 | Chart labels not clipped at the edges; time axis without repeated dates when it covers one day | look |
 
-## Overview (inv. §2.1, DRD §3.1) — Tahap 13 ☑
+## Overview (inv. §2.1, DRD §3.1) — Stage 13 ☑
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| Periode log: jam pertama – jam terakhir | inv. §2.1 | lihat | ☑ |
-| KPI sama dengan lama: baris, error, warning/4xx app, HTTP request, rate 4xx (1 desimal), rate 5xx (2 desimal), layanan, file log, file kosong | 06 Okt: 191.898 · 2.810 · 856 · 124.822 · 3,6 % · 0,04 % · 7 · 18 · 1 | `tools/uji_tahap13.cjs` (vs `dashboard.html`) | ☑ |
-| KPI baru "File rusak" hanya bila > 0 (B05) | DRD §3.1 | lihat | ☑ |
-| Perubahan ▲/▼ vs folder sebelumnya hanya atas layanan sebanding; sama dengan lama | 06 Okt: baris ▼ 36 %, error ▼ 37 %, warning tanpa perubahan | skrip | ☑ |
-| `(i)` pada Error (5xx + baris error log) dan Warning / 4xx app | DRD §4.1 U8 | lihat | ☑ |
-| Error per jam per layanan (batang bertumpuk, lebar) | inv. §2.1; berubah: memuat baris error log (U32) | lihat | ☑ |
-| Error & warning per layanan; Baris log per layanan | inv. §2.1 | skrip (judul kartu) | ☑ |
-| Ringkasan layanan; File log | inv. §2.1 | skrip | ☑ |
-| Top pesan error lintas layanan: 25 teratas sama isi dan urutan jumlahnya; "Tampilkan berikutnya" | inv. §2.1, B04 | skrip | ☑ |
-| Bagian "Traffic HTTP seluruh sistem" + catatan sumber + kartu nginx tanpa peta dan tanpa kartu pesan | inv. §2.1 | skrip (20 kartu = lama) | ☑ |
-| Tanpa ingress nginx: KPI HTTP dan bagian traffic tidak tampil | DRD §6.6 | skrip (folder 27 Sep) | ☑ |
-| Folder praktis kosong: pita kuning "hanya berisi N baris; M file rusak" + tautan ke Pod | DRD §6.6 | skrip (01 Okt) | ☑ |
-| 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
+| Log period: first hour – last hour | inv. §2.1 | look | ☑ |
+| KPIs equal to the old ones: lines, errors, warning/4xx app, HTTP requests, 4xx rate (1 decimal), 5xx rate (2 decimals), services, log files, empty files | 06 Oct: 191,898 · 2,810 · 856 · 124,822 · 3.6 % · 0.04 % · 7 · 18 · 1 | `tools/uji_tahap13.cjs` (vs `dashboard.html`) | ☑ |
+| New KPI "Corrupt files" only when > 0 (B05) | DRD §3.1 | look | ☑ |
+| ▲/▼ change vs the previous folder only over comparable services; equal to the old one | 06 Oct: lines ▼ 36 %, errors ▼ 37 %, warning unchanged | script | ☑ |
+| `(i)` on Error (5xx + error log lines) and Warning / 4xx app | DRD §4.1 U8 | look | ☑ |
+| Errors per hour per service (stacked bars, wide) | inv. §2.1; changed: includes error log lines (U32) | look | ☑ |
+| Errors & warnings per service; Log lines per service | inv. §2.1 | script (card titles) | ☑ |
+| Service summary; Log files | inv. §2.1 | script | ☑ |
+| Top error messages across services: the top 25 equal in content and count order; "Show next" | inv. §2.1, B04 | script | ☑ |
+| Section "System-wide HTTP traffic" + source note + nginx cards without the map and without the message card | inv. §2.1 | script (20 cards = old) | ☑ |
+| Without ingress nginx: HTTP KPIs and the traffic section are not shown | DRD §6.6 | script (folder 27 Sep) | ☑ |
+| Practically empty folder: yellow band "contains only N lines; M corrupt files" + link to Pods | DRD §6.6 | script (01 Oct) | ☑ |
+| 8 combinations of language × theme × width | U1–U3 | script | ☑ |
 
-## Halaman layanan (inv. §2.10, DRD §3.10) — Tahap 13 ☑ (kecuali peta, Tahap 20)
+## Service page (inv. §2.10, DRD §3.10) — Stage 13 ☑ (except the map, Stage 20)
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| KPI: baris, error, warning; HTTP + rate 4xx/5xx bila ada request; 4 entri pertama level | inv. §2.10 | skrip, 5 layanan (nginx, simpel-loop, appsmanager, coredns, frontend) | ☑ |
-| Kartu yang tampil sama dengan lama (tabel centang inv. §2.10) | nginx 16, simpel-loop 16, frontend 10, appsmanager 4, coredns 4 kartu | skrip | ☑ |
-| coredns: "Top 10 domain gagal resolve", tabel "Domain gagal resolve" | inv. §2.10 no. 6, 10 | skrip | ☑ |
-| simpel-loop: judul per jam "dari X % request yang terlacak di nginx" | inv. §2.10 no. 2 | skrip | ☑ |
-| nginx: garis Error per jam memuat baris error log (Σ = KPI Error 125) | TRD §4.4 butir 2 | skrip | ☑ |
-| simpel-loop 29 Sep: donat level WARN 9.614, tanpa ERROR; `(i)` menjelaskan | TRD §4.4 butir 4 | skrip | ☑ |
-| Status code: sumbu logaritmik, warna per kelas, kode selalu tertulis | inv. §2.10 no. 3, DRD §9.2 | lihat | ☑ |
-| Kinerja endpoint: P95 ≥ 1 dtk kuning, P99 ≥ 5 dtk merah; error rate merah bila ada 5xx | inv. §2.10 no. 14 | lihat | ☑ |
-| Tabel pesan: baris terbuka → baris log asli (UTC) + tombol salin; filter "JWT" hanya baris cocok + "N baris cocok" | DRD §4.3 | skrip | ☑ |
-| 0 baris: "Tidak ada log untuk layanan ini …"; hanya rusak: + tag "Rusak" | DRD §6.6 | skrip (01 Okt) | ☑ |
-| Peta modul ini, terlipat secara bawaan (U6) | DRD §3.10 no. 1 | — | Tahap 20 |
-| 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
+| KPIs: lines, errors, warnings; HTTP + 4xx/5xx rate when there are requests; first 4 level entries | inv. §2.10 | script, 5 services (nginx, simpel-loop, appsmanager, coredns, frontend) | ☑ |
+| The cards shown equal the old ones (checkmark table inv. §2.10) | nginx 16, simpel-loop 16, frontend 10, appsmanager 4, coredns 4 cards | script | ☑ |
+| coredns: "Top 10 domains failing to resolve", table "Domains failing to resolve" | inv. §2.10 no. 6, 10 | script | ☑ |
+| simpel-loop: per-hour title "from X % of requests traced in nginx" | inv. §2.10 no. 2 | script | ☑ |
+| nginx: the Errors-per-hour line includes error log lines (Σ = Error KPI 125) | TRD §4.4 item 2 | script | ☑ |
+| simpel-loop 29 Sep: level donut WARN 9,614, no ERROR; `(i)` explains | TRD §4.4 item 4 | script | ☑ |
+| Status codes: logarithmic axis, color per class, code always written | inv. §2.10 no. 3, DRD §9.2 | look | ☑ |
+| Endpoint performance: P95 ≥ 1 s yellow, P99 ≥ 5 s red; error rate red when there are 5xx | inv. §2.10 no. 14 | look | ☑ |
+| Message table: expanded row → original log line (UTC) + copy button; filter "JWT" only matching rows + "N matching rows" | DRD §4.3 | script | ☑ |
+| 0 lines: "No logs for this service …"; only corrupt: + tag "Corrupt" | DRD §6.6 | script (01 Oct) | ☑ |
+| Map of this module, collapsed by default (U6) | DRD §3.10 no. 1 | — | Stage 20 |
+| 8 combinations of language × theme × width | U1–U3 | script | ☑ |
 
-## Tren (inv. §2.3, DRD §3.3) — Tahap 14 ☑
+## Trends (inv. §2.3, DRD §3.3) — Stage 14 ☑
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| Catatan "Data tiap hari tidak selalu lengkap …" | inv. §2.3 | lihat | ☑ |
-| 6 chart: error, warning, baris log per hari per layanan (bertumpuk); request HTTP (Total, 4xx, 5xx); keamanan (serangan, password salah, reset); bisnis (5 metrik) — seri dan angka sama dengan lama | inv. §2.3 | `tools/uji_tahap14.cjs` | ☑ |
-| Tabel "Error per layanan & perubahan": angka dan ▲/▼ % sama dengan lama | inv. §2.3 | skrip | ☑ |
-| Tabel "Kelengkapan data": angka / Kosong / Tidak ada sama; tanda baru "Rusak" (B05) | inv. §2.3, DRD §3.3 | skrip | ☑ |
-| simpel-loop 30 Sep "Tidak ada"; 1 Okt "Rusak"/"Kosong" | rencana Tahap 14 | skrip | ☑ |
-| Pemilih folder di header nonaktif dengan keterangan | DRD §3.3 | skrip | ☑ |
-| Pemilih rentang 14 / 30 / 90 / semua (bawaan 30, diingat per browser): jumlah kolom berubah | DRD §3.3 U4 | skrip, database simulasi 40 folder | ☑ |
-| Tabel menggulir mendatar, kolom Layanan terkunci, folder terbaru di kanan; juga di 390 px (bukan kartu) | DRD §3.3, §8.2 | skrip | ☑ |
-| 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
+| Note "Daily data is not always complete …" | inv. §2.3 | look | ☑ |
+| 6 charts: errors, warnings, log lines per day per service (stacked); HTTP requests (Total, 4xx, 5xx); security (attacks, wrong passwords, resets); business (5 metrics) — series and numbers equal to the old ones | inv. §2.3 | `tools/uji_tahap14.cjs` | ☑ |
+| Table "Errors per service & change": numbers and ▲/▼ % equal to the old ones | inv. §2.3 | script | ☑ |
+| Table "Data completeness": numbers / Empty / None equal; new marker "Corrupt" (B05) | inv. §2.3, DRD §3.3 | script | ☑ |
+| simpel-loop 30 Sep "None"; 1 Oct "Corrupt"/"Empty" | plan Stage 14 | script | ☑ |
+| Folder picker in the header disabled with an explanation | DRD §3.3 | script | ☑ |
+| Range picker 14 / 30 / 90 / all (default 30, remembered per browser): the number of columns changes | DRD §3.3 U4 | script, simulated database of 40 folders | ☑ |
+| Table scrolls horizontally, Service column pinned, newest folder on the right; also at 390 px (not cards) | DRD §3.3, §8.2 | script | ☑ |
+| 8 combinations of language × theme × width | U1–U3 | script | ☑ |
 
-## Keamanan (inv. §2.4, DRD §3.4) — Tahap 15 ☑
+## Security (inv. §2.4, DRD §3.4) — Stage 15 ☑
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| 8 KPI ditata 4 + 4 (U5), angka sama dengan lama | 06 Okt: 88 · 14 · 5 · 62 · 9 · 1 · 0 · 4 | `tools/uji_tahap15.cjs` (06 Okt, 29 Sep, 28 Sep) | ☑ |
-| "Temuan utama": 9 aturan, kalimat sama dengan lama dalam 2 bahasa; dari komponen + kamus, bukan HTML dalam string | inv. §2.4 | skrip (6 butir 06 Okt, 11 butir 29 Sep) | ☑ |
-| 6 chart: kategori (warna keparahan), timeline per jam, top 10 IP, per pemilik jaringan, password salah per jam, top 10 IP password salah | inv. §2.4 | skrip (judul kartu) | ☑ |
-| 5 tabel: endpoint serangan (URL lengkap + base host + UA, "2xx – verifikasi"), IP sumber, analisis akun (ISP Sama), login gagal (Multi-akun), IP 4xx | inv. §2.4 | skrip (kolom inti tiap baris) | ☑ |
-| Tanpa nginx: catatan "deteksi serangan per URL tidak tersedia"; bagian login tetap | DRD §6.6 | skrip (28 Sep) | ☑ |
-| URL berisi `<script>` / `onerror` / `${jndi:` tampil sebagai teks, tidak dieksekusi; tidak ada `@html` | rencana Tahap 15 | skrip (29 Sep) + `grep` | ☑ |
-| Kategori serangan dan tanda akun diterjemahkan (label, DRD §6.3) | DRD §6.3 | lihat | ☑ |
-| 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
+| 8 KPIs laid out 4 + 4 (U5), numbers equal to the old ones | 06 Oct: 88 · 14 · 5 · 62 · 9 · 1 · 0 · 4 | `tools/uji_tahap15.cjs` (06 Oct, 29 Sep, 28 Sep) | ☑ |
+| "Key findings": 9 rules, sentences equal to the old ones in 2 languages; built from components + dictionary, not HTML in strings | inv. §2.4 | script (6 items 06 Oct, 11 items 29 Sep) | ☑ |
+| 6 charts: categories (severity colors), hourly timeline, top 10 IPs, per network owner, wrong passwords per hour, top 10 IPs with wrong passwords | inv. §2.4 | script (card titles) | ☑ |
+| 5 tables: attack endpoints (full URL + base host + UA, "2xx – verify"), source IPs, account analysis (same ISP), failed logins (Multi-account), 4xx IPs | inv. §2.4 | script (core columns of every row) | ☑ |
+| Without nginx: note "per-URL attack detection is unavailable"; the login section remains | DRD §6.6 | script (28 Sep) | ☑ |
+| URLs containing `<script>` / `onerror` / `${jndi:` are shown as text, not executed; no `@html` | plan Stage 15 | script (29 Sep) + `grep` | ☑ |
+| Attack categories and account flags translated (labels, DRD §6.3) | DRD §6.3 | look | ☑ |
+| 8 combinations of language × theme × width | U1–U3 | script | ☑ |
 
-## Akar Masalah (inv. §2.5, DRD §3.5) — Tahap 16 ☑
+## Root Causes (inv. §2.5, DRD §3.5) — Stage 16 ☑
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| "Ringkasan akar masalah" hingga 5 butir, kalimat sama dengan lama (dua bahasa, kode sebagai `<code>`); kosong → "Tidak ada pola …" | inv. §2.5 | `tools/uji_tahap16.cjs` (29 Sep, 06 Okt, 30 Sep, 27 Sep) | ☑ |
-| Butir error koneksi memakai jumlah penuh (30 Sep 200 → 1.200) | TRD §4.4 butir 1 | skrip | ☑ |
-| 4 chart: 401 berulang, umur JWT (bertumpuk per layanan), PDF per template, error koneksi per jenis | inv. §2.5 | skrip (data chart vs lama) | ☑ |
-| Baru: "Refresh token kedaluwarsa: N" di bawah chart JWT | DRD §3.5 B07 | skrip (29 Sep: 237) | ☑ |
-| Tabel 401: 30 baris pertama sama (seri boleh beda urutan) + "Menampilkan 30 dari N"; PDF; DNS + dampak | inv. §2.5, B04 | skrip | ☑ |
-| Upstream DNS dari konfigurasi (`S4_DNS_UPSTREAM`), bukan tulis mati | inv. §2.5 | lihat | ☑ |
+| "Root cause summary" up to 5 items, sentences equal to the old ones (both languages, codes as `<code>`); empty → "No root cause patterns …" | inv. §2.5 | `tools/uji_tahap16.cjs` (29 Sep, 06 Oct, 30 Sep, 27 Sep) | ☑ |
+| The connection error item uses the full count (30 Sep 200 → 1,200) | TRD §4.4 item 1 | script | ☑ |
+| 4 charts: repeated 401s, JWT age (stacked per service), PDF per template, connection errors by type | inv. §2.5 | script (chart data vs old) | ☑ |
+| New: "Expired refresh tokens: N" below the JWT chart | DRD §3.5 B07 | script (29 Sep: 237) | ☑ |
+| 401 table: the first 30 rows equal (ties may differ in order) + "Showing 30 of N"; PDF; DNS + impact | inv. §2.5, B04 | script | ☑ |
+| DNS upstream from configuration (`S4_DNS_UPSTREAM`), not hard-coded | inv. §2.5 | look | ☑ |
 
-## Ketersediaan (inv. §2.6, DRD §3.6) — Tahap 16 ☑
+## Availability (inv. §2.6, DRD §3.6) — Stage 16 ☑
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| 7 KPI (4 + 3) sama dengan lama kecuali error koneksi pod (30 Sep 200 → 1.200); retry 825; 10 insiden | inv. §2.6, TRD §4.4 butir 1 | skrip (30 Sep, 06 Okt) | ☑ |
-| 3 chart: 5xx per jam, 5xx per upstream, Uptime-Kuma per jam (berhasil/gagal) — data sama | inv. §2.6 | skrip | ☑ |
-| Tabel per upstream, insiden (durasi menit), target Uptime-Kuma — sama; error koneksi 200 pertama + lanjutan | inv. §2.6 | skrip | ☑ |
-| Tanpa nginx: catatan "Analisis ketersediaan memakai log ingress nginx …" | DRD §6.6 | skrip (28 Sep) | ☑ |
-| 8 kombinasi bahasa × tema × lebar (kedua halaman) | U1–U3 | skrip | ☑ |
+| 7 KPIs (4 + 3) equal to the old ones except pod connection errors (30 Sep 200 → 1,200); retry 825; 10 incidents | inv. §2.6, TRD §4.4 item 1 | script (30 Sep, 06 Oct) | ☑ |
+| 3 charts: 5xx per hour, 5xx per upstream, Uptime-Kuma per hour (success/failure) — same data | inv. §2.6 | script | ☑ |
+| Tables per upstream, incidents (duration in minutes), Uptime-Kuma targets — equal; first 200 connection errors + continuation | inv. §2.6 | script | ☑ |
+| Without nginx: note "Availability analysis uses the ingress nginx log …" | DRD §6.6 | script (28 Sep) | ☑ |
+| 8 combinations of language × theme × width (both pages) | U1–U3 | script | ☑ |
 
-## Pod (inv. §2.7, DRD §3.7) — Tahap 17 ☑
+## Pods (inv. §2.7, DRD §3.7) — Stage 17 ☑
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| 5 KPI sama dengan lama; label "Pod dengan retry" (bukan "… retry 502") + keterangan (i) | inv. §2.7, B10 | `tools/uji_tahap17.cjs` (06 Okt, 29 Sep, 28 Sep) | ☑ |
-| Catatan "Nama pod diambil dari nama file log …" | inv. §2.7 | lihat | ☑ |
-| 2 chart: error per pod (15), sebaran request per pod (IP) (15) — data sama | inv. §2.7 | skrip | ☑ |
-| Kesehatan per pod: baris, error, warning, ukuran sama; status "Rusak" untuk file rusak (06 Okt: 3; lama "Ada Log"), status lain sama | inv. §2.7, B05 | skrip | ☑ |
-| Sebaran traffic per pod backend (porsi, 5xx, retry) dan restart — sama | inv. §2.7 | skrip | ☑ |
+| 5 KPIs equal to the old ones; label "Pods with retries" (not "… retry 502") + (i) explanation | inv. §2.7, B10 | `tools/uji_tahap17.cjs` (06 Oct, 29 Sep, 28 Sep) | ☑ |
+| Note "Pod names come from the log file names …" | inv. §2.7 | look | ☑ |
+| 2 charts: errors per pod (15), request distribution per pod (IP) (15) — same data | inv. §2.7 | script | ☑ |
+| Health per pod: lines, errors, warnings, size equal; status "Corrupt" for corrupt files (06 Oct: 3; old "Ada Log"), other statuses equal | inv. §2.7, B05 | script | ☑ |
+| Traffic distribution per backend pod (share, 5xx, retry) and restarts — equal | inv. §2.7 | script | ☑ |
 
-## Bisnis (inv. §2.8, DRD §3.8) — Tahap 17 ☑
+## Business (inv. §2.8, DRD §3.8) — Stage 17 ☑
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| 11 KPI + perubahan vs folder sebelumnya sama dengan lama; 29 Sep: 12 / 108 / 35 / 12 / 314 / 18 / 55 / 813 / 32 / 389 | inv. §2.8 | skrip (29 Sep, 06 Okt, 28 Sep) | ☑ |
-| Log simpel-loop / report / appsmanager tidak ada → KPI "–" + "Log … tidak ada di folder ini", bukan 0 | DRD U16 | skrip (30 Sep: 9 KPI "–") | ☑ |
-| 5 chart (ringkasan, email, top aktivitas, login per jam, PDF per template) — data sama; label metrik dari kamus | inv. §2.8, DRD §6.3 | skrip | ☑ |
-| Tabel aktivitas (20 teratas; seri di batas boleh beda pilihan, aturan E2) dan PDF per template sama | inv. §2.8 | skrip | ☑ |
+| 11 KPIs + change vs the previous folder equal to the old ones; 29 Sep: 12 / 108 / 35 / 12 / 314 / 18 / 55 / 813 / 32 / 389 | inv. §2.8 | script (29 Sep, 06 Oct, 28 Sep) | ☑ |
+| simpel-loop / report / appsmanager log absent → KPI "–" + "No … log in this folder", not 0 | DRD U16 | script (30 Sep: 9 KPIs "–") | ☑ |
+| 5 charts (summary, email, top activities, logins per hour, PDF per template) — same data; metric labels from the dictionary | inv. §2.8, DRD §6.3 | script | ☑ |
+| Activity table (top 20; ties at the cut-off may be chosen differently, rule E2) and PDF per template equal | inv. §2.8 | script | ☑ |
 
-## Pelacakan Request (inv. §2.9, DRD §3.9) — Tahap 17 ☑
+## Request Tracing (inv. §2.9, DRD §3.9) — Stage 17 ☑
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| KPI 1–3 sama dengan lama; 29 Sep: 60.665 / 22.638 / 37,3 % | inv. §2.9 | skrip (29 Sep, 06 Okt) | ☑ |
-| KPI gagal / IP / lambat dari SEMUA jejak (29 Sep: 3.245 → 3.479, 150 → 176, lambat 15 → 24) | TRD §4.4 butir 1, 9 | skrip (= API) | ☑ |
-| Catatan "… X % event tidak cocok …" sama dengan lama | inv. §2.9 | skrip | ☑ |
-| Tabel jejak: 300 pertama + "Menampilkan 300 dari 550"; setelah dimuat semua, setiap baris lama ada | inv. §2.9, B04 | skrip | ☑ |
-| URL jejak tampil sebagai teks (tanpa eksekusi), dipotong 200, UA di bawahnya | inv. §2.9 | skrip + lihat | ☑ |
-| Tanpa kecocokan (27 Sep) atau tanpa simpel-loop (30 Sep): catatan "Pelacakan butuh log om-be-simpel-loop dan ingress nginx …" (ASUMSI; lama 27 Sep menampilkan KPI nol) | DRD §6.6 | skrip | ☑ |
-| 8 kombinasi bahasa × tema × lebar (ketiga halaman) | U1–U3 | skrip | ☑ |
+| KPIs 1–3 equal to the old ones; 29 Sep: 60,665 / 22,638 / 37.3 % | inv. §2.9 | script (29 Sep, 06 Oct) | ☑ |
+| Failed / IP / slow KPIs from ALL traces (29 Sep: 3,245 → 3,479, 150 → 176, slow 15 → 24) | TRD §4.4 items 1, 9 | script (= API) | ☑ |
+| Note "… X % of events do not match …" equal to the old one | inv. §2.9 | script | ☑ |
+| Trace table: first 300 + "Showing 300 of 550"; after loading everything, every old row is present | inv. §2.9, B04 | script | ☑ |
+| Trace URLs shown as text (not executed), truncated at 200, UA below them | inv. §2.9 | script + look | ☑ |
+| No matches (27 Sep) or no simpel-loop (30 Sep): note "Tracing needs om-be-simpel-loop and ingress nginx logs …" (ASSUMPTION; the old one showed zero KPIs on 27 Sep) | DRD §6.6 | script | ☑ |
+| 8 combinations of language × theme × width (all three pages) | U1–U3 | script | ☑ |
 
-## Kelola user (DRD §3.11, TRD §8.4) — Tahap 18 ☑
+## Manage users (DRD §3.11, TRD §8.4) — Stage 18 ☑
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| Tabel user: nama, nama tampilan, peran (tag admin), status (aktif = tag ok, nonaktif = redup, terkunci), terakhir masuk (WIB), menu aksi ⋯ | DRD §3.11 | `tools/uji_tahap18.cjs` | ☑ |
-| Tambah user dalam dialog: aturan ditulis sebelum mengetik, galat per kolom (`aria-describedby`), "Buat acak"; fokus di kolom pertama; Esc menutup, fokus kembali ke pemicu | DRD §3.11 | skrip | ☑ |
-| User baru: wajib ganti sandi, lalu seluruh dashboard tanpa menu admin | TRD §8.2 | skrip (dua jendela) | ☑ |
-| Naik/turun peran berlaku pada permintaan berikutnya (pindah tab / muat ulang) | rencana 18 | skrip | ☑ |
-| Reset sandi: konfirmasi menyebut nama; sandi sementara tampil sekali + Salin + "tidak akan ditampilkan lagi"; sesi user langsung berakhir | DRD §3.11 | skrip | ☑ |
-| Nonaktifkan / Hapus: konfirmasi menyebut nama; sesi berakhir; masuk ditolak dengan pesan umum; aktifkan lagi | DRD §3.11 | skrip | ☑ |
-| Admin terakhir / akun sendiri: butir tidak ditawarkan (nonaktif + sebab); peran terkunci; daftar basi → pesan penolakan di dialog; API 409 | DRD §3.11 | skrip | ☑ |
-| User biasa di alamat admin: "Tidak punya akses"; API 403 | TRD §8.4 | skrip | ☑ |
-| Ponsel: kartu baris, "+ Tambah user" menempel di bawah, dialog layar penuh | DRD §3.11 | skrip + lihat | ☑ |
+| User table: name, display name, role (admin tag), status (active = ok tag, inactive = dimmed, locked), last sign-in (WIB), ⋯ actions menu | DRD §3.11 | `tools/uji_tahap18.cjs` | ☑ |
+| Add user in a dialog: rules written before typing, per-field errors (`aria-describedby`), "Generate"; focus on the first field; Esc closes, focus returns to the trigger | DRD §3.11 | script | ☑ |
+| New user: must change password, then the whole dashboard without the admin menu | TRD §8.2 | script (two windows) | ☑ |
+| Role promotion/demotion takes effect on the next request (tab switch / reload) | plan 18 | script | ☑ |
+| Reset password: confirmation names the user; temporary password shown once + Copy + "will not be shown again"; the user's sessions end immediately | DRD §3.11 | script | ☑ |
+| Deactivate / Delete: confirmation names the user; sessions end; sign-in refused with a generic message; reactivate | DRD §3.11 | script | ☑ |
+| Last admin / own account: item not offered (disabled + reason); role locked; stale list → refusal message in the dialog; API 409 | DRD §3.11 | script | ☑ |
+| Regular user at the admin address: "No access"; API 403 | TRD §8.4 | script | ☑ |
+| Phone: row cards, "+ Add user" sticky at the bottom, full-screen dialog | DRD §3.11 | script + look | ☑ |
 
-## Ingest & impor (DRD §3.11, TRD §8.4) — Tahap 18 ☑, kartu impor Tahap 19 ☑ (uji dengan S3 tiruan)
+## Ingest & import (DRD §3.11, TRD §8.4) — Stage 18 ☑, import card Stage 19 ☑ (tested with a fake S3)
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| Ingest terakhir dari database (bertahan setelah server mulai ulang): waktu WIB, berhasil/gagal, N file berubah dari M | DRD §3.11 | skrip + `test_api.py` | ☑ |
-| "Ingest sekarang": nonaktif selama berjalan; kemajuan tiap 2 dtk (`aria-live` sopan, `progressbar`); selesai → pemberitahuan "0 file berubah"; dashboard tetap terbuka | DRD §3.11 | skrip | ☑ |
-| Peringatan ingest bisa dibuka (`details`); galat ditampilkan | DRD §3.11 | lihat | ☑ |
-| Catatan audit: terbaru di atas, 50 pertama + lanjutan, filter; waktu, user, tindakan, rincian, IP; tanpa sandi/token | DRD §3.11 | skrip | ☑ |
-| Impor: status kredensial (tersedia/tidak + sumber, tanpa nilai); bentuk tautan yang diterima; impor mati → catatan cara mengaktifkan | DRD §3.11 | `tools/uji_tahap19.cjs` | ☑ |
-| "Coba dulu": ringkasan + rincian ambil/lewati dengan alasan, 0 byte diunduh; tautan ditolak dengan sebab (bucket, awalan, tanggal) | DRD §3.11 | skrip | ☑ |
-| "Impor": konfirmasi menyebut tautan, kemajuan (`progressbar`, `aria-live`), selesai → ingest + folder muncul; ulang → 0 objek; riwayat impor | DRD §3.11 | skrip | ☑ |
-| Kredensial sementara: tiga kolom sandi tanpa autocomplete, keterangan "memori server saja", bentuk salah ditolak, hapus; nilai tidak pernah tampil | DRD §3.11 | skrip | ☑ |
-| 8 kombinasi bahasa × tema × lebar (kedua layar) | U1–U3 | skrip | ☑ |
+| Last ingest from the database (survives a server restart): time in WIB, success/failure, N files changed of M | DRD §3.11 | script + `test_api.py` | ☑ |
+| "Ingest now": disabled while running; progress every 2 s (polite `aria-live`, `progressbar`); done → notification "0 files changed"; the dashboard stays open | DRD §3.11 | script | ☑ |
+| Ingest warnings can be expanded (`details`); errors are shown | DRD §3.11 | look | ☑ |
+| Audit log: newest on top, first 50 + continuation, filter; time, user, action, details, IP; no passwords/tokens | DRD §3.11 | script | ☑ |
+| Import: credential status (available/not + source, without values); accepted link forms; import disabled → note on how to enable it | DRD §3.11 | `tools/uji_tahap19.cjs` | ☑ |
+| "Dry run": summary + fetch/skip details with reasons, 0 bytes downloaded; links refused with a reason (bucket, prefix, date) | DRD §3.11 | script | ☑ |
+| "Import": confirmation names the link, progress (`progressbar`, `aria-live`), done → ingest + folder appears; repeat → 0 objects; import history | DRD §3.11 | script | ☑ |
+| Temporary credentials: three password fields without autocomplete, note "server memory only", wrong format refused, delete; values never shown | DRD §3.11 | script | ☑ |
+| 8 combinations of language × theme × width (both screens) | U1–U3 | script | ☑ |
 
-## Penyajian tambahan (saran 1–9) — Tahap 24 ☑
+## Additional presentation (suggestions 1–9) — Stage 24 ☑
 
-| Butir | Cara | Hasil |
+| Item | Method | Result |
 |---|---|:-:|
-| Command Center: ▲/▼ vs folder sebelumnya (hanya bila sebanding), grafik per jam (request; 5xx & serangan) | uji API + lihat 30 Sep (▼ 81 % request, ▲ 731 % 5xx) | ☑ |
-| Butir perhatian baru: uptime gagal, error layanan melonjak, restart, PDF gagal, JWT melonjak; tautan ke halaman/layanan terkait | uji API + lihat (30 Sep: "Error nginx-ingress-controller melonjak") | ☑ |
-| Profil IP dari sel IP mana pun dan dari pencarian; jejak semua folder; request + kategori + aturan CRS | lihat 34.19.127.176 (51 request, 6 serangan, 2 folder) | ☑ |
-| Unduh daftar IP serangan (CSV), aman dibuka di spreadsheet | unduhan `ip-serangan-2026-10-06.csv` 4 baris; uji `_safe` | ☑ |
-| Kolom "Aturan CRS" dengan keterangan aturan | lihat (944150 · Potential Remote Command Execution: Log4j / Log4shell) | ☑ |
-| Pencarian global (Ctrl+K / 🔍): IP, akun, requestId, URL → halaman + filter terisi | uji API + lihat | ☑ |
-| Tren: kelengkapan data (tanggal hilang, file rusak, ingest terakhir) + heatmap jam × tanggal (Request/Error, tabel) | lihat | ☑ |
-| Ringkasan PDF 1 halaman A4 (tema terang, peta, KPI, perhatian) | PDF Chromium | ☑ |
-| 390 px tanpa gulir mendatar (Command Center, Tren, profil IP); dua bahasa | lihat + `cek_i18n` | ☑ |
+| Command Center: ▲/▼ vs the previous folder (only when comparable), hourly charts (requests; 5xx & attacks) | API test + look at 30 Sep (▼ 81 % requests, ▲ 731 % 5xx) | ☑ |
+| New attention items: uptime failures, service error spike, restarts, failed PDFs, JWT spike; links to the related page/service | API test + look (30 Sep: "nginx-ingress-controller errors spiked") | ☑ |
+| IP profile from any IP cell and from search; trail across all folders; requests + category + CRS rules | look at 34.19.127.176 (51 requests, 6 attacks, 2 folders) | ☑ |
+| Download the attack IP list (CSV), safe to open in a spreadsheet | download `ip-serangan-2026-10-06.csv` 4 rows; `_safe` test | ☑ |
+| "CRS rules" column with rule descriptions | look (944150 · Potential Remote Command Execution: Log4j / Log4shell) | ☑ |
+| Global search (Ctrl+K / 🔍): IP, account, requestId, URL → page + filter filled in | API test + look | ☑ |
+| Trends: data completeness (missing dates, corrupt files, last ingest) + hour × date heatmap (Requests/Errors, table) | look | ☑ |
+| One-page A4 PDF summary (light theme, map, KPIs, attention items) | Chromium PDF | ☑ |
+| 390 px without horizontal scroll (Command Center, Trends, IP profile); both languages | look + `cek_i18n` | ☑ |
 
-## Command Center (DRD §12, TRD §12) — Tahap 22 ☑
+## Command Center (DRD §12, TRD §12) — Stage 22 ☑
 
-Menyerap tab Peta IP (ASUMSI DRD §12) di alamat yang sama (`#/peta?modul=`); bagian "Peta IP" di bawah tetap
-berlaku untuk peta dan tabel alurnya.
+Absorbs the IP Map tab (ASSUMPTION DRD §12) at the same address (`#/peta?modul=`); the "IP Map" section below still
+applies to the map and its flow table.
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| 6 KPI utama (request HTTP, 5xx, error semua layanan, error koneksi upstream, IP sumber serangan, IP login gagal) = angka halaman asalnya | TRD §12 | `pytest tests/test_api.py -k command` | ☑ |
-| Kartu "Yang perlu perhatian" bernomor: serangan, error koneksi upstream, 5xx, login gagal, file rusak; merah dulu; tautan "Buka …" ke halaman terkait | DRD §12 | uji API + lihat (06 Okt: 5 butir) | ☑ |
-| Peta selebar dan setinggi layar (permintaan pemilik), kartu perhatian di bawah peta; pemilih modul + 6 angka peta di atasnya | permintaan pemilik 2026-10-06 | lihat (1440 px: peta 1106 × 600 px) | ☑ |
-| Tanpa nginx (28 Sep): KPI request/5xx "–" + "Tidak ada log ingress nginx"; kartu perhatian tetap; catatan peta | DRD §6.6 | lihat | ☑ |
-| Dua bahasa, tanpa gulir mendatar di 390 px | U1–U3 | lihat + `uji_tahap20.cjs` | ☑ |
+| 6 main KPIs (HTTP requests, 5xx, errors of all services, upstream connection errors, attack source IPs, failed-login IPs) = numbers on their source pages | TRD §12 | `pytest tests/test_api.py -k command` | ☑ |
+| Numbered "What needs your attention" card: attacks, upstream connection errors, 5xx, failed logins, corrupt files; red first; "Open …" links to the related page | DRD §12 | API test + look (06 Oct: 5 items) | ☑ |
+| Map as wide and as tall as the screen (owner request), attention card below the map; module picker + 6 map figures above it | owner request 2026-10-06 | look (1440 px: map 1106 × 600 px) | ☑ |
+| Without nginx (28 Sep): request/5xx KPIs "–" + "No nginx ingress log"; attention card remains; map note | DRD §6.6 | look | ☑ |
+| Both languages, no horizontal scroll at 390 px | U1–U3 | look + `uji_tahap20.cjs` | ☑ |
 
-## Keamanan: deteksi OWASP CRS + CAPEC (TRD §4.6) — Tahap 21 ☑
+## Security: OWASP CRS + CAPEC detection (TRD §4.6) — Stage 21 ☑
 
-Tampilan bawaan (`S4_ATTACK_RULES=crs`). Bagian "Keamanan" di atas tetap berlaku untuk tampilan aturan lama
-(`S4_ATTACK_RULES=lama`), yang diuji ulang dengan `tools/uji_tahap15.cjs` agar kesetaraan tidak hilang.
+Default view (`S4_ATTACK_RULES=crs`). The "Security" section above still applies to the old-rules view
+(`S4_ATTACK_RULES=lama`), which is re-tested with `tools/uji_tahap15.cjs` so that parity is not lost.
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| 8 KPI = API; KPI kritis = request berkeparahan tertinggi (CRITICAL), label "Serangan kritis (keparahan tertinggi)" | TRD §4.6 | `tools/uji_tahap21.cjs` (06 Okt: 50 · 4 · 50 · 46 · 9 · 1 · 0 · 4) | ☑ |
-| Jumlah IP penyerang di ringkasan folder (Overview, banner) = KPI Keamanan, skema yang sama | TRD §4.6 | skrip | ☑ |
-| Kategori bernama CAPEC dua bahasa (+ keluarga CRS bila CAPEC-nya umum) dan baris kecil "CAPEC-n"; chart kategori memakai nama yang sama | rencana Tahap 21 | skrip (49 baris URL, 4 baris IP, ID dan EN) | ☑ |
-| Kolom "Aturan CRS": ID aturan yang kena per baris, sama dengan API | rencana Tahap 21 | skrip | ☑ |
-| Temuan utama: Log4Shell dari aturan Log4j CRS; kategori kritis = 3 kategori berkeparahan tertinggi | TRD §4.6 | skrip | ☑ |
-| Catatan kaki: CRS + versi + lisensi + tingkat paranoia + jumlah aturan + ambang; hanya URL, argumen, User-Agent yang diperiksa; bukan pengganti WAF | rencana Tahap 21 | skrip (ID dan EN) | ☑ |
-| Isi URL/UA serangan tetap tampil sebagai teks | rencana Tahap 15 | skrip | ☑ |
-| 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
+| 8 KPIs = API; critical KPI = requests of the highest severity (CRITICAL), label "Critical attacks (highest severity)" | TRD §4.6 | `tools/uji_tahap21.cjs` (06 Oct: 50 · 4 · 50 · 46 · 9 · 1 · 0 · 4) | ☑ |
+| Number of attacker IPs in the folder summary (Overview, banner) = Security KPI, same scheme | TRD §4.6 | script | ☑ |
+| Categories named by CAPEC in both languages (+ CRS family when the CAPEC is generic) and a small "CAPEC-n" line; the category chart uses the same names | plan Stage 21 | script (49 URL rows, 4 IP rows, ID and EN) | ☑ |
+| "CRS rules" column: IDs of the matched rules per row, equal to the API | plan Stage 21 | script | ☑ |
+| Key findings: Log4Shell from the CRS Log4j rule; critical categories = the 3 categories of highest severity | TRD §4.6 | script | ☑ |
+| Footnote: CRS + version + license + paranoia level + number of rules + threshold; only URL, arguments, User-Agent are inspected; not a WAF replacement | plan Stage 21 | script (ID and EN) | ☑ |
+| Attack URL/UA content still shown as text | plan Stage 15 | script | ☑ |
+| 8 combinations of language × theme × width | U1–U3 | script | ☑ |
 
-## Peta IP (inv. §2.2, DRD §3.2, §7) — Tahap 20 ☑
+## IP Map (inv. §2.2, DRD §3.2, §7) — Stage 20 ☑
 
-| Butir | Acuan | Cara | Hasil |
+| Item | Reference | Method | Result |
 |---|---|---|:-:|
-| 6 KPI; IP asal, modul, pod, total request sama dengan lama; lokasi/negara/"dari luar Indonesia" berbeda karena MaxMind vs DB-IP (rencana Tahap 7) | inv. §2.2 | `tools/uji_tahap20.cjs` (06 Okt) | ☑ |
-| Pemilih modul (di alamat `?modul=`): KPI, titik, tabel berganti; posisi dan zoom peta tetap | DRD §3.2 | skrip | ☑ |
-| 13 lapisan §7.3; titik server di Jakarta berlabel; label lokasi terbesar nama + "N IP · N req"; kelompok < 40 px tanpa angka (keputusan pemilik) | DRD §7.3, §7.5 | skrip + lihat | ☑ |
-| Label negara → provinsi (zoom ≥ 4) → kabupaten (zoom ≥ 7) tanpa bertumpuk; kelompok pecah di zoom 8 | DRD §7.3, §7.5 | skrip | ☑ |
-| Roda mouse menggulir halaman + petunjuk "Tahan Ctrl…"; Ctrl + roda memperbesar; keyboard panah/+/−/0/Esc | DRD §7.6 | skrip | ☑ |
-| 390 px sentuh: peta setinggi layar di Command Center (Tahap 22; sebelumnya 4:3), tombol 44 px, satu jari tidak menggeser peta, dua jari menggeser; tombol layar penuh | DRD §7.6, §8.2 | skrip (CDP sentuh) | ☑ |
-| Tooltip (lokasi, IP, request, modul) → "Lihat di tabel" mengisi filter tabel alur; Esc menutup | DRD §7.7 | skrip | ☑ |
-| Semua permintaan ke asal yang sama; internet diputus → peta, label, titik tetap tampil; atribusi MaxMind · GeoNames · Natural Earth selalu terlihat | DRD §7.2, §7.8 | skrip | ☑ |
-| Ganti tema/bahasa: warna dan nama negara berganti tanpa kehilangan posisi | DRD §7.1 | skrip | ☑ |
-| Tabel alur 100 pertama + lanjutan (baris sama dengan lama); catatan menyebut MaxMind; tanpa nginx → catatan | inv. §2.2, X6 | skrip | ☑ |
-| Halaman layanan: peta terlipat; dibuka → alur modul itu saja | DRD §3.10, Q5 | skrip | ☑ |
-| 8 kombinasi bahasa × tema × lebar | U1–U3 | skrip | ☑ |
+| 6 KPIs; source IPs, modules, pods, total requests equal to the old ones; location/country/"from outside Indonesia" differ because of MaxMind vs DB-IP (plan Stage 7) | inv. §2.2 | `tools/uji_tahap20.cjs` (06 Oct) | ☑ |
+| Module picker (in the address `?modul=`): KPIs, points, table change; map position and zoom stay | DRD §3.2 | script | ☑ |
+| 13 layers §7.3; server point in Jakarta labeled; label of the largest locations name + "N IP · N req"; clusters < 40 px without numbers (owner decision) | DRD §7.3, §7.5 | script + look | ☑ |
+| Labels country → province (zoom ≥ 4) → regency (zoom ≥ 7) without overlapping; clusters split at zoom 8 | DRD §7.3, §7.5 | script | ☑ |
+| Mouse wheel scrolls the page + hint "Hold Ctrl…"; Ctrl + wheel zooms; keyboard arrows/+/−/0/Esc | DRD §7.6 | script | ☑ |
+| 390 px touch: screen-tall map in the Command Center (Stage 22; previously 4:3), 44 px buttons, one finger does not pan the map, two fingers pan; full-screen button | DRD §7.6, §8.2 | script (CDP touch) | ☑ |
+| Tooltip (location, IP, requests, module) → "Show in table" fills the flow table filter; Esc closes | DRD §7.7 | script | ☑ |
+| All requests go to the same origin; internet cut off → map, labels, points still shown; MaxMind · GeoNames · Natural Earth attribution always visible | DRD §7.2, §7.8 | script | ☑ |
+| Theme/language switch: colors and country names change without losing the position | DRD §7.1 | script | ☑ |
+| Flow table first 100 + continuation (rows equal to the old ones); note names MaxMind; without nginx → note | inv. §2.2, X6 | script | ☑ |
+| Service page: map collapsed; when opened → flows of that module only | DRD §3.10, Q5 | script | ☑ |
+| 8 combinations of language × theme × width | U1–U3 | script | ☑ |
 
-## Halaman berikutnya
+## Next pages
 
-| Halaman | Acuan | Tahap |
+| Page | Reference | Stage |
 |---|---|:-:|
-| Aliran realtime Command Center (Kafka, ditunda) | TRD §12 | 23 |
+| Command Center realtime stream (Kafka, postponed) | TRD §12 | 23 |
 
-Tiap tahap menambah bagiannya di sini dengan bentuk yang sama, dan skrip `tools/uji_tahapNN.cjs` bila halamannya
-punya padanan di dashboard lama.
+Each stage adds its section here in the same form, plus a `tools/uji_tahapNN.cjs` script when the page
+has a counterpart in the old dashboard.

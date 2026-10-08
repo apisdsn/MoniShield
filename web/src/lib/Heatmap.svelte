@@ -1,7 +1,7 @@
-<!-- Heatmap jam × tanggal (Tahap 24 butir 8). Satu warna berurutan (terang -> gelap aksen) untuk besaran; sel kosong =
-     tanpa data. 5 kelas (kuantisasi linear terhadap nilai terbesar) dengan legenda. Arahkan/fokus sel -> keterangan di
-     atas grid (teks, bukan warna saja); "Lihat sebagai tabel" menampilkan angka yang sama (DRD §9.2).
-     days: ['YYYY-MM-DD', …] (tanggal WIB), rows: [[24 angka], …] sejajar days. -->
+<!-- Hour × date heatmap (Stage 24 item 8). One sequential color (light -> dark accent) for magnitude; empty cell =
+     no data. 5 classes (linear quantization against the largest value) with a legend. Hover/focus a cell -> caption
+     above the grid (text, not color only); "Lihat sebagai tabel" shows the same numbers (DRD §9.2).
+     days: ['YYYY-MM-DD', …] (WIB dates), rows: [[24 numbers], …] aligned with days. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { num, dLabel } from '../format.js';
@@ -9,7 +9,7 @@
   let asTable = $state(false), hover = $state(null);
   const uid = `hm-${Math.random().toString(36).slice(2, 8)}`;
   const max = $derived(Math.max(1, ...rows.flat()));
-  const STEPS = [18, 36, 56, 78, 100];   // % aksen dicampur ke latar kartu
+  const STEPS = [18, 36, 56, 78, 100];   // % of accent mixed into the card background
   const cls = (v) => (v <= 0 ? -1 : Math.min(4, Math.floor((v / max) * 5 - 1e-9)));
   const bg = (v) => { const c = cls(v); return c < 0 ? 'var(--card2)' : `color-mix(in srgb, var(--accent) ${STEPS[c]}%, var(--card2))`; };
   const H = Array.from({ length: 24 }, (_, h) => h);

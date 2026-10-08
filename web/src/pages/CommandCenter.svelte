@@ -1,11 +1,11 @@
-<!-- Command Center (Tahap 22, DRD §12, TRD §12): menyerap tab Peta IP (ASUMSI DRD §12) di alamat yang sama (#/peta, ?modul=).
-     Satu permintaan: GET /api/folders/{folder}/command[?module=…] = KPI utama (+ folder sebelumnya) + "yang perlu perhatian"
-     + per jam + data peta (respons Peta IP). Susunan: 6 KPI operasional dengan perubahan ▲/▼ vs folder sebelumnya ·
-     pemilih modul + angka peta · peta selebar dan setinggi layar (isi utama, permintaan pemilik) · kartu perhatian ·
-     2 grafik per jam (request; 5xx & serangan — skala berbeda, jadi dua grafik, bukan dua sumbu) · tabel alur.
-     Sumber = folder log (Kafka ditunda, Tahap 23); diperbarui saat ingest atau "Muat ulang". Ganti modul hanya menyaring
-     peta; posisi dan zoom peta tetap. Tahap 24 butir 9: "Unduh ringkasan (PDF)" = cetak browser satu halaman A4 mendatar
-     (KPI, peta, butir perhatian) dalam tema terang; tanpa pustaka PDF di server. -->
+<!-- Command Center (Stage 22, DRD §12, TRD §12): absorbs the IP Map tab (ASSUMPTION DRD §12) at the same address (#/peta, ?modul=).
+     One request: GET /api/folders/{folder}/command[?module=…] = main KPIs (+ previous folder) + "what needs attention"
+     + hourly + map data (IP Map response). Layout: 6 operational KPIs with ▲/▼ change vs the previous folder ·
+     module picker + map numbers · map as wide and tall as the screen (main content, owner request) · attention card ·
+     2 hourly charts (requests; 5xx & attacks — different scales, so two charts, not two axes) · flow table.
+     Source = log folders (Kafka deferred, Stage 23); refreshed on ingest or "Muat ulang". Changing the module only filters the
+     map; map position and zoom are kept. Stage 24 item 9: "Unduh ringkasan (PDF)" = browser print of one landscape A4 page
+     (KPIs, map, attention items) in the light theme; no PDF library on the server. -->
 <script>
   import { tick } from 'svelte';
   import { get } from 'svelte/store';
@@ -38,7 +38,7 @@
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) {
-        if (e.status === 404 && module) go({ module: null }, { replace: true });   // modul tidak ada di folder ini -> semua modul
+        if (e.status === 404 && module) go({ module: null }, { replace: true });   // module not in this folder -> all modules
         else error = e;
       }
     } finally {
@@ -47,9 +47,9 @@
   }
   $effect(() => { void [folder, module, reloadKey]; if (folder) load(); });
 
-  // perubahan vs folder sebelumnya; KPI berbasis ingress dibandingkan hanya bila log ingress kemarin sebanding (aturan Overview)
+  // change vs the previous folder; ingress-based KPIs are compared only when yesterday's ingress log is comparable (Overview rule)
   const NGX = new Set(['requests', 'n5xx', 'upstream_errors', 'attack_ips']);
-  // pembanding (permintaan pemilik 2026-10-07): rata-rata folder sebanding (bawaan) atau folder sebelumnya; per browser
+  // comparison (owner request 2026-10-07): average of comparable folders (default) or the previous folder; per browser
   let cmp = $state(loadPref('cc_cmp', 'avg') === 'prev' ? 'prev' : 'avg');
   const setCmp = (v) => { cmp = v; savePref('cc_cmp', v); };
   const d = (key, good = false) => {
@@ -64,7 +64,7 @@
   };
   const avgMissing = $derived(cmp === 'avg' && data?.baseline && data.baseline.n_all < 3);
 
-  // butir perhatian: kunci + angka dari server, kalimat dari kamus, tautan ke halaman asalnya
+  // attention items: key + numbers from the server, sentences from the dictionary, links to their source page
   const items = $derived((data?.attention || []).map((a) => {
     const p = { n: num(a.n, $lang), ips: num(a.ips ?? 0, $lang), resets: num(a.resets ?? 0, $lang), kind: a.kind ?? '', upstream: a.upstream ?? '',
                 top: num(a.top ?? 0, $lang), total: num(a.total ?? 0, $lang), templates: num(a.templates ?? 0, $lang), prev: num(a.prev ?? 0, $lang),
@@ -82,13 +82,13 @@
     const prev = get(theme);
     printing = true;
     printedAt = new Intl.DateTimeFormat($lang === 'en' ? 'en-GB' : 'id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date());
-    if (prev !== 'light') theme.set('light');   // kertas: tema terang; peta & grafik menggambar ulang dengan token terang
+    if (prev !== 'light') theme.set('light');   // paper: light theme; map & charts redraw with light tokens
     await tick();
-    await new Promise((r) => setTimeout(r, 1200));   // beri waktu peta selesai menggambar ulang
-    // peta dicetak sebagai gambar: kanvas WebGL berukuran layar tidak ikut menyesuaikan lebar kertas
+    await new Promise((r) => setTimeout(r, 1200));   // give the map time to finish redrawing
+    // the map is printed as an image: a screen-sized WebGL canvas does not adapt to the paper width
     try { snap = document.querySelector('main .mapwrap.tall canvas')?.toDataURL('image/png') || ''; } catch { snap = ''; }
     await tick();
-    // kembalikan tampilan setelah dialog cetak ditutup (afterprint; Firefox tidak memblokir di print()); cadangan 2 menit
+    // restore the view after the print dialog closes (afterprint; Firefox does not block in print()); 2-minute fallback
     let done = false;
     const restore = () => { if (done) return; done = true; snap = ''; if (prev !== 'light') theme.set(prev); printing = false; };
     window.addEventListener('afterprint', restore, { once: true });
@@ -188,21 +188,21 @@
   .calm p { margin: 0; font-size: 0.8125rem; }
   .hourly { margin-top: 0; }
   .print-only { display: none; }
-  .printing :global(.mapwrap.tall) { height: 300px; min-height: 0; }   /* selama menyiapkan cetak: peta digambar ulang lebih pendek */
+  .printing :global(.mapwrap.tall) { height: 300px; min-height: 0; }   /* while preparing to print: the map is redrawn shorter */
   .snap { display: none; }
   @media (min-width: 1200px) { .kpis.cc { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 
-  /* ringkasan PDF (cetak browser): satu halaman A4 mendatar berisi kepala, KPI, angka peta, peta, butir perhatian */
+  /* PDF summary (browser print): one landscape A4 page with header, KPIs, map numbers, map, attention items */
   @media print {
     @page { size: A4 landscape; margin: 8mm; }
     :global(html), :global(body) { background: #fff !important; }
     :global(.side), :global(.backdrop), :global(.skip), :global(header.top .tools), :global(.band), :global(.toast) { display: none !important; }
     :global(.wrap) { margin: 0 !important; padding: 0 !important; }
     :global(html), :global(body), :global(#app), :global(.wrap), :global(main) { min-height: 0 !important; height: auto !important; }
-    .content :global(.wide-slot:has(.dt)) { display: none !important; }   /* tabel alur di bawah peta */
+    .content :global(.wide-slot:has(.dt)) { display: none !important; }   /* flow table below the map */
     :global(header.top) { position: static !important; box-shadow: none !important; margin: 0 0 4px !important; padding: 6px 10px !important; }
     .content { zoom: 0.7; }
-    .content :global(.fm) { display: none !important; }   /* peta interaktif diganti gambarnya (.snap) */
+    .content :global(.fm) { display: none !important; }   /* the interactive map is replaced by its image (.snap) */
     .content :global(.side-row) { grid-template-columns: minmax(0, 1fr) !important; gap: 8px !important; }
     .snap { display: block; margin: 0; }
     .snap img { width: 100%; height: auto; max-height: 300px; object-fit: contain; display: block; border-radius: 10px; border: 1px solid #d5dbe1; }

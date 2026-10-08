@@ -1,8 +1,8 @@
-<!-- Notifikasi (permintaan pemilik 2026-10-07; API /api/admin/alerts, monishield/alerts.py), hanya admin.
-     Tiga saluran (Telegram, Discord, email): aktif/mati + kredensial + "Kirim uji". Kolom rahasia (token bot, URL webhook,
-     sandi SMTP) tidak pernah diisi ulang dari server: tampil "sudah diisi"; dibiarkan kosong saat menyimpan = tidak
-     diubah; "Hapus" menghapusnya. Kejadian yang dikirim, bahasa pesan, alamat dashboard untuk tautan, jam pemeriksaan
-     folder harian. Riwayat 30 kiriman terakhir. Pesan tidak pernah memuat alamat IP (aturan proyek). -->
+<!-- Notifications (owner request 2026-10-07; API /api/admin/alerts, monishield/alerts.py), admin only.
+     Three channels (Telegram, Discord, email): on/off + credentials + "Kirim uji" (send test). Secret fields (bot token, webhook URL,
+     SMTP password) are never refilled from the server: shown as "sudah diisi"; left empty on save = not
+     changed; "Hapus" removes them. Events sent, message language, dashboard address for links, daily folder check
+     time. History of the last 30 sends. Messages never contain IP addresses (project rule). -->
 <script>
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -16,7 +16,7 @@
   import ErrorState from '../lib/ErrorState.svelte';
 
   let v = $state.raw(null), error = $state(null), f = $state(null), busy = $state(false), err = $state(null), testing = $state('');
-  // kolom rahasia diketik baru (kosong = tidak diubah)
+  // secret fields typed anew (empty = unchanged)
   let sec = $state({ tg_token: '', dc_hook: '', em_pass: '' });
 
   function fill(r) {
@@ -48,7 +48,7 @@
   }
   async function test(ch) {
     err = null; testing = ch;
-    await save();                     // uji memakai setelan TERSIMPAN: simpan isian layar dulu
+    await save();                     // the test uses the SAVED settings: save the form first
     if (err) { testing = ''; return; }
     try { await api.post('/api/admin/alerts/test', { channel: ch }); toast($t('al.test_ok', { ch: $t(`al.ch.${ch}`) })); }
     catch (e) { err = $errText(e); } finally { testing = ''; await load(); }

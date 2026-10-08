@@ -1,77 +1,84 @@
 # Changelog
 
-Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/); versi mengikuti [SemVer](https://semver.org/lang/id/).
-Mulai repo ini, setiap commit memakai [Conventional Commits](https://www.conventionalcommits.org/id/v1.0.0/)
-(lihat `CONTRIBUTING.md`), sehingga bagian *Unreleased* bisa disusun dari riwayat commit.
+The format follows [Keep a Changelog](https://keepachangelog.com/id/1.1.0/); versions follow [SemVer](https://semver.org/lang/id/).
+Starting with this repo, every commit uses [Conventional Commits](https://www.conventionalcommits.org/id/v1.0.0/)
+(see `CONTRIBUTING.md`), so the *Unreleased* section can be assembled from the commit history.
 
 ## [Unreleased]
 
+### Added
+- Automatic deployment: a push to `prd` that passes CI is deployed to the server over SSH
+  (`deploy/remote-deploy.sh`, `docs/07-deploy-vps.md` §13); the first run can migrate the old checkout.
+- Kafka folders are labelled "(Kafka)" in the folder picker, page title and folder management.
+
 ### Changed
-- Repo berdiri sendiri: isi folder `v2/` repo `apisdsn/dashboard-logging` dipindah ke `apisdsn/MoniShield` beserta
-  riwayat commit-nya. Folder log bawaan kini `logs/` di folder proyek (dulu folder induk `v2/`).
-- Branch: `dev` (pengembangan) → `stg` (uji/staging) → `prd` (produksi); aturan di `CONTRIBUTING.md`.
+- The repo stands alone: the contents of the `v2/` folder of the `apisdsn/dashboard-logging` repo were moved to `apisdsn/MoniShield` together with
+  their commit history. The default log folder is now `logs/` in the project folder (formerly the parent folder of `v2/`).
+- Branches: `dev` (development) → `stg` (testing/staging) → `prd` (production); rules in `CONTRIBUTING.md`.
+- Code comments, documentation, commit messages, server error messages, API responses and CLI output are now in English;
+  API status values are English (old values in existing databases are migrated on start). The web UI remains bilingual.
 
 ## [2.0.0] — 2026-10-07
 
-Pengganti dashboard HTML statis lama (`build_dashboard.py` → `dashboard.html`): FastAPI + DuckDB di server, Svelte di
-browser, akun berperan (admin/user), dua bahasa (ID/EN), tema terang/gelap, bisa dipakai di ponsel. Angka utamanya diuji
-setara dengan sistem lama. Rancangan: `docs/` (PRD, DRD, TRD, rencana `04-rencana.md`).
+Replacement for the old static HTML dashboard (`build_dashboard.py` → `dashboard.html`): FastAPI + DuckDB on the server, Svelte in the
+browser, role-based accounts (admin/user), two languages (ID/EN), light/dark theme, usable on phones. Its key numbers are tested
+to match the old system. Design: `docs/` (PRD, DRD, TRD, plan `04-rencana.md`).
 
-### Tambahan atas permintaan pemilik
+### Additions at the owner's request
 
-Dirangkum dari catatan rencana (`docs/04-rencana.md`, tahap 12a–25 dan baris penyimpangan 25 (a)–(s)).
+Summarized from the plan notes (`docs/04-rencana.md`, stages 12a–25 and deviation lines 25 (a)–(s)).
 
-**Akun, keamanan, dan basis data**
-- Sesi login memakai **JWT**; akun, sesi, audit, dan riwayat impor di **PostgreSQL lewat ORM (SQLAlchemy)**
-  (SQLite hanya untuk uji/lokal).
-- Deteksi serangan berbasis **OWASP Core Rule Set (CRS)** + kategori **CAPEC**, tingkat paranoia bisa diatur;
-  aturan lama tetap tersedia untuk pembanding.
-- **Swagger / OpenAPI** di `/api/docs` dilindungi login yang sama dengan dashboard.
+**Accounts, security, and database**
+- Login sessions use **JWT**; accounts, sessions, audit, and import history are in **PostgreSQL via an ORM (SQLAlchemy)**
+  (SQLite only for tests/local use).
+- Attack detection based on the **OWASP Core Rule Set (CRS)** + **CAPEC** categories, with an adjustable paranoia level;
+  the old rules remain available for comparison.
+- **Swagger / OpenAPI** at `/api/docs` is protected by the same login as the dashboard.
 
-**Tampilan**
-- Gaya visual mengikuti gambar referensi pemilik (token warna kedua tema, ikon, kartu, chip, tabel).
-- Nama aplikasi **MoniShield**; logo perisai yang sama di halaman login, navigasi, Swagger, dan ikon tab; semua sebutan
-  "SIMPeL4" di tampilan dan konfigurasi dihapus (nama paket `simpel4` → `monishield`, basis data `monishield.duckdb`).
-- Halaman login dengan perisai besar sebagai latar; tombol "tampilkan sandi" dihapus.
-- **Navigasi kiri bisa diciutkan** menjadi lajur ikon.
-- **Pemilih tanggal** baru (kalender) yang lebih jelas.
-- Semua teks dari server ikut diterjemahkan saat mode **English**.
-- **Command Center** (peta selebar layar + ringkasan): perubahan vs folder sebelumnya, grafik per jam, butir perhatian
-  baru, pembanding **rata-rata 7 folder sebelumnya** (bisa diganti ke "folder sebelumnya").
-- **Profil IP** + unduh daftar IP (CSV), keterangan aturan CRS, **pencarian global** (Ctrl+K), kelengkapan data dan
-  **heatmap jam × tanggal** di Tren, **ringkasan harian PDF** (1 halaman A4).
-- **Animasi alur di peta**: partikel bergerak dari lokasi asal menuju IP tujuan (server), riak saat tiba, garis
-  bergradasi menunjukkan arah; tombol jeda; menghormati pengaturan "kurangi gerak".
+**UI**
+- The visual style follows the owner's reference images (color tokens for both themes, icons, cards, chips, tables).
+- Application name **MoniShield**; the same shield logo on the login page, navigation, Swagger, and tab icon; every mention of
+  "SIMPeL4" in the UI and configuration removed (package name `simpel4` → `monishield`, database `monishield.duckdb`).
+- Login page with a large shield as the background; the "show password" button removed.
+- **The left navigation can be collapsed** into an icon rail.
+- A new, clearer **date picker** (calendar).
+- All text from the server is translated as well in **English** mode.
+- **Command Center** (full-width map + summary): changes vs the previous folder, hourly charts, new attention
+  items, comparison with the **average of the previous 7 folders** (can be switched to "previous folder").
+- **IP profile** + IP list download (CSV), CRS rule descriptions, **global search** (Ctrl+K), data completeness and an
+  **hour × date heatmap** in Trends, **daily PDF summary** (1 A4 page).
+- **Flow animation on the map**: particles move from the source location to the destination IP (server), with a ripple on arrival, and
+  gradient lines show the direction; pause button; respects the "reduce motion" setting.
 
-**Data masuk**
-- Tombol **Sinkronkan data** di kepala halaman: mendeteksi folder log baru, memeriksa S3 dulu, lalu ingest.
-- **Impor dari S3** dengan daftar izin bucket; `.log.gz` diekstrak otomatis.
-- **Sinkron S3 otomatis**: cukup isi folder induk (mis. `s3://simpel4-backup/k8s-logs`), folder tanggal baru diunduh
-  dan di-ingest sendiri berkala.
-- **Unggah folder log dari browser**.
-- **Kelola folder log**: hapus folder dari dashboard dan pulihkan lagi.
-- Peringatan khusus bila file dari S3 berisi pesan galat alat ekspor, bukan log.
-- **Log dari Kafka** (Rancher cluster logging → Kafka): pesan ditulis ulang menjadi folder yang sama dengan log S3 lalu
-  di-ingest berkala (hasil diuji identik dengan S3); kartu status + **"Cek pesan di topic"**; **peta realtime** dengan
-  lencana LANGSUNG (hanya koordinat lokasi yang dikirim ke browser, bukan alamat IP).
+**Incoming data**
+- **Sync data** button in the page header: detects new log folders, checks S3 first, then ingests.
+- **Import from S3** with a bucket allowlist; `.log.gz` is extracted automatically.
+- **Automatic S3 sync**: just enter the parent folder (e.g. `s3://simpel4-backup/k8s-logs`), and new date folders are downloaded
+  and ingested periodically on their own.
+- **Upload log folders from the browser**.
+- **Manage log folders**: delete folders from the dashboard and restore them again.
+- A specific warning when a file from S3 contains an error message from the export tool instead of logs.
+- **Logs from Kafka** (Rancher cluster logging → Kafka): messages are rewritten into the same folders as the S3 logs and then
+  ingested periodically (results tested identical to S3); status card + **"Check messages in topic"**; **realtime map** with
+  a LIVE badge (only location coordinates are sent to the browser, not IP addresses).
 
-**Notifikasi dan pengaturan**
-- **Notifikasi Telegram / Discord / email** (lonjakan, serangan kritis, ingest gagal, sinkron S3 bermasalah, folder log
-  belum datang, ringkasan harian); pesan tanpa alamat IP.
-- **Daftar blokir siap pakai** (nginx `deny`, ingress-nginx, teks) dengan pengecualian jaringan sendiri.
-- Halaman **Konfigurasi** (admin): AWS S3, folder S3 otomatis, Kafka, MaxMind, notifikasi, daftar blokir, dan status
-  kunci yang hanya lewat `.env` — dengan tombol **Uji koneksi**.
-- **Semua konfigurasi di `.env`**: halaman Konfigurasi menulis langsung ke file `.env` (langsung berlaku tanpa mulai
-  ulang); semua URL sumber unduhan, API Telegram, dan batas yang dulu tertulis di kode kini variabel `.env`.
+**Notifications and settings**
+- **Telegram / Discord / email notifications** (spikes, critical attacks, failed ingest, S3 sync problems, log folder
+  not arrived yet, daily summary); messages without IP addresses.
+- **Ready-to-use block list** (nginx `deny`, ingress-nginx, text) with exclusion of your own network.
+- **Configuration** page (admin): AWS S3, automatic S3 folders, Kafka, MaxMind, notifications, block list, and the status of
+  keys that are `.env`-only — with a **Test connection** button.
+- **All configuration in `.env`**: the Configuration page writes directly to the `.env` file (takes effect immediately without a
+  restart); all download source URLs, the Telegram API, and limits that used to be hard-coded are now `.env` variables.
 
 **Deploy**
-- **Docker Compose**: app + PostgreSQL, profil opsional pgAdmin (akun/audit) dan **DbGate** (data log DuckDB lewat
-  salinan baca), `kafka` (broker Apache Kafka untuk log Rancher), `https` (Caddy + **sertifikat Let's Encrypt otomatis**),
-  `proxy` (sertifikat sendiri).
-- Panduan **deploy ke VPS baru sampai bisa dibuka lewat domain**: `docs/07-deploy-vps.md`.
-- Dokumen arsitektur, mekanisme, cara pakai, dan alur data (artifact terpisah).
+- **Docker Compose**: app + PostgreSQL, optional profiles pgAdmin (accounts/audit) and **DbGate** (DuckDB log data via a
+  read-only copy), `kafka` (Apache Kafka broker for Rancher logs), `https` (Caddy + **automatic Let's Encrypt certificates**),
+  `proxy` (your own certificate).
+- Guide for **deploying to a new VPS until it can be opened via a domain**: `docs/07-deploy-vps.md`.
+- Documents on architecture, mechanisms, usage, and data flow (separate artifact).
 
-### Diketahui / belum
-- Belum diuji di ponsel sungguhan (hanya emulasi 390/360 px).
-- Kafka belum diuji terhadap cluster Rancher asli; sertifikat Let's Encrypt baru diuji dengan sertifikat lokal Caddy.
-- Kredensial yang diisi lewat layar tersimpan di `.env` tanpa enkripsi tambahan (lindungi izin file dan server).
+### Known issues / not yet done
+- Not yet tested on a real phone (only 390/360 px emulation).
+- Kafka not yet tested against a real Rancher cluster; Let's Encrypt certificates only tested with Caddy's local certificates.
+- Credentials entered via the UI are stored in `.env` without additional encryption (protect the file permissions and the server).

@@ -1,16 +1,16 @@
-"""Folder log buatan kecil dari baris asli di fixtures/lines (dipakai uji ingest dan uji agregat).
+"""Small synthetic log folder built from real lines in fixtures/lines (used by the ingest and aggregate tests).
 
-  2026-01-01/                     (tanpa namespace, seperti folder 09-26 dan 09-27)
+  2026-01-01/                     (no namespace, like folders 09-26 and 09-27)
     om-be-appsmanager/  log_…_pod-a_….log
     om-fe-inhouse/      log_…_pod-f_….log
   2026-01-02/
     ingress-nginx/nginx-ingress-controller/  log_…_pod-n_….log
     kube-system/coredns/                     log_…_pod-d_….log
-    ombudsman/om-be-simpel-loop/             log_…_pod-s_….log + .log.gz identik
-    ombudsman/om-be-report/                  log_…_pod-r_….log.gz saja
-    ombudsman/om-be-referensi/               log_…_pod-x_….log   (file rusak)
-    ombudsman/om-be-appsmanager/             log_…_pod-e_….log   (kosong)
-    ombudsman/layanan-baru/                  log_…_pod-u_….log   (layanan tak dikenal)
+    ombudsman/om-be-simpel-loop/             log_…_pod-s_….log + identical .log.gz
+    ombudsman/om-be-report/                  log_…_pod-r_….log.gz only
+    ombudsman/om-be-referensi/               log_…_pod-x_….log   (corrupt file)
+    ombudsman/om-be-appsmanager/             log_…_pod-e_….log   (empty)
+    ombudsman/layanan-baru/                  log_…_pod-u_….log   (unknown service)
 """
 import gzip, os
 

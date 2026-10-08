@@ -1,913 +1,913 @@
-# Rencana implementasi — dashboard log SIMPEL4 (v2)
+# Implementation plan — SIMPEL4 log dashboard (v2)
 
-Rencana bertahap untuk membangun v2 sesuai [`03-trd.md`](03-trd.md) (teknis), [`02-drd.md`](02-drd.md)
-(tampilan), [`01-prd.md`](01-prd.md) (kebutuhan), dan [`00-inventaris.md`](00-inventaris.md) (acuan).
-Bila dokumen bertentangan, urutan yang menang: **keputusan pemilik di TRD (P1–P4) → TRD → DRD → PRD**;
-TRD §10 mendaftar butir PRD/DRD yang sudah gugur.
+A staged plan for building v2 according to [`03-trd.md`](03-trd.md) (technical), [`02-drd.md`](02-drd.md)
+(design), [`01-prd.md`](01-prd.md) (requirements), and [`00-inventaris.md`](00-inventaris.md) (reference).
+When documents conflict, the order of precedence is: **owner decisions in the TRD (P1–P4) → TRD → DRD → PRD**;
+TRD §10 lists the PRD/DRD items that have been dropped.
 
-Dipakai oleh `migrate/06-eksekusi.md`: satu tahap per sesi. Setelah tiap tahap, tabel status di bawah
-diperbarui dan penyimpangan dicatat di bagian tahap itu.
+Used by `migrate/06-eksekusi.md`: one stage per session. After each stage, the status table below is
+updated and deviations are recorded in that stage's section.
 
-## Cara membaca
+## How to read this
 
-- **21 tahap** (+ 12a, 22, 23 atas permintaan pemilik 2026-10-06), urut mengikuti alur data: aturan dan skema → ingest → agregat → uji kesetaraan → API →
-  kerangka tampilan → halaman satu per satu → layar admin → impor → peta, lalu satu peningkatan yang
-  diminta pemilik: deteksi serangan berbasis OWASP CRS (Tahap 21).
-- Setiap tahap bisa dijalankan dan diperiksa sendiri. Tahap berikutnya tidak dimulai sebelum verifikasi
-  tahap ini lulus.
-- **Perintah verifikasi** dijalankan dari folder `v2/` kecuali disebut lain. `py` = `.venv/bin/python`,
+- **21 stages** (+ 12a, 22, 23 at the owner's request 2026-10-06), ordered along the data flow: rules and schema → ingest → aggregates → parity tests → API →
+  UI shell → pages one by one → admin screens → import → map, then one improvement
+  requested by the owner: attack detection based on the OWASP CRS (Stage 21).
+- Each stage can be run and checked on its own. The next stage does not start before this stage's
+  verification passes.
+- **Verification commands** are run from the `v2/` folder unless stated otherwise. `py` = `.venv/bin/python`,
   `pytest` = `.venv/bin/pytest`.
-- Tanda **⚠ bergantung** = tahap memakai ASUMSI atas pertanyaan yang belum dijawab; tahap tetap bisa
-  dikerjakan, tetapi jawaban yang berbeda berarti pengerjaan ulang sebesar yang disebut.
-- Angka yang diharapkan berlaku untuk **11 folder log per 2026-10-06** (`00-acuan.json`). Folder log
-  bertambah tiap hari; bila sudah bertambah, jalankan `python3 tools/acuan_lama.py` dulu dan bandingkan
-  dengan acuan baru. Angka untuk 11 folder lama tidak boleh berubah.
+- The marker **⚠ depends** = the stage uses an ASSUMPTION about a question not yet answered; the stage can still
+  be done, but a different answer means rework of the size stated.
+- The expected figures apply to the **11 log folders as of 2026-10-06** (`00-acuan.json`). Log folders
+  grow every day; once they have grown, run `python3 tools/acuan_lama.py` first and compare
+  against the new reference. The figures for the 11 old folders must not change.
 
-Keadaan mesin saat rencana ditulis: Python 3.13.1, Node 22.13, npm 10.9, Docker 29.6 ada; paket `duckdb`
-belum terpasang (dipasang di Tahap 2); **disk bebas hanya 17 GB** (berpengaruh ke Tahap 9).
+State of the machine when the plan was written: Python 3.13.1, Node 22.13, npm 10.9, Docker 29.6 present; the `duckdb`
+package is not yet installed (installed in Stage 2); **only 17 GB of free disk** (affects Stage 9).
 
 ## Status
 
-| # | Tahap | Bergantung pada | Pertanyaan terbuka | Status |
+| # | Stage | Depends on | Open questions | Status |
 |--:|---|---|---|:-:|
-| 1 | Selaraskan PRD dan DRD dengan keputusan pemilik | — | — | ☑ 2026-10-06 |
-| 2 | Kerangka proyek dan modul aturan | — | — | ☑ 2026-10-06 |
-| 3 | Skema dan parser | 2 | — | ☑ 2026-10-06 |
-| 4 | Ingest tabel mentah | 3 | X4, X5 | ☑ 2026-10-06 |
-| 5 | Agregat inti | 4 | — | ☑ 2026-10-06 |
-| 6 | Agregat fitur: serangan, login, korelasi, bisnis | 5 | — | ☑ 2026-10-06 |
-| 7 | Data IP dan berkas peta | 4 | P6 | ☑ 2026-10-06 |
-| 8 | Uji kesetaraan E1, E3, E4 | 5, 6, 7 | — | ☑ 2026-10-06 |
-| 9 | Gerbang ukuran dan kinerja | 8 | P7 | ☑ 2026-10-06 |
-| 10 | API: kerangka, login, peran, ingest dalam proses | 8 | — | ☑ 2026-10-06 |
-| 11 | API data semua halaman + uji kesetaraan E2 | 10 | X6 | ☑ 2026-10-06 |
-| 12 | Kerangka tampilan dan komponen bersama | 1, 11 | Q6, Q7, Q8 | ◐ 2026-10-06 sebagian: tinggal uji di ponsel sungguhan |
-| 12a | Gaya mengikuti referensi desain pemilik (token, ikon, kartu perhatian) untuk seluruh dashboard | 12 | — (R6 terjawab) | ☑ 2026-10-06 |
-| 13 | Halaman Layanan dan Overview | 12 | — | ☑ 2026-10-06 (peta halaman layanan: Tahap 20) |
-| 14 | Halaman Tren | 12 | Q4 | ☑ 2026-10-06 |
-| 15 | Halaman Keamanan | 12 | — | ☑ 2026-10-06 |
-| 16 | Halaman Akar Masalah dan Ketersediaan | 12 | — | ☑ 2026-10-06 |
-| 17 | Halaman Pod, Bisnis, Pelacakan Request | 12 | — | ☑ 2026-10-06 |
-| 18 | Layar admin: kelola user, ingest, audit | 12 | — | ☑ 2026-10-06 |
-| 19 | Impor dari awalan S3 | 10, 18 | X2, X3 | ◐ 2026-10-06 sebagian: tinggal dua baris Manual dengan kredensial AWS asli |
-| 20 | Peta IP | 7, 13 | Q3, Q5, X7 | ☑ 2026-10-06 |
-| 21 | Deteksi serangan: aturan OWASP CRS, kategori CAPEC | 8, 15 | **S1** | ☑ 2026-10-06 |
-| 22 | Command Center: layar peta dunia + KPI + yang perlu perhatian (menyerap tab Peta IP) | 12a, 13, 15, 16, 20 | — (R5 terjawab; ASUMSI penggabungan Peta IP) | ☑ 2026-10-06 |
-| 23 | Aliran realtime dari Kafka ke Command Center | 22 | R1, R2, R4 | ⏸ ditunda: Kafka untuk ke depan (keputusan 2026-10-06) |
-| 24 | Penyajian tambahan: perubahan & per jam di Command Center, butir perhatian baru, profil IP + CSV, keterangan aturan CRS, pencarian global, kelengkapan data + heatmap di Tren, ringkasan PDF | 21, 22 | — (permintaan pemilik 2026-10-07, saran 1–9) | ☑ 2026-10-07 |
-| 25 | Tombol Sinkronkan data (folder log baru) + nama aplikasi MoniShield | 18, 24 | — (permintaan pemilik 2026-10-07) | ☑ 2026-10-07 |
+| 1 | Align the PRD and DRD with the owner decisions | — | — | ☑ 2026-10-06 |
+| 2 | Project skeleton and rules module | — | — | ☑ 2026-10-06 |
+| 3 | Schema and parser | 2 | — | ☑ 2026-10-06 |
+| 4 | Raw table ingest | 3 | X4, X5 | ☑ 2026-10-06 |
+| 5 | Core aggregates | 4 | — | ☑ 2026-10-06 |
+| 6 | Feature aggregates: attacks, login, correlation, business | 5 | — | ☑ 2026-10-06 |
+| 7 | IP data and map files | 4 | P6 | ☑ 2026-10-06 |
+| 8 | Parity tests E1, E3, E4 | 5, 6, 7 | — | ☑ 2026-10-06 |
+| 9 | Size and performance gate | 8 | P7 | ☑ 2026-10-06 |
+| 10 | API: skeleton, login, roles, in-process ingest | 8 | — | ☑ 2026-10-06 |
+| 11 | Data API for all pages + parity test E2 | 10 | X6 | ☑ 2026-10-06 |
+| 12 | UI shell and shared components | 1, 11 | Q6, Q7, Q8 | ◐ 2026-10-06 partial: only testing on a real phone remains |
+| 12a | Styling following the owner's design reference (tokens, icons, attention cards) for the whole dashboard | 12 | — (R6 answered) | ☑ 2026-10-06 |
+| 13 | Service and Overview pages | 12 | — | ☑ 2026-10-06 (service page map: Stage 20) |
+| 14 | Trends page | 12 | Q4 | ☑ 2026-10-06 |
+| 15 | Security page | 12 | — | ☑ 2026-10-06 |
+| 16 | Root Causes and Availability pages | 12 | — | ☑ 2026-10-06 |
+| 17 | Pods, Business, Request Tracing pages | 12 | — | ☑ 2026-10-06 |
+| 18 | Admin screens: manage users, ingest, audit | 12 | — | ☑ 2026-10-06 |
+| 19 | Import from an S3 prefix | 10, 18 | X2, X3 | ◐ 2026-10-06 partial: only two Manual rows with real AWS credentials remain |
+| 20 | IP map | 7, 13 | Q3, Q5, X7 | ☑ 2026-10-06 |
+| 21 | Attack detection: OWASP CRS rules, CAPEC categories | 8, 15 | **S1** | ☑ 2026-10-06 |
+| 22 | Command Center: world map screen + KPIs + what needs attention (absorbs the IP Map tab) | 12a, 13, 15, 16, 20 | — (R5 answered; ASSUMPTION about merging the IP Map) | ☑ 2026-10-06 |
+| 23 | Realtime stream from Kafka to the Command Center | 22 | R1, R2, R4 | ⏸ postponed: Kafka is for the future (decision 2026-10-06) |
+| 24 | Additional presentation: change & per hour in the Command Center, new attention items, IP profile + CSV, CRS rule descriptions, global search, data completeness + heatmap in Trends, PDF summary | 21, 22 | — (owner request 2026-10-07, suggestions 1–9) | ☑ 2026-10-07 |
+| 25 | Sync data button (new log folders) + application name MoniShield | 18, 24 | — (owner request 2026-10-07) | ☑ 2026-10-07 |
 
-Setelah Tahap 21: `migrate/07-docker-compose.md` (bergantung X2, X3, X8; X2 belum diketahui pemilik dan
-harus diperiksa di server: proxy/HTTPS yang ada, akses keluar, disk, memori) dan `migrate/08-kesetaraan.md`.
+After Stage 21: `migrate/07-docker-compose.md` (depends on X2, X3, X8; X2 is not yet known to the owner and
+must be checked on the server: existing proxy/HTTPS, outbound access, disk, memory) and `migrate/08-kesetaraan.md`.
 
-### Pertanyaan yang paling menentukan
+### The most decisive questions
 
-| Pertanyaan | Asumsi yang dipakai | Bila jawabannya lain |
+| Question | Assumption used | If the answer is different |
 |---|---|---|
 
 
-| **Command Center** (TRD §11.2, §12) — **diputuskan 2026-10-06**: folder log tetap sumber utama, Kafka ditunda (R3); Overview tetap, Command Center = layar peta dunia (R5); gaya referensi untuk seluruh dashboard (R6). Yang masih ASUMSI: tab "Peta IP" digabung ke Command Center | Satu halaman peta saja; sidebar "Peta IP" menjadi "Command Center" di posisi yang sama | Tahap 20 dan 22: bila Peta IP tetap terpisah, Command Center memakai ulang komponen peta yang sama (tambahan kecil) |
-| **S1** deteksi serangan: (a) cara "di skrip" atau juga "di ingress"? (b) tampilan lama diganti atau berdampingan? (c) tingkat paranoia CRS? | (a) di skrip saja; cara di ingress diusulkan ke pengelola klaster. (b) Kategori CAPEC **menggantikan** kategori lama di tampilan; klasifikasi lama tetap disimpan untuk uji. (c) Tingkat paranoia 1 (paling sedikit salah-tuduh) | Tahap 21 saja. Bila ingress kelak menjalankan CRS, dashboard perlu parser log audit ModSecurity/Coraza: tahap baru |
+| **Command Center** (TRD §11.2, §12) — **decided 2026-10-06**: the log folder remains the main source, Kafka postponed (R3); Overview stays, Command Center = world map screen (R5); reference styling for the whole dashboard (R6). Still an ASSUMPTION: the "IP Map" tab is merged into the Command Center | A single map page; the "IP Map" sidebar entry becomes "Command Center" in the same position | Stages 20 and 22: if the IP Map stays separate, the Command Center reuses the same map component (small addition) |
+| **S1** attack detection: (a) the "in the script" way or also "in the ingress"? (b) old view replaced or side by side? (c) CRS paranoia level? | (a) in the script only; the ingress way is proposed to the cluster administrators. (b) CAPEC categories **replace** the old categories in the view; the old classification is still stored for tests. (c) Paranoia level 1 (fewest false positives) | Stage 21 only. If the ingress later runs CRS, the dashboard needs a parser for the ModSecurity/Coraza audit log: a new stage |
 
-Semua pertanyaan lain hanya mengubah nilai bawaan atau satu komponen.
+All other questions only change a default value or a single component.
 
-**Sudah diputuskan pemilik** (tidak lagi asumsi): lokasi IP memakai MaxMind GeoLite2 (akun dan kunci
-lisensi sudah ada di `v2/.env`, sudah diuji diterima MaxMind); untuk sementara hanya peran admin dan user, user
-melihat seluruh dashboard, admin bisa menambah user; pembatasan per modul ditunda (X10); impor dari awalan S3 dengan kunci akses tetap, wilayah
-Jakarta, sehingga bisa otomatis (X9); akun lokal di basis data aplikasi, tanpa SSO (X1);
-perbaikan definisi di TRD §4.4 disetujui (X11); tampilan ponsel dikerjakan serius (Q1), jadi DRD §8
-berlaku penuh termasuk tabel lebar menjadi kartu baris.
+**Already decided by the owner** (no longer assumptions): IP location uses MaxMind GeoLite2 (the account and license
+key are already in `v2/.env`, already tested as accepted by MaxMind); for now only the admin and user roles, users
+see the whole dashboard, admins can add users; per-module restrictions postponed (X10); import from an S3 prefix with fixed access keys, region
+Jakarta, so it can be automatic (X9); local accounts in the application database, no SSO (X1);
+the definition fixes in TRD §4.4 approved (X11); the phone layout is done seriously (Q1), so DRD §8
+applies in full, including wide tables becoming row cards.
 
 ---
 
-## Tahap 1 — Selaraskan PRD dan DRD dengan keputusan pemilik
+## Stage 1 — Align the PRD and DRD with the owner decisions
 
-**Tujuan.** PRD dan DRD ditulis sebelum P1–P4 dijawab. Tahap ini memperbaruinya sesuai TRD §10 dan
-merancang layar baru di TRD §8.4, supaya tahap tampilan tidak membaca asumsi yang sudah gugur.
-Hanya dokumen; tidak ada kode.
+**Goal.** The PRD and DRD were written before P1–P4 were answered. This stage updates them according to TRD §10 and
+designs the new screens in TRD §8.4, so that the UI stages do not read assumptions that have been dropped.
+Documents only; no code.
 
-**File diubah**
+**Files changed**
 
-- `docs/01-prd.md`: A1, A2, A3, A5 menjadi keputusan; T01 dicabut; T03 dan sebagian T05 pindah ke cakupan;
-  fitur baru (login dua peran, kelola user, audit, impor S3) masuk §4, hak akses per modul masuk daftar
-  ditunda; §5.4, §5.5, §6.2, §7, R7 sesuai
-  TRD §10; P1–P4 ditandai terjawab.
-- `docs/02-drd.md`: §1 dan §2 (menu user di header; butir admin hanya untuk admin); bagian baru
-  "Masuk dan admin" berisi sketsa layar Masuk, Ganti sandi, Kelola user, Ingest & impor; §6.6–§6.7
-  ditambah "tidak punya akses" dan "sesi habis"; U8 (keterangan Error, `EXC`, level simpel-loop); tabel
-  alur 100 baris; §6.5 memuat per halaman; D7 dan Q2 ditandai gugur; Q1 ditandai terjawab (ponsel serius).
+- `docs/01-prd.md`: A1, A2, A3, A5 become decisions; T01 withdrawn; T03 and part of T05 move into scope;
+  new features (two-role login, manage users, audit, S3 import) go into §4, per-module access rights go into the
+  postponed list; §5.4, §5.5, §6.2, §7, R7 according to
+  TRD §10; P1–P4 marked answered.
+- `docs/02-drd.md`: §1 and §2 (user menu in the header; admin items only for admins); new section
+  "Sign-in and admin" with sketches of the Sign in, Change password, Manage users, Ingest & import screens; §6.6–§6.7
+  gain "no access" and "session expired"; U8 (Error explanation, `EXC`, simpel-loop level); flow
+  table 100 rows; §6.5 loads per page; D7 and Q2 marked dropped; Q1 marked answered (phone done seriously).
 
-**Verifikasi**
+**Verification**
 
-| Perintah (dari folder proyek) | Hasil yang diharapkan |
+| Command (from the project folder) | Expected result |
 |---|---|
 | `grep -c "hanya dibuka di komputer" v2/docs/01-prd.md` | `0` |
-| `grep -n "Kelola user\|Tidak punya akses\|Sesi habis" v2/docs/02-drd.md` | ketiganya ditemukan |
-| Baca TRD §10 baris demi baris | setiap baris punya padanan di PRD/DRD |
+| `grep -n "Kelola user\|Tidak punya akses\|Sesi habis" v2/docs/02-drd.md` | all three found |
+| Read TRD §10 line by line | every line has a counterpart in the PRD/DRD |
 
 
 ---
 
-## Tahap 2 — Kerangka proyek dan modul aturan
+## Stage 2 — Project skeleton and rules module
 
-**Tujuan.** Lingkungan Python jalan, konfigurasi terbaca, dan aturan sistem lama tersalin apa adanya dengan
-bukti bahwa salinannya identik (TRD §4.1, §9.2).
+**Goal.** The Python environment runs, the configuration is read, and the old system's rules are copied as-is with
+proof that the copy is identical (TRD §4.1, §9.2).
 
-**File dibuat**
+**Files created**
 
-- `pyproject.toml` (dependensi: `duckdb`, `fastapi`, `uvicorn`; uji: `pytest`, `httpx`), `.gitignore`
+- `pyproject.toml` (dependencies: `duckdb`, `fastapi`, `uvicorn`; tests: `pytest`, `httpx`), `.gitignore`
   (`data/`, `.venv/`, `web/node_modules/`, `web/dist/`).
-- `monishield/__init__.py`, `monishield/__main__.py`, `monishield/cli.py` (baru subperintah `status`).
-- `monishield/config.py` (TRD §6.3; nilai bawaan = konstanta lama), `config.example.toml`.
-- `monishield/rules.py`: salinan regex dan fungsi di TRD §4.1, tiap blok diberi catatan nomor baris asal.
-- `tests/test_rules.py`: (a) isi `demo()` lama; (b) perbandingan dengan `build_dashboard.py` untuk
-  `classify`, `path_key`, `norm`, `jwt_bucket`, `accounts`, `incidents`, `ip_owner`, `geo_scan` atas masukan
-  nyata yang diambil dari log (minimal 5.000 path, 500 UA, 500 pesan); dilewati bila modul lama tidak ada.
-- `tests/conftest.py` (lokasi folder log, modul lama).
+- `monishield/__init__.py`, `monishield/__main__.py`, `monishield/cli.py` (only the `status` subcommand so far).
+- `monishield/config.py` (TRD §6.3; defaults = the old constants), `config.example.toml`.
+- `monishield/rules.py`: a copy of the regexes and functions in TRD §4.1, each block annotated with its original line number.
+- `tests/test_rules.py`: (a) the contents of the old `demo()`; (b) comparison with `build_dashboard.py` for
+  `classify`, `path_key`, `norm`, `jwt_bucket`, `accounts`, `incidents`, `ip_owner`, `geo_scan` on real
+  input taken from the logs (at least 5,000 paths, 500 UAs, 500 messages); skipped when the old module is absent.
+- `tests/conftest.py` (log folder location, old module).
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `python3 -m venv .venv && .venv/bin/pip install -e ".[test]"` | selesai tanpa galat |
-| `pytest tests/test_rules.py -q` | semua lulus, 0 dilewati (modul lama ada) |
-| `py -m monishield status` | mencetak konfigurasi efektif: folder log, direktori data, cache; "belum ada database" |
-| `ls -la ../build_dashboard.py ../dashboard_template.html` | tanggal ubah kedua file lama tetap (tidak disentuh) |
+| `python3 -m venv .venv && .venv/bin/pip install -e ".[test]"` | finishes without errors |
+| `pytest tests/test_rules.py -q` | all pass, 0 skipped (old module present) |
+| `py -m monishield status` | prints the effective configuration: log folder, data directory, cache; "no database yet" |
+| `ls -la ../build_dashboard.py ../dashboard_template.html` | the modification dates of both old files are unchanged (not touched) |
 
 ---
 
-## Tahap 3 — Skema dan parser
+## Stage 3 — Schema and parser
 
-**Tujuan.** Tabel DuckDB terdefinisi (TRD §2.1–§2.3) dan parser mengubah baris log menjadi baris tabel
-dengan penghitung per file yang sama dengan `parse()` lama (TRD §4.2), kecuali perbaikan `crit` (TRD §4.4
-butir 3).
+**Goal.** The DuckDB tables are defined (TRD §2.1–§2.3) and the parser turns log lines into table rows
+with per-file counters equal to the old `parse()` (TRD §4.2), except for the `crit` fix (TRD §4.4
+item 3).
 
-**File dibuat**
+**Files created**
 
-- `monishield/schema.sql`: tabel kendali, mentah, dan agregat; view.
-- `monishield/db.py`: membuka database, menerapkan skema (aman diulang), batas memori.
-- `monishield/parse.py`: satu fungsi per jenis layanan; keluaran CSV per tabel + ringkasan file (`lines`,
-  `err`, `warn`, `corrupt_lines`, `file_counter`); bisa dijalankan sendiri untuk satu file.
-- `tests/fixtures/lines/*.txt`: baris asli per format dari inventaris §3 dan §4.1 (nama akun disamarkan).
-- `tests/test_parse.py`: (a) per baris contoh → baris keluaran dan perubahan penghitung yang diharapkan;
-  (b) untuk tiap file log nyata di tiga folder (`2026-09-27`, `2026-09-29`, `2026-10-06`): `lines`, `err`,
-  `warn`, dan jumlah per level sama dengan `parse()` lama pada file yang sama.
+- `monishield/schema.sql`: control, raw, and aggregate tables; views.
+- `monishield/db.py`: opens the database, applies the schema (safe to repeat), memory limit.
+- `monishield/parse.py`: one function per service type; output is a CSV per table + a file summary (`lines`,
+  `err`, `warn`, `corrupt_lines`, `file_counter`); can be run on its own for a single file.
+- `tests/fixtures/lines/*.txt`: real lines per format from inventory §3 and §4.1 (account names masked).
+- `tests/test_parse.py`: (a) per sample line → the expected output row and counter changes;
+  (b) for each real log file in three folders (`2026-09-27`, `2026-09-29`, `2026-10-06`): `lines`, `err`,
+  `warn`, and the count per level equal the old `parse()` on the same file.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `pytest tests/test_parse.py -q` | semua lulus |
-| `py -m monishield.parse ../2026-10-06/ingress-nginx/nginx-ingress-controller/*5v8j4*.log --out /tmp/s4parse` | ringkasan: `lines=111301`; berkas `nginx_access.csv`, `nginx_error.csv`, `log_message.csv` terbentuk |
-| `py -c "from monishield import db; db.open(':memory:')"` lalu daftar tabel | semua tabel TRD §2 ada; menjalankan dua kali tidak galat |
+| `pytest tests/test_parse.py -q` | all pass |
+| `py -m monishield.parse ../2026-10-06/ingress-nginx/nginx-ingress-controller/*5v8j4*.log --out /tmp/s4parse` | summary: `lines=111301`; files `nginx_access.csv`, `nginx_error.csv`, `log_message.csv` created |
+| `py -c "from monishield import db; db.open(':memory:')"` then list the tables | all TRD §2 tables exist; running it twice gives no error |
 
-Catatan: perbaikan level `crit` di frontend (TRD §4.4 butir 3) tidak mengubah angka pada data sekarang,
-karena tidak ada baris `crit`.
+Note: the frontend `crit` level fix (TRD §4.4 item 3) does not change any figure on the current data,
+because there are no `crit` lines.
 
 ---
 
-## Tahap 4 — Ingest tabel mentah
+## Stage 4 — Raw table ingest
 
-**Tujuan.** `simpel4 ingest` mengisi tabel mentah dan tabel kendali dari folder log, bertahap dan aman
-diulang (TRD §3.1–§3.3). Agregat belum.
+**Goal.** `simpel4 ingest` fills the raw tables and control tables from the log folder, incrementally and safe
+to repeat (TRD §3.1–§3.3). No aggregates yet.
 
-**File dibuat**
+**Files created**
 
-- `monishield/ingest.py`: pindai dua akar (folder log, kotak masuk), sidik jari (ukuran + mtime, lalu
-  SHA-256 isi terdekompresi), parse di subproses, muat CSV, satu transaksi per folder, `ingest_run`.
-- `monishield/cli.py`: subperintah `ingest [--folder] [--force]`, `forget <folder>`, `status` lengkap.
-- `tests/fixtures/logs_mini/`: folder log buatan kecil (dua tanggal, semua jenis layanan, satu file rusak,
-  satu pasangan `.log`/`.log.gz`, satu folder tanpa namespace).
-- `tests/test_ingest.py`: semua butir TRD §9.4.
+- `monishield/ingest.py`: scans two roots (log folder, inbox), fingerprint (size + mtime, then
+  SHA-256 of the decompressed content), parse in a subprocess, load CSV, one transaction per folder, `ingest_run`.
+- `monishield/cli.py`: subcommands `ingest [--folder] [--force]`, `forget <folder>`, full `status`.
+- `tests/fixtures/logs_mini/`: a small synthetic log folder (two dates, all service types, one corrupt file,
+  one `.log`/`.log.gz` pair, one folder without a namespace).
+- `tests/test_ingest.py`: all items of TRD §9.4.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `pytest tests/test_ingest.py -q` | semua lulus |
-| `time py -m monishield ingest` (database kosong) | selesai ≤ 3 menit; 11 folder, 195 file, 0 gagal |
-| `py -m monishield status` | total baris 774.264; `nginx_access` 308.158; `fe_access` 148.049; `sl_event` 114.574; file 0 baris: 52 |
-| `time py -m monishield ingest` (kedua kali) | ≤ 5 detik; "0 file berubah" |
-| `py -m monishield status --checksum` sebelum dan sesudah ingest kedua | checksum tiap tabel sama |
-| `ls -la ../2026-10-06 ../.cache` | tidak ada berkas baru atau berubah di folder log |
+| `pytest tests/test_ingest.py -q` | all pass |
+| `time py -m monishield ingest` (empty database) | finishes in ≤ 3 minutes; 11 folders, 195 files, 0 failed |
+| `py -m monishield status` | total lines 774,264; `nginx_access` 308,158; `fe_access` 148,049; `sl_event` 114,574; files with 0 lines: 52 |
+| `time py -m monishield ingest` (second time) | ≤ 5 seconds; "0 files changed" |
+| `py -m monishield status --checksum` before and after the second ingest | checksum of every table is the same |
+| `ls -la ../2026-10-06 ../.cache` | no new or changed files in the log folder |
 
-Baris per folder (Σ `ingest_file.lines`) harus sama dengan kolom "total" inventaris §7, mis. `2026-09-29`
-= 359.009 dan `2026-10-06` = 191.898.
+Lines per folder (Σ `ingest_file.lines`) must equal the "total" column of inventory §7, e.g. `2026-09-29`
+= 359,009 and `2026-10-06` = 191,898.
 
-⚠ **Bergantung X4** (folder hilang → data dipertahankan, T2) dan **X5** (`.log` menang atas `.gz`):
-keduanya satu cabang kecil di `ingest.py`.
+⚠ **Depends on X4** (folder disappears → data kept, T2) and **X5** (`.log` wins over `.gz`):
+both are one small branch in `ingest.py`.
 
 ---
 
-## Tahap 5 — Agregat inti
+## Stage 5 — Core aggregates
 
-**Tujuan.** Agregat yang menjadi dasar angka inti dan halaman layanan diturunkan dengan SQL per folder
-(TRD §3.4, §4.3): `agg_service`, `agg_hour` (kecuali simpel-loop), `agg_status`, `agg_endpoint`,
+**Goal.** The aggregates underlying the core figures and the service page are derived with SQL per folder
+(TRD §3.4, §4.3): `agg_service`, `agg_hour` (except simpel-loop), `agg_status`, `agg_endpoint`,
 `agg_endpoint_error`, `agg_ip`, `agg_upstream`, `agg_ua`, `agg_level`, `agg_message`, `agg_slow`,
-`agg_flow`, `agg_pod`, `agg_retry`, `agg_c401`, `agg_uk_hour`, `agg_uk_target`, `folder_state`, dan view
+`agg_flow`, `agg_pod`, `agg_retry`, `agg_c401`, `agg_uk_hour`, `agg_uk_target`, `folder_state`, and the views
 `v_upstream_error`, `v_restart`, `v_dns`.
 
-**File dibuat**
+**Files created**
 
-- `monishield/derive/__init__.py` (menjalankan berkas SQL berurutan untuk satu folder, di dalam transaksi
-  ingest) dan satu `monishield/derive/NN_<tabel>.sql` per agregat di atas.
-- `monishield/cli.py`: subperintah `derive [--folder | --all]`.
-- `tests/test_derive_core.py`: pada `logs_mini`, nilai tiap agregat dihitung tangan; persentil memakai
-  aturan indeks lama; "yang pertama" mengikuti urutan (`relpath`, `line_no`).
+- `monishield/derive/__init__.py` (runs the SQL files in order for one folder, inside the ingest
+  transaction) and one `monishield/derive/NN_<tabel>.sql` per aggregate above.
+- `monishield/cli.py`: subcommand `derive [--folder | --all]`.
+- `tests/test_derive_core.py`: on `logs_mini`, the value of each aggregate computed by hand; percentiles use the
+  old index rule; "the first" follows the order (`relpath`, `line_no`).
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `pytest tests/test_derive_core.py -q` | semua lulus |
-| `py -m monishield derive --all` | 11 folder diturunkan tanpa galat |
-| `py -m monishield status --folder 2026-09-29` | nginx: request 132.203, 4xx 4.635, 5xx 59, error 94, warning 164, IP unik 723, alur 1.762; simpel-loop: request 60.665, warning 9.614 |
-| `py -m monishield status --folder 2026-09-30` | nginx: error 1.690; error koneksi pod 1.200; retry 825 |
-| Jalankan `derive --all` dua kali, bandingkan `status --checksum` | sama |
+| `pytest tests/test_derive_core.py -q` | all pass |
+| `py -m monishield derive --all` | 11 folders derived without errors |
+| `py -m monishield status --folder 2026-09-29` | nginx: requests 132,203, 4xx 4,635, 5xx 59, errors 94, warnings 164, unique IPs 723, flows 1,762; simpel-loop: requests 60,665, warnings 9,614 |
+| `py -m monishield status --folder 2026-09-30` | nginx: errors 1,690; pod connection errors 1,200; retries 825 |
+| Run `derive --all` twice, compare `status --checksum` | the same |
 
-Memuat perbaikan TRD §4.4 butir 2 dan 4 (chart per jam memuat baris error log; level efektif simpel-loop).
+Includes the TRD §4.4 fixes, items 2 and 4 (the hourly chart includes error log lines; effective simpel-loop level).
 
 ---
 
-## Tahap 6 — Agregat fitur: serangan, login, korelasi, bisnis
+## Stage 6 — Feature aggregates: attacks, login, correlation, business
 
-**Tujuan.** Sisa agregat: `agg_attack_url`, `agg_attack_ip`, `agg_attack_hour`, `v_attack_cat`,
-`agg_login_ip`, `agg_login_hour`, `agg_account` (fungsi `accounts()` lama), `agg_incident` (fungsi
-`incidents()` lama), `agg_corr`, `agg_trace`, `agg_hour` simpel-loop (korelasi lintas folder, TRD §3.5),
+**Goal.** The remaining aggregates: `agg_attack_url`, `agg_attack_ip`, `agg_attack_hour`, `v_attack_cat`,
+`agg_login_ip`, `agg_login_hour`, `agg_account` (the old `accounts()` function), `agg_incident` (the old
+`incidents()` function), `agg_corr`, `agg_trace`, simpel-loop `agg_hour` (cross-folder correlation, TRD §3.5),
 `agg_biz`, `agg_mail`, `agg_activity`, `agg_jwt`, `agg_report`.
 
-**File dibuat**
+**Files created**
 
-- `monishield/derive/NN_<tabel>.sql` untuk tiap agregat di atas; `monishield/derive/accounts.py`,
-  `monishield/derive/incidents.py` (memanggil fungsi di `rules.py` atas hasil query kecil).
-- Penurunan ulang agregat korelasi untuk folder lain yang terpengaruh (TRD §3.5), di `ingest.py`.
-- `tests/test_derive_features.py`: nilai dihitung tangan pada `logs_mini`, termasuk satu request id yang
-  cocok lintas folder dan satu request id ganda.
+- `monishield/derive/NN_<tabel>.sql` for each aggregate above; `monishield/derive/accounts.py`,
+  `monishield/derive/incidents.py` (call the functions in `rules.py` on the results of small queries).
+- Re-derivation of the correlation aggregates for other affected folders (TRD §3.5), in `ingest.py`.
+- `tests/test_derive_features.py`: values computed by hand on `logs_mini`, including one request id that
+  matches across folders and one duplicate request id.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `pytest tests/test_derive_features.py -q` | semua lulus |
-| `py -m monishield derive --all && py -m monishield status --folder 2026-09-29` | serangan 155 request / 77 URL / 12 IP; korelasi 22.638 dari 60.665; jejak 300+ baris (tidak dipotong); login gagal 86, reset 24, sukses 389; akun dianalisis 39; insiden 7; PDF 813 sukses / 32 gagal |
-| `py -m monishield status --folder 2026-10-06` | serangan 88; korelasi 4.161 dari 5.981; "Laporan Dibuat" 7 |
-| `time py -m monishield ingest --folder 2026-09-29 --force` | ≤ 60 detik (parse + muat + turunkan) |
+| `pytest tests/test_derive_features.py -q` | all pass |
+| `py -m monishield derive --all && py -m monishield status --folder 2026-09-29` | attacks 155 requests / 77 URLs / 12 IPs; correlation 22,638 of 60,665; trace 300+ rows (not truncated); failed logins 86, resets 24, successes 389; accounts analysed 39; incidents 7; PDF 813 succeeded / 32 failed |
+| `py -m monishield status --folder 2026-10-06` | attacks 88; correlation 4,161 of 5,981; "Laporan Dibuat" 7 |
+| `time py -m monishield ingest --folder 2026-09-29 --force` | ≤ 60 seconds (parse + load + derive) |
 
-Memuat perbaikan TRD §4.4 butir 9 ("lambat ≥ 5 dtk" memuat 3xx); akun dan insiden tetap per folder (butir 7).
+Includes the TRD §4.4 fix, item 9 ("slow ≥ 5 s" includes 3xx); accounts and incidents stay per folder (item 7).
 
 ---
 
-## Tahap 7 — Data IP dan berkas peta
+## Stage 7 — IP data and map files
 
-**Tujuan.** `ip_info` terisi offline untuk semua IP (TRD §3.6) dan lima berkas statis peta tersedia (TRD
-§5.7). Tidak ada IP yang dikirim keluar.
+**Goal.** `ip_info` is filled offline for all IPs (TRD §3.6) and five static map files are available (TRD
+§5.7). No IP is sent outside.
 
-**File dibuat**
+**Files created**
 
-- `monishield/refdata.py`: unduhan ke cache (aturan umur lama), pemilik (`ip_owner`), lokasi (`geo_scan`),
-  pembuatan `data/map/land.geojson`, `borders-country.geojson`, `borders-province-id.geojson`,
+- `monishield/refdata.py`: downloads into the cache (old age rule), owner (`ip_owner`), location (`geo_scan`),
+  generation of `data/map/land.geojson`, `borders-country.geojson`, `borders-province-id.geojson`,
   `labels.json`.
-- Pemanggilan di akhir ingest; subperintah `refdata [--offline]`.
-- `tests/test_refdata.py`: dengan berkas database mini buatan: IP privat, IP di luar rentang, IPv6, IP
-  baru setelah ingest kedua; unduhan gagal → ingest tetap selesai.
+- Called at the end of ingest; subcommand `refdata [--offline]`.
+- `tests/test_refdata.py`: with a synthetic mini database file: private IPs, IPs outside the ranges, IPv6, a new
+  IP after the second ingest; failed download → ingest still finishes.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `pytest tests/test_refdata.py -q` | semua lulus |
-| `py -m monishield refdata` (cache lama `../.cache` dipakai) | tanpa unduhan baru; `ip_info` terisi |
-| `py -m monishield status` | IP dengan pemilik ≥ 1.734; IP dengan lokasi ≥ 1.676; server Jakarta (−6,17494; 106,822) |
-| `ls -la data/map/` | 4 berkas; `labels.json` berisi 177 negara / 38 provinsi / 514 kabupaten-kota |
-| `py -m monishield refdata --offline` dengan jaringan dimatikan | selesai, tanpa galat |
+| `pytest tests/test_refdata.py -q` | all pass |
+| `py -m monishield refdata` (old cache `../.cache` used) | no new download; `ip_info` filled |
+| `py -m monishield status` | IPs with an owner ≥ 1,734; IPs with a location ≥ 1,676; server in Jakarta (−6.17494; 106.822) |
+| `ls -la data/map/` | 4 files; `labels.json` contains 177 countries / 38 provinces / 514 regencies-cities |
+| `py -m monishield refdata --offline` with the network turned off | finishes, without errors |
 
-**Diputuskan pemilik (2026-10-06): lokasi IP dari MaxMind GeoLite2** (TRD §3.6), bukan DB-IP. Akibat untuk
-tahap ini:
+**Decided by the owner (2026-10-06): IP location from MaxMind GeoLite2** (TRD §3.6), not DB-IP. Consequences for
+this stage:
 
-- `refdata.py` mengunduh `GeoLite2-City-CSV` dengan `MAXMIND_ACCOUNT_ID`/`MAXMIND_LICENSE_KEY` dari `.env`,
-  mengubah blok CIDR menjadi rentang terurut, dan memakai sapuan `geo_scan()` yang sama. `config.py`
-  mendapat dua kunci itu (rahasia: tidak dicetak).
-- Verifikasi di tabel atas berubah: `py -m monishield refdata` **mengunduh** GeoLite2 (±49 MB) pada jalan
-  pertama; "IP dengan lokasi ≥ 1.676" diganti "≥ 95 % IP publik punya lokasi" (angka lama berasal dari
-  DB-IP); titik server tetap di Jakarta tetapi koordinatnya boleh berbeda.
-- Verifikasi tambahan: tanpa kunci → ingest selesai, lokasi kosong, ada keterangan; kunci tidak muncul di
-  keluaran `status`, log, maupun database; 20 IP contoh dibandingkan dengan DB-IP lama, perbedaan kota
-  dicatat (bukan kegagalan).
-- Pemilik jaringan tetap ip2asn (ASUMSI T15), jadi angka "IP dengan pemilik ≥ 1.734" tetap berlaku.
+- `refdata.py` downloads `GeoLite2-City-CSV` with `MAXMIND_ACCOUNT_ID`/`MAXMIND_LICENSE_KEY` from `.env`,
+  turns the CIDR blocks into sorted ranges, and uses the same `geo_scan()` sweep. `config.py`
+  gets those two keys (secret: not printed).
+- The verification in the table above changes: `py -m monishield refdata` **downloads** GeoLite2 (±49 MB) on the first
+  run; "IPs with a location ≥ 1,676" is replaced by "≥ 95 % of public IPs have a location" (the old figure came from
+  DB-IP); the server point stays in Jakarta but its coordinates may differ.
+- Additional verification: without a key → ingest finishes, locations empty, with an explanation; the key does not appear in
+  the `status` output, the logs, or the database; 20 sample IPs compared with the old DB-IP, city differences
+  recorded (not a failure).
+- The network owner stays ip2asn (ASSUMPTION T15), so the figure "IPs with an owner ≥ 1,734" still applies.
 
-⚠ **Bergantung P6** (lisensi ip2asn belum dicek; hanya memengaruhi teks atribusi, bukan kode).
-Sumber batas provinsi (Natural Earth 10m) adalah unduhan baru, public domain; kecocokan dengan 38 provinsi
-dicatat untuk Q3 dan dipakai di Tahap 20.
+⚠ **Depends on P6** (the ip2asn license has not been checked; only affects the attribution text, not the code).
+The province boundary source (Natural Earth 10m) is a new download, public domain; the match with the 38 provinces
+is recorded for Q3 and used in Stage 20.
 
 ---
 
-## Tahap 8 — Uji kesetaraan E1, E3, E4
+## Stage 8 — Parity tests E1, E3, E4
 
-**Tujuan.** Membuktikan angka v2 sama dengan sistem lama sebelum ada API dan tampilan (PRD §6.2, R2, R9;
+**Goal.** Prove that the v2 figures equal the old system's before there is an API and UI (PRD §6.2, R2, R9;
 TRD §9.3).
 
-**File dibuat**
+**Files created**
 
-- `tools/ekstrak_dashboard.py`: mengambil objek `D` dari `../dashboard.html` → JSON.
-- `tools/acuan_lama.py` (sudah ada): ditambah nilai "seharusnya" untuk butir 2, 4, 9 TRD §4.4, dihitung
-  dari statistik mentah sistem lama.
+- `tools/ekstrak_dashboard.py`: extracts the `D` object from `../dashboard.html` → JSON.
+- `tools/acuan_lama.py` (already exists): extended with the "should be" values for items 2, 4, 9 of TRD §4.4, computed
+  from the old system's raw statistics.
 - `tests/test_equivalence.py`:
-  - **E1** setiap angka `00-acuan.json` × (folder, layanan) vs query agregat → sama persis.
-  - **E3** `D.ipinfo` dan `D.geo` vs `ip_info`.
-  - **E4** daftar selisih tertutup (TRD §4.4 butir 1, 2, 3, 4, 9): nilai lama, nilai baru, nilai seharusnya.
-- `tools/laporan_kesetaraan.py`: mencetak tabel sama / berbeda / selisih yang diharapkan.
+  - **E1** every figure of `00-acuan.json` × (folder, service) vs the aggregate query → exactly equal.
+  - **E3** `D.ipinfo` and `D.geo` vs `ip_info`.
+  - **E4** closed list of differences (TRD §4.4 items 1, 2, 3, 4, 9): old value, new value, should-be value.
+- `tools/laporan_kesetaraan.py`: prints a table of equal / different / expected differences.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `python3 tools/acuan_lama.py` | `docs/00-acuan.json` diperbarui; angka 11 folder lama tidak berubah |
-| `pytest tests/test_equivalence.py -q` | semua lulus |
-| `py tools/laporan_kesetaraan.py` | E1: 0 berbeda dari seluruh angka; E3: 0 berbeda; E4: hanya butir yang terdaftar, mis. error koneksi pod `2026-09-30` lama 200 → baru 1.200 |
+| `python3 tools/acuan_lama.py` | `docs/00-acuan.json` updated; the figures of the 11 old folders do not change |
+| `pytest tests/test_equivalence.py -q` | all pass |
+| `py tools/laporan_kesetaraan.py` | E1: 0 different out of all figures; E3: 0 different; E4: only the listed items, e.g. pod connection errors `2026-09-30` old 200 → new 1,200 |
 
-Bila ada selisih di luar daftar: **berhenti**, cari sebabnya di Tahap 3–6; daftar selisih tidak boleh
-ditambah tanpa persetujuan pemilik.
+If there is a difference outside the list: **stop**, find its cause in Stages 3–6; the list of differences must not be
+extended without the owner's approval.
 
 
 ---
 
-## Tahap 9 — Gerbang ukuran dan kinerja
+## Stage 9 — Size and performance gate
 
-**Tujuan.** Memastikan atau membatalkan ASUMSI T1 (data setahun ≤ 10 GB) dan target kecepatan query,
-sebelum API dan tampilan dibangun di atas skema ini (PRD §5.1–§5.3, R4; TRD §9.7).
+**Goal.** Confirm or reject ASSUMPTION T1 (one year of data ≤ 10 GB) and the query speed targets,
+before the API and UI are built on top of this schema (PRD §5.1–§5.3, R4; TRD §9.7).
 
-**File dibuat**
+**Files created**
 
-- `tools/simulasi_setahun.py`: menggandakan baris mentah folder `2026-09-29` ke N tanggal folder di
-  database **terpisah** (`data/sim.duckdb`), lalu menurunkan agregat.
-- `tools/ukur.py`: ukuran file per tabel; waktu query yang akan dipakai tiap halaman (dari agregat); waktu
-  ingest satu folder tambahan; waktu ingest tanpa perubahan.
-- `docs/04a-hasil-ukur.md`: hasil ukur dan keputusan.
+- `tools/simulasi_setahun.py`: duplicates the raw rows of folder `2026-09-29` into N folder dates in a
+  **separate** database (`data/sim.duckdb`), then derives the aggregates.
+- `tools/ukur.py`: file size per table; time of the queries each page will use (from aggregates); time to
+  ingest one additional folder; time of an ingest without changes.
+- `docs/04a-hasil-ukur.md`: measurement results and the decision.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `df -h .` | cukup ruang; **bila bebas < 15 GB, pakai `--folders 90`** dan ekstrapolasi ×4,06 |
-| `py tools/simulasi_setahun.py --folders 365` (atau 90) | selesai; database simulasi terbentuk |
-| `py tools/ukur.py data/sim.duckdb` | ukuran setahun ≤ 10 GB; query per halaman ≤ 200 ms; Tren 365 folder ≤ 500 ms; ingest satu folder ≤ 60 detik; tanpa perubahan ≤ 5 detik |
-| `rm data/sim.duckdb` | ruang dikembalikan |
+| `df -h .` | enough space; **if free < 15 GB, use `--folders 90`** and extrapolate ×4.06 |
+| `py tools/simulasi_setahun.py --folders 365` (or 90) | finishes; simulation database created |
+| `py tools/ukur.py data/sim.duckdb` | one-year size ≤ 10 GB; query per page ≤ 200 ms; Trends over 365 folders ≤ 500 ms; ingest of one folder ≤ 60 seconds; without changes ≤ 5 seconds |
+| `rm data/sim.duckdb` | space reclaimed |
 
-**Gerbang.** Bila ukuran > 10 GB: terapkan cadangan T1 (tabel kamus untuk `ua`/`path`), ulangi Tahap 4–8,
-ukur lagi. Bila tetap meleset: berhenti dan minta keputusan (P7).
+**Gate.** If the size is > 10 GB: apply the T1 fallback (dictionary tables for `ua`/`path`), repeat Stages 4–8,
+measure again. If it still misses: stop and ask for a decision (P7).
 
-⚠ **Bergantung P7** (berapa lama data disimpan, berapa disk tersedia).
+⚠ **Depends on P7** (how long data is kept, how much disk is available).
 
 ---
 
-## Tahap 10 — API: kerangka, login, peran, ingest dalam proses
+## Stage 10 — API: skeleton, login, roles, in-process ingest
 
-**Tujuan.** Server berjalan sebagai satu proses pemilik DuckDB (TRD K1), dengan login, sesi, dua
-peran (admin, user), audit, dan pemicu ingest (TRD §5.2, §5.5, §5.6, §8.1–§8.3). Belum ada endpoint halaman.
+**Goal.** The server runs as a single process that owns DuckDB (TRD K1), with login, sessions, two
+roles (admin, user), audit, and an ingest trigger (TRD §5.2, §5.5, §5.6, §8.1–§8.3). No page endpoints yet.
 
-**File dibuat**
+**Files created**
 
-- `monishield/auth.py`: model ORM akun di PostgreSQL/SQLite (TRD §2.6, K11), hash scrypt, sesi JWT di cookie, penguncian, CSRF, audit, token mesin,
-  dependensi "butuh sesi" dan "butuh admin".
-- `monishield/api/app.py`: aplikasi FastAPI, satu koneksi DuckDB, format galat, header keamanan (CSP),
-  penyajian berkas statis, pemeriksaan "setiap router mendeklarasikan peran" saat mulai.
-- `monishield/api/common.py`: validasi parameter (TRD §8.1), sel IP + pemilik, kerangka endpoint tabel.
+- `monishield/auth.py`: ORM model of accounts in PostgreSQL/SQLite (TRD §2.6, K11), scrypt hash, JWT session in a cookie, lockout, CSRF, audit, machine token,
+  "requires session" and "requires admin" dependencies.
+- `monishield/api/app.py`: FastAPI application, one DuckDB connection, error format, security headers (CSP),
+  static file serving, a startup check that "every router declares a role".
+- `monishield/api/common.py`: parameter validation (TRD §8.1), IP cell + owner, table endpoint skeleton.
 - `monishield/api/session.py` (`/api/auth/*`, `/api/me`), `users.py` (`/api/admin/users`, `audit`),
-  `admin.py` (`/api/admin/ingest`, `status`, `derive`, `forget`), endpoint `/api/health`, `/api/meta`,
+  `admin.py` (`/api/admin/ingest`, `status`, `derive`, `forget`), endpoints `/api/health`, `/api/meta`,
   `/api/folders/{folder}`.
-- `monishield/cli.py`: `serve`; `user create --admin`; `ingest`/`derive`/`forget` mencoba API dulu (token
-  mesin), baru membuka DuckDB sendiri bila server mati.
-- `run.sh`: lingkungan, admin pertama, bangun frontend bila ada, `serve`.
-- `tests/test_auth.py`, `tests/test_api.py` (bagian kerangka): butir TRD §9.6 kecuali impor.
+- `monishield/cli.py`: `serve`; `user create --admin`; `ingest`/`derive`/`forget` try the API first (machine
+  token), and only open DuckDB themselves when the server is down.
+- `run.sh`: environment, first admin, build the frontend if present, `serve`.
+- `tests/test_auth.py`, `tests/test_api.py` (skeleton part): items of TRD §9.6 except import.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `pytest tests/test_auth.py tests/test_api.py -q` | semua lulus |
-| `S4_ADMIN_USER=admin S4_ADMIN_PASSWORD='<sandi 12+>' S4_COOKIE_SECURE=false py -m monishield serve &` | mendengar di `127.0.0.1:8000`; ingest awal "0 file berubah" |
+| `pytest tests/test_auth.py tests/test_api.py -q` | all pass |
+| `S4_ADMIN_USER=admin S4_ADMIN_PASSWORD='<password 12+>' S4_COOKIE_SECURE=false py -m monishield serve &` | listens on `127.0.0.1:8000`; initial ingest "0 files changed" |
 | `curl -s -o /dev/null -w "%{http_code}" localhost:8000/api/meta` | `401` |
-| `curl -s -c /tmp/c -H 'Content-Type: application/json' -d '{"username":"admin","password":"…"}' localhost:8000/api/auth/login`, ganti sandi pertama (`POST /api/me/password`), lalu `curl -s -b /tmp/c localhost:8000/api/meta` | daftar 11 folder dengan rentang waktu; `ingest.running: false` |
-| `curl -s -b /tmp/c localhost:8000/api/folders/2026-10-06` | 7 layanan; nginx `err` 125; `attack_ip_count` 14 |
-| Admin membuat user `uji` (peran user); masuk sebagai `uji`: `GET /api/folders/2026-10-06`, lalu `GET /api/admin/users` | yang pertama 200 dengan 7 layanan (sama dengan admin); yang kedua `403` |
-| `py -m monishield ingest` saat server berjalan | lewat API; "0 file berubah"; tidak ada galat kunci file |
-| `curl -sI -b /tmp/c localhost:8000/api/meta` | header `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` ada |
-| Enam kali login dengan sandi salah | percobaan ke-6 → `429` |
+| `curl -s -c /tmp/c -H 'Content-Type: application/json' -d '{"username":"admin","password":"…"}' localhost:8000/api/auth/login`, change the first password (`POST /api/me/password`), then `curl -s -b /tmp/c localhost:8000/api/meta` | list of 11 folders with time ranges; `ingest.running: false` |
+| `curl -s -b /tmp/c localhost:8000/api/folders/2026-10-06` | 7 services; nginx `err` 125; `attack_ip_count` 14 |
+| The admin creates user `uji` (role user); signed in as `uji`: `GET /api/folders/2026-10-06`, then `GET /api/admin/users` | the first 200 with 7 services (same as admin); the second `403` |
+| `py -m monishield ingest` while the server is running | goes through the API; "0 files changed"; no file lock error |
+| `curl -sI -b /tmp/c localhost:8000/api/meta` | headers `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` present |
+| Six logins with a wrong password | the 6th attempt → `429` |
 
-Akun lokal (X1) dan dua peran tanpa pembatasan per modul (X10) sudah diputuskan; tidak ada pertanyaan
-terbuka untuk tahap ini.
+Local accounts (X1) and two roles without per-module restrictions (X10) are already decided; there are no open
+questions for this stage.
 
 ---
 
-## Tahap 11 — API data semua halaman + uji kesetaraan E2
+## Stage 11 — Data API for all pages + parity test E2
 
-**Tujuan.** Sepuluh endpoint halaman dan endpoint tabel (TRD §5.3–§5.4), terbuka untuk kedua peran
-(TRD §8.3), dan isi daftar terbukti sama dengan sistem lama (E2).
+**Goal.** Ten page endpoints and the table endpoint (TRD §5.3–§5.4), open to both roles
+(TRD §8.3), and the list contents proven equal to the old system (E2).
 
-**File dibuat**
+**Files created**
 
 - `monishield/api/overview.py`, `map.py`, `trends.py`, `security.py`, `rootcause.py`, `availability.py`,
-  `pods.py`, `business.py`, `tracing.py`, `service.py`: satu modul per halaman.
-- `monishield/api/common.py`: definisi 25 tabel (kolom, kolom yang boleh diurut, kolom teks untuk `q`, batas
-  bawaan).
-- `tests/test_api.py` (lanjutan): bentuk respons, `available: false`, validasi dan upaya penyisipan pada
-  tiap parameter, ukuran respons ≤ 500 KB, **matriks peran** yang dibuat dari tabel TRD §8.3.
-- `tests/test_equivalence.py` (lanjutan) **E2**: tiap daftar di `D` vs respons API dengan `limit` = batas
-  lama.
+  `pods.py`, `business.py`, `tracing.py`, `service.py`: one module per page.
+- `monishield/api/common.py`: definitions of 25 tables (columns, sortable columns, text columns for `q`, default
+  limit).
+- `tests/test_api.py` (continued): response shape, `available: false`, validation and injection attempts on
+  each parameter, response size ≤ 500 KB, a **role matrix** built from the TRD §8.3 table.
+- `tests/test_equivalence.py` (continued) **E2**: each list in `D` vs the API response with `limit` = the old
+  limit.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `pytest tests/test_api.py -q` | semua lulus; matriks peran mencakup semua endpoint |
-| `pytest tests/test_equivalence.py -q` | E1–E4 lulus; E2: tiap daftar sama (urutan boleh beda hanya di antara nilai sama) |
+| `pytest tests/test_api.py -q` | all pass; the role matrix covers all endpoints |
+| `pytest tests/test_equivalence.py -q` | E1–E4 pass; E2: each list is equal (order may differ only among equal values) |
 | `curl -s -b /tmp/c localhost:8000/api/folders/2026-10-06/security \| py -m json.tool \| head -20` | `kpi.attack_requests` 88, `attack_ips` 14 |
-| `curl -s -b /tmp/c "localhost:8000/api/folders/2026-09-30/availability"` | KPI error koneksi pod 1.200 |
+| `curl -s -b /tmp/c "localhost:8000/api/folders/2026-09-30/availability"` | KPI pod connection errors 1,200 |
 | `curl -s -b /tmp/c "localhost:8000/api/folders/2026-09-28/map"` | `available: false`, `reason: "no_nginx"` |
-| `curl -s -b /tmp/c "localhost:8000/api/folders/2026-09-29/tables/c401?limit=5&q=count"` | `total` 653; ≤ 5 baris; `matched` ≤ 653 |
+| `curl -s -b /tmp/c "localhost:8000/api/folders/2026-09-29/tables/c401?limit=5&q=count"` | `total` 653; ≤ 5 rows; `matched` ≤ 653 |
 | `curl -s -o /dev/null -w "%{http_code}" -b /tmp/c "localhost:8000/api/folders/2026-09-29/tables/c401?sort=1;drop"` | `400` |
-| `py tools/ukur.py --api localhost:8000` | tiap endpoint halaman ≤ 300 ms dan ≤ 500 KB pada folder `2026-09-29` |
+| `py tools/ukur.py --api localhost:8000` | each page endpoint ≤ 300 ms and ≤ 500 KB on folder `2026-09-29` |
 
-⚠ **Bergantung X6** (tabel alur 100 baris pertama; satu angka).
+⚠ **Depends on X6** (flow table of the first 100 rows; one figure).
 
 ---
 
-## Tahap 12 — Kerangka tampilan dan komponen bersama
+## Stage 12 — UI shell and shared components
 
-**Tujuan.** Aplikasi Svelte dengan kerangka, login, dua bahasa, dua tema, keadaan memuat/kosong/gagal, dan
-semua komponen bersama (DRD §2, §4, §5, §6, §8, §9), diuji dengan satu halaman contoh. Belum ada halaman
-data.
+**Goal.** A Svelte application with the shell, login, two languages, two themes, loading/empty/failed states, and
+all shared components (DRD §2, §4, §5, §6, §8, §9), tested with one sample page. No data pages
+yet.
 
-**File dibuat**
+**Files created**
 
-- `web/package.json`, `vite.config.js`, `index.html`; dependensi TRD §6.4.
-- `web/src/theme.css` (token DRD §5.1–§5.5), huruf dibundel.
-- `web/src/i18n/id.json`, `en.json`, `i18n.js`; `tools/cek_i18n.mjs` (kunci kedua berkas harus sama).
-- `web/src/state.js` (tab, folder, modul ↔ URL), `api.js` (401 → layar Masuk; 403 → "tidak punya akses"),
-  `format.js` (waktu WIB, durasi, angka, rentang; padanan pemformat lama).
+- `web/package.json`, `vite.config.js`, `index.html`; dependencies per TRD §6.4.
+- `web/src/theme.css` (tokens per DRD §5.1–§5.5), fonts bundled.
+- `web/src/i18n/id.json`, `en.json`, `i18n.js`; `tools/cek_i18n.mjs` (the keys of both files must be the same).
+- `web/src/state.js` (tab, folder, module ↔ URL), `api.js` (401 → Sign in screen; 403 → "no access"),
+  `format.js` (WIB time, durations, numbers, ranges; equivalents of the old formatters).
 - `web/src/App.svelte`; `web/src/lib/`: `Sidebar`, `Header`, `FolderPicker`, `UserMenu`, `Kpi`,
   `ChartCard`, `HBar`, `DataTable`, `IpCell`, `SeverityTag`, `StatusCode`, `Alert`, `Note`, `Skeleton`,
   `EmptyState`, `ErrorState`.
 - `web/src/pages/Login.svelte`, `ChangePassword.svelte`, `Placeholder.svelte`.
-- `tests/test_format.mjs`: pemformat vs contoh di inventaris §2.0.
+- `tests/test_format.mjs`: formatters vs the examples in inventory §2.0.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `cd web && npm ci && npm run build` | `web/dist/` terbentuk tanpa peringatan galat |
-| `node tools/cek_i18n.mjs` | "kunci sama: N" |
-| `node --test tests/test_format.mjs` | lulus (`28 Sep 2026 06.03 WIB`, `2,35 dtk`, `1 mnt 52 dtk`, EN `06:03`) |
-| `grep -rEoh "https?://[^\"' )]+" web/dist \| sort -u` | hanya tautan atribusi (maxmind.com, geonames.org, naturalearthdata.com) dan skema XML |
-| `./run.sh` lalu buka `http://127.0.0.1:8000` | layar Masuk → setelah masuk: sidebar dua grup dengan lencana (Keamanan `14 IP`), pemilih folder berisi 11 folder, subjudul memuat rentang waktu log |
-| Di browser: ganti bahasa, tema, folder; muat ulang halaman | pilihan bahasa/tema diingat; folder dan tab ada di alamat |
-| Masuk sebagai user biasa | sidebar sama dengan admin; menu user tanpa "Kelola user" dan "Ingest & impor"; alamat layar admin → "tidak punya akses" |
-| Lebar jendela 390 px dan 360 px | laci navigasi; KPI 2 kolom; tabel > 4 kolom tampil sebagai kartu baris; target sentuh ≥ 44 px; tidak ada gulir mendatar halaman |
-| Ponsel sungguhan (bukan hanya emulasi), lewat alamat jaringan lokal | masuk, ganti folder, buka laci, gulir tabel: semuanya nyaman dengan satu tangan |
-| Tab keyboard dari atas | "Lewati ke isi" → navigasi → header; fokus selalu terlihat |
-| Matikan server saat aplikasi terbuka | pita "Tidak tersambung"; pulih sendiri saat server hidup |
+| `cd web && npm ci && npm run build` | `web/dist/` created without error warnings |
+| `node tools/cek_i18n.mjs` | "keys match: N" |
+| `node --test tests/test_format.mjs` | passes (`28 Sep 2026 06.03 WIB`, `2,35 dtk`, `1 mnt 52 dtk`, EN `06:03`) |
+| `grep -rEoh "https?://[^\"' )]+" web/dist \| sort -u` | only attribution links (maxmind.com, geonames.org, naturalearthdata.com) and XML schemas |
+| `./run.sh` then open `http://127.0.0.1:8000` | Sign in screen → after signing in: sidebar with two groups and badges (Security `14 IP`), folder picker with 11 folders, subtitle includes the log time range |
+| In the browser: change language, theme, folder; reload the page | language/theme choice remembered; folder and tab are in the address |
+| Sign in as a regular user | sidebar same as admin; user menu without "Manage users" and "Ingest & import"; admin screen address → "no access" |
+| Window width 390 px and 360 px | navigation drawer; KPIs in 2 columns; tables with > 4 columns shown as row cards; touch targets ≥ 44 px; no horizontal page scroll |
+| A real phone (not only emulation), via the local network address | sign in, change folder, open the drawer, scroll a table: all comfortable with one hand |
+| Keyboard Tab from the top | "Skip to content" → navigation → header; focus always visible |
+| Stop the server while the app is open | "Not connected" band; recovers on its own when the server is back |
 
-Tampilan ponsel serius (Q1, diputuskan): mode tabel-jadi-kartu di `DataTable` dan laci navigasi **wajib**
-di tahap ini. ⚠ **Bergantung Q6** ("–" vs 0 di `Kpi`), **Q7** (urut kolom,
-salin, `(i)`, "lihat sebagai tabel", pintasan: boleh ditunda tanpa mengubah tahap lain), **Q8** (logo).
-Butuh Tahap 1 untuk sketsa layar Masuk.
+Serious phone layout (Q1, decided): the table-to-cards mode in `DataTable` and the navigation drawer are **required**
+in this stage. ⚠ **Depends on Q6** ("–" vs 0 in `Kpi`), **Q7** (column sorting,
+copy, `(i)`, "view as table", shortcuts: may be postponed without changing other stages), **Q8** (logo).
+Needs Stage 1 for the Sign in screen sketch.
 
 ---
 
-## Tahap 13 — Halaman Layanan dan Overview
+## Stage 13 — Service and Overview pages
 
-**Tujuan.** Templat halaman layanan (DRD §3.10, inventaris §2.10) dan Overview (DRD §3.1, inventaris §2.1),
-yang memakai kartu-kartu layanan nginx. Peta di halaman layanan menyusul di Tahap 20.
+**Goal.** The service page template (DRD §3.10, inventory §2.10) and Overview (DRD §3.1, inventory §2.1),
+which uses the nginx service cards. The map on the service page follows in Stage 20.
 
-**File dibuat**
+**Files created**
 
-- `web/src/pages/Service.svelte`, `web/src/lib/ServiceCards.svelte` (kartu 2–19, dipakai juga Overview),
-  `MessagesTable.svelte` (baris terbuka + contoh log asli), `web/src/pages/Overview.svelte`.
-- Kunci kamus baru di `id.json`/`en.json`.
-- `docs/04b-daftar-periksa.md`: daftar periksa halaman × {ID, EN} × {gelap, terang} × {lebar, sempit},
-  dibuat dari inventaris §2; dipakai Tahap 13–20.
+- `web/src/pages/Service.svelte`, `web/src/lib/ServiceCards.svelte` (cards 2–19, also used by Overview),
+  `MessagesTable.svelte` (expanded row + original log sample), `web/src/pages/Overview.svelte`.
+- New dictionary keys in `id.json`/`en.json`.
+- `docs/04b-daftar-periksa.md`: checklist of pages × {ID, EN} × {dark, light} × {wide, narrow},
+  built from inventory §2; used by Stages 13–20.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `cd web && npm run build && node ../tools/cek_i18n.mjs` | lulus |
-| Buka Overview folder `2026-10-06` di v2 dan `../dashboard.html` berdampingan | KPI sama: baris 191.898, error 2.810, warning 856, HTTP request 124.822, Rate 4xx 3,6 %, Rate 5xx 0,04 %, layanan 7, file 18; delta ▼ vs 5 Okt sama; tabel dan 25 pesan teratas sama |
-| Buka halaman `nginx-ingress-controller`, `om-be-simpel-loop`, `om-be-appsmanager`, `coredns` | kartu yang tampil sesuai tabel centang inventaris §2.10; coredns berjudul "domain gagal resolve" |
-| Chart "Aktivitas per jam" nginx | garis Error memuat baris error log (selisih yang diharapkan, TRD §4.4 butir 2) |
-| Donat level simpel-loop folder `2026-09-29` | WARN 9.614, tanpa ERROR (butir 4) |
-| Folder `2026-10-01` | pita "folder ini hanya berisi 4 baris; file rusak"; halaman layanan menampilkan keadaan kosong |
-| Filter tabel pesan: ketik `JWT` | hanya baris cocok; "N baris cocok" |
-| Daftar periksa `04b` untuk dua halaman ini | semua butir dicentang di 2 bahasa × 2 tema × 2 lebar |
+| `cd web && npm run build && node ../tools/cek_i18n.mjs` | passes |
+| Open the Overview of folder `2026-10-06` in v2 and `../dashboard.html` side by side | same KPIs: lines 191,898, errors 2,810, warnings 856, HTTP requests 124,822, 4xx rate 3.6 %, 5xx rate 0.04 %, services 7, files 18; same delta ▼ vs 5 Oct; same tables and top 25 messages |
+| Open the pages `nginx-ingress-controller`, `om-be-simpel-loop`, `om-be-appsmanager`, `coredns` | the cards shown match the checkbox table of inventory §2.10; coredns titled "domains failing to resolve" |
+| The nginx "Activity per hour" chart | the Error line includes error log lines (expected difference, TRD §4.4 item 2) |
+| The simpel-loop level donut of folder `2026-09-29` | WARN 9,614, no ERROR (item 4) |
+| Folder `2026-10-01` | band "this folder contains only 4 lines; corrupt file"; the service page shows the empty state |
+| Message table filter: type `JWT` | only matching rows; "N matching rows" |
+| Checklist `04b` for these two pages | all items ticked in 2 languages × 2 themes × 2 widths |
 
 ---
 
-## Tahap 14 — Halaman Tren
+## Stage 14 — Trends page
 
-**Tujuan.** DRD §3.3, inventaris §2.3.
+**Goal.** DRD §3.3, inventory §2.3.
 
-**File dibuat.** `web/src/pages/Trends.svelte`; kunci kamus.
+**Files created.** `web/src/pages/Trends.svelte`; dictionary keys.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `cd web && npm run build && node ../tools/cek_i18n.mjs` | lulus |
-| Buka Tren berdampingan dengan dashboard lama | 6 chart dan 2 tabel sama untuk 11 folder; kolom `2026-09-30` simpel-loop "Tidak Ada"; `2026-10-01` "Rusak"/"Kosong" |
-| Pemilih folder di header | nonaktif dengan keterangan |
-| Pemilih rentang 14 / 30 / 90 / semua | jumlah kolom berubah; tabel menggulir mendatar, kolom Layanan terkunci |
-| Daftar periksa `04b` | lengkap |
+| `cd web && npm run build && node ../tools/cek_i18n.mjs` | passes |
+| Open Trends side by side with the old dashboard | 6 charts and 2 tables equal for 11 folders; column `2026-09-30` simpel-loop "None"; `2026-10-01` "Corrupt"/"Empty" |
+| Folder picker in the header | disabled with an explanation |
+| Range picker 14 / 30 / 90 / all | number of columns changes; the table scrolls horizontally, the Service column is pinned |
+| Checklist `04b` | complete |
 
-⚠ **Bergantung Q4** (rentang bawaan 30; satu nilai).
+⚠ **Depends on Q4** (default range 30; one value).
 
 ---
 
-## Tahap 15 — Halaman Keamanan
+## Stage 15 — Security page
 
-**Tujuan.** DRD §3.4, inventaris §2.4, termasuk 9 aturan "Temuan utama" disusun dari komponen (bukan HTML
-dalam string).
+**Goal.** DRD §3.4, inventory §2.4, including the 9 "Key findings" rules composed from components (not HTML
+in a string).
 
-**File dibuat.** `web/src/pages/Security.svelte`, `web/src/lib/Findings.svelte`, `AttackUrl.svelte` (URL
-lengkap dengan base host); kunci kamus (kalimat temuan dua bahasa).
+**Files created.** `web/src/pages/Security.svelte`, `web/src/lib/Findings.svelte`, `AttackUrl.svelte` (full
+URL with the base host); dictionary keys (finding sentences in two languages).
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `cd web && npm run build && node ../tools/cek_i18n.mjs` | lulus |
-| Folder `2026-10-06` berdampingan dengan lama | 8 KPI: 88, 14, 5, 62, 9, 1, 0, 4; enam butir temuan yang sama (Log4Shell, Rancher, 62 endpoint 2xx, cloud, jaringan Ombudsman, 4 reset); 6 chart; 5 tabel |
-| Folder `2026-09-28` (tanpa nginx) | catatan "deteksi serangan per URL tidak tersedia"; bagian login tetap |
-| Tabel "Endpoint dengan indikasi serangan": URL berisi `<script>` atau `${jndi:` | tampil sebagai teks; tidak dieksekusi (periksa konsol browser bersih) |
-| `grep -rn "@html" web/src` | tidak ada pemakaian pada data log |
-| Daftar periksa `04b` | lengkap |
+| `cd web && npm run build && node ../tools/cek_i18n.mjs` | passes |
+| Folder `2026-10-06` side by side with the old one | 8 KPIs: 88, 14, 5, 62, 9, 1, 0, 4; the same six finding items (Log4Shell, Rancher, 62 2xx endpoints, cloud, Ombudsman network, 4 resets); 6 charts; 5 tables |
+| Folder `2026-09-28` (no nginx) | note "per-URL attack detection not available"; the login section remains |
+| Table "Endpoints with suspected attacks": URL containing `<script>` or `${jndi:` | shown as text; not executed (check the browser console is clean) |
+| `grep -rn "@html" web/src` | no use on log data |
+| Checklist `04b` | complete |
 
 ---
 
-## Tahap 16 — Halaman Akar Masalah dan Ketersediaan
+## Stage 16 — Root Causes and Availability pages
 
-**Tujuan.** DRD §3.5–§3.6, inventaris §2.5–§2.6.
+**Goal.** DRD §3.5–§3.6, inventory §2.5–§2.6.
 
-**File dibuat.** `web/src/pages/RootCause.svelte`, `Availability.svelte`; kunci kamus.
+**Files created.** `web/src/pages/RootCause.svelte`, `Availability.svelte`; dictionary keys.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `cd web && npm run build && node ../tools/cek_i18n.mjs` | lulus |
-| Akar Masalah `2026-09-29` berdampingan dengan lama | ringkasan 5 butir sama; chart JWT sama; **baru**: "Refresh token kedaluwarsa: 237"; tabel 401 menampilkan 30 dari 653 dengan "tampilkan berikutnya" |
-| Ketersediaan `2026-09-30` | KPI error koneksi pod **1.200** (lama: 200) dan retry **825**; 10 insiden; selain itu sama |
-| Ketersediaan `2026-09-28` | catatan "memakai log ingress nginx…" |
-| Daftar periksa `04b` | lengkap |
+| `cd web && npm run build && node ../tools/cek_i18n.mjs` | passes |
+| Root Causes `2026-09-29` side by side with the old one | the 5-item summary equal; the JWT chart equal; **new**: "Expired refresh tokens: 237"; the 401 table shows 30 of 653 with "show next" |
+| Availability `2026-09-30` | KPI pod connection errors **1,200** (old: 200) and retries **825**; 10 incidents; otherwise equal |
+| Availability `2026-09-28` | note "uses the nginx ingress log…" |
+| Checklist `04b` | complete |
 
 ---
 
-## Tahap 17 — Halaman Pod, Bisnis, Pelacakan Request
+## Stage 17 — Pods, Business, Request Tracing pages
 
-**Tujuan.** DRD §3.7–§3.9, inventaris §2.7–§2.9.
+**Goal.** DRD §3.7–§3.9, inventory §2.7–§2.9.
 
-**File dibuat.** `web/src/pages/Pods.svelte`, `Business.svelte`, `Tracing.svelte`; kunci kamus.
+**Files created.** `web/src/pages/Pods.svelte`, `Business.svelte`, `Tracing.svelte`; dictionary keys.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `cd web && npm run build && node ../tools/cek_i18n.mjs` | lulus |
-| Pod `2026-10-06` berdampingan dengan lama | KPI sama; label "Pod dengan retry"; status "Rusak" pada file rusak |
-| Bisnis `2026-09-29` | Laporan Dibuat 12, Registrasi 108, OTP Diminta 35, OTP Terverifikasi 12, File Diunggah 314, Upload Ditolak 18, Email Terkirim 55, PDF 813 / 32, Login Sukses 389 |
-| Bisnis `2026-09-30` (tanpa simpel-loop) | KPI simpel-loop "–" dengan keterangan, bukan 0 |
-| Pelacakan `2026-09-29` | 60.665 / 22.638 / 37,3 %; tabel jejak 300 pertama dengan "tampilkan berikutnya" |
-| Pelacakan `2026-09-27` | catatan "butuh log simpel-loop dan ingress nginx…" |
-| Daftar periksa `04b` | lengkap |
+| `cd web && npm run build && node ../tools/cek_i18n.mjs` | passes |
+| Pods `2026-10-06` side by side with the old one | same KPIs; label "Pods with retries"; status "Corrupt" on corrupt files |
+| Business `2026-09-29` | Reports created 12, Registrations 108, OTPs requested 35, OTPs verified 12, Files uploaded 314, Uploads rejected 18, Emails sent 55, PDF 813 / 32, Successful logins 389 |
+| Business `2026-09-30` (no simpel-loop) | simpel-loop KPIs "–" with an explanation, not 0 |
+| Tracing `2026-09-29` | 60,665 / 22,638 / 37.3 %; trace table of the first 300 with "show next" |
+| Tracing `2026-09-27` | note "needs the simpel-loop and nginx ingress logs…" |
+| Checklist `04b` | complete |
 
 ---
 
-## Tahap 18 — Layar admin: kelola user, ingest, audit
+## Stage 18 — Admin screens: manage users, ingest, audit
 
-**Tujuan.** Layar di TRD §8.4 (dirancang di DRD pada Tahap 1), di atas API Tahap 10.
+**Goal.** The screens in TRD §8.4 (designed in the DRD in Stage 1), on top of the Stage 10 API.
 
-**File dibuat.** `web/src/pages/AdminUsers.svelte`, `AdminIngest.svelte` (status ingest, tombol "Ingest
-sekarang", catatan audit); kunci kamus.
+**Files created.** `web/src/pages/AdminUsers.svelte`, `AdminIngest.svelte` (ingest status, "Ingest
+now" button, audit log); dictionary keys.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `cd web && npm run build && node ../tools/cek_i18n.mjs` | lulus |
-| Sebagai admin: tambah user baru (peran user); masuk sebagai user itu di jendela lain | wajib ganti sandi; lalu melihat seluruh dashboard seperti admin, tanpa menu admin |
-| Admin menaikkan user itu menjadi admin, lalu menurunkannya lagi | menu admin muncul lalu hilang pada permintaan berikutnya |
-| Admin mereset sandi / menonaktifkan user | sesi user langsung berakhir |
-| Coba hapus atau turunkan admin satu-satunya | ditolak dengan pesan |
-| Masuk sebagai user biasa, buka alamat layar admin | "tidak punya akses"; `GET /api/admin/users` → 403 |
-| "Ingest sekarang" | status berjalan → selesai, "0 file berubah"; dashboard tetap bisa dibuka selama berjalan |
-| Catatan audit | semua tindakan di atas tercatat dengan waktu, pelaku, IP; tanpa sandi atau token |
-| Daftar periksa `04b` untuk layar admin | lengkap |
+| `cd web && npm run build && node ../tools/cek_i18n.mjs` | passes |
+| As admin: add a new user (role user); sign in as that user in another window | must change password; then sees the whole dashboard like an admin, without the admin menu |
+| The admin promotes that user to admin, then demotes them again | the admin menu appears and then disappears on the next request |
+| The admin resets the password / deactivates the user | the user's session ends immediately |
+| Try to delete or demote the only admin | refused with a message |
+| Sign in as a regular user, open the admin screen address | "no access"; `GET /api/admin/users` → 403 |
+| "Ingest now" | status running → done, "0 files changed"; the dashboard can still be opened while it runs |
+| Audit log | all the actions above recorded with time, actor, IP; without passwords or tokens |
+| Checklist `04b` for the admin screens | complete |
 
 
 ---
 
-## Tahap 19 — Impor dari awalan S3
+## Stage 19 — Import from an S3 prefix
 
-**Tujuan.** TRD §3.8: tautan `s3://simpel4-backup/k8s-logs/<YYYY-MM-DD>/` → daftar objek → unduh ke kotak
-masuk → ingest biasa. Kredensial: kunci akses tetap di `.env` server (impor bisa otomatis); admin bisa
-menempel kredensial lain sebagai cadangan (di memori saja).
+**Goal.** TRD §3.8: link `s3://simpel4-backup/k8s-logs/<YYYY-MM-DD>/` → list objects → download to the
+inbox → normal ingest. Credentials: fixed access keys in the server's `.env` (import can be automatic); an admin can
+paste other credentials as a fallback (in memory only).
 
-**File dibuat**
+**Files created**
 
-- `pyproject.toml`: tambahan opsional `s3` berisi `boto3`.
-- `monishield/importer.py`: pemeriksaan tautan (bentuk, daftar izin bucket dan awalan, tanggal), daftar
-  objek, pemilihan (pola kunci, `.log` menang atas `.log.gz`, lewati yang ukuran + ETag-nya sama), unduhan
-  berbatas ke direktori sementara, pemindahan atomik ke kotak masuk, `import_job`, mode coba, penyimpanan
-  kredensial sementara di memori.
+- `pyproject.toml`: optional extra `s3` containing `boto3`.
+- `monishield/importer.py`: link checks (shape, bucket and prefix allowlist, date), object
+  listing, selection (key pattern, `.log` wins over `.log.gz`, skip those whose size + ETag are the same), bounded
+  download to a temporary directory, atomic move to the inbox, `import_job`, dry-run mode, in-memory storage of
+  temporary credentials.
 - `monishield/api/admin.py`: `POST /api/admin/import`, `GET /api/admin/import/{job_id}`,
   `POST`/`DELETE /api/admin/import/credentials`.
 - `monishield/cli.py`: `import [--dry-run] s3://…`.
-- `web/src/pages/AdminIngest.svelte`: kolom tautan, tombol "Coba dulu" dan "Impor", status impor, formulir
-  kredensial sementara dengan keterangan kedaluwarsa.
-- `tests/s3_tiruan.py` (server S3 kecil untuk uji) dan `tests/test_import.py`: butir impor dan kredensial
-  di TRD §9.6.
-- `README.md` (bagian impor): contoh kebijakan IAM baca-saja dan cara mengisi `.env`.
+- `web/src/pages/AdminIngest.svelte`: link field, "Dry run" and "Import" buttons, import status, temporary
+  credentials form with an expiry note.
+- `tests/s3_tiruan.py` (a small S3 server for tests) and `tests/test_import.py`: the import and credentials items
+  in TRD §9.6.
+- `README.md` (import section): an example read-only IAM policy and how to fill in `.env`.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `.venv/bin/pip install -e ".[test,s3]" && pytest tests/test_import.py -q` | semua lulus, tanpa menghubungi AWS |
-| Tanpa `import_buckets`: `py -m monishield import s3://simpel4-backup/k8s-logs/2026-09-26/` | ditolak: "impor tidak diaktifkan" |
-| `py -m monishield import s3://bucket-lain/k8s-logs/2026-09-26/` dan `…/k8s-logs/bukan-tanggal/` | keduanya ditolak dengan alasan |
-| Tanpa kredensial: impor tautan sah | pesan cara memberi kredensial; tidak ada berkas tertulis |
-| **Manual, dengan kredensial asli**: `py -m monishield import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/` | daftar objek; untuk tiap objek "ambil" / "lewati (alasan)"; susunannya cocok pola folder log (membuktikan T14); 0 byte diunduh |
-| **Manual**: impor `2026-09-26` sungguhan ke database uji terpisah (`S4_DATA_DIR` lain, tanpa folder log lokal) | folder `2026-09-26` muncul; angkanya sama dengan acuan folder lokal: 1.203 baris, 6 error, 11 warning |
-| Kirim tautan yang sama lagi | "0 objek diunduh"; tidak ada data ganda |
-| `grep -rnE "AKIA|ASIA|aws_secret|SessionToken" data/ 2>/dev/null; py -m monishield status` | tidak ada kredensial di disk; status hanya menyebut "kredensial: tersedia (lingkungan)" |
-| Sebagai user biasa: buka layar impor / panggil endpoint | "tidak punya akses" / 403 |
-| Dengan kunci asli (yang bisa melihat semua bucket): `py -m monishield import --dry-run s3://<bucket lain di Jakarta>/x/2026-09-26/` | **ditolak oleh daftar izin sebelum menghubungi AWS** |
-| Dengan token mesin: `curl -H "Authorization: Bearer $S4_JOB_TOKEN" -d '{"url":"s3://simpel4-backup/k8s-logs/2026-09-26/"}' …/api/admin/import` | 202; impor lalu ingest berjalan tanpa orang (otomatisasi) |
-| Mulai ulang server setelah menempel kredensial sementara | kredensial hilang; impor meminta lagi |
+| `.venv/bin/pip install -e ".[test,s3]" && pytest tests/test_import.py -q` | all pass, without contacting AWS |
+| Without `import_buckets`: `py -m monishield import s3://simpel4-backup/k8s-logs/2026-09-26/` | refused: "import is not enabled" |
+| `py -m monishield import s3://bucket-lain/k8s-logs/2026-09-26/` and `…/k8s-logs/bukan-tanggal/` | both refused with a reason |
+| Without credentials: import a valid link | message on how to provide credentials; no files written |
+| **Manual, with real credentials**: `py -m monishield import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/` | list of objects; for each object "fetch" / "skip (reason)"; the layout matches the log folder pattern (proves T14); 0 bytes downloaded |
+| **Manual**: a real import of `2026-09-26` into a separate test database (another `S4_DATA_DIR`, without a local log folder) | folder `2026-09-26` appears; its figures equal the local folder reference: 1,203 lines, 6 errors, 11 warnings |
+| Send the same link again | "0 objects downloaded"; no duplicate data |
+| `grep -rnE "AKIA|ASIA|aws_secret|SessionToken" data/ 2>/dev/null; py -m monishield status` | no credentials on disk; status only says "credentials: available (environment)" |
+| As a regular user: open the import screen / call the endpoint | "no access" / 403 |
+| With the real key (which can see all buckets): `py -m monishield import --dry-run s3://<another bucket in Jakarta>/x/2026-09-26/` | **refused by the allowlist before contacting AWS** |
+| With the machine token: `curl -H "Authorization: Bearer $S4_JOB_TOKEN" -d '{"url":"s3://simpel4-backup/k8s-logs/2026-09-26/"}' …/api/admin/import` | 202; import then ingest run unattended (automation) |
+| Restart the server after pasting temporary credentials | credentials gone; the import asks again |
 
-Dua baris bertanda **Manual** butuh kredensial AWS asli dan akses internet ke S3; bila belum tersedia saat
-tahap dikerjakan, tahap dilaporkan **SEBAGIAN** dan dua baris itu disebut belum diuji.
+The two rows marked **Manual** need real AWS credentials and internet access to S3; if they are not yet available when
+the stage is done, the stage is reported as **PARTIAL** and those two rows are named as not yet tested.
 
-Kunci yang dipakai baca-saja tetapi bisa melihat semua bucket di wilayah Jakarta, jadi uji daftar izin di atas adalah
-verifikasi terpenting tahap ini. README memuat saran mengganti kunci dengan pengguna IAM baca-saja khusus
+The key in use is read-only but can see all buckets in the Jakarta region, so the allowlist test above is the
+most important verification of this stage. The README includes the advice to replace the key with a dedicated read-only IAM user for
 `simpel4-backup/k8s-logs/`.
 
-⚠ **Bergantung X2** (akses keluar server ke S3 Jakarta; pemilik belum tahu, jadi diperiksa di server
-dengan `curl -sI https://s3.ap-southeast-3.amazonaws.com` sebelum mengandalkan fitur ini) dan **X3** (apakah folder yang dipasang tetap
-dipakai di samping bucket). Tahap ini tidak menghalangi Tahap 20.
+⚠ **Depends on X2** (the server's outbound access to S3 Jakarta; the owner does not know yet, so it is checked on the server
+with `curl -sI https://s3.ap-southeast-3.amazonaws.com` before relying on this feature) and **X3** (whether the mounted folder
+is still used alongside the bucket). This stage does not block Stage 20.
 
 ---
 
-## Tahap 20 — Peta IP
+## Stage 20 — IP map
 
-**Tujuan.** Komponen peta MapLibre (DRD §7) tanpa permintaan ke domain luar, halaman Peta IP (DRD §3.2,
-inventaris §2.2), dan peta terlipat di halaman layanan (DRD §3.10).
+**Goal.** A MapLibre map component (DRD §7) with no requests to outside domains, the IP Map page (DRD §3.2,
+inventory §2.2), and a collapsed map on the service page (DRD §3.10).
 
-**File dibuat**
+**Files created**
 
-- `web/public/fonts/<fontstack>/{0-255,256-511}.pbf` (glyph Noto Sans, dua ketebalan) + berkas lisensinya.
-- `web/src/lib/MapView.svelte`: gaya tanpa `sprite`/`glyphs` luar; 13 lapisan DRD §7.3; preset Indonesia
-  dan Dunia; pengelompokan titik; busur; tooltip; gerakan kooperatif; atribusi; ganti tema tanpa
-  kehilangan posisi.
-- `web/src/pages/IpMap.svelte`; pembaruan `Service.svelte` (peta modul, terlipat); kunci kamus.
+- `web/public/fonts/<fontstack>/{0-255,256-511}.pbf` (Noto Sans glyphs, two weights) + their license file.
+- `web/src/lib/MapView.svelte`: style without an external `sprite`/`glyphs`; the 13 layers of DRD §7.3; Indonesia
+  and World presets; point clustering; arcs; tooltip; cooperative gestures; attribution; theme switch without
+  losing the position.
+- `web/src/pages/IpMap.svelte`; update of `Service.svelte` (module map, collapsed); dictionary keys.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `cd web && npm run build && node ../tools/cek_i18n.mjs` | lulus |
-| Peta IP `2026-10-06` berdampingan dengan lama | KPI: 516 IP, 222 lokasi, 12 negara, 9 modul, 15 pod, 124.822 request; "2.030 request dari luar Indonesia · 0 dari IP internal"; titik server di Jakarta; 6 lokasi terbesar berlabel |
-| Pilih modul `om-be-simpel-loop` | KPI, titik, dan tabel berganti; posisi dan zoom peta tetap |
-| Panel Jaringan di alat pengembang browser, muat ulang halaman peta | **semua** permintaan ke asal yang sama; 0 ke domain lain |
-| Matikan jaringan komputer, muat ulang | peta, label, dan titik tetap tampil |
-| Roda mouse di atas peta | halaman menggulir; petunjuk "Tahan Ctrl…"; Ctrl + roda memperbesar |
-| Ponsel / emulasi sentuh 390 px | satu jari menggulir halaman; dua jari menggeser; cubit memperbesar; peta 4 : 3 |
-| Keyboard: fokus ke peta, panah, `+`, `−`, `0`, `Esc` | menggeser, zoom, kembali ke preset, menutup tooltip |
-| Zoom dari Dunia ke Jawa | kelompok pecah menjadi titik; label negara → provinsi → kabupaten muncul bertahap tanpa bertumpuk |
-| Klik titik → "Lihat di tabel" | filter tabel alur terisi nama kota |
-| Folder `2026-09-28` | catatan "Peta butuh log ingress nginx…" |
-| Ganti tema dan bahasa | warna peta dan nama negara berganti; atribusi MaxMind · GeoNames · Natural Earth selalu terlihat |
-| Halaman layanan `om-be-simpel-loop` | peta terlipat; dibuka → hanya alur modul itu |
-| `pytest -q` (seluruh uji) | semua lulus, termasuk kesetaraan E1–E4 |
-| Daftar periksa `04b` untuk Peta IP | lengkap |
+| `cd web && npm run build && node ../tools/cek_i18n.mjs` | passes |
+| IP Map `2026-10-06` side by side with the old one | KPIs: 516 IPs, 222 locations, 12 countries, 9 modules, 15 pods, 124,822 requests; "2,030 requests from outside Indonesia · 0 from internal IPs"; server point in Jakarta; the 6 largest locations labelled |
+| Select module `om-be-simpel-loop` | KPIs, points, and table change; map position and zoom stay |
+| Network panel in the browser developer tools, reload the map page | **all** requests go to the same origin; 0 to other domains |
+| Turn off the computer's network, reload | map, labels, and points still shown |
+| Mouse wheel over the map | the page scrolls; hint "Hold Ctrl…"; Ctrl + wheel zooms in |
+| Phone / touch emulation 390 px | one finger scrolls the page; two fingers pan; pinch zooms; map 4 : 3 |
+| Keyboard: focus on the map, arrows, `+`, `−`, `0`, `Esc` | pan, zoom, back to the preset, close the tooltip |
+| Zoom from World to Java | clusters split into points; country → province → regency labels appear progressively without overlapping |
+| Click a point → "Show in table" | the flow table filter is filled with the city name |
+| Folder `2026-09-28` | note "The map needs the nginx ingress log…" |
+| Change theme and language | map colours and country names change; MaxMind · GeoNames · Natural Earth attribution always visible |
+| Service page `om-be-simpel-loop` | map collapsed; opened → only that module's flows |
+| `pytest -q` (all tests) | all pass, including parity E1–E4 |
+| Checklist `04b` for the IP Map | complete |
 
-⚠ **Bergantung Q3** (batas provinsi Papua mungkin belum memuat pemekaran; batas kabupaten tidak digambar),
-**Q5** (peta di halaman layanan terlipat), **X7** (huruf label Noto Sans). Ketiganya terbatas pada
-`MapView.svelte` dan berkas statis.
+⚠ **Depends on Q3** (the Papua province boundaries may not include the new provinces; regency boundaries are not drawn),
+**Q5** (map on the service page collapsed), **X7** (Noto Sans label font). All three are limited to
+`MapView.svelte` and static files.
 
 ---
 
-## Tahap 21 — Deteksi serangan: aturan OWASP CRS, kategori CAPEC
+## Stage 21 — Attack detection: OWASP CRS rules, CAPEC categories
 
-**Asal.** Permintaan pemilik (2026-10-06): deteksi serangan memakai OWASP Core Rule Set (CRS) dan
-kategorinya dinamai menurut CAPEC. Rincian teknis di TRD §4.6.
+**Origin.** Owner request (2026-10-06): attack detection uses the OWASP Core Rule Set (CRS) and
+its categories are named after CAPEC. Technical details in TRD §4.6.
 
-**Mengapa di akhir.** Mengganti aturan deteksi mengubah semua angka di tab Keamanan. Kesetaraan dengan
-sistem lama harus terbukti dulu dengan aturan lama (Tahap 8), dan halaman Keamanan harus sudah ada (Tahap
-15). Setelah itu aturan baru masuk sebagai perubahan yang disengaja dan terukur.
+**Why at the end.** Replacing the detection rules changes every figure in the Security tab. Parity with
+the old system must first be proven with the old rules (Stage 8), and the Security page must already exist (Stage
+15). After that the new rules come in as a deliberate, measured change.
 
-**Cakupan tahap ini = cara "di skrip"**: pola dari CRS dicocokkan ke URL dan User-Agent di log nginx.
-Cara "di ingress" (ModSecurity/Coraza mode deteksi, yang juga memeriksa body, header, dan cookie) **tidak**
-dikerjakan di sini karena mengubah konfigurasi klaster, di luar jangkauan proyek dashboard; lihat S1.
+**Scope of this stage = the "in the script" way**: CRS patterns are matched against the URL and User-Agent in the nginx log.
+The "in the ingress" way (ModSecurity/Coraza in detection mode, which also inspects the body, headers, and cookies) is **not**
+done here because it changes the cluster configuration, outside the reach of the dashboard project; see S1.
 
-**File dibuat**
+**Files created**
 
-- `tools/ambil_crs.py`: mengunduh satu rilis CRS yang **versinya dikunci**, mengambil aturan dari berkas
-  REQUEST-913 (pemindai), 930 (LFI), 931 (RFI), 932 (RCE), 933 (PHP), 934 (generik), 941 (XSS), 942 (SQLi),
-  944 (Java) yang sasarannya URI, argumen, atau User-Agent; menyimpan pola, ID aturan, tingkat keparahan,
-  tingkat paranoia, transformasi, dan tag CAPEC. Aturan yang polanya tidak bisa dipakai mesin regex Python
-  dicatat dan dilewati, tidak diubah diam-diam.
-- `monishield/crs_rules.json` (hasil alat di atas; ikut repo, sehingga tidak ada unduhan saat jalan) +
-  berkas lisensi dan pemberitahuan CRS (Apache 2.0).
-- `monishield/capec.json`: ID CAPEC → nama Indonesia dan Inggris untuk kategori yang dipakai.
-- `monishield/detect.py`: menerapkan transformasi CRS yang dibutuhkan (decode URL, huruf kecil, buang
-  komentar, dll.) lalu mencocokkan; keluaran per request: ID aturan yang kena, kategori CAPEC, keparahan,
-  skor anomali.
-- `monishield/schema.sql`: kolom baru di `nginx_access` (`crs_rules`, `capec`, `crs_severity`, `crs_score`);
-  kolom `attack_cat` lama **dipertahankan** agar uji kesetaraan tetap bisa dijalankan.
-- `monishield/derive/`: agregat serangan dihitung dari klasifikasi baru; `rules_version` naik.
-- `web/src/pages/Security.svelte`, kamus: kategori CAPEC, kolom "Aturan" (ID CRS), keterangan metode.
-- `tests/test_detect.py`: (a) muatan serangan dikenal per kategori → kena; (b) 22 ribu path nyata yang
-  sekarang "bersih" → tingkat salah-tuduh diukur dan dilaporkan; (c) semua request yang kena aturan lama
-  → dicatat mana yang juga kena CRS dan mana yang tidak.
-- `docs/04c-deteksi-crs.md`: perbandingan lama vs baru per folder, daftar aturan yang dilewati, dan
-  keterbatasan.
+- `tools/ambil_crs.py`: downloads one CRS release with a **pinned version**, takes the rules from the files
+  REQUEST-913 (scanners), 930 (LFI), 931 (RFI), 932 (RCE), 933 (PHP), 934 (generic), 941 (XSS), 942 (SQLi),
+  944 (Java) whose targets are the URI, arguments, or User-Agent; stores the pattern, rule ID, severity,
+  paranoia level, transformations, and CAPEC tags. Rules whose patterns the Python regex engine cannot use are
+  recorded and skipped, not silently altered.
+- `monishield/crs_rules.json` (output of the tool above; part of the repo, so there is no download at runtime) +
+  the CRS license and notice files (Apache 2.0).
+- `monishield/capec.json`: CAPEC ID → Indonesian and English names for the categories in use.
+- `monishield/detect.py`: applies the needed CRS transformations (URL decode, lowercase, remove
+  comments, etc.) and then matches; output per request: the IDs of the matched rules, CAPEC category, severity,
+  anomaly score.
+- `monishield/schema.sql`: new columns in `nginx_access` (`crs_rules`, `capec`, `crs_severity`, `crs_score`);
+  the old `attack_cat` column is **kept** so the parity tests can still be run.
+- `monishield/derive/`: attack aggregates computed from the new classification; `rules_version` bumped.
+- `web/src/pages/Security.svelte`, dictionary: CAPEC categories, "Rules" column (CRS ID), method explanation.
+- `tests/test_detect.py`: (a) known attack payloads per category → matched; (b) 22 thousand real paths that
+  are currently "clean" → false-positive rate measured and reported; (c) all requests matched by the old rules
+  → recorded which are also matched by CRS and which are not.
+- `docs/04c-deteksi-crs.md`: old vs new comparison per folder, list of skipped rules, and
+  limitations.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `py tools/ambil_crs.py --check` | versi CRS terkunci; jumlah aturan diambil dan dilewati dicetak; `crs_rules.json` tidak berubah bila dijalankan ulang |
-| `pytest tests/test_detect.py -q` | semua lulus; tiap kategori punya contoh yang kena |
-| `py -m monishield derive --all` lalu `py tools/laporan_kesetaraan.py` | E1–E4 **tetap lulus** untuk angka lama (kolom `attack_cat`); angka serangan baru dilaporkan terpisah |
-| Baca `docs/04c-deteksi-crs.md` | untuk tiap folder: request serangan lama vs baru, per kategori; salah-tuduh pada lalu lintas normal < 0,5 % pada tingkat paranoia 1, atau aturan penyebabnya didaftar |
-| `time py -m monishield ingest --folder 2026-09-29 --force` | tetap ≤ 60 detik |
-| Halaman Keamanan folder `2026-10-06` | kategori bernama CAPEC dalam dua bahasa; tiap baris menyebut ID aturan CRS; catatan kaki menyebut CRS, versinya, dan bahwa hanya URL dan User-Agent yang diperiksa |
+| `py tools/ambil_crs.py --check` | CRS version pinned; the number of rules taken and skipped printed; `crs_rules.json` does not change when re-run |
+| `pytest tests/test_detect.py -q` | all pass; each category has a matching example |
+| `py -m monishield derive --all` then `py tools/laporan_kesetaraan.py` | E1–E4 **still pass** for the old figures (`attack_cat` column); the new attack figures are reported separately |
+| Read `docs/04c-deteksi-crs.md` | for each folder: old vs new attack requests, per category; false positives on normal traffic < 0.5 % at paranoia level 1, or the rules causing them are listed |
+| `time py -m monishield ingest --folder 2026-09-29 --force` | still ≤ 60 seconds |
+| Security page of folder `2026-10-06` | categories named after CAPEC in two languages; each row names the CRS rule ID; the footnote names CRS, its version, and that only the URL and User-Agent are inspected |
 
-**Keterbatasan yang tetap ada** (ditulis juga di halaman): body POST, header selain User-Agent, dan cookie
-tidak ada di log, jadi tidak diperiksa. Ini bukan pengganti WAF.
+**Limitations that remain** (also written on the page): the POST body, headers other than User-Agent, and cookies
+are not in the log, so they are not inspected. This is not a WAF replacement.
 
-⚠ **Bergantung S1** (di bawah). Dengan asumsi yang dipakai, tahap ini bisa dikerjakan tanpa menunggu.
-
----
-
-## Tahap 12a — Gaya mengikuti referensi desain pemilik
-
-**Tujuan.** Permintaan pemilik 2026-10-06 (DRD §12): tampilan seperti gambar referensi, diterapkan pada token dan
-komponen bersama **sebelum** halaman data dibangun, supaya Tahap 13–20 tidak ditata dua kali.
-R6 terjawab: berlaku untuk **seluruh dashboard**.
-
-**File diubah**: `web/src/theme.css`, `lib/Sidebar.svelte` (ikon SVG dibundel), `lib/Kpi.svelte` (ikon + badge),
-`lib/Alert.svelte` → kartu perhatian bernomor dengan tautan, `App.svelte` (baris status ringkas di bawah judul).
-
-**Verifikasi**: `node tools/uji_browser.cjs` tetap lulus; tangkapan layar 1440/390 px dibandingkan dengan referensi;
-kontras token baru dihitung (DRD §5.6); `grep` URL di `web/dist` tetap tanpa domain luar.
+⚠ **Depends on S1** (below). With the assumptions used, this stage can be done without waiting.
 
 ---
 
-## Tahap 22 — Command Center (halaman)
+## Stage 12a — Styling following the owner's design reference
 
-**Tujuan.** Layar **peta dunia** (R5): peta asal IP → server sebagai isi utama, dikelilingi KPI utama, kartu "yang
-perlu perhatian", dan pemilih modul; memakai endpoint dan komponen yang sudah ada (TRD §12). Overview tetap halaman
-terpisah. **ASUMSI**: menyerap tab "Peta IP" (Tahap 20 membangun komponen peta, tahap ini menjadikannya Command Center). Datanya dari folder log (sumber utama); diperbarui saat folder
-baru di-ingest atau tombol "Muat ulang", tanpa aliran realtime (Kafka ditunda).
-⚠ **Bergantung R5**.
+**Goal.** Owner request 2026-10-06 (DRD §12): a look like the reference image, applied to the tokens and
+shared components **before** the data pages are built, so that Stages 13–20 are not styled twice.
+R6 answered: applies to **the whole dashboard**.
 
-**File** (ditambahkan saat dikerjakan; bagian ini sebelumnya tanpa daftar file dan verifikasi):
+**Files changed**: `web/src/theme.css`, `lib/Sidebar.svelte` (bundled SVG icons), `lib/Kpi.svelte` (icon + badge),
+`lib/Alert.svelte` → numbered attention cards with links, `App.svelte` (compact status line below the title).
 
-- `monishield/api/command.py`: `GET /api/folders/{folder}/command[?module=]` = KPI utama (request HTTP, 5xx, error semua
-  layanan, error koneksi upstream, IP sumber serangan, IP login gagal) + butir "yang perlu perhatian" (kunci + angka +
-  halaman tujuan) + respons Peta IP. Tidak ada perhitungan baru: tiap angka dibaca dari agregat halaman asalnya.
-- `web/src/pages/CommandCenter.svelte` (menggantikan `IpMap.svelte`, alamat tetap `#/peta?modul=`), `lib/FlowMap.svelte`
-  (slot `aside`, prop `tall`), `lib/MapView.svelte` (prop `tall`: peta setinggi layar), kamus `cc.*`, `tab.peta` =
+**Verification**: `node tools/uji_browser.cjs` still passes; screenshots at 1440/390 px compared with the reference;
+contrast of the new tokens computed (DRD §5.6); `grep` for URLs in `web/dist` still shows no outside domains.
+
+---
+
+## Stage 22 — Command Center (page)
+
+**Goal.** A **world map** screen (R5): the IP origin → server map as the main content, surrounded by the main KPIs, "what
+needs attention" cards, and a module picker; uses existing endpoints and components (TRD §12). Overview stays a separate
+page. **ASSUMPTION**: absorbs the "IP Map" tab (Stage 20 builds the map component, this stage turns it into the Command Center). Its data comes from the log folder (the main source); updated when a new folder
+is ingested or via the "Reload" button, with no realtime stream (Kafka postponed).
+⚠ **Depends on R5**.
+
+**Files** (added when the stage was done; this section previously had no file list or verification):
+
+- `monishield/api/command.py`: `GET /api/folders/{folder}/command[?module=]` = main KPIs (HTTP requests, 5xx, errors of all
+  services, upstream connection errors, attack source IPs, IPs with failed logins) + "what needs attention" items (key + figure +
+  target page) + the IP Map response. No new calculations: every figure is read from the aggregates of its source page.
+- `web/src/pages/CommandCenter.svelte` (replaces `IpMap.svelte`, the address stays `#/peta?modul=`), `lib/FlowMap.svelte`
+  (`aside` slot, `tall` prop), `lib/MapView.svelte` (`tall` prop: full-screen-height map), dictionary `cc.*`, `tab.peta` =
   "Command Center".
-- `tests/test_api.py::test_command_center_menyusun_angka_halaman_lain`; `tools/uji_tahap20.cjs` membaca angka peta dari
-  ringkasan di Command Center.
+- `tests/test_api.py::test_command_center_menyusun_angka_halaman_lain`; `tools/uji_tahap20.cjs` reads the map figures from
+  the summary in the Command Center.
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil yang diharapkan |
+| Command | Expected result |
 |---|---|
-| `pytest tests/test_api.py -k command` | angka Command Center = angka halaman Keamanan, Ketersediaan, Akar Masalah, Peta IP; butir merah lebih dulu; modul hanya menyaring peta |
-| Halaman `#/peta?folder=2026-10-06` | 6 KPI; peta selebar dan setinggi layar; kartu perhatian bernomor dengan tautan "Buka …"; tanpa gulir mendatar di 1440 dan 390 px |
-| `#/peta?folder=2026-09-28` (tanpa nginx) | KPI request/5xx "–" + keterangan; kartu perhatian tetap; catatan peta butuh nginx |
-| `node tools/uji_tahap20.cjs` | peta tetap lulus di tempat barunya |
+| `pytest tests/test_api.py -k command` | Command Center figures = the figures of the Security, Availability, Root Causes, IP Map pages; red items first; the module only filters the map |
+| Page `#/peta?folder=2026-10-06` | 6 KPIs; map as wide and as tall as the screen; numbered attention cards with "Open …" links; no horizontal scroll at 1440 and 390 px |
+| `#/peta?folder=2026-09-28` (no nginx) | request/5xx KPIs "–" + explanation; attention cards remain; note that the map needs nginx |
+| `node tools/uji_tahap20.cjs` | the map still passes in its new place |
 
 ---
 
-## Tahap 23 — Aliran realtime dari Kafka
+## Stage 23 — Realtime stream from Kafka
 
-**DITUNDA** (keputusan pemilik 2026-10-06): folder log tetap sumber utama pembaruan; Kafka hanya untuk ke depan.
-Tahap ini tidak dijalankan oleh `migrate/06-eksekusi.md` sampai pemilik membukanya kembali.
+**POSTPONED** (owner decision 2026-10-06): the log folder remains the main source of updates; Kafka is only for the future.
+This stage is not run by `migrate/06-eksekusi.md` until the owner reopens it.
 
-**Tujuan (nanti).** Konsumen Kafka di dalam proses server (K1), tabel `rt_*`, endpoint SSE `/api/stream`, penanda
-"streaming · kejadian terakhir N detik lalu" di Command Center (TRD §12). Bergantung R1, R2, R4.
+**Goal (later).** A Kafka consumer inside the server process (K1), `rt_*` tables, an SSE endpoint `/api/stream`, a
+"streaming · last event N seconds ago" indicator in the Command Center (TRD §12). Depends on R1, R2, R4.
 
 ---
 
-## Tahap 24 — Penyajian tambahan (saran 1–9, permintaan pemilik 2026-10-07)
+## Stage 24 — Additional presentation (suggestions 1–9, owner request 2026-10-07)
 
-**Asal.** Pemilik meminta saran penyajian frontend, lalu memilih butir 1–9. Semua memakai data yang sudah ada di
-basis data (tidak ada sumber baru, tidak ada yang dikirim ke pihak ketiga).
+**Origin.** The owner asked for frontend presentation suggestions, then chose items 1–9. All use data already in
+the database (no new sources, nothing sent to third parties).
 
-| # | Butir | Wujud |
+| # | Item | Implementation |
 |--:|---|---|
-| 1 | Perubahan vs folder sebelumnya di Command Center | 6 KPI diberi lencana ▲/▼ (`prev` di `/command`); KPI ingress dibandingkan hanya bila log ingress kemarin ≥ 50 % (aturan Overview), lainnya bila total baris kemarin ≥ 50 % |
-| 2 | Grafik per jam di bawah peta | `by_hour` (request ingress, 5xx, request serangan); dua grafik karena skala berbeda (bukan dua sumbu) |
-| 3 | Butir perhatian tambahan | uptime gagal, error layanan melonjak (≥ 2× DAN +50 vs folder sebelumnya, maks. 3 layanan), restart, PDF gagal, JWT kedaluwarsa melonjak (≥ 2× DAN +20, hanya bila folder kemarin sebanding) — **ASUMSI** ambang |
-| 4 | Profil IP + daftar IP (CSV) | `#/ip/<ip>` (`GET /api/folders/{f}/ips/{ip}`): pemilik & lokasi offline, 8 KPI, akun dicoba, jejak di semua folder, request ingress (maks. 1.000); semua sel IP menaut ke sini. `GET …/security/attack-ips.csv` (sel diawali = + - @ diberi petik) |
-| 5 | Keterangan aturan CRS | `rule_msgs` di `/security` dan profil IP: "930130 · Restricted File Access Attempt" (teks asli CRS, bahasa Inggris) |
-| 6 | Pencarian global | tombol 🔍 di kepala + **Ctrl+K** (`/` sudah dipakai filter tabel); `GET /api/search` → IP, akun, requestId, URL; hasil membuka halaman tujuan dengan filter tabel terisi (`?cari=`) dan menggulir ke tabelnya |
-| 7 | Kelengkapan data di Tren | tanggal tanpa folder log, folder ber-file rusak (tautan ke Pod), ingest terakhir |
-| 8 | Heatmap jam × tanggal | Tren: request ingress / error semua layanan, satu warna berurutan, 5 kelas + legenda, keterangan saat diarahkan, "Lihat sebagai tabel" |
-| 9 | Ringkasan harian PDF | tombol di Command Center → cetak browser (Simpan sebagai PDF): A4 mendatar **1 halaman**, tema terang, KPI + angka peta + gambar peta (kanvas difoto, atribusi ikut) + butir perhatian. **ASUMSI**: lewat cetak browser, tanpa pustaka PDF di server |
+| 1 | Change vs the previous folder in the Command Center | the 6 KPIs get ▲/▼ badges (`prev` in `/command`); ingress KPIs are compared only if yesterday's ingress log is ≥ 50 % (the Overview rule), the others if yesterday's total lines are ≥ 50 % |
+| 2 | Hourly charts below the map | `by_hour` (ingress requests, 5xx, attack requests); two charts because the scales differ (not two axes) |
+| 3 | Additional attention items | failed uptime, service errors spiking (≥ 2× AND +50 vs the previous folder, max. 3 services), restarts, failed PDFs, expired JWTs spiking (≥ 2× AND +20, only if yesterday's folder is comparable) — thresholds are an **ASSUMPTION** |
+| 4 | IP profile + IP list (CSV) | `#/ip/<ip>` (`GET /api/folders/{f}/ips/{ip}`): offline owner & location, 8 KPIs, accounts tried, trail across all folders, ingress requests (max. 1,000); every IP cell links here. `GET …/security/attack-ips.csv` (cells starting with = + - @ are quoted) |
+| 5 | CRS rule descriptions | `rule_msgs` in `/security` and the IP profile: "930130 · Restricted File Access Attempt" (original CRS text, in English) |
+| 6 | Global search | 🔍 button in the header + **Ctrl+K** (`/` is already used by the table filter); `GET /api/search` → IP, account, requestId, URL; a result opens the target page with the table filter filled in (`?cari=`) and scrolls to its table |
+| 7 | Data completeness in Trends | dates without a log folder, folders with corrupt files (link to Pods), last ingest |
+| 8 | Hour × date heatmap | Trends: ingress requests / errors of all services, one sequential colour, 5 classes + legend, explanation on hover, "View as table" |
+| 9 | Daily summary PDF | button in the Command Center → browser print (Save as PDF): A4 landscape **1 page**, light theme, KPIs + map figures + map image (canvas captured, attribution included) + attention items. **ASSUMPTION**: via browser print, with no PDF library on the server |
 
-**File**: `monishield/api/command.py` (diperluas), `api/ips.py`, `api/search.py` (baru), `api/security.py`, `api/trends.py`,
-`detect.py` (`rule_msgs`); `web/src/pages/IpProfile.svelte`, `lib/GlobalSearch.svelte`, `lib/Heatmap.svelte` (baru),
+**Files**: `monishield/api/command.py` (extended), `api/ips.py`, `api/search.py` (new), `api/security.py`, `api/trends.py`,
+`detect.py` (`rule_msgs`); `web/src/pages/IpProfile.svelte`, `lib/GlobalSearch.svelte`, `lib/Heatmap.svelte` (new),
 `pages/CommandCenter.svelte`, `pages/Trends.svelte`, `pages/Security.svelte`, `pages/Service.svelte`, `lib/IpCell.svelte`,
-`lib/DataTable.svelte` (filter dari luar bisa menggulir), `lib/MapView.svelte` (`preserveDrawingBuffer` untuk peta
-Command Center), `lib/Header.svelte`, `state.js` (rute `ip/…`, `?cari=`), kamus (+73 kunci); `tests/test_api.py` (+6 uji).
+`lib/DataTable.svelte` (a filter set from outside can scroll), `lib/MapView.svelte` (`preserveDrawingBuffer` for the
+Command Center map), `lib/Header.svelte`, `state.js` (route `ip/…`, `?cari=`), dictionary (+73 keys); `tests/test_api.py` (+6 tests).
 
-**Verifikasi**
+**Verification**
 
-| Perintah | Hasil |
+| Command | Result |
 |---|---|
-| `pytest tests/test_api.py tests/test_config.py tests/test_detect.py` | 108 lulus, 2 dilewati |
-| `npm run build` + `node tools/cek_i18n.mjs` | lulus; 732 kunci sama ID/EN |
-| Browser (Chromium): Command Center 30 Sep / 6 Okt, pencarian, profil IP, unduh CSV, Keamanan, Tren, 390 px | semua jalan, tanpa galat konsol, tanpa gulir mendatar |
-| PDF ringkasan 6 Okt (Chromium `page.pdf` di jeda persiapan cetak) | 1 halaman A4 mendatar, tema terang, peta tercetak; tema & peta kembali setelah `afterprint` |
+| `pytest tests/test_api.py tests/test_config.py tests/test_detect.py` | 108 passed, 2 skipped |
+| `npm run build` + `node tools/cek_i18n.mjs` | passes; 732 keys equal in ID/EN |
+| Browser (Chromium): Command Center 30 Sep / 6 Oct, search, IP profile, CSV download, Security, Trends, 390 px | all work, no console errors, no horizontal scroll |
+| Summary PDF for 6 Oct (Chromium `page.pdf` during the print preparation pause) | 1 A4 landscape page, light theme, map printed; theme & map restored after `afterprint` |
 
 ---
 
-## Tahap 25 — Tombol "Sinkronkan data" dan nama MoniShield (permintaan pemilik 2026-10-07)
+## Stage 25 — "Sync data" button and the MoniShield name (owner request 2026-10-07)
 
-- **Sinkronkan data**: tombol di kepala (khusus admin; **ASUMSI**: ingest menulis ke basis data, sama dengan matriks
-  peran Tahap 10). `GET /api/admin/ingest/status` kini memuat `new_folders` = folder tanggal di folder log / kotak masuk
-  yang berisi file log tetapi belum ada di basis data (hanya daftar direktori, dibaca tiap menit dan saat tab aktif) →
-  lencana angka. Klik → `POST /api/admin/ingest` (file baru/berubah saja; 409 = ikut menunggu) → progres → pesan →
-  daftar folder dimuat ulang dan pindah ke folder baru terbaru. File: `api/admin.py`, `lib/SyncButton.svelte`,
-  `lib/Header.svelte`, `App.svelte`, ikon `sync`, kamus `sync.*`, uji `test_sinkronisasi_mendeteksi_folder_baru`.
-- **Nama aplikasi MoniShield**: `brand.js` (`APP_NAME`, tanda logo `APP_MARK` = "MS"), judul tab, ikon tab perisai
-  (`web/public/favicon.svg`), judul FastAPI, README, Dockerfile/compose (image `monishield:2.0.0`, proyek compose
-  `monishield`), contoh konfigurasi, DRD Q8. **Tidak** diubah: paket Python `simpel4`, awalan variabel `S4_`, nama
-  berkas basis data (mengubahnya memutus konfigurasi yang sudah ada); SIMPeL4 tetap disebut sebagai sistem yang dipantau.
-- **Halaman login** (permintaan lanjutan pemilik, mengikuti gambar referensinya): perisai besar sebagai **latar di belakang
-  form** (SVG di halaman, garis tepi teal tebal + isi gelap bernuansa teal, tidak transparan; 46 % lebar layar, maks.
-  620 px; ponsel 150 % lebar layar agar puncak dan ujungnya terlihat), logo perisai "M" 60 px + judul **MoniShield**
-  (pilihan pemilik, tanpa kalimat keterangan), lalu form. **Tombol mata (tampilkan sandi) dihapus** atas permintaan pemilik; kamus `login.show/hide/tagline/welcome`
-  ikut dihapus, `lib/ShieldArt.svelte` (versi sebelumnya) dihapus.
+- **Sync data**: a button in the header (admin only; **ASSUMPTION**: ingest writes to the database, same as the role
+  matrix of Stage 10). `GET /api/admin/ingest/status` now includes `new_folders` = date folders in the log folder / inbox
+  that contain log files but are not yet in the database (only a directory listing, read every minute and when the tab becomes active) →
+  number badge. Click → `POST /api/admin/ingest` (new/changed files only; 409 = wait along) → progress → message →
+  the folder list is reloaded and switches to the newest new folder. Files: `api/admin.py`, `lib/SyncButton.svelte`,
+  `lib/Header.svelte`, `App.svelte`, `sync` icon, dictionary `sync.*`, test `test_sinkronisasi_mendeteksi_folder_baru`.
+- **Application name MoniShield**: `brand.js` (`APP_NAME`, logo mark `APP_MARK` = "MS"), tab title, shield tab icon
+  (`web/public/favicon.svg`), FastAPI title, README, Dockerfile/compose (image `monishield:2.0.0`, compose project
+  `monishield`), example configuration, DRD Q8. **Not** changed: the Python package `simpel4`, the `S4_` variable prefix, the
+  database file name (changing them would break existing configurations); SIMPeL4 is still named as the monitored system.
+- **Login page** (a follow-up owner request, following their reference image): a large shield as the **background behind
+  the form** (SVG in the page, thick teal outline + dark teal-tinted fill, not transparent; 46 % of the screen width, max.
+  620 px; on phones 150 % of the screen width so that its top and tip are visible), a 60 px "M" shield logo + the title **MoniShield**
+  (the owner's choice, without a tagline), then the form. **The eye button (show password) was removed** at the owner's request; the dictionary keys `login.show/hide/tagline/welcome`
+  were removed too, and `lib/ShieldArt.svelte` (the previous version) was deleted.
 
-**Verifikasi**: `pytest tests/test_api.py` 75 lulus; build + `cek_i18n` 740 kunci; browser: folder uji `2026-10-07`
-(salinan 26 Sep di `data/inbox`, folder log asli tidak disentuh) → lencana "1" → klik → "Sinkronisasi selesai: 1 folder
-diperbarui (7 Okt 2026)" → halaman pindah ke 7 Okt → lencana hilang; tanpa galat konsol. Folder uji lalu dihapus
-(`forget` + hapus dari kotak masuk).
+**Verification**: `pytest tests/test_api.py` 75 passed; build + `cek_i18n` 740 keys; browser: test folder `2026-10-07`
+(a copy of 26 Sep in `data/inbox`, the real log folder untouched) → badge "1" → click → "Sync finished: 1 folder
+updated (7 Oct 2026)" → the page switches to 7 Oct → the badge disappears; no console errors. The test folder was then deleted
+(`forget` + removal from the inbox).
 
 ---
 
-## Catatan penyimpangan
+## Deviation notes
 
-Diisi `migrate/06-eksekusi.md` setiap tahap selesai: nomor tahap, tanggal, apa yang berbeda dari rencana
-atau dari TRD/DRD, dan alasannya.
+Filled in by `migrate/06-eksekusi.md` whenever a stage is finished: stage number, date, what differs from the plan
+or from the TRD/DRD, and why.
 
-| Tahap | Tanggal | Penyimpangan |
+| Stage | Date | Deviation |
 |--:|---|---|
-| 1 | 2026-10-06 | (a) `docs/03-trd.md` §10 ikut diubah dua kalimat: diberi status "sudah diterapkan" dan saran yang sudah dilaksanakan dihapus; isi teknis TRD tidak berubah. (b) DRD mendapat §6.9 (perilaku masuk, sesi, peran) di samping §3.11 yang direncanakan, dan perubahan U28–U32. (c) PRD mendapat risiko baru R11–R13 dan kriteria sukses untuk login, ponsel, dan impor S3, yang tidak disebut di daftar file tahap ini tetapi mengikuti keputusan pemilik. Verifikasi: 3 dari 3 lulus (grep frasa lama = 0; tiga istilah layar ditemukan; 19 baris TRD §10 punya padanan). |
-| 2 | 2026-10-06 | (a) Uji `classify` memakai User-Agent dari log nginx **dan** log frontend: log nginx saja hanya punya 359 UA unik, di bawah syarat 500. (b) `rules.py` memuat tiga hal di luar daftar TRD §4.1, semuanya salinan dari sumber lama: 13 pola yang di sistem lama ditulis langsung di dalam `parse()` kini bernama (uji memastikan teks polanya ada di sumber lama); `pod_name()` dan `split_relpath()` dari `build()`. (c) `load_ip2asn()` dan `map_labels()` menerima path berkas sebagai parameter, karena di v2 lokasi cache bisa dikonfigurasi; isinya tidak berubah. (d) Uji tambahan di luar rencana: kesamaan definisi semua pola/tabel, `map_labels` (177/38/514), dan hasil `geo_scan` vs `.cache/geo.json` lama. (e) `fetch()`, `HOSTS`, `SERVER_IP` ikut disalin; uji tidak pernah mengunduh. Verifikasi 4 dari 4 lulus: pemasangan tanpa galat (duckdb 1.5.6, fastapi 0.142, uvicorn 0.54, pytest 9.1); `pytest tests/test_rules.py` 16 lulus, 0 dilewati, 27 detik; `status` mencetak konfigurasi dan "belum ada database"; file lama dan `.cache` tidak berubah. |
-| 3 | 2026-10-06 | (a) Python minimal naik ke 3.12: CSV memakai `csv.QUOTE_NOTNULL` agar teks kosong dan NULL terbedakan. (b) CSV parser tidak memuat `file_id` dan `folder`; ingest (Tahap 4) menambahkannya saat memuat. Kolom daftar (`up_addrs`, `up_statuses`) ditulis `a,b` dan dipecah saat muat. (c) Level `alert`/`emerg` dihitung error juga di **ingress** (lama: warning), mengikuti TRD §4.4 butir 3 yang menyamakan kedua layanan; pada data sekarang tidak ada baris seperti itu. (d) `file_counter` jenis `level` menyimpan tag **asli** simpel-loop (sama dengan sistem lama); tingkat efektif (TRD §4.4 butir 4) dihitung di SQL Tahap 5 dari `sl_event`. (e) Template PDF diingat per thread **per file**, bukan per layanan lintas file seperti sistem lama; pada tiga folder uji hasilnya identik. (f) Baris Spring yang cocok lebih dari satu pola login menggagalkan file (bukan kehilangan event diam-diam); tidak terjadi pada data. (g) Kolom `upstream_host`/`kind`/`request` diisi juga untuk error log frontend; view `v_upstream_error` tetap hanya ingress. (h) Catatan untuk Tahap 6: teks error event simpel-loop di sistem lama adalah `f"{name}: {message}"`, jadi nilai kosong harus menjadi teks `None` di SQL. (i) Uji (b) lebih dalam dari rencana: selain baris/error/warning/level per file, isi yang kelak diagregasi (status, IP, endpoint, alur, pod, retry, insiden, serangan, durasi, pesan + contoh, event simpel-loop, login, restart, JWT, PDF) dibandingkan dengan statistik mentah parser lama. Verifikasi 3 dari 3 lulus: `pytest tests/test_parse.py` 36 lulus, 2 dilewati (folder 09-27 memang tanpa nginx dan coredns); parse file 5v8j4: `lines=111301`, 3 CSV, 4 detik; skema: 43 tabel + 4 view, aman dijalankan dua kali. Seluruh uji: 52 lulus, 2 dilewati. |
-| 4 | 2026-10-06 | (a) Folder log uji tidak disimpan sebagai berkas di `tests/fixtures/logs_mini/`, melainkan dibangun tiap uji oleh `tests/logs_mini.py` dari baris asli di `fixtures/lines/`, karena uji perlu mengubah berkasnya. (b) Pemindai menelusuri hanya folder teratas berbentuk tanggal (bukan `glob` seluruh pohon), agar `v2/.venv` dan `node_modules` tidak ikut ditelusuri; hasilnya sama dengan aturan lama. (c) Tambahan di luar TRD: saat sebuah `.log` di-parse dan pasangan `.log.gz`-nya ada, pasangan itu ikut di-hash sekali; bila berbeda dicatat peringatan. **Hasil pada data nyata: 0 peringatan, jadi semua pasangan `.log`/`.log.gz` yang ada identik** (menjawab X5/P5 untuk data sekarang). (d) File yang gagal di-parse dicatat `gagal` dan dicoba lagi tiap ingest. (e) Kurang dari 3 file diproses di dalam proses, tanpa subproses. (f) Waktu di database ditulis UTC dari Python, bukan `now()` DuckDB yang mengikuti zona waktu mesin. (g) `derive_folder()` baru mengisi `folder_state`; agregat menyusul di Tahap 5. (h) **Atas permintaan pemilik di tengah tahap**: semua konfigurasi dan rahasia kini bisa (dan sebaiknya) ditaruh di `v2/.env`; `config.py` membaca `.env` sendiri, daftar/kamus ditulis JSON, `.env.example` dibuat, `tests/test_config.py` ditambahkan (11 uji), dan TRD §6.3 diperbarui. Verifikasi 6 dari 6 lulus: `pytest tests/test_ingest.py` 17 lulus; ingest awal 195 file / 11 folder / 0 gagal dalam 11 detik (batas 3 menit); total 774.264 baris, `nginx_access` 308.158, `fe_access` 148.049, `sl_event` 114.574, 52 file 0 baris; ingest kedua 0 file berubah dalam 0,1 detik; checksum 43 tabel sama sebelum dan sesudah; folder log dan file lama tidak berubah. Tambahan: baris/error/warning per (folder, layanan) dan jumlah file sama dengan `00-acuan.json` untuk 81 pasangan; ingest ulang folder terbesar (09-29) 6 detik. Seluruh uji: 80 lulus, 2 dilewati. Catatan untuk Tahap 9: database 52 MB untuk 11 folder, kira-kira 24 MB per folder penuh, jadi ±9 GB setahun **sebelum** agregat; dekat batas 10 GB. |
-| 5 | 2026-10-06 | (a) `folder_state` kini diisi oleh paket `derive` (bukan `ingest.py`); `ingest.derive_folder()` hanya memanggilnya. (b) `agg_hour` bisa memuat jam ber-`total = 0`: jam yang hanya berisi baris error log nginx/frontend (akibat TRD §4.4 butir 2). (c) Ditemukan saat menulis SQL dan dipertahankan demi kesetaraan: di sistem lama kunci `perr` **frontend** tidak memuat metode HTTP (hanya `path_key`), berbeda dari ingress dan simpel-loop; inventaris §1.3 menulisnya seragam. (d) `err_http` simpel-loop = event gagal berstatus 5xx; `users_ok` sudah dihitung di tahap ini. (e) `status --folder` kini juga mencetak ringkasan agregat. (f) Uji lebih dalam dari rencana: selain nilai hitung-tangan pada `logs_mini`, semua agregat inti untuk dua folder nyata (09-30 dan 10-06, 11 layanan) dibandingkan dengan statistik mentah parser lama tanpa pemotongan; uji terbukti gagal bila SQL sengaja dirusak (pemotongan UA, indeks persentil). Verifikasi 5 dari 5 lulus: `pytest tests/test_derive_core.py` 14 lulus; `derive --all` 11 folder dalam 1 detik; folder 09-29: nginx request 132.203 / 4xx 4.635 / 5xx 59 / error 94 / warning 164 / IP unik 723 / alur 1.762, simpel-loop request 60.665 / warning 9.614; folder 09-30: error 1.690, error koneksi pod 1.200, retry 825; checksum sama setelah `derive --all` kedua. Tambahan: 910 angka `00-acuan.json` (semua folder × layanan, untuk agregat tahap ini) sama persis, 0 berbeda. Seluruh uji: 94 lulus, 2 dilewati. Catatan untuk Tahap 8: distribusi level simpel-loop sengaja berbeda dari acuan (tingkat efektif), masuk daftar selisih yang diharapkan. |
-| 6 | 2026-10-06 | (a) Hanya tiga agregat ditulis sebagai SQL (`17_login`, `18_mail`, `19_report`). Serangan, akun, insiden, korelasi/jejak, bisnis/aktivitas, dan JWT diturunkan di **satu** modul Python `derive/steps.py` (bukan `accounts.py` + `incidents.py` terpisah), karena memakai fungsi `rules.py` apa adanya atau bergantung pada `unquote_plus()` dan urutan kemunculan yang tidak punya padanan persis di SQL. Masukannya hasil query kecil, bukan seluruh log. (b) `rules.accounts()` memotong hasil di 150 baris; dipanggil per akun agar `agg_account` tidak terpotong (TRD K4); logikanya tidak diubah. (c) `agg_login_*`, `agg_account` hanya dari `om-be-appsmanager` dan `agg_report` hanya dari `om-be-report`, seperti yang dibaca tampilan lama. (d) Penyegaran korelasi lintas folder hanya menangkap kecocokan yang bertambah (ditandai `ponytail:`); bila file nginx dihapus, folder lain tidak disegarkan sampai `derive --all`. Pada data nyata kecocokan lintas folder = 0. (e) Dua sumber ketidakstabilan ditemukan lewat pemeriksaan checksum dan diperbaiki: urutan kunci di `agg_incident` (kini mengikuti urutan kemunculan pertama, sama dengan sistem lama) dan `dur_avg` di `agg_endpoint` dari Tahap 5 (rata-rata `DOUBLE` paralel; kini dihitung dari daftar terurut). (f) Uji lebih dalam dari rencana: tiga folder nyata (09-29, 09-30, 10-06) dibandingkan dengan statistik mentah sistem lama termasuk `correlate()`; uji terbukti gagal bila kode sengaja dirusak. Verifikasi 4 dari 4 lulus: `pytest tests/test_derive_features.py` 12 lulus; folder 09-29: serangan 155 request / 77 URL / 12 IP, korelasi 22.638 dari 60.665, jejak 550 baris (lama: dipotong 300), login gagal 86 / reset 24 / sukses 389, akun 39, insiden 7, PDF 813 / 32; folder 10-06: serangan 88, korelasi 4.161 dari 5.981, Laporan Dibuat 7; ingest ulang 09-29 dengan `--force` 6 detik (batas 60). Tambahan: 263 angka `00-acuan.json` untuk agregat tahap ini sama persis; `derive --all` tiga kali berturut-turut menghasilkan checksum identik (4 detik untuk 11 folder). Seluruh uji: 106 lulus, 2 dilewati. |
-| 7 | 2026-10-06 | (a) Unduhan MaxMind mengalihkan ke URL bertanda tangan yang **menolak** header `Authorization` (400); `refdata.py` membuang header itu saat mengikuti pengalihan. (b) Sapuan lokasi ditulis ulang untuk rentang `int` (`refdata.sweep`) karena blok GeoLite2 berbentuk CIDR, bukan pasangan IP teks; kesamaannya dengan `rules.geo_scan()` lama dibuktikan uji. (c) Kolom `offline` ditambahkan ke konfigurasi (`S4_OFFLINE`, serta `ingest --offline` dan `refdata --offline`): tanpa itu uji akan mengunduh. Semua uji lama kini berjalan luring. (d) Blok GeoLite2 tanpa `geoname_id` memakai negara terdaftar: menghasilkan negara tanpa nama kota. (e) Berkas peta dibuat ulang hanya bila belum lengkap; kegagalannya tidak membatalkan hasil `ip_info`. (f) Koordinat GeoJSON dibulatkan 2 desimal (≈ 1 km), sama dengan peta lama; `land.geojson` 992 KB, batas negara 304 KB, batas provinsi 342 KB. (g) **Temuan untuk Tahap 20 / Q3**: Natural Earth 10m hanya memuat **33** provinsi Indonesia; dua provinsi hasil pemekaran 2022 (Papua Barat Daya, Papua Pegunungan) punya label GeoNames tetapi belum punya garis batas. (h) **Temuan untuk Tahap 20**: GeoLite2 memberi koordinat untuk IP server tetapi **tanpa nama kota** (blok tingkat negara), jadi label titik server perlu memakai `server_fallback`. 317 IP lain juga berkoordinat tanpa nama kota. (i) Perbandingan dengan DB-IP lama atas 1.676 IP yang sama: **negara sama 99 %** (1.657), kota sama 23 % (393) — selisih antar-vendor yang diharapkan, dicatat sebagai selisih untuk Tahap 8; contoh: Citeureup→Bogor, Cimahi→Bandung, Jakarta→Central Jakarta. Verifikasi 5 dari 5 lulus: `pytest tests/test_refdata.py` 13 lulus (tidak ada uji yang menyentuh jaringan); `refdata` mengisi 2.691 IP (2.689 dapat pemilik dan lokasi) dan membuat 4 berkas peta; `status`: pemilik 2.689 (≥ 1.734), **100 %** IP publik v4 punya lokasi (syarat ≥ 95 %), server di Jakarta (−6,175; 106,8286); `labels.json` 177 negara / 38 provinsi / 514 kabupaten-kota; `refdata --offline` **dan** ingest penuh dengan seluruh koneksi keluar diblokir (proxy ke port mati) selesai tanpa galat. Tambahan: pemilik jaringan **sama persis dengan dashboard lama untuk seluruh 1.734 IP** (0 berbeda, 0 hilang) — bukti awal E3; kunci MaxMind tidak muncul di keluaran `status`, basis data (0 kemunculan di seluruh kolom teks), maupun berkas mana pun selain `.env`. Seluruh uji: 119 lulus, 2 dilewati. |
-| 8 | 2026-10-06 | (a) Pembanding ditaruh di satu modul bersama `tools/kesetaraan.py` yang dipakai uji **dan** laporan, supaya definisinya tidak bercabang. (b) Dua kesalahan ditemukan dan diperbaiki saat tahap ini, keduanya di alat pembanding/acuan, bukan di v2: `login_ip` pada `00-acuan.json` ternyata berarti *semua* IP yang punya event login (termasuk sukses saja), bukan KPI "IP dengan login gagal"; dan nilai "seharusnya" untuk `lambat ≥ 5 dtk` semula dihitung dari daftar jejak yang sudah dipotong 300 baris, kini dihitung dari event terkorelasi. (c) E4 butir 1 juga memeriksa dua ukuran yang batasnya **belum** pernah tercapai (IP login gagal 100, akun 150), supaya ketahuan bila kelak tercapai. (d) `tools/ekstrak_dashboard.py` menyimpan hasil ekstraksi ke `data/dashboard-lama.json` (tidak masuk git) dan membuatnya ulang bila `dashboard.html` lebih baru. (e) Uji dilewati dengan keterangan bila database, `dashboard.html`, atau acuan tidak ada, atau bila daftar foldernya tidak sepadan. Verifikasi 3 dari 3 lulus: `tools/acuan_lama.py` dijalankan ulang (11 folder, angka inti tidak berubah); `pytest tests/test_equivalence.py` 12 lulus; laporan: **E1 3.022 angka, 0 berbeda; E3 1.734 IP, 0 berbeda; E4 169 pemeriksaan, 0 tidak sesuai**. Selisih yang diharapkan muncul tepat pada butir 1, 2, 4, dan 9 (butir 3 tidak berubah karena tidak ada baris `crit` di frontend): mis. error koneksi pod 09-30 200 → 1.200, klien 401 09-29 30 → 653, Σ error per jam nginx 09-29 59 → 94, level simpel-loop ERROR 552 → 0 / WARN 0 → 552, lambat ≥ 5 dtk 09-29 15 → 24, jejak 300 → 550 (tidak dipotong lagi). Lokasi IP sengaja tidak dibandingkan (sumber kini GeoLite2): negara sama 99 %, kota sama 23 %, dicatat di laporan. Alat diuji dengan menghapus sebagian baris `agg_c401` dengan sengaja: laporan menangkapnya di E1 **dan** E4 lalu keluar dengan kode 1, dan kembali 0 setelah `derive` memulihkannya. Catatan: E1 membandingkan angka ringkas (jumlah baris, total), bukan tiap nilai di dalam baris; perbandingan isi daftar adalah E2 di Tahap 11. Seluruh uji: 131 lulus, 2 dilewati. |
-| 9 | 2026-10-06 | **Gerbang LULUS; ASUMSI T1 terbukti**, cadangan tabel kamus tidak diperlukan. (a) Disk bebas ternyata 32 GB (bukan 17 GB seperti saat rencana ditulis), jadi simulasi dijalankan penuh **365 folder**, tanpa ekstrapolasi. (b) Request id diberi awalan per folder di simulasi agar korelasi tetap di dalam folder seperti data nyata. (c) Waktu ingest diukur dua bagian: parse + muat + turunkan pada database nyata, dan menurunkan agregat satu folder di atas database setahun (bagian yang tumbuh dengan ukuran data). (d) Biaya hash sandi ikut diukur untuk Tahap 10. Verifikasi 4 dari 4 lulus: simulasi 365 folder selesai (19 menit; 48,3 juta baris nginx); ukuran **4,75 GB** (≤ 10 GB); 21 query halaman total **20,5 ms**, paling lambat 7,3 ms (≤ 200 ms); Tren 365 folder **5,4 ms** (≤ 500 ms); ingest folder terbesar 6,9 dtk + 1,7 dtk turunkan pada skala setahun (≤ 60 dtk); ingest tanpa perubahan 0,4 dtk (≤ 5 dtk); `sim.duckdb` dihapus, ruang kembali. Rincian dan batas pengukuran di `docs/04a-hasil-ukur.md`. Catatan jujur: simulasi menggandakan satu folder, jadi data nyata yang lebih beragam bisa lebih besar; waktu query belum memuat lapisan HTTP (diukur lagi di Tahap 11); `derive --all` setahun ±10 menit. Kesetaraan tetap 0 berbeda setelah tahap ini. |
-| 10 | 2026-10-06 | **Perubahan atas permintaan pemilik di tengah tahap**: "untuk token gunakan jwt untuk database gunakan postgresql dan pakai orm". (a) Akun, sesi, audit, catatan impor pindah dari `sqlite3` mentah ke **SQLAlchemy ORM**; server memakai **PostgreSQL** (`S4_AUTH_DATABASE_URL`), SQLite lewat ORM yang sama bila kosong (uji, jalan lokal). (b) Token sesi menjadi **JWT HS256** (`S4_JWT_SECRET`, wajib, ≥ 32 karakter) di cookie HttpOnly; baris sesi tetap diperiksa di basis data agar keluar/reset/nonaktif berlaku seketika. (c) **ASUMSI T16**: DuckDB tetap untuk data log (lihat TRD K11); perlu konfirmasi pemilik. (d) Tiga dependensi baru: `sqlalchemy`, `psycopg[binary]`, `pyjwt`; compose (langkah 7) mendapat layanan `postgres` + volume `s4-pgdata` menggantikan `s4-state`. (e) Tabel bernama `app_user`/`app_session` (kata kunci PostgreSQL). (f) Skema dibuat `create_all`, belum ada alat migrasi. (g) Verifikasi rencana disesuaikan: admin pertama wajib ganti sandi sebelum `/api/meta` (sesuai TRD §8.2), dan penguncian diuji pada akun yang ada. Hasil: uji akun + API **64 lulus di SQLite dan 64 lulus di PostgreSQL 17**; seluruh uji 195 lulus, 2 dilewati; server nyata di atas PostgreSQL: 17 dari 17 pemeriksaan lulus (401 tanpa sesi; cookie JWT HttpOnly SameSite=Strict; 11 folder; 2026-10-06 = 7 layanan, nginx err 125, attack_ip_count 14, sama untuk admin dan user; user → `/api/admin/users` 403; `simpel4 ingest` lewat API "0 file berubah"; header CSP/nosniff/Referrer-Policy; login salah ke-6 → 429; sesi mati setelah keluar; tidak ada rahasia di log server). |
-| 11 | 2026-10-06 | (a) Endpoint halaman, endpoint tabel, uji Tahap 11 di `test_api.py`, dan E2 di `tools/kesetaraan.py`/`test_equivalence.py` **sudah ada di repositori** saat sesi ini mulai (dikerjakan sebelumnya tetapi belum ditandai selesai); sesi ini membangun ulang database dari nol, menjalankan semua verifikasi, dan melengkapi yang kurang. (b) Semula sepuluh halaman ada dalam satu `api/pages.py`; kini **dipecah satu modul per halaman** sesuai TRD (`overview.py`, `map.py`, `trends.py`, `security.py`, `rootcause.py`, `availability.py`, `pods.py`, `business.py`, `tracing.py`, `service.py`); bantuan bersama (`_all`, `_one`, `_no`, `_has`, jam WIB) pindah ke `common.py`. (c) Definisi 25 tabel dan endpoint tabel ada di `api/tables.py`, **bukan** `common.py` seperti rencana: satu berkas khusus kontrak tabel (kolom urut, kolom `q`, batas lama) lebih mudah ditinjau; `common.py` tetap berisi validasi, peran, sel IP. (d) `tools/ukur.py --api HOST:PORT` ditambahkan: masuk dengan `--user` (sandi dari `S4_UKUR_PASSWORD` atau ditanya), mengukur 19 endpoint (ringkasan folder, 8 halaman, 7 layanan, Tren 30/semua, meta), keluar kode 1 bila ada yang > 300 ms atau > 500 KB. (e) Aturan E2: setiap baris lama harus ada di daftar **lengkap** v2 dengan isi sama persis, dan urutan nilai pengurut N baris pertama sama; daftar v2 boleh lebih panjang (tidak dipotong lagi, TRD K4). Laporan E2 dicetak `py tools/kesetaraan.py` (E1–E4); `tools/laporan_kesetaraan.py` tetap E1/E3/E4. (f) **ASUMSI X6**: tabel alur bawaan 100 baris (`flows.limit`), sisanya lewat halaman tabel. (g) Pencarian `q=count` pada `c401` 09-29 memberi `matched` 208 (≤ 653). (h) Di sesi ini akun memakai SQLite lewat ORM; PostgreSQL tidak diuji ulang (tidak ada perubahan di `auth.py`). Verifikasi 8 dari 8 lulus: `pytest tests/test_api.py tests/test_equivalence.py` 87 lulus (matriks peran mencakup semua rute); E1 3.022 angka 0 berbeda, **E2 601 daftar / 9.889 baris lama, 0 berbeda**, E3 1.734 IP 0 berbeda, E4 169 pemeriksaan 0 tidak sesuai; server nyata: `security` 10-06 `attack_requests` 88 / `attack_ips` 14; `availability` 09-30 error koneksi pod 1.200; `map` 09-28 `available: false, reason: "no_nginx"`; `c401?limit=5&q=count` total 653, 5 baris; `sort=1;drop` → 400; `ukur.py --api`: 19 endpoint, terlambat `security` 112 ms, terbesar `tracing` 178 KB, 0 meleset. Seluruh uji: 239 lulus, 2 dilewati. **Catatan penggabungan**: baris Tahap 11 berikutnya berasal dari sesi lain yang masuk lewat `master`; butir (a)-nya (satu modul `api/pages.py`) sudah tidak berlaku karena modul itu dipecah per halaman di atas, dan `tools/ukur.py --api` kini menggabungkan kedua versi (tanpa host = di dalam proses; dengan host = `S4_COOKIE` atau masuk dengan `--user`). |
-| 12 | 2026-10-06 | **SEBAGIAN: belum diuji di ponsel sungguhan** (DRD §8 mewajibkannya; dari lingkungan cloud hanya emulasi Chromium 390/360 px). (a) Alamat memakai hash `#/<tab>?folder=…&modul=…` karena server menyajikan `web/dist` statis tanpa fallback path; slug tab lama (`#keamanan`, `#<layanan>`) tetap terbuka. Folder ikut di alamat juga di Tren dan layar admin agar tetap saat kembali. (b) `/api/me` dan jawaban login kini memuat `session_idle_minutes` (perubahan kecil di `api/session.py` + uji) untuk pita "Sesi berakhir dalam 5 menit". (c) Plugin build kecil membuang `https://` dari tautan dokumentasi galat Svelte (`svelte.dev/e/…`, teks pesan galat, tak pernah diambil) agar `web/dist` bebas alamat luar; sisa URL hanya skema XML. (d) **ASUMSI** "folder praktis kosong" (DRD §6.6) = < 1.000 baris log; file rusak saja tidak memicu pita karena folder penuh pun punya 1–3 file berbaris rusak. (e) Pilihan folder di layar sempit hanya menampilkan tanggal (`6 Okt 2026`) agar tidak terpotong. (f) Q6 "–" untuk angka yang lognya tidak ada, Q7 (urut kolom, salin IP, `(i)`, "Lihat sebagai tabel", pintasan `[` `]` `/`) dikerjakan; Q8 logo tetap "S4". (g) `Placeholder.svelte` sekaligus halaman contoh semua komponen dengan data nyata (satu permintaan `overview`). (h) Skrip uji browser disimpan: `tools/uji_browser.cjs` (50 pemeriksaan) dan `tools/uji_sesi.cjs` (7); Playwright bukan dependensi proyek. (i) Di tengah tahap pemilik meminta gaya mengikuti gambar referensi dan modul Command Center realtime via Kafka: dicatat sebagai Tahap 12a, 22, 23 dan pertanyaan R1–R6 (TRD §11.2, §12; DRD §12), **belum dikerjakan**. Verifikasi: `npm ci && npm run build` tanpa peringatan; `node tools/cek_i18n.mjs` "kunci sama: 148"; `node --test tests/test_format.mjs` 8 lulus; URL di `web/dist` hanya skema XML; `./run.sh` membangun lalu melayani; browser: 50/50 (Masuk tanpa data sebelum masuk, ganti sandi wajib, sidebar dua grup + lencana `14 IP`, 11 folder, subjudul berisi rentang log, folder/tab di alamat, kembali/pintasan, tabel 25 + lanjutan + filter server + aria-sort, ID/EN dan tema diingat, Tab: Lewati ke isi → navigasi → header dengan fokus terlihat, user = sidebar sama tanpa menu admin dan `admin/user` → "Tidak punya akses", 390 & 360 px: tanpa gulir mendatar, KPI 2 kolom, tabel jadi kartu, sentuh ≥ 44 px, laci + Esc, menu ⋯) dan 7/7 (pita sesi, sesi habis → Masuk lalu kembali ke alamat sama, server mati → pita "Tidak tersambung" → pulih sendiri 4 dtk); `pytest tests/test_api.py tests/test_auth.py` 100 lulus. (j) Nama aplikasi diganti menjadi **SIMPeL4 Dashboard** atas keputusan pemilik (satu konstanta di `web/src/brand.js`; tanda logo tetap "S4"). |
-| 12a | 2026-10-06 | Dijalankan sebelum uji ponsel sungguhan Tahap 12 (yang tetap terbuka) karena gaya ini mengubah tampilan yang akan diuji; pemilik menjalankan `/loop` setelah diberi tahu langkah berikutnya 12a. (a) Token kedua tema diganti ke gaya referensi: latar netral kehijauan, kartu rata bergaris tipis, radius 16, judul dan angka KPI putih polos (gradien judul/KPI lama ditinggalkan, DRD §12). Nama token tetap; token baru `--icon-bg`, `--icon-border`, `--chip-bg`, `--brand-bg`, `--brand-fg`. (b) `lib/Icon.svelte`: 22 ikon garis digambar sendiri dan dibundel (tanpa pustaka/CDN ikon); dipakai sidebar, KPI, tombol. (c) Sidebar: ikon per butir, logo kotak teal terisi, kartu kaki berisi zona waktu dan status ingest terakhir. (d) Kepala halaman menjadi satu kartu lekat: judul + tanggal folder redup, **baris status ringkas** (● N layanan · ● error · ● warning · ● IP serangan), alat di kanan, avatar inisial di menu user; di bawahnya baris kesegaran "Folder log … · berisi log … · diperbarui …" (pengganti "streaming · last event" selama Kafka ditunda). Di ≤ 900 px bar 52 px tetap. (e) **API**: `/api/meta` kini memuat `derived_at` per folder (WIB) untuk baris kesegaran; uji ditambah. (f) KPI: ikon, akhiran redup, lencana ▲/▼ di sebelah angka, baris titik; `format.delta` mendapat `short`/`rest`. Alert menjadi **kartu perhatian bernomor** dengan tautan tindakan (bentuk daftar biasa tetap tersedia). Komponen baru `SplitBar` (batang proporsi besar). Keping konteks (`chip`) di judul ChartCard/DataTable; kepala tabel huruf kapital kecil; tag bergaris; tombol `.btn.accent`. (g) `tools/cek_kontras.mjs` (baru) menghitung 33 pasangan per tema dari `theme.css`; satu gagal (batas kontrol terang 2,78) diperbaiki menjadi `#7b8794` (3,38). Verifikasi: build tanpa peringatan; URL di `web/dist` hanya skema XML; `cek_i18n` 176 kunci sama; `test_format` 8 lulus; `cek_kontras` semua pasangan memenuhi ambang; `uji_browser.cjs` 50/50 (satu pemeriksaan disesuaikan: jumlah layanan kini di baris status, bukan subjudul); `uji_sesi.cjs` 7/7; tangkapan layar 1440 gelap/terang dan 390 px dibandingkan dengan referensi. Sesudahnya, atas permintaan pemilik: (h) panah pemilih (`select`) digambar sendiri dengan posisi tetap 14 px dari tepi (panah bawaan browser mepet dan berbeda per OS); (i) **nama sistem huruf kecil** (DRD U33): `titleCase` diganti `sysName`, class `sys`; `uji_browser.cjs` kini 51 pemeriksaan termasuk nama layanan huruf kecil di sidebar dan judul. |
-| 13 | 2026-10-06 | Dijalankan lewat `/loop` pemilik setelah Tahap 12a; uji ponsel sungguhan Tahap 12 masih terbuka. (a) Overview memakai tiga sumber sesuai TRD §5.3: `/overview`, ringkasan folder yang sudah dimuat kerangka (`/api/folders/{f}`), dan `/services/nginx-ingress-controller` untuk bagian "Traffic HTTP"; dua permintaan halaman berjalan bersamaan dan tampil bersama. (b) Kartu 1 (peta + alur) halaman layanan menyusul di Tahap 20, sesuai rencana. (c) Angka persen di judul dan KPI mengikuti bahasa (`37,3 %` / `37.3%`); lama selalu memakai titik. (d) Tabel "Top pesan error lintas layanan" kini berkolom Layanan, Level, Pesan (bisa dibuka ke baris log asli), Jumlah; lama satu kolom teks `[Layanan] LEVEL | pesan`. Isi dan urutan 25 baris pertama sama. (e) Tambahan kecil di komponen bersama: tombol salin baris log asli; label batang horizontal dipotong sesuai lebar kanvas (Chart.js membiarkan teks hilang di tepi kiri); sumbu logaritmik hanya berlabel kelipatan 10, mulai 0,5 agar jumlah 1 tetap terlihat; nama sistem di tabel tidak dipecah di tengah kata; area ketuk `(i)` 44 px di layar sempit. (f) **ASUMSI**: Overview tidak mendapat kartu "Yang perlu perhatian" (susunan DRD §3.1 dipertahankan); kartu itu milik Command Center (Tahap 22). (g) Dibuat `tools/uji_tahap13.cjs`: membuka `../dashboard.html` lama (Chart.js diganti tiruan, tanpa jaringan) dan v2 berdampingan, lalu membandingkan KPI, perubahan ▲/▼, 25 pesan teratas, dan daftar kartu; dan `docs/04b-daftar-periksa.md`. Verifikasi 7 dari 7 lulus: build dan `cek_i18n` (228 kunci sama); Overview 06 Okt sama dengan lama (191.898 · 2.810 · 856 · 124.822 · 3,6 % · 0,04 % · 7 · 18; baris ▼ 36 %, error ▼ 37 %; 25 pesan sama isi dan urutan; 20 kartu); halaman nginx, simpel-loop, appsmanager, coredns, frontend: KPI dan kartu sama dengan lama (coredns "domain gagal resolve"); garis Error nginx Σ 125 (butir 2); donat simpel-loop 29 Sep WARN 9.614 tanpa ERROR (butir 4); 01 Okt pita "hanya berisi 4 baris log; 4 file rusak" dan layanan kosong menjelaskan sebabnya; filter "JWT" 3 baris + "3 baris cocok"; daftar periksa 8 kombinasi (bahasa × tema × lebar) untuk kedua halaman. Skrip: `uji_tahap13.cjs` 39/39, `uji_browser.cjs` 51/51, `uji_sesi.cjs` 7/7; kontras dan uji pemformat tetap lulus. |
-| 14 | 2026-10-06 | (a) **API**: `services` di `/api/trends` kini berurutan seperti lama (kemunculan pertama: folder terlama, lalu urutan file); sebelumnya abjad. Uji ditambah. (b) **ASUMSI Q4**: rentang bawaan 30 folder; pilihan diingat per browser. Kolom pertama sebuah rentang tidak punya ▲/▼ karena folder sebelumnya di luar rentang (dengan 11 folder sama dengan lama). (c) Kelengkapan data: sel berangka diberi tanda "Rusak" bila layanan itu punya file rusak, dan "Rusak" menggantikan "Kosong" bila 0 baris karena rusak (B05); 16 sel pada 11 folder. (d) **Bug ditemukan dan diperbaiki di komponen bersama**: Chart.js memasang properti internal pada array data; array dari state reaktif Svelte menolaknya (galat `state_descriptors_fixed`, lalu "Canvas is already in use"). ChartCard kini selalu menyalin array; Tren menyimpan data sebagai `$state.raw`. (e) Pemilih rentang diuji pada **database simulasi 40 folder** (`tools/simulasi_setahun.py --folders 40` di scratchpad, database asli hanya dibaca, lalu dihapus), karena 11 folder nyata lebih sedikit dari rentang terkecil. (f) Di tengah tahap, cabang menerima merge dari `master` (catatan Tahap 11 sesi lain + `ukur.py --api` versi lain); hasil merge `tools/ukur.py` rusak (dua `ukur_api`, argumen ganda) dan disatukan di commit terpisah. Verifikasi 5 dari 5 lulus: build + `cek_i18n` (250 kunci); `tools/uji_tahap14.cjs` 21/21 berdampingan dengan dashboard lama (6 chart: tiap seri dan angka sama untuk 11 folder; tabel error + perubahan: tiap sel sama; kelengkapan: sama kecuali tanda Rusak; simpel-loop 30 Sep "Tidak ada"; 1 Okt "Rusak"/"Kosong"; pemilih folder nonaktif "Tren menampilkan semua folder"; 390 px tabel tetap menggulir; 8 kombinasi) dan 6/6 pada simulasi (14 / 30 / 90→40 / semua = 40 kolom; tabel mulai di ujung kanan; kolom Layanan terkunci; rentang diingat). Regresi: `uji_tahap13` 39/39, `uji_browser` 51/51; `ukur.py --api` dalam proses dan terhadap server: 21 endpoint, 0 di atas target. |
-| 15 | 2026-10-06 | (a) "Temuan utama" disusun dari `Findings.svelte` + kamus berkunci (bagian tebal + kalimat, dua bahasa, nilai data sebagai parameter teks). Daftar IP/upstream/organisasi/akun di kalimat diambil dari tabel halaman pertama bila tabel itu lengkap, supaya urutannya persis seperti lama; bila tidak lengkap, dari `findings` API (urut abjad). (b) `DataTable` mendapat sel kustom lewat *snippet* (komponen, bukan HTML dalam string) dan lebar minimum kolom (`minw`); `IpCell` tidak lagi memecah IP. Tanpa `minw`, URL panjang dan nama akun terpecah per huruf di kolom sempit. (c) Catatan kaki dan kategori serangan, tanda akun, serta kalimat kejadian ("… sukses dari …") diterjemahkan sebagai label; waktu kejadian tetap apa adanya seperti lama. (d) Catatan "tanpa nginx" hanya tampil bila log nginx memang tidak ada (lama: juga saat nginx ada tetapi tanpa serangan, dengan kalimat yang keliru). (e) KPI ditata 4 + 4 (U5) di layar lebar, 2 kolom di ponsel. Verifikasi 5 dari 5 lulus: build + `cek_i18n` (322 kunci); `tools/uji_tahap15.cjs` 35/35 berdampingan dengan lama untuk 06 Okt, 29 Sep, 28 Sep (8 KPI sama: 06 Okt 88 · 14 · 5 · 62 · 9 · 1 · 0 · 4; temuan sama kalimat demi kalimat: 06 Okt 6 butir — Log4Shell, Rancher, 62 endpoint 2xx, cloud, jaringan Ombudsman, 4 reset — dan 29 Sep 11 butir; kartu sama; 5 tabel sama tiap baris pada kolom inti; 28 Sep catatan tanpa nginx + bagian login); URL `<script>alert(…)`/`onerror` di 29 Sep tampil sebagai teks, 0 elemen tersisip, 0 dialog; `grep @html` 0; 8 kombinasi bahasa × tema × lebar. Regresi: `uji_tahap13` 39/39, `uji_tahap14` 21/21, `uji_browser` 51/51, kontras lulus. |
-| 16 | 2026-10-06 | (a) "Ringkasan akar masalah" memakai komponen generik `Summary.svelte` (potongan teks / tebal / kode, dua bahasa) karena kalimat lama memuat `<code>` di tengah kalimat. (b) Upstream DNS di kalimat DNS diambil dari konfigurasi (`/api/meta` → `dns_upstream`), lama ditulis mati `10.88.1.100` (nilai bawaan sama). Bila tidak ada domain berdampak, potongan ", termasuk ke …" dihilangkan (lama menulis "termasuk ke ."). (c) `ChartCard` mendapat slot kaki (`footer`) untuk keterangan "Refresh token kedaluwarsa: N" (B07) di bawah chart JWT; bila lebih dari satu layanan, rinciannya ikut. (d) Kelas `.kpis.four` (4 kolom di layar lebar) dipindah ke `theme.css`, dipakai Keamanan dan Ketersediaan. (e) Persentase ketersediaan mengikuti bahasa (`98,000 %` / `98.000%`); lama selalu titik. (f) Alat uji: tabel 401 lama dibandingkan dengan 30 baris pertama v2 menurut aturan E2 (urutan jumlah identik; baris bernilai sama di batas 30 boleh beda pilihan). Pencarian tabel di `uji_tahap15/16` kini melewati kartu chart berjudul mirip (semula satu pemeriksaan lulus kosong). Verifikasi 5 dari 5 lulus: build + `cek_i18n` (389 kunci); `tools/uji_tahap16.cjs` 65/65 berdampingan dengan lama — Akar Masalah 29 Sep: ringkasan 5 butir sama, chart JWT sama, **baru** "Refresh token kedaluwarsa: 237", tabel 401 "Menampilkan 30 dari 653"; 06 Okt, 30 Sep (butir error koneksi 200 → 1.200, diharapkan), 27 Sep juga sama; Ketersediaan 30 Sep: KPI error koneksi pod **1.200** (lama 200), retry **825**, **10** insiden, KPI lain, 3 chart, dan tabel sama; 06 Okt sama; 28 Sep catatan tanpa nginx; 8 kombinasi untuk kedua halaman. |
-| 17 | 2026-10-06 | (a) **ASUMSI (Pelacakan)**: folder yang punya simpel-loop tetapi tidak satu pun requestId-nya cocok dengan nginx (`matched = 0`, mis. 27 dan 28 Sep) menampilkan catatan "Pelacakan butuh log om-be-simpel-loop dan ingress nginx …" (DRD §6.6, rencana 27 Sep); dashboard lama untuk folder itu menampilkan halaman berisi KPI nol karena `corr` = `[0, N]`. (b) KPI Pelacakan gagal / IP gagal / lambat dan dua chart-nya dihitung dari **semua** jejak (TRD §4.4 butir 1, 9): 29 Sep gagal 3.245 → 3.479, IP 150 → 176, lambat 15 → 24; chart IP dan jenis error berbeda sedikit dari lama karena lama memakai 300 jejak; 06 Okt (111 jejak) sama persis. (c) Bisnis: KPI yang lognya tidak ada tampil "–" + "Log <layanan> tidak ada di folder ini" per sumber (simpel-loop 7 KPI, report 2, appsmanager 2), bukan 0 (U16); perubahan vs folder sebelumnya hanya untuk metrik simpel-loop dengan aturan "sebanding" lama. Label metrik bisnis dari kamus `biz.<slug>`; metrik yang belum ada di kamus tampil apa adanya. (d) Pod: status file "Rusak" menggantikan "Ada Log"/"Tanpa Log" lama (B05; 06 Okt: 3 file rusak berisi 1 baris, di lama "Ada Log"); "Pod dengan retry" mendapat keterangan (i). (e) Tabel jejak: kolom URL memakai `AttackUrl` (host dari konfigurasi + path, UA di bawahnya), URL dipotong 200 dengan teks lengkap di tooltip; kolom waktu boleh dua baris agar tabel muat di 1440 px. (f) Alat uji: tabel aktivitas dibandingkan dengan aturan E2 (seri di batas 20 boleh beda pilihan); server lokal menyimpan `index.html` saat mulai, jadi server dijalankan ulang setelah build. Peringatan a11y `tabindex` di `Trends.svelte` (sejak Tahap 14) belum diubah. Verifikasi 7 dari 7 lulus: build + `cek_i18n` (443 kunci); `tools/uji_tahap17.cjs` **91/91** berdampingan dengan lama — Pod 06 Okt / 29 Sep / 28 Sep: 5 KPI, 2 chart, 3 tabel sama, status "Rusak" 3 file; Bisnis 29 Sep: 12 / 108 / 35 / 12 / 314 / 18 / 55 / PDF 813 / 32 / login 389, perubahan, 5 chart, 2 tabel sama; 30 Sep: 9 KPI "–" + keterangan, login 110 / 66; Pelacakan 29 Sep: 60.665 / 22.638 / 37,3 %, tabel "Menampilkan 300 dari 550" dan setelah dimuat semua 300 baris lama ada di v2; 27 Sep catatan (ASUMSI) dan 30 Sep tanpa simpel-loop catatan seperti lama; 8 kombinasi untuk ketiga halaman. Regresi lulus: `uji_browser` 51/51, `uji_sesi` 7/7 (server dengan `S4_SESSION_IDLE_MINUTES=5`), `uji_tahap13` 39/39, `uji_tahap14` 21/21, `uji_tahap15` 35/35, `uji_tahap16` 65/65; `test_format` 8/8; `cek_kontras` semua pasangan; URL di `web/dist` hanya skema XML. |
-| 18 | 2026-10-06 | (a) **API ditambah** di luar daftar berkas: `GET /api/admin/ingest/status` kini memuat `last_run` (ingest terakhir yang selesai, dibaca dari tabel `ingest_run`: waktu UTC, status, file dilihat/berubah, peringatan), karena status di memori kosong setelah server dimulai ulang; uji di `test_api.py` ditambah. (b) **ASUMSI "permintaan berikutnya"**: App membaca ulang `/api/me` setiap pindah tab dan muat ulang; halaman yang dibiarkan terbuka tanpa navigasi tetap memakai menu lama sampai itu (API tetap menolak 403 seketika). (c) **ASUMSI**: menonaktifkan akun sendiri tidak ditawarkan (server mengizinkan bila masih ada admin lain), sama seperti menghapus diri sendiri. (d) Catatan audit memuat 500 entri terbaru; tabel menampilkan 50 + "tampilkan berikutnya" dan memfilter di browser; bila lebih dari 500, keterangan "500 terbaru dari N". (e) Kartu "Impor dari S3" berisi catatan Tahap 19. (f) Komponen baru `lib/Dialog.svelte` (`<dialog>` bawaan + `showModal()`: fokus terkunci, Esc, fokus kembali ke pemicu; layar penuh di ≤ 560 px) dan `lib/RowMenu.svelte` (menu ⋯ `position: fixed` agar tidak terpotong tabel; butir nonaktif dengan sebab). `DataTable`: sel kartu baris ponsel kini `justify-items: start` (tag tidak melebar penuh) — berlaku di semua halaman, regresi dijalankan. (g) `format.utcToWib()` (waktu akun/ingest disimpan UTC) + uji. (h) Pesan galat server berbahasa Indonesia; layar memetakan kode galat ke kamus agar dua bahasa. (i) Kunci `placeholder.admin` dihapus. (j) Kaki sidebar "Ingest terakhir …" masih dari status di memori (`/api/meta`), belum memakai `last_run`. (k) Alat uji: ingest tanpa perubahan selesai < 0,5 dtk sehingga status "berjalan" tidak selalu terbaca di antara dua pembacaan; dibuktikan dengan tombol nonaktif + `run_id` baru, sedangkan "dashboard tetap terbuka selama ingest" dibuktikan lebih kuat oleh `test_ingest_lewat_api_dan_dashboard_tetap_terbuka` (ingest paksa). Verifikasi 9 dari 9 lulus: build + `cek_i18n` (523 kunci); `tools/uji_tahap18.cjs` **33/33** (dua kali berturut-turut) dengan dua jendela — tambah rina → wajib ganti sandi → dashboard tanpa menu admin; naik/turun peran berlaku pada pindah tab berikutnya; user biasa di layar admin "Tidak punya akses" + 403; reset sandi dan nonaktifkan mengakhiri sesi seketika, sandi sementara tampil sekali; admin terakhir tidak ditawarkan, PATCH → 409, daftar basi → pesan di dialog; "Ingest sekarang" → "0 file berubah", data 200 selama berjalan; audit 11 jenis tindakan dengan waktu, pelaku, IP, tanpa sandi/token; 8 kombinasi untuk kedua layar; dialog layar penuh di 390 px. Regresi lulus: `pytest` 239 lulus, 2 dilewati; `uji_browser` 51/51, `uji_sesi` 7/7, `uji_tahap13` 39/39, `uji_tahap14` 21/21, `uji_tahap15` 35/35, `uji_tahap16` 65/65, `uji_tahap17` 91/91 (setelah perubahan `DataTable`); `test_format` 9/9; `cek_kontras` semua pasangan. |
-| 19 | 2026-10-06 | **SEBAGIAN.** (a) **Belum diuji: dua baris Manual** (mode coba dan impor `2026-09-26` dengan kredensial asli, termasuk pembuktian ASUMSI T14 dan angka 1.203 / 6 / 11). `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` di lingkungan sesi ini hanya nilai pengisi (14 karakter, bukan bentuk kunci AWS); S3 menjawab `InvalidAccessKeyId`. Titik akhir S3 Jakarta **terjangkau** dari lingkungan ini (lewat proxy), tetapi X2 tetap harus diperiksa di server. Langkah untuk pemilik: isi kunci asli di `.env` + `S4_IMPORT_BUCKETS`, lalu `py -m monishield import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/` dan impor ke `S4_DATA_DIR` terpisah (README §Impor). (b) **Tambahan API**: `GET /api/admin/import` (hanya admin: aktif?, bentuk tautan yang diterima, status kredensial, 20 job terakhir) untuk riwayat di layar; `/api/meta` mendapat `imports` (aktif, kredensial tersedia + sumber). (c) Konfigurasi baru `import_timeout_minutes` (30). (d) Rencana objek per job (ambil/lewati + alasan) disimpan di **memori** (20 job terakhir), basis data `import_job` menyimpan ringkasan; status job `berjalan` / `coba` / `selesai` / `gagal`. (e) "Sama dengan unduhan sebelumnya" dicatat di manifest `.s3-import.json` di folder kotak masuk (ukuran + ETag + berkas masih ada). (f) Kunci objek tidak aman (`..`, `//`, karakter kendali) **membatalkan seluruh impor** (TRD §9.6), objek di luar pola hanya dilewati. (g) Ingest setelah impor memakai `IngestManager.run_blocking` (menunggu ingest lain, berbagi kunci). (h) Kredensial tempel: ID kunci harus huruf besar/angka 16–128, rahasia 16–128; diaudit tanpa nilai. (i) Pesan galat: bahasa Indonesia = pesan server (memuat rincian), EN = kamus per kode; pesan ringkas job di riwayat tetap teks server berbahasa Indonesia. (j) `tools/server_uji_impor.py` menjalankan dashboard + S3 tiruan untuk uji browser; titik akhir S3 dialihkan lewat `importer.ENDPOINT` yang sengaja **tidak** tersedia di konfigurasi. (k) `README.md` dibuat (belum ada) dengan contoh kebijakan IAM baca-saja `simpel4-backup/k8s-logs/`. Verifikasi yang bisa dijalankan, semuanya lulus: `pip install -e ".[test,s3]"` + `pytest tests/test_import.py` **28 lulus** tanpa menghubungi AWS (uji terbukti gagal bila aturan `.gz` berpasangan atau daftar izin awalan dirusak); tanpa `import_buckets` → "Impor tidak diaktifkan"; `bucket-lain`, `bukan-tanggal`, dan bucket Jakarta lain → ditolak sebelum menghubungi AWS; tanpa kredensial → pesan cara memberi, tidak ada berkas tertulis; tidak ada kunci AWS di `data/` (pola kunci 0; "ASIA" hanya nama ISP) dan `status` menyebut "kredensial impor: tersedia (lingkungan)"; user biasa → 403 (uji); token mesin → **202** di server sungguhan (job lalu gagal di S3 karena kunci pengisi), token mesin ke endpoint kredensial → 401; kredensial tempel hilang setelah server dimulai ulang dan tidak ada di log server maupun basis data akun; `tools/uji_tahap19.cjs` **22/22** (coba dulu 0 byte, impor + konfirmasi + ingest → folder muncul, impor ulang 0 objek, tempel/hapus kredensial, galat EN, audit tanpa rahasia, 8 kombinasi). Regresi: `pytest` 267 lulus, 2 dilewati; `uji_tahap18` 33/33; `cek_i18n` 582 kunci; `test_format` 9/9; `cek_kontras` semua pasangan. |
-| 20 | 2026-10-06 | (a) **Selisih yang diharapkan**: KPI rencana "222 lokasi, 12 negara, 2.030 request dari luar Indonesia" adalah angka DB-IP dashboard lama; v2 memakai MaxMind GeoLite2 (rencana Tahap 7 butir i) sehingga 06 Okt = **166 lokasi, 9 negara, 1.293** dari luar Indonesia. IP asal (516), modul (9), pod (15), total request (124.822), dan 0 dari IP internal **sama** dengan lama. (b) **Keputusan pemilik di tengah tahap**: lingkaran kelompok **tanpa angka** (DRD §7.5/ASUMSI D5 berubah; ukuran tetap menurut request, angka di tooltip); label lokasi terbesar bergaya contoh pemilik: nama tebal + baris kecil "N IP · N req". (c) **ASUMSI**: label 6 lokasi terbesar ikut aturan tabrakan (DRD §7.3 "tanpa bertumpuk"); di tampilan Indonesia tampil 5, label ke-6 (Serang, ±15 px dari Jakarta + label server) muncul saat diperbesar — dashboard lama menggambarnya bertumpuk. (d) **Pertanyaan pemilik: OpenStreetMap?** Ubin OSM daring tidak dipakai (mengirim IP pembuka dashboard ke pihak ketiga, melanggar aturan proyek; kebijakan ubin OSM); data OSM bisa menyusul sebagai ubin vektor yang dilayani sendiri (mis. PMTiles) bila pemilik memutuskan — mesin peta tetap MapLibre. Sampai itu ASUMSI D4 (Natural Earth) tetap. (e) **Kelancaran zoom**: di lingkungan uji tanpa GPU (WebGL perangkat lunak) animasi zoom ±10–12 frame/detik; hampir seluruh beban dari pengisian poligon daratan (tanpa daratan 30 fps, latar saja 60 fps). Uji penyederhanaan geometri (`tolerance` 1 dan 2) tidak memberi perbaikan yang konsisten, jadi tidak diterapkan; **perlu dicoba pemilik di perangkat ber-GPU**. (f) Glyph Noto Sans Regular/Bold rentang 0–255, 256–511, 7680–7935 (nama kota Vietnam), 8192–8447 dari openmaptiles/fonts v2.0 + `OFL.txt` (780 KB). (g) MapLibre 5.24 (BSD-3) dimuat sebagai chunk terpisah (±1 MB) hanya saat peta dibuka; plugin build membuang tautan maplibre.org/GitHub yang tak terpakai, sehingga di hasil build hanya tersisa skema XML + tautan atribusi MaxMind dan GeoNames. (h) Tooltip lewat kursor/ketukan; titik **tidak** bisa difokus satu per satu dengan keyboard (ASUMSI: tabel alur adalah padanannya, §7.9, dengan tautan "Lewati peta"); keyboard di peta: panah, +/−, 0, Esc. (i) Tombol layar penuh ⛶ di ≤ 900 px terpisah dari ⤢ (kembali ke preset). (j) Teks gerakan kooperatif dua bahasa diganti lewat kamus UI MapLibre (`map._locale`) lalu diaktifkan ulang. (k) Halaman layanan: respons `services/{svc}` mendapat `has_flows` (API ditambah + uji) agar layanan tanpa alur tidak meminta `/map` (yang menjawab 404). (l) `DataTable` mendapat `search` (filter dari luar). (m) Kait uji `box.__map`. (n) Halaman `Placeholder` dan 14 kunci `placeholder.*` dihapus (semua tab sudah punya halaman). (o) Catatan tabel alur menyebut MaxMind; "maksimal 3.000 alur" dihapus (v2 tidak memotong; 100 pertama + lanjutan, X6). (p) Yang belum diuji otomatis: cubit memperbesar (yang diuji: geser dua jari, satu jari tidak menggeser peta). Verifikasi: build + `cek_i18n` (608 kunci); `tools/uji_tahap20.cjs` **26/26** — KPI dan tabel alur vs lama, ganti modul (kamera tetap), roda mouse + petunjuk Ctrl, keyboard, klik titik → "Lihat di tabel", dunia → Jawa (kelompok pecah, label bertahap), tema/bahasa (posisi tetap, atribusi), **internet diputus → peta tetap tampil**, **0 permintaan ke domain lain**, 28 Sep catatan, layanan om-be-simpel-loop terlipat → alur modul itu, 390 px sentuh (CDP), 8 kombinasi. Regresi lulus setelah perubahan `DataTable` dan halaman layanan: `pytest` 267 lulus, 2 dilewati (termasuk kesetaraan E1–E4); `uji_browser` 51/51, `uji_sesi` 7/7, `uji_tahap13` 39/39 (semula 38/39: 404 di konsol halaman layanan non-modul, diperbaiki dengan `has_flows`), `uji_tahap14` 21/21, `uji_tahap15` 35/35, `uji_tahap16` 65/65, `uji_tahap17` 91/91, `uji_tahap18` 33/33; `test_format` 9/9; `cek_kontras` semua pasangan. |
-| 21 | 2026-10-06 | (a) **Skema tampilan** `S4_ATTACK_RULES` = `crs` (bawaan) / `lama`, dan `S4_ATTACK_PARANOIA` (1–4); aturan lama (`attack_cat`, `agg_attack_*`) tetap dihitung, agregat CRS di tabel baru `agg_crs_url/ip/hour` (rencana: agregat lama diganti). Uji kesetaraan memakai `lama`. (b) Kategori = **CAPEC/keluarga CRS** (mis. `242/xss`), karena beberapa aturan hanya membawa CAPEC umum; CAPEC dipilih dari jumlah skor terbesar. (c) Penurunan ulang otomatis memakai `folder_state.crs_version` (bukan `rules_version`). (d) `@pm` disusun sebagai regex trie (3,4 → ≈ 1 ms per path). (e) **Keterbatasan**: libinjection (942100, 941100) tidak ada di Python, tautologi `' OR 1=1` baru tertangkap di PL2; UA alat umum (curl, Go-http-client, python-requests) bukan serangan menurut CRS. (f) Angka berubah disengaja: total request serangan 315 → 110, 06 Okt 88 → 50 dan IP 14 → 4; `tests/test_api.py::test_folder` IP penyerang 2 → 1; KPI kritis = keparahan CRITICAL (label baru). Rincian di `docs/04c-deteksi-crs.md`. (g) Path bersih yang diuji salah-tuduh 30.512 (rencana menyebut 22 ribu): 0,043 %. Verifikasi: `ambil_crs.py --check` sama (176 diambil, 27 dilewati); `pytest test_detect test_config` 34 lulus, 2 dilewati (data nyata dipakai server), sebelumnya `test_detect` dengan data nyata + test_api 67 + test_refdata 13 lulus; kesetaraan E1/E3/E4 0 selisih dengan skema `lama`; `derive --all` 39 dtk, ingest 09-29 `--force` 24 dtk; `uji_tahap21.cjs` **22/22**. Regresi browser: uji_browser, uji_sesi, uji_tahap 13, 16, 17, 18, 20 lulus. **Tidak dijalankan ulang** atas permintaan pemilik: uji_tahap 14 dan 15 dengan server `S4_ATTACK_RULES=lama` (putaran yang jalan memakai CRS karena uji_sesi menyalakan ulang server tanpa variabel itu, sehingga beda angka serangan = perubahan disengaja) dan pytest penuh. |
-| 22 | 2026-10-06 | (a) **ASUMSI** (DRD §12): tab Peta IP diserap di alamat yang sama `#/peta?modul=` (tautan lama tetap jalan); label sidebar dan judul jadi "Command Center"; `IpMap.svelte` dihapus. (b) Rencana tahap ini tanpa daftar file dan verifikasi; keduanya ditulis saat dikerjakan (bagian Tahap 22). (c) KPI utama dan butir perhatian dipilih dari daftar TRD §12 (serangan, login gagal, 5xx, error koneksi pod) + file rusak; 6 angka peta lama tampil sebagai baris ringkas di samping pemilih modul. (d) **Permintaan pemilik di tengah tahap**: peta selebar dan setinggi layar (`100dvh − 300 px`, ponsel `− 220 px`), kartu perhatian di bawah peta (rancangan awal: di samping). Akibatnya butir 390 px Tahap 20 "peta 4:3" diganti "setinggi layar". (e) Tambahan di luar tahap: `pyproject.toml` kini menyertakan `crs_rules.json`, `capec.json`, `CRS-LICENSE.txt` (Tahap 21 lupa; pemasangan non-editable gagal memuat aturan); README mendapat panduan "Cara menjalankan" (permintaan pemilik). Verifikasi: `pytest tests/test_api.py` 68 lulus (termasuk uji Command Center baru); lihat 1440/390 px dan folder tanpa nginx (28 Sep) tanpa gulir mendatar dan tanpa galat konsol; `uji_tahap20.cjs` 25/26 di tempat baru, satu-satunya gagal = ukuran 4:3 yang sengaja diganti (624 px = 844 − 220), ekspektasinya diperbarui tetapi uji tidak dijalankan ulang. |
-| 24 | 2026-10-07 | (a) Tahap baru di luar rencana awal, atas permintaan pemilik (saran 1–9). (b) **ASUMSI** ambang lonjakan (2× dan +50 error / +20 JWT) dan cetak browser sebagai PDF. (c) Pintasan pencarian **Ctrl+K**, bukan `/` seperti di saran, karena `/` sejak Tahap 12 memfokuskan filter tabel. (d) Profil IP memakai slot `service` di rute (`#/ip/<ip>`); parameter `?cari=` dibuang saat pindah tab lewat navigasi. (e) `test_tren` diperbarui: respons Tren kini punya kunci `completeness` dan `heat`. (f) Butir perhatian lama tidak berubah; urutan tetap merah dulu. (g) Folder 6 Okt tidak menampilkan ▲/▼ karena 5 Okt tidak lengkap ("tidak dibandingkan"), disengaja. (h) Uji browser lama (uji_tahap13–21) tidak dijalankan ulang; pemeriksaan Tahap 24 lewat skrip Playwright sekali pakai. |
-| 25 | 2026-10-07 | (a) Tahap baru atas permintaan pemilik. (b) **ASUMSI** tombol hanya untuk admin. (c) Folder baru dideteksi dari daftar direktori teratas saja; file baru di folder lama baru terlihat saat sinkronisasi berjalan. (d) Nama compose/image ikut diganti (`monishield`) karena Docker belum dipasang di server; bila sudah, volume lama bernama `simpel4_*`. (e) Uji browser lama tidak dijalankan ulang (judul tab kini "… · MoniShield"). |
-| 25 | 2026-10-07 | (f) **Perbaikan dari laporan pemilik**: (1) ingest gagal `Duplicate key "run_id: 28"` — sequence DuckDB (`seq_run_id`, juga `seq_file_id`) bisa tertinggal dari baris tersimpan setelah proses dihentikan paksa; nomor baru kini `max(nextval, max(id)+1)` (`ingest._next_id`, aman karena satu penulis), database yang sudah terlanjur tertinggal sembuh sendiri; uji `test_sequence_tertinggal_tidak_membuat_duplicate_key` (gagal dengan galat yang sama tanpa perbaikan). (2) impor gagal `No module named 'botocore'` — paket opsional `s3` belum terpasang: impor kini ditolak di depan (`no_s3_library`, pesan cara memasang, tanpa job gagal), layar menonaktifkan impor dengan keterangan, CLI juga memeriksa; `run.sh` memasang `.[s3]` dan memasang ulang bila `pyproject.toml` berubah (dulu hanya saat `.venv` belum ada); uji `test_tanpa_boto3_ditolak_dengan_cara_memasang`. pytest import+ingest+api 122 lulus. |
-| 25 | 2026-10-07 | (g) **Impor S3: ekstrak otomatis** (permintaan pemilik): `S4_IMPORT_EXTRACT` (bawaan true) — tiap `.log.gz` yang diunduh diekstrak menjadi `.log` di folder sementara lalu `.gz` dibuang sebelum dipindah ke kotak masuk; gzip rusak/terpotong → `bad_gzip`, hasil > 20× batas objek → `extract_too_large` (impor dibatalkan, kotak masuk tidak berubah); manifest mencatat `stored`/`stored_size` sehingga impor ulang tidak mengunduh ulang; `.gz` dari impor lama diekstrak di tempat tanpa unduh. Uji +5 (import+ingest+config 63 lulus). |
-| 25 | 2026-10-07 | (h) **Hapus folder log dari daftar** (permintaan pemilik): kartu "Folder log" di Ingest & impor (`lib/FolderManager.svelte`; `GET /api/admin/folders`, `POST /api/admin/folders/{f}/delete` `{delete_inbox}`, `POST …/restore`, admin saja, diaudit). Data folder dihapus (`ingest.forget`); file kotak masuk ikut dihapus bila dicentang; file folder log utama TIDAK dihapus (hanya-baca) — folder dicatat di tabel baru `folder_ignored` (kolom `ignored_folder`, agar tidak ikut terhapus `forget`) sehingga ingest, sinkronisasi, dan lencana folder baru melewatinya sampai dipulihkan. Uji `test_hapus_folder_dari_dashboard_dan_pulihkan`; uji matriks peran memakai tanggal yang tidak ada untuk rute hapus agar tidak menghapus data uji. pytest api+ingest+import 128 lulus; browser: hapus 26 Sep → Diabaikan (file di disk utuh) → Pulihkan + Sinkronkan → kembali 19 file. |
-| 25 | 2026-10-07 | (i) **Nama paket `simpel4` → `monishield`** (permintaan pemilik): folder kode `monishield/`, `python -m monishield …`, `pyproject` (nama + paket + data), `run.sh`, Dockerfile (pengguna `monishield`), compose, tools, uji, nama paket web, User-Agent unduhan. **Tidak** diganti agar data/konfigurasi lama tetap jalan: berkas `data/simpel4.duckdb`, awalan `S4_`, issuer JWT, user/db PostgreSQL di compose, serta nama yang merujuk sistem SIMPeL4 (host `*simpel4.ombudsman.go.id`, bucket `simpel4-backup`). Bila memasang ulang: `pip install -e .` sekali (run.sh melakukannya otomatis karena `pyproject.toml` berubah). Ikut diperbaiki: `test_kolom_csv_sama_dengan_skema` (gagal sejak Tahap 21 karena kolom CRS turunan; pytest penuh tidak dijalankan saat itu). **pytest penuh: 308 lulus, 2 dilewati.** |
-| L7 | 2026-10-07 | **Langkah 7 Docker Compose (migrate/07) selesai; rincian dan keluaran di `docs/06-docker.md`.** (a) Layanan: `app` (ingest di dalam proses, K1) + `postgres` (K11); `ingest` profil `job` memicu `app` lewat HTTP; `proxy` (Caddy), `pgadmin`, `dbgate` opsional per profil. (b) **Permintaan pemilik**: pgAdmin 9.8 (PostgreSQL) dan DbGate 6.6.4 untuk DuckDB — DbGate membuka **salinan baca** `data/snapshot/monishield.duckdb` (`S4_DUCKDB_SNAPSHOT`, format v1.2.0, diperbarui tiap ingest, diganti atomik) karena DuckDB hanya boleh dibuka satu proses. (c) Plugin DuckDB DbGate selalu membuka mode tulis (gagal di mount `:ro`): yang dipasang hanya folder `snapshot/` (`volume.subpath`) baca-tulis. (d) Diperbaiki saat verifikasi: `${PGADMIN_*:?}` menggagalkan `up` tanpa profil (kini `:-` + pemeriksaan entrypoint DbGate); pgAdmin menolak email `.local` dan gagal di `[::]` tanpa IPv6; `kill -9` meninggalkan CSV sementara 194 MB + run `berjalan` (kini dibersihkan di awal ingest, `ingest._cleanup_killed`). (e) Kode aplikasi yang berubah: `config` (`S4_API_URL`, `S4_DUCKDB_SNAPSHOT`), `db.snapshot`, `api/admin`, `api/app`, `ingest`; uji +3. Verifikasi: build 41 dtk, image 413 MB (105 MB terkompresi); `run --rm ingest` 195 file / 11 folder 73,4 dtk; healthy ±11 dtk; `tools/uji_docker.cjs` **8/8** (ringkasan, layanan, Command Center, pgAdmin, DbGate tabel `nginx_access`); 73/73 permintaan dashboard OK selama ingest paksa; `down`/`up` data + akun utuh tanpa ingest ulang. |
-| 25 | 2026-10-07 | (j) **Navigasi kiri bisa diciutkan** (permintaan pemilik): tombol di samping logo (layar > 900 px) mengubah sidebar 236 px menjadi lajur ikon 68 px; label lewat `title`, lencana jadi titik merah, judul grup jadi garis; isi halaman, grafik, dan peta ikut melebar. Pilihan disimpan per browser (`localStorage` `side`). Layar ≤ 900 px tidak berubah (laci ☰ selalu berlabel). Kunci baru `nav.collapse`/`nav.expand`, ikon `side-close`/`side-open`, token `--side-w-c`. **ASUMSI** "tutup" = ciut ke ikon (bukan hilang total) agar navigasi tetap satu klik. Verifikasi Playwright 10/10 (lebar, isi bergeser, peta Command Center 1104 → 1272 px, diingat setelah muat ulang, klik ikon, keyboard, 390 px, tanpa galat JS); build + `cek_i18n` (762 kunci) bersih. |
-| 25 | 2026-10-07 | (k) **Sinkron S3 otomatis + unggah folder** (permintaan pemilik: "automate sinkronisasi data dari s3 ketika ada folder baru … tambah fitur upload folder"). (1) `S4_S3_WATCH` (folder induk, diperiksa terhadap `S4_IMPORT_BUCKETS`), `_MINUTES` 60, `_DAYS` 30, `_MAX_FOLDERS` 3, `_RECHECK_DAYS` 1: penjadwal di proses `app` (pertama 1 menit setelah mulai) + `POST /api/admin/import/sync` (admin/token mesin) + tombol "Periksa S3 sekarang"; daftar folder lewat ListObjectsV2+Delimiter; folder yang belum dikenal diimpor lewat `importer.run` lalu di-ingest, satu job per folder; folder hasil sinkron yang masih baru diperiksa ulang (unduh hanya objek baru). **ASUMSI**: folder yang dihapus admin saat sinkron aktif dicatat *Diabaikan* (bila tidak, diunduh lagi). (2) Unggah: `monishield/upload.py` + `api/upload.py` (rencana → PUT per file, dialirkan ke disk, ukuran harus sama → selesai: ekstrak .gz, pindah ke kotak masuk, ingest di latar); batas = batas impor S3; jalur `..`/kontrol menolak seluruh unggahan; folder yang ada di folder log utama dilewati. UI: kartu Unggah folder log (`webkitdirectory`, 3 file sekaligus, kemajuan byte lewat XHR), bagian sinkron di kartu Impor S3, daftar folder dimuat ulang tiap ingest selesai; tag kotak masuk "(S3/unggah)". Uji: test_import +9 (pilih, daftar izin, sinkron API/token/periksa ulang, folder dihapus, penjadwal), test_upload 10; S3 tiruan mendukung Delimiter; e2e Playwright 10/10 (server + S3 tiruan: Periksa S3 → 2 folder + 1 menyusul, unggah folder → ingest, 390 px, tanpa galat JS). (3) **Permintaan pemilik di tengah tahap**: input `type=date` bawaan browser diganti `lib/DatePicker.svelte` (kalender sendiri, Senin di kiri, ID/EN lewat Intl, tema gelap/terang, tanggal sesudah hari ini WIB nonaktif, papan ketik pola grid ARIA, Esc/klik luar menutup); uji Playwright 15/15. pytest penuh 331 lulus, 2 dilewati. |
-| 25 | 2026-10-07 | (l) **Permintaan pemilik**: "tinggal memasukkan url s3://simpel4-backup/k8s-logs … auto download dan ingest", Swagger dengan login yang sama, teks Indonesia di mode English, tombol Sinkronkan juga memeriksa S3. (1) Alamat folder induk diisi dari layar (`PUT /api/admin/import/watch`, admin; tabel baru `app_setting` di basis data akun, dibuat `create_all`) dan mengalahkan `S4_S3_WATCH`; garis miring akhir boleh tidak ada; alamat berakhiran tanggal ditolak (`watch_is_date`); penjadwal selalu hidup dan dibangunkan saat setelan berubah (pemeriksaan pertama ±5 dtk). (2) Tombol **Sinkronkan data**: bila sinkron aktif, `POST /import/sync` + tunggu, lalu ingest lokal; status S3 ikut di `GET /ingest/status` (`s3`). (3) Swagger UI `/api/docs` + `/api/openapi.json`: hanya user bersesi yang sudah ganti sandi (belum → 303 ke `/?next=/api/docs`, SPA kembali ke sana; hanya alamat itu yang diikuti); aset `swagger-ui-dist` 5.33.1 (Apache-2.0) disalin saat build, `validatorUrl` mati, init di berkas terpisah (CSP); header CSRF ditambah otomatis; dikelompokkan per tag; tautan di menu user. (4) EN: `srv.js` menerjemahkan teks dari server per potongan (peringatan ingest, ringkasan job impor, alasan file dilewati, pemicu, rincian audit, "Lambat N dtk") dan `errText` memetakan kode galat ke kamus (`err.*`, `imp.err.*`, `adm.err.*`); job impor gagal disimpan "[kode] pesan"; galat sinkron jadi objek {code, where, message}. Audit Playwright semua halaman EN (data asli): sisa teks Indonesia hanya data log (jalur endpoint SIMPeL4). Uji: test_import +8 (alamat dari layar, tersimpan setelah mulai ulang, dimatikan mengalahkan .env, user 403, penjadwal dibangunkan), test_api +2 (Swagger); e2e Playwright 18/18. |
-| 25 | 2026-10-07 | (m) **Permintaan pemilik**: "hapus semua kalimat yang berbau simpel4" dan "logo navbar samakan seperti logo di halaman login". (1) Teks: label peta "Server SIMPEL4" → kunci `map.server` ("Server aplikasi"/"Application server"), contoh bucket di layar/kamus/pesan server → `nama-bucket`/`my-bucket` (placeholder sinkron diambil dari daftar izin server), deskripsi Swagger, bantuan CLI, docstring paket, README, komentar `.env.example`/compose/Dockerfile, contoh jalur di docs/06. (2) Nama internal: pengguna/basis data PostgreSQL `monishield` (compose, pgAdmin, DbGate), berkas `monishield.duckdb` (berkas lama dipindah otomatis oleh `db.open`, uji `test_berkas_nama_lama_dipindah`), penerbit JWT `monishield`. (3) **Tidak diubah, disengaja**: alamat sistem yang dipantau (`*.simpel4.ombudsman.go.id`, layanan `om-be-simpel-loop`) dan nilai daftar izin `S4_IMPORT_BUCKETS` = bucket log pemilik (`simpel4-backup`) — data/konfigurasi, menghapusnya mematikan deteksi dan sinkron; awalan variabel `S4_` (mengganti semua nama variabel memutus `.env` yang ada); dokumen rancangan lama (PRD/DRD/TRD/rencana) sebagai riwayat. (4) Logo: `lib/Logo.svelte` (perisai + M, sama dengan favicon) dipakai halaman login, navigasi kiri (juga saat diciutkan), kepala layar sempit, dan kepala Swagger; `APP_MARK` (kotak "MS") dihapus. Verifikasi: Playwright 5/5 (jalur logo identik, tanpa "SIMPEL4", 390 px, Swagger), docker compose dengan PostgreSQL `monishield` sehat. |
-| 25 | 2026-10-07 | (n) **Permintaan pemilik** (saran 1, 3, 5, 6). (1) **Notifikasi** Telegram/Discord/email: `monishield/alerts.py` + `api/notify.py` + halaman `#/admin/notifikasi`; kredensial diisi di layar, disimpan di `app_setting` basis data akun (**ASUMSI**: tidak terenkripsi di basis data — pustaka `cryptography` tidak tersedia; dilindungi hak akses PostgreSQL), tidak pernah dikirim balik (`public()`), kosong = tidak diubah, `clear` = hapus; validasi bentuk token/chat ID, webhook hanya `https://discord.com/api/webhooks/…` (cegah SSRF), SMTP starttls/ssl/none. Kejadian: lonjakan vs rata-rata (`command.baseline`, ambang per angka), serangan kritis, ingest gagal, sinkron S3 gagal, folder hari ini belum ada setelah jam N WIB (pemeriksaan tiap jam), ringkasan (bawaan mati); sekali per kunci (tabel `alert_log`, riwayat di layar); hanya folder ≤ 2 hari dari folder terbaru (ingest ulang folder lama tidak memicu); pesan tanpa IP + `scrub()` sebagai pengaman; dua bahasa; thread latar. (3) **Uji S3 asli** — awalnya tampak gagal (`InvalidAccessKeyId`), ternyata **salah uji**: lingkungan container sudah punya variabel AWS_ACCESS_KEY_ID/SECRET berisi nilai tiruan 14 karakter dan variabel lingkungan mengalahkan `.env`. Diulang tanpa variabel itu: kunci sah (STS: user hafiz-TIM), `s3://simpel4-backup/k8s-logs/` berisi 12 folder (26 Sep–7 Okt); sinkron otomatis lewat API mengambil 2026-10-07 (18 objek, 18 .gz diekstrak, ingest 15 dtk). **Temuan data**: folder 7 Okt di S3 rusak di sumber — 5 file berisi satu baris galat alat ekspor (`failed to get parse function: unsupported log format: "\x00…"`, 3–37 MB) dan 13 file kosong; 5 Okt normal. Ingest sudah menandainya rusak; kini ditambah peringatan khusus (`ingest._export_error`, uji `test_berkas_berisi_galat_ekspor_diberi_peringatan`). Kredensial hanya di `.env` lokal (tidak di git). (5) **Pembanding rata-rata**: `command.baseline` = rata-rata ≤ 7 folder sebelumnya yang sebanding (baris ≥ 50 %; ingress terpisah), minimal 3; Command Center memilih rata-rata/kemarin (disimpan per browser); lonjakan layanan & JWT memakai rata-rata bila tersedia. Overview/Bisnis tetap vs folder sebelumnya. (6) **Daftar blokir**: `GET …/security/blocklist` (nginx/ingress/txt/json, 1–90 folder, keparahan & hit minimal), kecualikan IP privat/cadangan, `S4_BLOCKLIST_EXCLUDE_ORG` (bawaan OMBUDSMAN — data asli memuat 2 IP Ombudsman di daftar penyerang), `S4_BLOCKLIST_EXCLUDE`; dialog di Keamanan (pratinjau, Unduh, Salin). Gaya input number/email/url disamakan. Uji: test_alerts 16, test_api +2 (rata-rata, blokir); e2e Playwright 14/14 (Telegram/Discord tiruan). |
-| 25 | 2026-10-07 | (o) **Permintaan pemilik**: "tambahkan 1 halaman tentang configuration terkait semua perihal creds". (1) Halaman `#/admin/konfigurasi` (menu user → **Konfigurasi**, admin saja) menggantikan menu Notifikasi; alamat lama `#/admin/notifikasi` membuka halaman yang sama dan menggulir ke bagian Notifikasi. Bagian: AWS S3 (Access Key ID, Secret, Session token, wilayah + daftar izin bucket hanya-baca), folder S3 otomatis (API watch yang sama), MaxMind GeoLite2, Notifikasi (komponen yang sama), pengecualian daftar blokir, dan status kunci yang **tetap hanya lewat .env** (`S4_JWT_SECRET`, `S4_JOB_TOKEN`, `S4_AUTH_DATABASE_URL`, `S4_ADMIN_PASSWORD`, `S4_IMPORT_BUCKETS` — dasar keamanan server; layar hanya menampilkan terisi/kosong). (2) `monishield/settings.py` + `api/config_api.py` (`GET/PUT /api/admin/config`, `POST /api/admin/config/test`): isian disimpan di `app_setting 'config'` lalu **ditimpakan ke objek konfigurasi server yang berjalan** (`settings.apply`), sehingga impor/sinkron S3, refdata MaxMind, dan daftar blokir langsung memakainya tanpa mulai ulang. Urutan: kredensial tempel (memori) > isian layar > `.env`; "Hapus isian layar" kembali ke `.env`. `create_app` kini memakai salinan konfigurasi (`cfg_env` = nilai .env asli). CLI tanpa server (`ingest`/`import` lokal) ikut membaca isian layar (`settings.for_cli`). (3) Rahasia tidak pernah dikirim balik (Access Key ID/Account ID tersamar `AKIA…1234`), kolom kosong = tidak diubah, audit hanya mencatat nama kelompok. Isian diperiksa sebelum disimpan (bentuk kunci AWS, pasangan ID+rahasia, wilayah, Account ID angka, CIDR, regex). **ASUMSI** sama dengan (n): tidak terenkripsi di basis data akun. (4) Uji koneksi: AWS = `ListObjectsV2` 1 objek pada folder induk/awalan izin pertama; MaxMind = HEAD ke tautan unduhan GeoLite2 (302 = kunci diterima, tanpa mengunduh; ditolak saat `S4_OFFLINE`). Layar Ingest menyebut sumber "disimpan di Konfigurasi". Uji: `tests/test_settings.py` (15), e2e Playwright 21/21 (ID/EN, terang/gelap, ponsel 390 px), pytest penuh 374 lulus. Juga: label EN "1 hours" → "1 h". |
-| 25 | 2026-10-07 | (p) **Permintaan pemilik**: "ubah semua yang berbau configuration, link, settingan, url, dll ke dalam .env"; dipilih pemilik: **layar Konfigurasi tetap, tetapi menulis ke file .env**. Menggantikan penyimpanan (o)/(n)/(l) di basis data akun. (1) `monishield/envfile.py`: menulis `.env` **di tempat** (bind mount Docker aman, izin file tetap), hanya baris kunci yang berubah; baris contoh `# KUNCI=` diaktifkan di tempatnya, sisanya ditambahkan di bawah penanda; hapus = `# KUNCI=` tanpa nilai lama; hasil dibaca ulang dengan `config.read_dotenv` dan dikembalikan bila berbeda; nilai berbaris-baru ditolak. (2) `settings.py`: AWS, MaxMind, daftar blokir, folder S3 otomatis (`S4_S3_WATCH*`, baru `S4_S3_WATCH_ENABLED`), dan notifikasi (baru: `S4_ALERT_*`, `TELEGRAM_BOT_TOKEN`, `DISCORD_WEBHOOK_URL`, `S4_SMTP_*`, `SMTP_PASSWORD`, `S4_DASHBOARD_URL`) ditulis ke `.env` lalu langsung ditimpakan ke konfigurasi server; `alerts.load(cfg)` membaca dari konfigurasi. Sumber tiap nilai: `.env` / variabel lingkungan (mengalahkan .env saat mulai; ditandai di layar) / bawaan. Setelan lama di `app_setting` dipindah sekali ke `.env` saat server mulai lalu dihapus (bila `.env` tidak bisa ditulis: tetap dipakai dari memori + peringatan). `create_app` dengan `cfg` dari pemanggil (uji) menulis ke `<state_dir>/.env`, bukan `v2/.env`. (3) URL/batas yang dulu tertulis di kode kini kolom konfigurasi: `S4_URL_MAXMIND` (wajib memuat `{}`), `S4_URL_IP2ASN`, `S4_URL_LAND`, `S4_URL_BORDERS`, `S4_URL_PROVINCES`, `S4_URL_COUNTRIES`, `S4_URL_GEONAMES`, `S4_TELEGRAM_API`, `S4_GEO_MAX_AGE_DAYS` (1–30, lisensi), `S4_ASN_MAX_AGE_DAYS`, `S4_MAP_MAX_AGE_DAYS`, `S4_UPLOAD_SESSION_HOURS`; konstanta `rules.*_URL` tetap sebagai bawaan (pembanding sistem lama). Yang sengaja TETAP di kode: daftar host Discord yang diizinkan (pengaman SSRF), tautan atribusi lisensi di peta, contoh placeholder. (4) Docker: `app` tidak lagi `env_file:`; `./.env` dipasang ke `/app/.env` (rw), `ingest` hanya-baca; syarat `chgrp 10001 .env && chmod 660`. Diverifikasi di Docker: tulis dari API → file host berubah (izin tetap) → `restart` dan `up -d --force-recreate` tetap; `.env` hanya-baca → `env_not_writable`. `.env.example` kini memuat semua variabel (diuji). Uji: `test_settings.py` 20, e2e Konfigurasi 22/22, Notifikasi 14/14. |
-| 25 | 2026-10-07 | (q) **Permintaan pemilik**: "garis peta diberi animasi gerak agar kelihatan ke arah IP tujuan" (persiapan realtime Kafka). `web/src/lib/mapFlow.js` + `MapView.svelte`: busur dasar kini bergradasi (asal pudar → server terang; arah terbaca tanpa gerak); partikel (kepala + pendar + ekor memudar, `line-gradient` per fitur) berjalan sepanjang busur yang sama (perlahan di awal/akhir, durasi menurut panjang busur), frekuensi per busur ∝ √(request/maks) (0,6–3,8 dtk); riak di titik server saat tiba. Maks. 320 partikel, ±30 fps, hanya 3 sumber GeoJSON kecil diperbarui; berhenti saat peta tak terlihat (IntersectionObserver) / tab tersembunyi. Tombol putar/jeda (aria-pressed, diingat `map_anim`), bawaan dijeda bila `prefers-reduced-motion` (WCAG 2.2.2/2.3.3). Siap realtime: `pulse({lat, lon, n})` (bind:this) / event jendela `monishield:map-pulse`, prop `live` mematikan partikel ambient; lokasi yang belum ada di peta mendapat busur sementara. Uji: `tools/uji_animasi_peta.cjs` 17/17 (data asli 6 Okt, 166 busur; biaya JS ±0,2 ms/bingkai); `tools/uji_tahap20.cjs` kini menjeda animasi (sumber yang diperbarui tiap bingkai membuat `map.loaded()` tidak pernah true). Konsumen Kafka sendiri BELUM dibuat. |
-| 25 | 2026-10-07 | (r) **Permintaan pemilik**: "bagaimana cara mengecek hasil logging dari Kafka? bisa dibuat seperti logging existing?" (Rancher cluster logging → Kafka). `monishield/kafka_in.py`: konsumen di thread server (kafka-python 3, murni Python; SASL PLAIN/SCRAM, SSL) membaca pesan Rancher (`log` + `kubernetes.namespace_name/container_name/pod_name` + `time`; cadangan dari `tag`), menulis ke kotak masuk dengan susunan folder/nama file SAMA dengan ekspor S3, lalu ingest berkala lewat IngestManager (satu pemilik DuckDB, K1). Tanggal folder: (D-1 00.00, D 00.00] WIB → D, seperti S3. Nama layanan = container, atau dari awalan pod (ingress Helm `controller`). Nama ns/container/pod divalidasi (tidak bisa keluar dari kotak masuk). Offset di-commit sesudah tulis (at-least-once). Pesan tak terbaca dihitung + contoh alasannya. API: `GET /api/admin/kafka` (status, 50 pesan terakhir), `POST /api/admin/kafka/peek` (10 pesan terakhir langsung dari topic tanpa grup konsumen, + file tujuan), `POST /api/admin/kafka/ingest`, `GET /api/live/map` (SSE per detik: [lat, lon, jumlah, modul] dari ip_info lokal — tanpa IP; 204 bila Kafka mati). Layar: kartu "Log dari Kafka" (Ingest & impor, Konfigurasi), bagian Konfigurasi → Kafka (ditulis ke .env, konsumen dimulai ulang), peta: lencana LANGSUNG + mode live (partikel hanya dari kejadian nyata) pada folder yang sedang diisi. `.env`: `S4_KAFKA_*`, `KAFKA_PASSWORD`. Docker: image memuat kafka-python; profil `kafka` (apache/kafka 3.9.1 KRaft, 1 partisi, listener EXTERNAL untuk Rancher dibatasi 127.0.0.1 secara bawaan). Uji: `tests/test_kafka.py` 10 (termasuk: baris sama lewat S3 vs Kafka → file dan isi basis data identik; SSE lewat uvicorn sungguhan); broker asli: 3000 pesan dari log 6 Okt → folder 2026-10-08 (14 file) → ingest otomatis, "Cek pesan", peta realtime (e2e 10/10); Docker compose app↔kafka:9092. Juga: opsi `api_version_auto_timeout_ms` tidak ada di kafka-python 3 (diganti `bootstrap_timeout_ms` 10 dtk). BELUM diuji terhadap cluster Rancher asli. |
-| 25 | 2026-10-07 | (s) **Perbaikan uji** `tools/uji_tahap20.cjs` ("roda mouse di atas peta … Ctrl + roda memperbesar" gagal, juga pada versi sebelum animasi): setelah roda biasa menggulir halaman 300 px, titik tengah peta tertutup kepala halaman yang menempel (`elementFromPoint` = `HEADER.top`), jadi Ctrl + roda jatuh ke kepala halaman. Aplikasi benar; uji kini menampilkan peta lagi sebelum Ctrl + roda dan memeriksa titik tujuannya kanvas peta. Hasil: 26/26 (zoom 5,00 → 5,50) pada data asli 6 Okt. |
-| 11 | 2026-10-06 | (a) **Berkas**: sepuluh endpoint halaman ditulis di satu modul `api/pages.py` dan 25 definisi tabel + endpoint tabel di `api/tables.py` (rencana: satu modul per halaman + definisi di `common.py`); isinya sama, kodenya jauh lebih sedikit. (b) **Selisih tampilan yang belum tertulis di TRD §4.4**, kini ditambahkan ke butir 1: tabel/chart *kinerja endpoint* mengambil 25 P95 tertinggi dari SEMUA endpoint ber-≥5 request (TRD §5.4), sedangkan dashboard lama memilih dari 150 endpoint tersibuk; isinya berbeda untuk nginx pada 5 dari 11 folder. Setiap baris lama tetap ada di daftar lengkap v2 (E2). **Perlu diketahui pemilik.** (c) Chart "Respons 5xx per jam" (Ketersediaan) dibaca dari tabel mentah `nginx_access` folder itu, karena `agg_hour.err` kini memuat juga baris error log (butir 2); 9 ms pada folder terbesar. (d) `ETag` dikirim, jawaban 304 belum dibuat. (e) Filter `q` ikut mencari nama pemilik jaringan IP. (f) Tabel berbatas "semua" memakai batas 500. (g) Keamanan/Akar Masalah/Bisnis selalu `available: true` dengan penanda sumber (`nginx`, `sources`), karena halaman itu tetap berisi walau satu sumber tidak ada. (h) `tools/ukur.py --api` bawaannya menjalankan aplikasi di dalam proses; terhadap server berjalan butuh cookie sesi di `S4_COOKIE`. (i) ASUMSI X6 tetap: tabel alur 100 baris pertama. Hasil: `pytest` **239 lulus, 2 dilewati**; matriks peran mencakup 28 rute; **E2: 601 daftar, 9.889 baris lama, 0 berbeda** (E1 3.022 / E3 1.734 / E4 169 tetap 0); server nyata + curl: security 10-06 = 88 request / 14 IP, error koneksi pod 09-30 = 1.200, peta 09-28 `no_nginx`, `c401` 09-29 total 653 (208 cocok `count`, 5 baris), `sort=1;drop` → 400, tanpa sesi → 401; lapisan HTTP pada folder terbesar (09-29): endpoint terlama 56 ms (target 300), respons terbesar 174 KB (target 500). |
+| 1 | 2026-10-06 | (a) `docs/03-trd.md` §10 also had two sentences changed: it was given the status "already applied" and the suggestions already carried out were removed; the technical content of the TRD did not change. (b) The DRD gained §6.9 (sign-in, session, role behaviour) alongside the planned §3.11, and changes U28–U32. (c) The PRD gained new risks R11–R13 and success criteria for login, phone, and S3 import, which are not named in this stage's file list but follow the owner decisions. Verification: 3 of 3 passed (grep for the old phrase = 0; the three screen terms found; 19 lines of TRD §10 have counterparts). |
+| 2 | 2026-10-06 | (a) The `classify` test uses User-Agents from the nginx log **and** the frontend log: the nginx log alone has only 359 unique UAs, below the 500 requirement. (b) `rules.py` contains three things outside the TRD §4.1 list, all copies from the old source: 13 patterns that in the old system were written directly inside `parse()` are now named (a test ensures the pattern text exists in the old source); `pod_name()` and `split_relpath()` from `build()`. (c) `load_ip2asn()` and `map_labels()` take the file path as a parameter, because in v2 the cache location is configurable; their content did not change. (d) Additional tests beyond the plan: equality of the definitions of all patterns/tables, `map_labels` (177/38/514), and the `geo_scan` result vs the old `.cache/geo.json`. (e) `fetch()`, `HOSTS`, `SERVER_IP` were copied too; the tests never download. Verification 4 of 4 passed: installation without errors (duckdb 1.5.6, fastapi 0.142, uvicorn 0.54, pytest 9.1); `pytest tests/test_rules.py` 16 passed, 0 skipped, 27 seconds; `status` prints the configuration and "no database yet"; the old files and `.cache` did not change. |
+| 3 | 2026-10-06 | (a) The minimum Python was raised to 3.12: the CSV uses `csv.QUOTE_NOTNULL` so that empty text and NULL are distinguished. (b) The parser CSV does not contain `file_id` and `folder`; ingest (Stage 4) adds them on load. List columns (`up_addrs`, `up_statuses`) are written as `a,b` and split on load. (c) The `alert`/`emerg` levels are counted as errors in the **ingress** too (old: warning), following TRD §4.4 item 3, which makes both services the same; there are no such lines in the current data. (d) `file_counter` of type `level` stores the **original** simpel-loop tag (same as the old system); the effective level (TRD §4.4 item 4) is computed in the Stage 5 SQL from `sl_event`. (e) The PDF template is remembered per thread **per file**, not per service across files as in the old system; on the three test folders the result is identical. (f) A Spring line that matches more than one login pattern fails the file (rather than silently losing an event); this does not happen in the data. (g) The `upstream_host`/`kind`/`request` columns are also filled for the frontend error log; the `v_upstream_error` view stays ingress-only. (h) Note for Stage 6: the error text of a simpel-loop event in the old system is `f"{name}: {message}"`, so an empty value must become the text `None` in SQL. (i) Test (b) is deeper than planned: besides lines/errors/warnings/levels per file, the content that will later be aggregated (status, IP, endpoint, flow, pod, retry, incidents, attacks, duration, messages + samples, simpel-loop events, login, restarts, JWT, PDF) is compared with the raw statistics of the old parser. Verification 3 of 3 passed: `pytest tests/test_parse.py` 36 passed, 2 skipped (folder 09-27 indeed has no nginx and coredns); parse of file 5v8j4: `lines=111301`, 3 CSVs, 4 seconds; schema: 43 tables + 4 views, safe to run twice. All tests: 52 passed, 2 skipped. |
+| 4 | 2026-10-06 | (a) The test log folder is not stored as files in `tests/fixtures/logs_mini/`, but built for each test by `tests/logs_mini.py` from the real lines in `fixtures/lines/`, because the tests need to modify its files. (b) The scanner walks only the top-level date-shaped folders (not a `glob` of the whole tree), so that `v2/.venv` and `node_modules` are not walked; the result is the same as the old rule. (c) Addition beyond the TRD: when a `.log` is parsed and its `.log.gz` pair exists, that pair is hashed once too; if they differ a warning is recorded. **Result on the real data: 0 warnings, so all existing `.log`/`.log.gz` pairs are identical** (answers X5/P5 for the current data). (d) A file that fails to parse is recorded as `gagal` and retried on every ingest. (e) Fewer than 3 files are processed in-process, without a subprocess. (f) Times in the database are written as UTC from Python, not DuckDB's `now()`, which follows the machine's time zone. (g) `derive_folder()` only fills `folder_state` so far; the aggregates follow in Stage 5. (h) **At the owner's request in the middle of the stage**: all configuration and secrets can now (and preferably should) be put in `v2/.env`; `config.py` reads `.env` itself, lists/dicts are written as JSON, `.env.example` was created, `tests/test_config.py` was added (11 tests), and TRD §6.3 was updated. Verification 6 of 6 passed: `pytest tests/test_ingest.py` 17 passed; initial ingest 195 files / 11 folders / 0 failed in 11 seconds (limit 3 minutes); total 774,264 lines, `nginx_access` 308,158, `fe_access` 148,049, `sl_event` 114,574, 52 files with 0 lines; second ingest 0 files changed in 0.1 seconds; checksums of 43 tables equal before and after; the log folder and old files did not change. Additionally: lines/errors/warnings per (folder, service) and the number of files equal `00-acuan.json` for 81 pairs; re-ingest of the largest folder (09-29) 6 seconds. All tests: 80 passed, 2 skipped. Note for Stage 9: the database is 52 MB for 11 folders, roughly 24 MB per full folder, so ±9 GB per year **before** aggregates; close to the 10 GB limit. |
+| 5 | 2026-10-06 | (a) `folder_state` is now filled by the `derive` package (not `ingest.py`); `ingest.derive_folder()` only calls it. (b) `agg_hour` can contain hours with `total = 0`: hours that contain only nginx/frontend error log lines (a consequence of TRD §4.4 item 2). (c) Found while writing the SQL and kept for parity: in the old system the **frontend** `perr` key does not include the HTTP method (only `path_key`), unlike the ingress and simpel-loop; inventory §1.3 describes it as uniform. (d) simpel-loop `err_http` = failed events with a 5xx status; `users_ok` is already computed in this stage. (e) `status --folder` now also prints an aggregate summary. (f) Tests deeper than planned: besides hand-computed values on `logs_mini`, all core aggregates for two real folders (09-30 and 10-06, 11 services) are compared with the raw statistics of the old parser without truncation; the tests were shown to fail when the SQL is deliberately broken (UA truncation, percentile index). Verification 5 of 5 passed: `pytest tests/test_derive_core.py` 14 passed; `derive --all` 11 folders in 1 second; folder 09-29: nginx requests 132,203 / 4xx 4,635 / 5xx 59 / errors 94 / warnings 164 / unique IPs 723 / flows 1,762, simpel-loop requests 60,665 / warnings 9,614; folder 09-30: errors 1,690, pod connection errors 1,200, retries 825; checksums equal after the second `derive --all`. Additionally: 910 figures of `00-acuan.json` (all folders × services, for this stage's aggregates) exactly equal, 0 different. All tests: 94 passed, 2 skipped. Note for Stage 8: the simpel-loop level distribution deliberately differs from the reference (effective level) and goes into the list of expected differences. |
+| 6 | 2026-10-06 | (a) Only three aggregates are written as SQL (`17_login`, `18_mail`, `19_report`). Attacks, accounts, incidents, correlation/trace, business/activity, and JWT are derived in **one** Python module `derive/steps.py` (not separate `accounts.py` + `incidents.py`), because they use the `rules.py` functions as-is or depend on `unquote_plus()` and order of appearance, which have no exact equivalent in SQL. Their input is the result of small queries, not the whole log. (b) `rules.accounts()` truncates its result at 150 rows; it is called per account so that `agg_account` is not truncated (TRD K4); its logic was not changed. (c) `agg_login_*`, `agg_account` only from `om-be-appsmanager` and `agg_report` only from `om-be-report`, as the old view reads them. (d) The cross-folder correlation refresh only catches matches that increase (marked `ponytail:`); if an nginx file is deleted, other folders are not refreshed until `derive --all`. In the real data, cross-folder matches = 0. (e) Two sources of instability were found through the checksum check and fixed: the key order in `agg_incident` (now follows the order of first appearance, same as the old system) and `dur_avg` in `agg_endpoint` from Stage 5 (parallel `DOUBLE` average; now computed from a sorted list). (f) Tests deeper than planned: three real folders (09-29, 09-30, 10-06) compared with the raw statistics of the old system, including `correlate()`; the tests were shown to fail when the code is deliberately broken. Verification 4 of 4 passed: `pytest tests/test_derive_features.py` 12 passed; folder 09-29: attacks 155 requests / 77 URLs / 12 IPs, correlation 22,638 of 60,665, trace 550 rows (old: truncated at 300), failed logins 86 / resets 24 / successes 389, accounts 39, incidents 7, PDF 813 / 32; folder 10-06: attacks 88, correlation 4,161 of 5,981, Laporan Dibuat 7; re-ingest of 09-29 with `--force` 6 seconds (limit 60). Additionally: 263 figures of `00-acuan.json` for this stage's aggregates exactly equal; `derive --all` three times in a row gives identical checksums (4 seconds for 11 folders). All tests: 106 passed, 2 skipped. |
+| 7 | 2026-10-06 | (a) The MaxMind download redirects to a signed URL that **rejects** the `Authorization` header (400); `refdata.py` drops that header when following the redirect. (b) The location sweep was rewritten for `int` ranges (`refdata.sweep`) because GeoLite2 blocks are CIDRs, not pairs of text IPs; its equivalence with the old `rules.geo_scan()` is proven by tests. (c) An `offline` field was added to the configuration (`S4_OFFLINE`, as well as `ingest --offline` and `refdata --offline`): without it the tests would download. All old tests now run offline. (d) GeoLite2 blocks without a `geoname_id` use the registered country: this yields a country without a city name. (e) The map files are regenerated only when incomplete; a failure there does not cancel the `ip_info` result. (f) GeoJSON coordinates are rounded to 2 decimals (≈ 1 km), same as the old map; `land.geojson` 992 KB, country borders 304 KB, province borders 342 KB. (g) **Finding for Stage 20 / Q3**: Natural Earth 10m contains only **33** Indonesian provinces; two provinces created in the 2022 split (Papua Barat Daya, Papua Pegunungan) have GeoNames labels but no boundary lines yet. (h) **Finding for Stage 20**: GeoLite2 gives coordinates for the server IP but **without a city name** (a country-level block), so the server point label needs to use `server_fallback`. 317 other IPs also have coordinates without a city name. (i) Comparison with the old DB-IP on the same 1,676 IPs: **same country 99 %** (1,657), same city 23 % (393) — an expected inter-vendor difference, recorded as a difference for Stage 8; examples: Citeureup→Bogor, Cimahi→Bandung, Jakarta→Central Jakarta. Verification 5 of 5 passed: `pytest tests/test_refdata.py` 13 passed (no test touches the network); `refdata` fills 2,691 IPs (2,689 get an owner and a location) and creates 4 map files; `status`: owners 2,689 (≥ 1,734), **100 %** of public v4 IPs have a location (requirement ≥ 95 %), server in Jakarta (−6.175; 106.8286); `labels.json` 177 countries / 38 provinces / 514 regencies-cities; `refdata --offline` **and** a full ingest with all outbound connections blocked (proxy to a dead port) finish without errors. Additionally: the network owner is **exactly the same as the old dashboard for all 1,734 IPs** (0 different, 0 missing) — early evidence for E3; the MaxMind key does not appear in the `status` output, the database (0 occurrences in all text columns), or any file other than `.env`. All tests: 119 passed, 2 skipped. |
+| 8 | 2026-10-06 | (a) The comparator was put in one shared module `tools/kesetaraan.py` used by the tests **and** the report, so that its definitions do not diverge. (b) Two mistakes were found and fixed during this stage, both in the comparison/reference tools, not in v2: `login_ip` in `00-acuan.json` turned out to mean *all* IPs that have a login event (including success only), not the KPI "IPs with failed logins"; and the "should be" value for `lambat ≥ 5 dtk` (slow ≥ 5 s) was originally computed from the trace list already truncated at 300 rows, and is now computed from the correlated events. (c) E4 item 1 also checks two measures whose limits have **never** been reached (failed-login IPs 100, accounts 150), so that it is noticed if they are reached later. (d) `tools/ekstrak_dashboard.py` stores the extraction result in `data/dashboard-lama.json` (not in git) and regenerates it when `dashboard.html` is newer. (e) Tests are skipped with an explanation when the database, `dashboard.html`, or the reference is absent, or when their folder lists do not match. Verification 3 of 3 passed: `tools/acuan_lama.py` re-run (11 folders, core figures unchanged); `pytest tests/test_equivalence.py` 12 passed; report: **E1 3,022 figures, 0 different; E3 1,734 IPs, 0 different; E4 169 checks, 0 mismatched**. The expected differences appear exactly at items 1, 2, 4, and 9 (item 3 does not change because there are no `crit` lines in the frontend): e.g. pod connection errors 09-30 200 → 1,200, 401 clients 09-29 30 → 653, Σ nginx errors per hour 09-29 59 → 94, simpel-loop level ERROR 552 → 0 / WARN 0 → 552, slow ≥ 5 s 09-29 15 → 24, trace 300 → 550 (no longer truncated). IP locations are deliberately not compared (the source is now GeoLite2): same country 99 %, same city 23 %, recorded in the report. The tool was tested by deliberately deleting some `agg_c401` rows: the report catches it in E1 **and** E4 and exits with code 1, and returns to 0 after `derive` restores them. Note: E1 compares summary figures (row counts, totals), not every value inside the rows; comparing list contents is E2 in Stage 11. All tests: 131 passed, 2 skipped. |
+| 9 | 2026-10-06 | **Gate PASSED; ASSUMPTION T1 proven**, the dictionary-table fallback is not needed. (a) The free disk turned out to be 32 GB (not 17 GB as when the plan was written), so the simulation was run in full with **365 folders**, without extrapolation. (b) Request ids were given a per-folder prefix in the simulation so that correlation stays within a folder like the real data. (c) Ingest time was measured in two parts: parse + load + derive on the real database, and deriving the aggregates of one folder on top of the one-year database (the part that grows with data size). (d) The cost of password hashing was measured too, for Stage 10. Verification 4 of 4 passed: the 365-folder simulation finished (19 minutes; 48.3 million nginx lines); size **4.75 GB** (≤ 10 GB); 21 page queries in total **20.5 ms**, slowest 7.3 ms (≤ 200 ms); Trends over 365 folders **5.4 ms** (≤ 500 ms); ingest of the largest folder 6.9 s + 1.7 s derive at one-year scale (≤ 60 s); ingest without changes 0.4 s (≤ 5 s); `sim.duckdb` deleted, space reclaimed. Details and measurement limits in `docs/04a-hasil-ukur.md`. Honest note: the simulation duplicates one folder, so more varied real data could be larger; query times do not yet include the HTTP layer (measured again in Stage 11); `derive --all` for one year ±10 minutes. Parity is still 0 different after this stage. |
+| 10 | 2026-10-06 | **Change at the owner's request in the middle of the stage**: "untuk token gunakan jwt untuk database gunakan postgresql dan pakai orm" (for tokens use JWT, for the database use PostgreSQL, and use an ORM). (a) Accounts, sessions, audit, and import records moved from raw `sqlite3` to the **SQLAlchemy ORM**; the server uses **PostgreSQL** (`S4_AUTH_DATABASE_URL`), and SQLite through the same ORM when it is empty (tests, local runs). (b) The session token became a **JWT HS256** (`S4_JWT_SECRET`, required, ≥ 32 characters) in an HttpOnly cookie; the session row is still checked in the database so that sign-out/reset/deactivation take effect immediately. (c) **ASSUMPTION T16**: DuckDB stays for the log data (see TRD K11); needs the owner's confirmation. (d) Three new dependencies: `sqlalchemy`, `psycopg[binary]`, `pyjwt`; compose (step 7) gains a `postgres` service + volume `s4-pgdata` replacing `s4-state`. (e) Tables named `app_user`/`app_session` (PostgreSQL keywords). (f) The schema is created with `create_all`; no migration tool yet. (g) The plan's verification was adjusted: the first admin must change the password before `/api/meta` (per TRD §8.2), and the lockout is tested on an existing account. Result: account + API tests **64 passed on SQLite and 64 passed on PostgreSQL 17**; all tests 195 passed, 2 skipped; a real server on PostgreSQL: 17 of 17 checks passed (401 without a session; JWT cookie HttpOnly SameSite=Strict; 11 folders; 2026-10-06 = 7 services, nginx err 125, attack_ip_count 14, the same for admin and user; user → `/api/admin/users` 403; `simpel4 ingest` via the API "0 files changed"; CSP/nosniff/Referrer-Policy headers; 6th wrong login → 429; session dead after sign-out; no secrets in the server log). |
+| 11 | 2026-10-06 | (a) The page endpoints, the table endpoint, the Stage 11 tests in `test_api.py`, and E2 in `tools/kesetaraan.py`/`test_equivalence.py` **already existed in the repository** when this session started (done earlier but not yet marked finished); this session rebuilt the database from scratch, ran all the verifications, and completed what was missing. (b) Originally the ten pages were in a single `api/pages.py`; they are now **split into one module per page** per the TRD (`overview.py`, `map.py`, `trends.py`, `security.py`, `rootcause.py`, `availability.py`, `pods.py`, `business.py`, `tracing.py`, `service.py`); shared helpers (`_all`, `_one`, `_no`, `_has`, WIB hours) moved to `common.py`. (c) The definitions of the 25 tables and the table endpoint are in `api/tables.py`, **not** `common.py` as planned: a file dedicated to the table contract (sortable columns, `q` columns, old limits) is easier to review; `common.py` still holds validation, roles, the IP cell. (d) `tools/ukur.py --api HOST:PORT` was added: signs in with `--user` (password from `S4_UKUR_PASSWORD` or prompted), measures 19 endpoints (folder summary, 8 pages, 7 services, Trends 30/all, meta), exits with code 1 if any is > 300 ms or > 500 KB. (e) The E2 rule: every old row must be in the **complete** v2 list with exactly the same content, and the order of the sort values of the first N rows must be the same; the v2 list may be longer (no longer truncated, TRD K4). The E2 report is printed by `py tools/kesetaraan.py` (E1–E4); `tools/laporan_kesetaraan.py` stays E1/E3/E4. (f) **ASSUMPTION X6**: the default flow table is 100 rows (`flows.limit`), the rest via the table pages. (g) Searching `q=count` on `c401` 09-29 gives `matched` 208 (≤ 653). (h) In this session the accounts used SQLite through the ORM; PostgreSQL was not re-tested (no changes in `auth.py`). Verification 8 of 8 passed: `pytest tests/test_api.py tests/test_equivalence.py` 87 passed (the role matrix covers all routes); E1 3,022 figures 0 different, **E2 601 lists / 9,889 old rows, 0 different**, E3 1,734 IPs 0 different, E4 169 checks 0 mismatched; real server: `security` 10-06 `attack_requests` 88 / `attack_ips` 14; `availability` 09-30 pod connection errors 1,200; `map` 09-28 `available: false, reason: "no_nginx"`; `c401?limit=5&q=count` total 653, 5 rows; `sort=1;drop` → 400; `ukur.py --api`: 19 endpoints, slowest `security` 112 ms, largest `tracing` 178 KB, 0 misses. All tests: 239 passed, 2 skipped. **Merge note**: the next Stage 11 row comes from another session that came in via `master`; its item (a) (a single `api/pages.py` module) no longer applies because that module was split per page above, and `tools/ukur.py --api` now combines both versions (no host = in-process; with a host = `S4_COOKIE` or sign in with `--user`). |
+| 12 | 2026-10-06 | **PARTIAL: not yet tested on a real phone** (DRD §8 requires it; from the cloud environment only Chromium emulation at 390/360 px). (a) The address uses a hash `#/<tab>?folder=…&modul=…` because the server serves a static `web/dist` without a path fallback; the old tab slugs (`#keamanan`, `#<layanan>`) still open. The folder is also in the address on Trends and the admin screens so that it persists when coming back. (b) `/api/me` and the login response now include `session_idle_minutes` (a small change in `api/session.py` + test) for the "Session ends in 5 minutes" band. (c) A small build plugin strips `https://` from Svelte's error documentation links (`svelte.dev/e/…`, error message text, never fetched) so that `web/dist` is free of outside addresses; the remaining URLs are only XML schemas. (d) **ASSUMPTION** "practically empty folder" (DRD §6.6) = < 1,000 log lines; corrupt files alone do not trigger the band because even full folders have 1–3 files with corrupt lines. (e) The folder picker on narrow screens shows only the date (`6 Okt 2026`) so that it is not cut off. (f) Q6 "–" for figures whose logs are absent, Q7 (column sorting, copy IP, `(i)`, "View as table", shortcuts `[` `]` `/`) done; Q8 logo stays "S4". (g) `Placeholder.svelte` doubles as a sample page of all components with real data (one `overview` request). (h) Browser test scripts kept: `tools/uji_browser.cjs` (50 checks) and `tools/uji_sesi.cjs` (7); Playwright is not a project dependency. (i) In the middle of the stage the owner asked for styling following the reference image and a realtime Command Center module via Kafka: recorded as Stages 12a, 22, 23 and questions R1–R6 (TRD §11.2, §12; DRD §12), **not yet done**. Verification: `npm ci && npm run build` without warnings; `node tools/cek_i18n.mjs` "keys match: 148"; `node --test tests/test_format.mjs` 8 passed; URLs in `web/dist` only XML schemas; `./run.sh` builds then serves; browser: 50/50 (Sign in without data before signing in, mandatory password change, sidebar with two groups + badge `14 IP`, 11 folders, subtitle with the log range, folder/tab in the address, back/shortcuts, table 25 + more + server filter + aria-sort, ID/EN and theme remembered, Tab: Skip to content → navigation → header with visible focus, user = same sidebar without the admin menu and `admin/user` → "No access", 390 & 360 px: no horizontal scroll, KPIs in 2 columns, tables become cards, touch ≥ 44 px, drawer + Esc, ⋯ menu) and 7/7 (session band, session expired → Sign in then back to the same address, server down → "Not connected" band → recovers on its own in 4 s); `pytest tests/test_api.py tests/test_auth.py` 100 passed. (j) The application name was changed to **SIMPeL4 Dashboard** by the owner's decision (one constant in `web/src/brand.js`; the logo mark stays "S4"). |
+| 12a | 2026-10-06 | Run before the real-phone test of Stage 12 (which stays open) because this styling changes the look that will be tested; the owner ran `/loop` after being told the next step is 12a. (a) The tokens of both themes were switched to the reference style: a neutral greenish background, flat cards with thin borders, radius 16, plain white titles and KPI figures (the old title/KPI gradients dropped, DRD §12). Token names unchanged; new tokens `--icon-bg`, `--icon-border`, `--chip-bg`, `--brand-bg`, `--brand-fg`. (b) `lib/Icon.svelte`: 22 self-drawn line icons, bundled (no icon library/CDN); used by the sidebar, KPIs, buttons. (c) Sidebar: an icon per item, a filled teal square logo, a footer card with the time zone and the last ingest status. (d) The page header became a single sticky card: title + dimmed folder date, a **compact status line** (● N services · ● errors · ● warnings · ● attack IPs), tools on the right, an initials avatar in the user menu; below it a freshness line "Log folder … · contains logs … · updated …" (replacing "streaming · last event" while Kafka is postponed). At ≤ 900 px the 52 px bar stays. (e) **API**: `/api/meta` now includes `derived_at` per folder (WIB) for the freshness line; test added. (f) KPIs: icon, dimmed suffix, ▲/▼ badge next to the figure, dotted line; `format.delta` gains `short`/`rest`. Alerts became **numbered attention cards** with action links (the plain list form is still available). New component `SplitBar` (large proportion bar). Context chips (`chip`) in the ChartCard/DataTable titles; table headers in small caps; outlined tags; `.btn.accent` button. (g) `tools/cek_kontras.mjs` (new) computes 33 pairs per theme from `theme.css`; one failed (light control border 2.78) and was fixed to `#7b8794` (3.38). Verification: build without warnings; URLs in `web/dist` only XML schemas; `cek_i18n` 176 keys equal; `test_format` 8 passed; `cek_kontras` all pairs meet the threshold; `uji_browser.cjs` 50/50 (one check adjusted: the number of services is now in the status line, not the subtitle); `uji_sesi.cjs` 7/7; screenshots at 1440 dark/light and 390 px compared with the reference. Afterwards, at the owner's request: (h) the picker (`select`) arrow is self-drawn at a fixed 14 px from the edge (the browser's default arrow is cramped and differs per OS); (i) **lowercase system names** (DRD U33): `titleCase` replaced by `sysName`, class `sys`; `uji_browser.cjs` now has 51 checks, including lowercase service names in the sidebar and titles. |
+| 13 | 2026-10-06 | Run via the owner's `/loop` after Stage 12a; the real-phone test of Stage 12 is still open. (a) Overview uses three sources per TRD §5.3: `/overview`, the folder summary already loaded by the shell (`/api/folders/{f}`), and `/services/nginx-ingress-controller` for the "HTTP traffic" section; the two page requests run concurrently and are shown together. (b) Card 1 (map + flows) of the service page follows in Stage 20, as planned. (c) Percentages in titles and KPIs follow the language (`37,3 %` / `37.3%`); the old one always used a dot. (d) The "Top errors across services" table now has the columns Service, Level, Message (expandable to the original log line), Count; the old one had a single text column `[Layanan] LEVEL | pesan`. The content and order of the first 25 rows are the same. (e) Small additions to shared components: a button to copy the original log line; horizontal bar labels truncated to the canvas width (Chart.js lets the text disappear off the left edge); logarithmic axes labelled only at multiples of 10, starting at 0.5 so that a count of 1 stays visible; system names in tables are not broken mid-word; a 44 px `(i)` tap area on narrow screens. (f) **ASSUMPTION**: Overview does not get a "What needs your attention" card (the DRD §3.1 layout is kept); that card belongs to the Command Center (Stage 22). (g) Created `tools/uji_tahap13.cjs`: opens the old `../dashboard.html` (Chart.js replaced by a stub, no network) and v2 side by side, then compares KPIs, ▲/▼ changes, the top 25 messages, and the card list; and `docs/04b-daftar-periksa.md`. Verification 7 of 7 passed: build and `cek_i18n` (228 keys equal); Overview 06 Oct equal to the old one (191,898 · 2,810 · 856 · 124,822 · 3.6 % · 0.04 % · 7 · 18; lines ▼ 36 %, errors ▼ 37 %; 25 messages with the same content and order; 20 cards); pages nginx, simpel-loop, appsmanager, coredns, frontend: KPIs and cards equal to the old ones (coredns "domains failing to resolve"); nginx Error line Σ 125 (item 2); simpel-loop donut 29 Sep WARN 9,614 without ERROR (item 4); 01 Oct band "contains only 4 log lines; 4 corrupt files" and the empty service explains why; filter "JWT" 3 rows + "3 matching rows"; checklist of 8 combinations (language × theme × width) for both pages. Scripts: `uji_tahap13.cjs` 39/39, `uji_browser.cjs` 51/51, `uji_sesi.cjs` 7/7; contrast and formatter tests still pass. |
+| 14 | 2026-10-06 | (a) **API**: `services` in `/api/trends` is now ordered as in the old one (first appearance: oldest folder, then file order); previously alphabetical. Test added. (b) **ASSUMPTION Q4**: default range 30 folders; the choice is remembered per browser. The first column of a range has no ▲/▼ because the previous folder is outside the range (with 11 folders, same as the old one). (c) Data completeness: numeric cells get a "Corrupt" mark when that service has corrupt files, and "Corrupt" replaces "Empty" when there are 0 lines because of corruption (B05); 16 cells across 11 folders. (d) **Bug found and fixed in a shared component**: Chart.js attaches internal properties to data arrays; arrays from Svelte reactive state reject this (error `state_descriptors_fixed`, then "Canvas is already in use"). ChartCard now always copies arrays; Trends stores its data as `$state.raw`. (e) The range picker was tested on a **40-folder simulation database** (`tools/simulasi_setahun.py --folders 40` in the scratchpad, the real database only read, then deleted), because the 11 real folders are fewer than the smallest range. (f) In the middle of the stage, the branch received a merge from `master` (another session's Stage 11 note + another version of `ukur.py --api`); the merged `tools/ukur.py` was broken (two `ukur_api`, duplicate arguments) and was unified in a separate commit. Verification 5 of 5 passed: build + `cek_i18n` (250 keys); `tools/uji_tahap14.cjs` 21/21 side by side with the old dashboard (6 charts: every series and figure equal for 11 folders; error table + changes: every cell equal; completeness: equal except the Corrupt marks; simpel-loop 30 Sep "None"; 1 Oct "Corrupt"/"Empty"; folder picker disabled "Trends show all folders"; 390 px the table still scrolls; 8 combinations) and 6/6 on the simulation (14 / 30 / 90→40 / all = 40 columns; table starts at the right end; Service column pinned; range remembered). Regressions: `uji_tahap13` 39/39, `uji_browser` 51/51; `ukur.py --api` in-process and against the server: 21 endpoints, 0 above target. |
+| 15 | 2026-10-06 | (a) "Key findings" are composed from `Findings.svelte` + keyed dictionary entries (bold part + sentence, two languages, data values as text parameters). The lists of IPs/upstreams/organisations/accounts in the sentences are taken from the first page of the table when that table is complete, so that the order is exactly as in the old one; when not complete, from the API `findings` (alphabetical). (b) `DataTable` gains custom cells via *snippets* (components, not HTML in a string) and a minimum column width (`minw`); `IpCell` no longer breaks IPs. Without `minw`, long URLs and account names break letter by letter in narrow columns. (c) Footnotes and attack categories, account flags, and event sentences ("… success from …") are translated as labels; event times stay as-is like the old one. (d) The "no nginx" note is shown only when the nginx log really is absent (old: also when nginx is present but without attacks, with a wrong sentence). (e) KPIs laid out 4 + 4 (U5) on wide screens, 2 columns on phones. Verification 5 of 5 passed: build + `cek_i18n` (322 keys); `tools/uji_tahap15.cjs` 35/35 side by side with the old one for 06 Oct, 29 Sep, 28 Sep (8 KPIs equal: 06 Oct 88 · 14 · 5 · 62 · 9 · 1 · 0 · 4; findings equal sentence by sentence: 06 Oct 6 items — Log4Shell, Rancher, 62 2xx endpoints, cloud, Ombudsman network, 4 resets — and 29 Sep 11 items; cards equal; 5 tables equal row by row on the core columns; 28 Sep the no-nginx note + login section); URLs `<script>alert(…)`/`onerror` on 29 Sep shown as text, 0 elements injected, 0 dialogs; `grep @html` 0; 8 combinations of language × theme × width. Regressions: `uji_tahap13` 39/39, `uji_tahap14` 21/21, `uji_browser` 51/51, contrast passes. |
+| 16 | 2026-10-06 | (a) The "Root cause summary" uses a generic `Summary.svelte` component (text / bold / code fragments, two languages) because the old sentences contain `<code>` mid-sentence. (b) The upstream DNS in the DNS sentence is taken from the configuration (`/api/meta` → `dns_upstream`); the old one hard-coded `10.88.1.100` (same default value). If no domain is affected, the ", including …" fragment is omitted (the old one wrote "termasuk ke ."). (c) `ChartCard` gains a footer slot (`footer`) for the "Expired refresh tokens: N" note (B07) below the JWT chart; when there is more than one service, the breakdown is included. (d) The `.kpis.four` class (4 columns on wide screens) moved to `theme.css`, used by Security and Availability. (e) Availability percentages follow the language (`98,000 %` / `98.000%`); the old one always used a dot. (f) Test tooling: the old 401 table is compared with the first 30 rows of v2 by the E2 rule (count order identical; rows with equal values at the 30 boundary may be chosen differently). The table lookup in `uji_tahap15/16` now skips chart cards with similar titles (previously one check passed vacuously). Verification 5 of 5 passed: build + `cek_i18n` (389 keys); `tools/uji_tahap16.cjs` 65/65 side by side with the old one — Root Causes 29 Sep: the 5-item summary equal, the JWT chart equal, **new** "Expired refresh tokens: 237", the 401 table "Showing 30 of 653"; 06 Oct, 30 Sep (connection error item 200 → 1,200, expected), 27 Sep also equal; Availability 30 Sep: KPI pod connection errors **1,200** (old 200), retries **825**, **10** incidents, the other KPIs, 3 charts, and tables equal; 06 Oct equal; 28 Sep the no-nginx note; 8 combinations for both pages. |
+| 17 | 2026-10-06 | (a) **ASSUMPTION (Tracing)**: folders that have simpel-loop but none of whose requestIds match nginx (`matched = 0`, e.g. 27 and 28 Sep) show the note "Tracing needs the om-be-simpel-loop and nginx ingress logs …" (DRD §6.6, plan for 27 Sep); the old dashboard showed a page with zero KPIs for those folders because `corr` = `[0, N]`. (b) The Tracing KPIs failed / failed IPs / slow and their two charts are computed from **all** traces (TRD §4.4 items 1, 9): 29 Sep failed 3,245 → 3,479, IPs 150 → 176, slow 15 → 24; the IP and error-type charts differ slightly from the old ones because the old one used 300 traces; 06 Oct (111 traces) exactly equal. (c) Business: KPIs whose logs are absent show "–" + "No <service> log in this folder" per source (simpel-loop 7 KPIs, report 2, appsmanager 2), not 0 (U16); the change vs the previous folder only for simpel-loop metrics with the old "comparable" rule. Business metric labels come from the `biz.<slug>` dictionary; metrics not yet in the dictionary are shown as-is. (d) Pods: the file status "Corrupt" replaces the old "Has Log"/"No Log" (B05; 06 Oct: 3 corrupt files containing 1 line, "Has Log" in the old one); "Pods with retries" gains an (i) explanation. (e) Trace table: the URL column uses `AttackUrl` (host from the configuration + path, UA below it), URLs truncated at 200 with the full text in a tooltip; the time column may wrap to two lines so that the table fits at 1440 px. (f) Test tooling: the activity table is compared by the E2 rule (ties at the 20 boundary may be chosen differently); the local server caches `index.html` at startup, so the server is restarted after a build. The a11y `tabindex` warning in `Trends.svelte` (since Stage 14) has not been changed yet. Verification 7 of 7 passed: build + `cek_i18n` (443 keys); `tools/uji_tahap17.cjs` **91/91** side by side with the old one — Pods 06 Oct / 29 Sep / 28 Sep: 5 KPIs, 2 charts, 3 tables equal, status "Corrupt" on 3 files; Business 29 Sep: 12 / 108 / 35 / 12 / 314 / 18 / 55 / PDF 813 / 32 / login 389, changes, 5 charts, 2 tables equal; 30 Sep: 9 KPIs "–" + explanation, login 110 / 66; Tracing 29 Sep: 60,665 / 22,638 / 37.3 %, the table "Showing 300 of 550" and after loading everything all 300 old rows are in v2; 27 Sep the note (ASSUMPTION) and 30 Sep without simpel-loop the note as in the old one; 8 combinations for all three pages. Regressions pass: `uji_browser` 51/51, `uji_sesi` 7/7 (server with `S4_SESSION_IDLE_MINUTES=5`), `uji_tahap13` 39/39, `uji_tahap14` 21/21, `uji_tahap15` 35/35, `uji_tahap16` 65/65; `test_format` 8/8; `cek_kontras` all pairs; URLs in `web/dist` only XML schemas. |
+| 18 | 2026-10-06 | (a) **API added** beyond the file list: `GET /api/admin/ingest/status` now includes `last_run` (the last finished ingest, read from the `ingest_run` table: UTC time, status, files seen/changed, warnings), because the in-memory status is empty after the server restarts; a test in `test_api.py` added. (b) **ASSUMPTION "next request"**: the App re-reads `/api/me` on every tab change and reload; a page left open without navigation keeps the old menu until then (the API still refuses with 403 immediately). (c) **ASSUMPTION**: deactivating your own account is not offered (the server allows it if another admin remains), same as deleting yourself. (d) The audit log loads the 500 most recent entries; the table shows 50 + "show next" and filters in the browser; if there are more than 500, the note "latest 500 of N". (e) The "Import from S3" card contains the Stage 19 note. (f) New components `lib/Dialog.svelte` (native `<dialog>` + `showModal()`: focus trapped, Esc, focus back to the trigger; full screen at ≤ 560 px) and `lib/RowMenu.svelte` (⋯ menu with `position: fixed` so it is not clipped by the table; disabled items with a reason). `DataTable`: the phone row-card cells are now `justify-items: start` (tags do not stretch to full width) — applies to all pages, regressions run. (g) `format.utcToWib()` (account/ingest times are stored as UTC) + test. (h) Server error messages are in Indonesian; the screen maps error codes to the dictionary so that it is bilingual. (i) The `placeholder.admin` key removed. (j) The sidebar footer "Last ingest …" still comes from the in-memory status (`/api/meta`), not yet using `last_run`. (k) Test tooling: an ingest without changes finishes in < 0.5 s, so the "running" status is not always caught between two reads; this is proven with the disabled button + a new `run_id`, while "the dashboard stays open during ingest" is proven more strongly by `test_ingest_lewat_api_dan_dashboard_tetap_terbuka` (forced ingest). Verification 9 of 9 passed: build + `cek_i18n` (523 keys); `tools/uji_tahap18.cjs` **33/33** (twice in a row) with two windows — add rina → must change password → dashboard without the admin menu; promote/demote takes effect on the next tab change; a regular user on the admin screen gets "No access" + 403; password reset and deactivation end the session immediately, the temporary password is shown once; the last admin is not offered, PATCH → 409, stale list → message in the dialog; "Ingest now" → "0 files changed", data 200 while running; audit of 11 action types with time, actor, IP, without passwords/tokens; 8 combinations for both screens; full-screen dialog at 390 px. Regressions pass: `pytest` 239 passed, 2 skipped; `uji_browser` 51/51, `uji_sesi` 7/7, `uji_tahap13` 39/39, `uji_tahap14` 21/21, `uji_tahap15` 35/35, `uji_tahap16` 65/65, `uji_tahap17` 91/91 (after the `DataTable` change); `test_format` 9/9; `cek_kontras` all pairs. |
+| 19 | 2026-10-06 | **PARTIAL.** (a) **Not yet tested: the two Manual rows** (dry run and import of `2026-09-26` with real credentials, including proof of ASSUMPTION T14 and the figures 1,203 / 6 / 11). `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` in this session's environment are only placeholder values (14 characters, not the shape of an AWS key); S3 answers `InvalidAccessKeyId`. The S3 Jakarta endpoint is **reachable** from this environment (via the proxy), but X2 must still be checked on the server. Steps for the owner: put the real key in `.env` + `S4_IMPORT_BUCKETS`, then `py -m monishield import --dry-run s3://simpel4-backup/k8s-logs/2026-09-26/` and import into a separate `S4_DATA_DIR` (README §Import). (b) **API addition**: `GET /api/admin/import` (admin only: enabled?, the accepted link shape, credential status, the last 20 jobs) for the history on screen; `/api/meta` gains `imports` (enabled, credentials available + source). (c) New configuration `import_timeout_minutes` (30). (d) The per-job object plan (fetch/skip + reason) is kept in **memory** (last 20 jobs), the `import_job` database table stores the summary; job statuses `berjalan` / `coba` / `selesai` / `gagal` (running / dry run / done / failed). (e) "Same as the previous download" is recorded in a `.s3-import.json` manifest in the inbox folder (size + ETag + file still present). (f) An unsafe object key (`..`, `//`, control characters) **cancels the whole import** (TRD §9.6); objects outside the pattern are only skipped. (g) The ingest after an import uses `IngestManager.run_blocking` (waits for other ingests, shares the lock). (h) Pasted credentials: the key ID must be uppercase letters/digits, 16–128, the secret 16–128; audited without the values. (i) Error messages: Indonesian = the server message (with details), EN = the dictionary per code; the short job messages in the history stay as Indonesian server text. (j) `tools/server_uji_impor.py` runs the dashboard + a fake S3 for browser tests; the S3 endpoint is redirected via `importer.ENDPOINT`, which is deliberately **not** available in the configuration. (k) `README.md` created (it did not exist yet) with an example read-only IAM policy for `simpel4-backup/k8s-logs/`. Verifications that could be run, all passed: `pip install -e ".[test,s3]"` + `pytest tests/test_import.py` **28 passed** without contacting AWS (the tests were shown to fail when the `.gz` pairing rule or the prefix allowlist is broken); without `import_buckets` → "Import is not enabled"; `bucket-lain`, `bukan-tanggal`, and another Jakarta bucket → refused before contacting AWS; without credentials → a message on how to provide them, no files written; no AWS keys in `data/` (key pattern 0; "ASIA" only as an ISP name) and `status` says "import credentials: available (environment)"; regular user → 403 (test); machine token → **202** on a real server (the job then fails at S3 because of the placeholder key), machine token to the credentials endpoint → 401; pasted credentials gone after the server restarts and absent from the server log and the account database; `tools/uji_tahap19.cjs` **22/22** (dry run 0 bytes, import + confirmation + ingest → folder appears, re-import 0 objects, paste/remove credentials, EN errors, audit without secrets, 8 combinations). Regressions: `pytest` 267 passed, 2 skipped; `uji_tahap18` 33/33; `cek_i18n` 582 keys; `test_format` 9/9; `cek_kontras` all pairs. |
+| 20 | 2026-10-06 | (a) **Expected difference**: the planned KPIs "222 locations, 12 countries, 2,030 requests from outside Indonesia" are the old dashboard's DB-IP figures; v2 uses MaxMind GeoLite2 (Stage 7 plan, item i), so 06 Oct = **166 locations, 9 countries, 1,293** from outside Indonesia. Source IPs (516), modules (9), pods (15), total requests (124,822), and 0 from internal IPs are **the same** as the old one. (b) **Owner decision in the middle of the stage**: cluster circles **without numbers** (DRD §7.5/ASSUMPTION D5 changed; size still by requests, the number in the tooltip); the largest-location labels follow the owner's example style: bold name + a small line "N IP · N req". (c) **ASSUMPTION**: the labels of the 6 largest locations follow the collision rule (DRD §7.3 "without overlapping"); in the Indonesia view 5 are shown, the 6th label (Serang, ±15 px from Jakarta + the server label) appears when zoomed in — the old dashboard drew them overlapping. (d) **Owner's question: OpenStreetMap?** Online OSM tiles are not used (they would send the IP of whoever opens the dashboard to a third party, breaking the project rules; the OSM tile policy); OSM data could follow later as self-served vector tiles (e.g. PMTiles) if the owner decides — the map engine stays MapLibre. Until then ASSUMPTION D4 (Natural Earth) stands. (e) **Zoom smoothness**: in the test environment without a GPU (software WebGL) the zoom animation runs at ±10–12 frames/second; almost all of the load comes from filling the land polygons (without land 30 fps, background only 60 fps). Testing geometry simplification (`tolerance` 1 and 2) gave no consistent improvement, so it was not applied; **needs to be tried by the owner on a device with a GPU**. (f) Noto Sans Regular/Bold glyphs for the ranges 0–255, 256–511, 7680–7935 (Vietnamese city names), 8192–8447 from openmaptiles/fonts v2.0 + `OFL.txt` (780 KB). (g) MapLibre 5.24 (BSD-3) is loaded as a separate chunk (±1 MB) only when the map is opened; a build plugin strips the unused maplibre.org/GitHub links, so only XML schemas + the MaxMind and GeoNames attribution links remain in the build output. (h) Tooltip on cursor/tap; points can **not** be focused one by one with the keyboard (ASSUMPTION: the flow table is the equivalent, §7.9, with a "Skip the map" link); keyboard on the map: arrows, +/−, 0, Esc. (i) The full-screen button ⛶ at ≤ 900 px is separate from ⤢ (back to the preset). (j) The bilingual cooperative-gesture text is replaced via MapLibre's UI dictionary (`map._locale`) and then re-enabled. (k) Service page: the `services/{svc}` response gains `has_flows` (API added + test) so that services without flows do not request `/map` (which answers 404). (l) `DataTable` gains `search` (filter from outside). (m) Test hook `box.__map`. (n) The `Placeholder` page and the 14 `placeholder.*` keys removed (all tabs now have pages). (o) The flow table note names MaxMind; "at most 3,000 flows" removed (v2 does not truncate; first 100 + more, X6). (p) Not yet tested automatically: pinch to zoom (tested: two-finger pan, one finger does not pan the map). Verification: build + `cek_i18n` (608 keys); `tools/uji_tahap20.cjs` **26/26** — KPIs and flow table vs the old one, module switch (camera stays), mouse wheel + Ctrl hint, keyboard, click a point → "Show in table", world → Java (clusters split, labels progressive), theme/language (position stays, attribution), **internet cut → the map still shows**, **0 requests to other domains**, 28 Sep note, service om-be-simpel-loop collapsed → that module's flows, 390 px touch (CDP), 8 combinations. Regressions pass after the `DataTable` and service page changes: `pytest` 267 passed, 2 skipped (including parity E1–E4); `uji_browser` 51/51, `uji_sesi` 7/7, `uji_tahap13` 39/39 (previously 38/39: a 404 in the console of non-module service pages, fixed with `has_flows`), `uji_tahap14` 21/21, `uji_tahap15` 35/35, `uji_tahap16` 65/65, `uji_tahap17` 91/91, `uji_tahap18` 33/33; `test_format` 9/9; `cek_kontras` all pairs. |
+| 21 | 2026-10-06 | (a) **View scheme** `S4_ATTACK_RULES` = `crs` (default) / `lama`, and `S4_ATTACK_PARANOIA` (1–4); the old rules (`attack_cat`, `agg_attack_*`) are still computed, the CRS aggregates are in new tables `agg_crs_url/ip/hour` (plan: the old aggregates replaced). The parity tests use `lama`. (b) Category = **CAPEC/CRS family** (e.g. `242/xss`), because some rules carry only a generic CAPEC; the CAPEC is chosen by the largest total score. (c) Automatic re-derivation uses `folder_state.crs_version` (not `rules_version`). (d) `@pm` is built as a regex trie (3.4 → ≈ 1 ms per path). (e) **Limitations**: libinjection (942100, 941100) is not available in Python, the tautology `' OR 1=1` is only caught at PL2; common tool UAs (curl, Go-http-client, python-requests) are not attacks according to CRS. (f) Figures changed deliberately: total attack requests 315 → 110, 06 Oct 88 → 50 and IPs 14 → 4; `tests/test_api.py::test_folder` attacker IPs 2 → 1; the critical KPI = CRITICAL severity (new label). Details in `docs/04c-deteksi-crs.md`. (g) Clean paths tested for false positives: 30,512 (the plan said 22 thousand): 0.043 %. Verification: `ambil_crs.py --check` equal (176 taken, 27 skipped); `pytest test_detect test_config` 34 passed, 2 skipped (real data in use by the server), earlier `test_detect` with real data + test_api 67 + test_refdata 13 passed; parity E1/E3/E4 0 differences with the `lama` scheme; `derive --all` 39 s, ingest 09-29 `--force` 24 s; `uji_tahap21.cjs` **22/22**. Browser regressions: uji_browser, uji_sesi, uji_tahap 13, 16, 17, 18, 20 pass. **Not re-run** at the owner's request: uji_tahap 14 and 15 with the server on `S4_ATTACK_RULES=lama` (the round that ran used CRS because uji_sesi restarted the server without that variable, so the difference in attack figures = a deliberate change) and the full pytest. |
+| 22 | 2026-10-06 | (a) **ASSUMPTION** (DRD §12): the IP Map tab is absorbed at the same address `#/peta?modul=` (old links still work); the sidebar label and title become "Command Center"; `IpMap.svelte` deleted. (b) This stage's plan had no file list or verification; both were written when it was done (the Stage 22 section). (c) The main KPIs and attention items were chosen from the TRD §12 list (attacks, failed logins, 5xx, pod connection errors) + corrupt files; the 6 old map figures are shown as a compact line next to the module picker. (d) **Owner request in the middle of the stage**: the map as wide and as tall as the screen (`100dvh − 300 px`, phones `− 220 px`), attention cards below the map (initial design: beside it). As a consequence the Stage 20 390 px item "map 4:3" is replaced by "screen height". (e) Additions beyond the stage: `pyproject.toml` now includes `crs_rules.json`, `capec.json`, `CRS-LICENSE.txt` (Stage 21 forgot; a non-editable install failed to load the rules); the README gains a "How to run" guide (owner request). Verification: `pytest tests/test_api.py` 68 passed (including the new Command Center test); viewed at 1440/390 px and a folder without nginx (28 Sep) with no horizontal scroll and no console errors; `uji_tahap20.cjs` 25/26 in the new place, the only failure = the 4:3 size deliberately replaced (624 px = 844 − 220), its expectation updated but the test not re-run. |
+| 24 | 2026-10-07 | (a) A new stage outside the original plan, at the owner's request (suggestions 1–9). (b) **ASSUMPTION** about the spike thresholds (2× and +50 errors / +20 JWT) and browser print as PDF. (c) The search shortcut is **Ctrl+K**, not `/` as in the suggestion, because since Stage 12 `/` focuses the table filter. (d) The IP profile uses the `service` slot in the route (`#/ip/<ip>`); the `?cari=` parameter is dropped when changing tabs via navigation. (e) `test_tren` updated: the Trends response now has the `completeness` and `heat` keys. (f) The old attention items did not change; the order is still red first. (g) Folder 6 Oct shows no ▲/▼ because 5 Oct is incomplete ("not compared"), deliberately. (h) The old browser tests (uji_tahap13–21) were not re-run; the Stage 24 checks were done with a one-off Playwright script. |
+| 25 | 2026-10-07 | (a) A new stage at the owner's request. (b) **ASSUMPTION** the button is for admins only. (c) New folders are detected from the top-level directory listing only; new files in an old folder only become visible when a sync runs. (d) The compose/image names were changed too (`monishield`) because Docker is not yet installed on the server; if it were, the old volumes would be named `simpel4_*`. (e) The old browser tests were not re-run (the tab title is now "… · MoniShield"). |
+| 25 | 2026-10-07 | (f) **Fixes from the owner's report**: (1) ingest failed with `Duplicate key "run_id: 28"` — DuckDB sequences (`seq_run_id`, also `seq_file_id`) can lag behind the stored rows after the process is killed; new numbers are now `max(nextval, max(id)+1)` (`ingest._next_id`, safe because there is a single writer), and databases that already lag heal themselves; test `test_sequence_tertinggal_tidak_membuat_duplicate_key` (fails with the same error without the fix). (2) import failed with `No module named 'botocore'` — the optional `s3` package was not installed: the import is now refused up front (`no_s3_library`, a message on how to install it, with no failed job), the screen disables import with an explanation, the CLI checks too; `run.sh` installs `.[s3]` and reinstalls when `pyproject.toml` changes (previously only when `.venv` did not exist yet); test `test_tanpa_boto3_ditolak_dengan_cara_memasang`. pytest import+ingest+api 122 passed. |
+| 25 | 2026-10-07 | (g) **S3 import: automatic extraction** (owner request): `S4_IMPORT_EXTRACT` (default true) — each downloaded `.log.gz` is extracted to `.log` in the temporary folder and the `.gz` is discarded before moving to the inbox; corrupt/truncated gzip → `bad_gzip`, output > 20× the object limit → `extract_too_large` (import cancelled, inbox unchanged); the manifest records `stored`/`stored_size` so that a re-import does not download again; `.gz` files from older imports are extracted in place without downloading. Tests +5 (import+ingest+config 63 passed). |
+| 25 | 2026-10-07 | (h) **Delete a log folder from the list** (owner request): a "Log folders" card in Ingest & import (`lib/FolderManager.svelte`; `GET /api/admin/folders`, `POST /api/admin/folders/{f}/delete` `{delete_inbox}`, `POST …/restore`, admin only, audited). The folder's data is deleted (`ingest.forget`); inbox files are deleted too if ticked; files in the main log folder are NOT deleted (read-only) — the folder is recorded in a new table `folder_ignored` (column `ignored_folder`, so that it is not wiped by `forget`), so that ingest, sync, and the new-folder badge skip it until it is restored. Test `test_hapus_folder_dari_dashboard_dan_pulihkan`; the role matrix test uses a non-existent date for the delete route so that it does not delete test data. pytest api+ingest+import 128 passed; browser: delete 26 Sep → Ignored (files on disk intact) → Restore + Sync → 19 files back. |
+| 25 | 2026-10-07 | (i) **Package name `simpel4` → `monishield`** (owner request): code folder `monishield/`, `python -m monishield …`, `pyproject` (name + package + data), `run.sh`, Dockerfile (user `monishield`), compose, tools, tests, web package name, download User-Agent. **Not** renamed, so that old data/configuration keep working: the file `data/simpel4.duckdb`, the `S4_` prefix, the JWT issuer, the PostgreSQL user/db in compose, and names that refer to the SIMPeL4 system (host `*simpel4.ombudsman.go.id`, bucket `simpel4-backup`). When reinstalling: `pip install -e .` once (run.sh does it automatically because `pyproject.toml` changed). Also fixed: `test_kolom_csv_sama_dengan_skema` (failing since Stage 21 because of the derived CRS columns; the full pytest was not run at that time). **Full pytest: 308 passed, 2 skipped.** |
+| L7 | 2026-10-07 | **Step 7 Docker Compose (migrate/07) done; details and output in `docs/06-docker.md`.** (a) Services: `app` (in-process ingest, K1) + `postgres` (K11); `ingest` in the `job` profile triggers `app` over HTTP; `proxy` (Caddy), `pgadmin`, `dbgate` optional per profile. (b) **Owner request**: pgAdmin 9.8 (PostgreSQL) and DbGate 6.6.4 for DuckDB — DbGate opens a **read-only copy** `data/snapshot/monishield.duckdb` (`S4_DUCKDB_SNAPSHOT`, format v1.2.0, refreshed on every ingest, replaced atomically) because DuckDB may only be opened by one process. (c) The DbGate DuckDB plugin always opens in write mode (fails on a `:ro` mount): only the `snapshot/` folder is mounted (`volume.subpath`), read-write. (d) Fixed during verification: `${PGADMIN_*:?}` made `up` fail without a profile (now `:-` + a check in the DbGate entrypoint); pgAdmin rejects `.local` emails and fails on `[::]` without IPv6; `kill -9` left a 194 MB temporary CSV + a `berjalan` (running) run (now cleaned up at the start of an ingest, `ingest._cleanup_killed`). (e) Application code changed: `config` (`S4_API_URL`, `S4_DUCKDB_SNAPSHOT`), `db.snapshot`, `api/admin`, `api/app`, `ingest`; tests +3. Verification: build 41 s, image 413 MB (105 MB compressed); `run --rm ingest` 195 files / 11 folders 73.4 s; healthy in ±11 s; `tools/uji_docker.cjs` **8/8** (summary, services, Command Center, pgAdmin, DbGate table `nginx_access`); 73/73 dashboard requests OK during a forced ingest; `down`/`up` data + accounts intact without re-ingest. |
+| 25 | 2026-10-07 | (j) **Collapsible left navigation** (owner request): a button next to the logo (screens > 900 px) turns the 236 px sidebar into a 68 px icon rail; labels via `title`, badges become red dots, group titles become lines; page content, charts, and the map widen accordingly. The choice is stored per browser (`localStorage` `side`). Screens ≤ 900 px are unchanged (the ☰ drawer is always labelled). New keys `nav.collapse`/`nav.expand`, icons `side-close`/`side-open`, token `--side-w-c`. **ASSUMPTION** "close" = collapse to icons (not hide completely) so that navigation stays one click away. Playwright verification 10/10 (width, content shifts, Command Center map 1104 → 1272 px, remembered after reload, icon click, keyboard, 390 px, no JS errors); build + `cek_i18n` (762 keys) clean. |
+| 25 | 2026-10-07 | (k) **Automatic S3 sync + folder upload** (owner request: "automate sinkronisasi data dari s3 ketika ada folder baru … tambah fitur upload folder" (automate data sync from S3 when there is a new folder … add a folder upload feature)). (1) `S4_S3_WATCH` (parent folder, checked against `S4_IMPORT_BUCKETS`), `_MINUTES` 60, `_DAYS` 30, `_MAX_FOLDERS` 3, `_RECHECK_DAYS` 1: a scheduler in the `app` process (first run 1 minute after start) + `POST /api/admin/import/sync` (admin/machine token) + a "Check S3 now" button; folders listed via ListObjectsV2+Delimiter; unknown folders are imported via `importer.run` and then ingested, one job per folder; synced folders that are still recent are re-checked (only new objects downloaded). **ASSUMPTION**: a folder deleted by an admin while sync is on is recorded as *Ignored* (otherwise it would be downloaded again). (2) Upload: `monishield/upload.py` + `api/upload.py` (plan → PUT per file, streamed to disk, size must match → finish: extract .gz, move to the inbox, ingest in the background); limits = the S3 import limits; `..`/control paths reject the whole upload; folders that exist in the main log folder are skipped. UI: an Upload log folder card (`webkitdirectory`, 3 files at a time, byte progress via XHR), a sync section in the S3 Import card, the folder list reloaded whenever an ingest finishes; inbox tag "(S3/upload)". Tests: test_import +9 (selection, allowlist, sync API/token/re-check, deleted folder, scheduler), test_upload 10; the fake S3 supports Delimiter; Playwright e2e 10/10 (server + fake S3: Check S3 → 2 folders + 1 later, folder upload → ingest, 390 px, no JS errors). (3) **Owner request in the middle of the stage**: the browser's native `type=date` input replaced by `lib/DatePicker.svelte` (own calendar, Monday on the left, ID/EN via Intl, dark/light theme, dates after today WIB disabled, keyboard per the ARIA grid pattern, Esc/click outside closes); Playwright test 15/15. Full pytest 331 passed, 2 skipped. |
+| 25 | 2026-10-07 | (l) **Owner request**: "tinggal memasukkan url s3://simpel4-backup/k8s-logs … auto download dan ingest" (just enter the URL s3://simpel4-backup/k8s-logs … auto download and ingest), Swagger with the same login, Indonesian text in English mode, the Sync button also checks S3. (1) The parent folder address is filled in from the screen (`PUT /api/admin/import/watch`, admin; a new table `app_setting` in the account database, created by `create_all`) and overrides `S4_S3_WATCH`; the trailing slash is optional; an address ending in a date is refused (`watch_is_date`); the scheduler is always running and is woken when the setting changes (first check in ±5 s). (2) The **Sync data** button: when sync is on, `POST /import/sync` + wait, then a local ingest; the S3 status is included in `GET /ingest/status` (`s3`). (3) Swagger UI `/api/docs` + `/api/openapi.json`: only for users with a session who have already changed their password (not yet → 303 to `/?next=/api/docs`, the SPA returns there; only that address is followed); `swagger-ui-dist` 5.33.1 assets (Apache-2.0) copied at build time, `validatorUrl` off, init in a separate file (CSP); the CSRF header added automatically; grouped per tag; a link in the user menu. (4) EN: `srv.js` translates text from the server piece by piece (ingest warnings, import job summaries, skipped-file reasons, triggers, audit details, "Lambat N dtk" (slow N s)) and `errText` maps error codes to the dictionary (`err.*`, `imp.err.*`, `adm.err.*`); failed import jobs are stored as "[code] message"; sync errors become an object {code, where, message}. Playwright audit of all pages in EN (real data): the only remaining Indonesian text is log data (SIMPeL4 endpoint paths). Tests: test_import +8 (address from the screen, kept after a restart, turned off overrides .env, user 403, scheduler woken), test_api +2 (Swagger); Playwright e2e 18/18. |
+| 25 | 2026-10-07 | (m) **Owner request**: "hapus semua kalimat yang berbau simpel4" (remove every sentence that smells of simpel4) and "logo navbar samakan seperti logo di halaman login" (make the navbar logo the same as the logo on the login page). (1) Text: the map label "Server SIMPEL4" → key `map.server` ("Server aplikasi"/"Application server"), the sample bucket on screens/dictionary/server messages → `nama-bucket`/`my-bucket` (the sync placeholder is taken from the server's allowlist), the Swagger description, CLI help, package docstring, README, comments in `.env.example`/compose/Dockerfile, sample paths in docs/06. (2) Internal names: PostgreSQL user/database `monishield` (compose, pgAdmin, DbGate), file `monishield.duckdb` (the old file is moved automatically by `db.open`, test `test_berkas_nama_lama_dipindah`), JWT issuer `monishield`. (3) **Not changed, deliberately**: the addresses of the monitored system (`*.simpel4.ombudsman.go.id`, service `om-be-simpel-loop`) and the `S4_IMPORT_BUCKETS` allowlist value = the owner's log bucket (`simpel4-backup`) — data/configuration, removing them would break detection and sync; the `S4_` variable prefix (renaming all variables would break existing `.env` files); the old design documents (PRD/DRD/TRD/plan) as history. (4) Logo: `lib/Logo.svelte` (shield + M, same as the favicon) is used by the login page, the left navigation (also when collapsed), the narrow-screen header, and the Swagger header; `APP_MARK` (the "MS" box) removed. Verification: Playwright 5/5 (identical logo paths, no "SIMPEL4", 390 px, Swagger), docker compose with PostgreSQL `monishield` healthy. |
+| 25 | 2026-10-07 | (n) **Owner request** (suggestions 1, 3, 5, 6). (1) **Notifications** via Telegram/Discord/email: `monishield/alerts.py` + `api/notify.py` + page `#/admin/notifikasi`; credentials filled in on screen, stored in `app_setting` in the account database (**ASSUMPTION**: not encrypted in the database — the `cryptography` library is not available; protected by PostgreSQL access rights), never sent back (`public()`), empty = unchanged, `clear` = delete; validation of the token/chat ID shape, webhooks only `https://discord.com/api/webhooks/…` (prevents SSRF), SMTP starttls/ssl/none. Events: spike vs the average (`command.baseline`, threshold per figure), critical attacks, ingest failed, S3 sync failed, today's folder still missing after hour N WIB (checked every hour), summary (off by default); once per key (table `alert_log`, history on screen); only folders ≤ 2 days from the newest folder (re-ingesting an old folder does not trigger); messages without IPs + `scrub()` as a safeguard; two languages; background thread. (3) **Real S3 test** — at first it seemed to fail (`InvalidAccessKeyId`), but it turned out to be a **testing mistake**: the container environment already had AWS_ACCESS_KEY_ID/SECRET variables holding 14-character dummy values, and environment variables override `.env`. Repeated without those variables: the key is valid (STS: user hafiz-TIM), `s3://simpel4-backup/k8s-logs/` contains 12 folders (26 Sep–7 Oct); automatic sync via the API fetched 2026-10-07 (18 objects, 18 .gz extracted, ingest 15 s). **Data finding**: the 7 Oct folder in S3 is corrupt at the source — 5 files contain a single error line from the export tool (`failed to get parse function: unsupported log format: "\x00…"`, 3–37 MB) and 13 files are empty; 5 Oct is normal. Ingest already marks them as corrupt; a dedicated warning was now added (`ingest._export_error`, test `test_berkas_berisi_galat_ekspor_diberi_peringatan`). Credentials only in the local `.env` (not in git). (5) **Average comparison**: `command.baseline` = the average of ≤ 7 previous comparable folders (lines ≥ 50 %; ingress separately), at least 3; the Command Center chooses average/yesterday (stored per browser); service & JWT spikes use the average when available. Overview/Business stay vs the previous folder. (6) **Block list**: `GET …/security/blocklist` (nginx/ingress/txt/json, 1–90 folders, minimum severity & hits), excludes private/reserved IPs, `S4_BLOCKLIST_EXCLUDE_ORG` (default OMBUDSMAN — the real data contains 2 Ombudsman IPs in the attacker list), `S4_BLOCKLIST_EXCLUDE`; a dialog in Security (preview, Download, Copy). The styling of number/email/url inputs was unified. Tests: test_alerts 16, test_api +2 (average, block list); Playwright e2e 14/14 (fake Telegram/Discord). |
+| 25 | 2026-10-07 | (o) **Owner request**: "tambahkan 1 halaman tentang configuration terkait semua perihal creds" (add one page about configuration covering everything to do with creds). (1) Page `#/admin/konfigurasi` (user menu → **Configuration**, admin only) replaces the Notifications menu; the old address `#/admin/notifikasi` opens the same page and scrolls to the Notifications section. Sections: AWS S3 (Access Key ID, Secret, Session token, region + the read-only bucket allowlist), automatic S3 folders (the same watch API), MaxMind GeoLite2, Notifications (the same component), block list exclusions, and the status of the keys that **stay .env-only** (`S4_JWT_SECRET`, `S4_JOB_TOKEN`, `S4_AUTH_DATABASE_URL`, `S4_ADMIN_PASSWORD`, `S4_IMPORT_BUCKETS` — the server's security foundation; the screen only shows set/empty). (2) `monishield/settings.py` + `api/config_api.py` (`GET/PUT /api/admin/config`, `POST /api/admin/config/test`): the values are stored in `app_setting 'config'` and then **applied onto the running server's configuration object** (`settings.apply`), so that S3 import/sync, MaxMind refdata, and the block list use them immediately without a restart. Order: pasted credentials (memory) > screen values > `.env`; "Clear screen values" falls back to `.env`. `create_app` now uses a copy of the configuration (`cfg_env` = the original .env values). The CLI without a server (local `ingest`/`import`) also reads the screen values (`settings.for_cli`). (3) Secrets are never sent back (Access Key ID/Account ID masked as `AKIA…1234`), an empty field = unchanged, the audit records only the group name. Values are checked before saving (AWS key shape, ID+secret pair, region, numeric Account ID, CIDR, regex). **ASSUMPTION** as in (n): not encrypted in the account database. (4) Connection test: AWS = `ListObjectsV2` of 1 object on the parent folder/first allowed prefix; MaxMind = HEAD to the GeoLite2 download link (302 = key accepted, without downloading; refused when `S4_OFFLINE`). The Ingest screen names the source "saved in Configuration". Tests: `tests/test_settings.py` (15), Playwright e2e 21/21 (ID/EN, light/dark, 390 px phone), full pytest 374 passed. Also: EN label "1 hours" → "1 h". |
+| 25 | 2026-10-07 | (p) **Owner request**: "ubah semua yang berbau configuration, link, settingan, url, dll ke dalam .env" (move everything to do with configuration, links, settings, URLs, etc. into .env); the owner's choice: **keep the Configuration page, but have it write to the .env file**. Replaces the storage of (o)/(n)/(l) in the account database. (1) `monishield/envfile.py`: writes `.env` **in place** (safe for a Docker bind mount, file permissions kept), only the changed key lines; sample lines `# KEY=` are activated in place, the rest are appended below a marker; delete = `# KEY=` without the old value; the result is read back with `config.read_dotenv` and restored if it differs; values containing newlines are refused. (2) `settings.py`: AWS, MaxMind, block list, automatic S3 folders (`S4_S3_WATCH*`, new `S4_S3_WATCH_ENABLED`), and notifications (new: `S4_ALERT_*`, `TELEGRAM_BOT_TOKEN`, `DISCORD_WEBHOOK_URL`, `S4_SMTP_*`, `SMTP_PASSWORD`, `S4_DASHBOARD_URL`) are written to `.env` and then immediately applied onto the server configuration; `alerts.load(cfg)` reads from the configuration. Source of each value: `.env` / environment variable (overrides .env at start; marked on screen) / default. Old settings in `app_setting` are moved once to `.env` when the server starts and then deleted (if `.env` cannot be written: still used from memory + a warning). `create_app` with a `cfg` from the caller (tests) writes to `<state_dir>/.env`, not `v2/.env`. (3) URLs/limits that used to be hard-coded are now configuration fields: `S4_URL_MAXMIND` (must contain `{}`), `S4_URL_IP2ASN`, `S4_URL_LAND`, `S4_URL_BORDERS`, `S4_URL_PROVINCES`, `S4_URL_COUNTRIES`, `S4_URL_GEONAMES`, `S4_TELEGRAM_API`, `S4_GEO_MAX_AGE_DAYS` (1–30, license), `S4_ASN_MAX_AGE_DAYS`, `S4_MAP_MAX_AGE_DAYS`, `S4_UPLOAD_SESSION_HOURS`; the `rules.*_URL` constants stay as defaults (old-system comparison). What deliberately STAYS in code: the list of allowed Discord hosts (SSRF safeguard), the license attribution links on the map, sample placeholders. (4) Docker: `app` no longer uses `env_file:`; `./.env` is mounted at `/app/.env` (rw), `ingest` read-only; requirement `chgrp 10001 .env && chmod 660`. Verified in Docker: write from the API → the host file changes (permissions kept) → survives `restart` and `up -d --force-recreate`; read-only `.env` → `env_not_writable`. `.env.example` now contains all variables (tested). Tests: `test_settings.py` 20, Configuration e2e 22/22, Notifications 14/14. |
+| 25 | 2026-10-07 | (q) **Owner request**: "garis peta diberi animasi gerak agar kelihatan ke arah IP tujuan" (animate the map lines so that the direction towards the destination IP is visible) (preparation for realtime Kafka). `web/src/lib/mapFlow.js` + `MapView.svelte`: the base arcs now have a gradient (faint origin → bright server; the direction is readable without motion); particles (head + glow + fading tail, `line-gradient` per feature) travel along the same arcs (slow at the start/end, duration by arc length), frequency per arc ∝ √(requests/max) (0.6–3.8 s); a ripple at the server point on arrival. Max. 320 particles, ±30 fps, only 3 small GeoJSON sources updated; stops when the map is not visible (IntersectionObserver) / the tab is hidden. Play/pause button (aria-pressed, remembered in `map_anim`), paused by default under `prefers-reduced-motion` (WCAG 2.2.2/2.3.3). Realtime-ready: `pulse({lat, lon, n})` (bind:this) / window event `monishield:map-pulse`, the `live` prop turns off ambient particles; locations not yet on the map get a temporary arc. Tests: `tools/uji_animasi_peta.cjs` 17/17 (real data 6 Oct, 166 arcs; JS cost ±0.2 ms/frame); `tools/uji_tahap20.cjs` now pauses the animation (sources updated every frame make `map.loaded()` never true). The Kafka consumer itself has NOT been built yet. |
+| 25 | 2026-10-07 | (r) **Owner request**: "bagaimana cara mengecek hasil logging dari Kafka? bisa dibuat seperti logging existing?" (how can the logging output from Kafka be checked? can it be made like the existing logging?) (Rancher cluster logging → Kafka). `monishield/kafka_in.py`: a consumer in a server thread (kafka-python 3, pure Python; SASL PLAIN/SCRAM, SSL) reads Rancher messages (`log` + `kubernetes.namespace_name/container_name/pod_name` + `time`; fallback from `tag`), writes them to the inbox with the SAME folder/file name layout as the S3 export, then ingests periodically via IngestManager (single DuckDB owner, K1). Folder date: (D-1 00.00, D 00.00] WIB → D, as in S3. Service name = container, or from the pod prefix (Helm ingress `controller`). ns/container/pod names are validated (cannot escape the inbox). Offsets are committed after writing (at-least-once). Unreadable messages are counted + a sample of the reason. API: `GET /api/admin/kafka` (status, last 50 messages), `POST /api/admin/kafka/peek` (last 10 messages directly from the topic without a consumer group, + target file), `POST /api/admin/kafka/ingest`, `GET /api/live/map` (SSE every second: [lat, lon, count, module] from the local ip_info — no IPs; 204 when Kafka is off). Screens: a "Logs from Kafka" card (Ingest & import, Configuration), Configuration → Kafka section (written to .env, consumer restarted), map: LIVE badge + live mode (particles only from real events) on the folder being filled. `.env`: `S4_KAFKA_*`, `KAFKA_PASSWORD`. Docker: the image includes kafka-python; `kafka` profile (apache/kafka 3.9.1 KRaft, 1 partition, EXTERNAL listener for Rancher restricted to 127.0.0.1 by default). Tests: `tests/test_kafka.py` 10 (including: the same lines via S3 vs Kafka → identical files and database contents; SSE via a real uvicorn); real broker: 3000 messages from the 6 Oct log → folder 2026-10-08 (14 files) → automatic ingest, "Check messages in topic", realtime map (e2e 10/10); Docker compose app↔kafka:9092. Also: the `api_version_auto_timeout_ms` option does not exist in kafka-python 3 (replaced by `bootstrap_timeout_ms` 10 s). NOT yet tested against the real Rancher cluster. |
+| 25 | 2026-10-07 | (s) **Test fix** `tools/uji_tahap20.cjs` ("mouse wheel over the map … Ctrl + wheel zooms in" failed, also on the version before the animation): after a plain wheel scrolls the page by 300 px, the centre of the map is covered by the sticky page header (`elementFromPoint` = `HEADER.top`), so Ctrl + wheel lands on the page header. The application is correct; the test now scrolls the map back into view before Ctrl + wheel and checks that the target point is the map canvas. Result: 26/26 (zoom 5.00 → 5.50) on the real 6 Oct data. |
+| 11 | 2026-10-06 | (a) **Files**: the ten page endpoints are written in one module `api/pages.py` and the 25 table definitions + table endpoint in `api/tables.py` (plan: one module per page + definitions in `common.py`); same content, far less code. (b) **A display difference not yet written in TRD §4.4**, now added to item 1: the *endpoint performance* table/chart takes the 25 highest P95s from ALL endpoints with ≥5 requests (TRD §5.4), whereas the old dashboard picked from the 150 busiest endpoints; the content differs for nginx in 5 of the 11 folders. Every old row is still in the complete v2 list (E2). **The owner should be aware of this.** (c) The "5xx responses per hour" chart (Availability) is read from that folder's raw `nginx_access` table, because `agg_hour.err` now also includes error log lines (item 2); 9 ms on the largest folder. (d) `ETag` is sent; 304 responses not yet implemented. (e) The `q` filter also searches the IP network owner name. (f) Tables limited to "all" use a limit of 500. (g) Security/Root Causes/Business are always `available: true` with a source marker (`nginx`, `sources`), because those pages still have content even when one source is absent. (h) `tools/ukur.py --api` by default runs the application in-process; against a running server it needs a session cookie in `S4_COOKIE`. (i) ASSUMPTION X6 stands: flow table of the first 100 rows. Result: `pytest` **239 passed, 2 skipped**; the role matrix covers 28 routes; **E2: 601 lists, 9,889 old rows, 0 different** (E1 3,022 / E3 1,734 / E4 169 still 0); real server + curl: security 10-06 = 88 requests / 14 IPs, pod connection errors 09-30 = 1,200, map 09-28 `no_nginx`, `c401` 09-29 total 653 (208 matching `count`, 5 rows), `sort=1;drop` → 400, without a session → 401; HTTP layer on the largest folder (09-29): slowest endpoint 56 ms (target 300), largest response 174 KB (target 500). |

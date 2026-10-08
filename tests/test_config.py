@@ -1,9 +1,10 @@
-"""Konfigurasi: lingkungan > .env > config.toml > bawaan; rahasia tidak pernah tercetak."""
+"""Configuration: environment > .env > config.toml > defaults; secrets are never printed."""
 import dataclasses, os
 
 import pytest
 
-from monishield import config, rules
+from monishield.infrastructure import config
+from monishield.domain import rules
 
 
 def env_file(tmp_path, text):
@@ -45,12 +46,12 @@ def test_lingkungan_mengalahkan_dotenv(tmp_path):
 def test_rahasia_tidak_tercetak(tmp_path):
     p = env_file(tmp_path, 'S4_ADMIN_PASSWORD=sandi-panjang-sekali\nS4_JOB_TOKEN=zzTOKENzz\nMAXMIND_LICENSE_KEY=zzLISENSIzz\nAWS_SECRET_ACCESS_KEY=zzAWSzz\n')
     pub = config.load(env={}, dotenv=p).public()
-    assert all(pub[k] in ('diisi', 'kosong') for k in config.SECRETS)
+    assert all(pub[k] in ('set', 'empty') for k in config.SECRETS)
     assert not any(s in str(pub) for s in ('sandi-panjang-sekali', 'zzTOKENzz', 'zzLISENSIzz', 'zzAWSzz'))
 
 
-@pytest.mark.parametrize('text, pesan', [('S4_TIDAK_ADA=1\n', 'kunci tidak dikenal'), ('S4_SESSION_IDLE_MINUTES=abc\n', 'S4_SESSION_IDLE_MINUTES'),
-                                          ('S4_COOKIE_SECURE=mungkin\n', 'harus true atau false'), ('S4_IMPORT_BUCKETS=[1]\n', 'harus JSON'), ('ini bukan pasangan\n', 'bukan KEY=VALUE')])
+@pytest.mark.parametrize('text, pesan', [('S4_TIDAK_ADA=1\n', 'unknown keys'), ('S4_SESSION_IDLE_MINUTES=abc\n', 'S4_SESSION_IDLE_MINUTES'),
+                                          ('S4_COOKIE_SECURE=mungkin\n', 'must be true or false'), ('S4_IMPORT_BUCKETS=[1]\n', 'must be JSON'), ('ini bukan pasangan\n', 'not KEY=VALUE')])
 def test_salah_ketik_menggagalkan_dengan_pesan(tmp_path, text, pesan):
     with pytest.raises(SystemExit) as e: config.load(env={}, dotenv=env_file(tmp_path, text))
     assert pesan in str(e.value)
@@ -70,6 +71,6 @@ def test_contoh_env_bisa_dimuat():
 
 
 def test_env_example_memuat_semua_variabel():
-    """.env.example "LENGKAP": setiap kolom konfigurasi (termasuk URL sumber unduhan dan notifikasi) punya barisnya."""
+    """.env.example is "COMPLETE": every config field (including download source URLs and notifications) has its line."""
     t = open(os.path.join(config.V2_DIR, '.env.example')).read()
     assert [config.env_name(f.name) for f in dataclasses.fields(config.Config) if config.env_name(f.name) + '=' not in t] == []

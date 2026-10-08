@@ -1,8 +1,8 @@
-<!-- Pemilih tanggal bergaya MoniShield (permintaan pemilik 2026-10-07: input date bawaan browser "kurang bagus").
-     Tombol berisi tanggal terformat (ID/EN) -> kalender sembul: bulan sebelumnya/berikutnya, Senin di kiri, hari ini
-     bercincin, terpilih berwarna aksen, tanggal sesudah `max` nonaktif, "Hari ini" dan "Kosongkan".
-     Papan ketik (pola grid ARIA): panah ±1 hari/±1 minggu, PageUp/PageDown ±1 bulan, Home/End awal/akhir minggu,
-     Enter/Spasi memilih, Esc menutup dan fokus kembali ke tombol. Nilai = 'YYYY-MM-DD' atau ''. -->
+<!-- MoniShield-styled date picker (owner request 2026-10-07: the browser's built-in date input is "kurang bagus").
+     Button holding the formatted date (ID/EN) -> popup calendar: previous/next month, Monday on the left, today
+     ringed, selected in accent color, dates after `max` disabled, "Hari ini" and "Kosongkan".
+     Keyboard (ARIA grid pattern): arrows ±1 day/±1 week, PageUp/PageDown ±1 month, Home/End start/end of week,
+     Enter/Space selects, Esc closes and returns focus to the button. Value = 'YYYY-MM-DD' or ''. -->
 <script>
   import { tick } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -20,7 +20,7 @@
     const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
     d.setUTCDate(Math.min(day, last)); return iso(d);
   };
-  const wib = () => iso(new Date(Date.now() + 7 * 3600e3));   // tanggal folder = WIB
+  const wib = () => iso(new Date(Date.now() + 7 * 3600e3));   // folder date = WIB
   const today = $derived(wib());
   const limit = $derived(max ?? today);
 
@@ -28,10 +28,10 @@
   const month = $derived(focus.slice(0, 7));
   const title = $derived(focus ? new Intl.DateTimeFormat(locale($lang), { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(parse(focus)) : '');
   const weekdays = $derived(Array.from({ length: 7 }, (_, i) =>
-    new Intl.DateTimeFormat(locale($lang), { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 1 + i)))));   // 1 Jan 2024 = Senin
+    new Intl.DateTimeFormat(locale($lang), { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 1 + i)))));   // 1 Jan 2024 = Monday
   const weeks = $derived.by(() => {
     if (!focus) return [];
-    const first = `${month}-01`, shift = (parse(first).getUTCDay() + 6) % 7;   // Senin = 0
+    const first = `${month}-01`, shift = (parse(first).getUTCDay() + 6) % 7;   // Monday = 0
     const start = add(first, -shift);
     return Array.from({ length: 6 }, (_, w) => Array.from({ length: 7 }, (_, d) => add(start, w * 7 + d)));
   });

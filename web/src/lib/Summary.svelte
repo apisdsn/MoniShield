@@ -1,5 +1,5 @@
-<!-- Kotak ringkasan bertitik (DRD §4.6 "Ringkasan akar masalah"): tiap butir = deret potongan teks, tebal, atau kode,
-     jadi kalimat dua bahasa bisa memuat <code> tanpa HTML dalam string. items: [[{t}|{b}|{code}], …] -->
+<!-- Dotted summary box (DRD §4.6 "Ringkasan akar masalah"): each item = a sequence of text, bold, or code pieces,
+     so bilingual sentences can contain <code> without HTML in strings. items: [[{t}|{b}|{code}], …] -->
 <script>
   let { title, items = [] } = $props();
 </script>

@@ -5,34 +5,36 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "monishield"
 version = "2.0.0"
-description = "Dashboard log SIMPEL4 (v2): ingest ke DuckDB, API FastAPI, tampilan Svelte"
+description = "SIMPEL4 log dashboard (v2): ingest into DuckDB, FastAPI API, Svelte UI"
 requires-python = ">=3.12"  # csv.QUOTE_NOTNULL (parse.py)
 dependencies = [
-    "duckdb>=1.1,<2",       # penyimpanan dan query
-    "fastapi>=0.110,<1",    # API dan berkas statis
+    "duckdb>=1.1,<2",       # storage and queries
+    "fastapi>=0.110,<1",    # API and static files
     "uvicorn>=0.29,<1",     # server ASGI
-    "sqlalchemy>=2.0,<3",   # ORM untuk akun, sesi, audit (PostgreSQL di server; SQLite untuk uji/lokal)
+    "sqlalchemy>=2.0,<3",   # ORM for accounts, sessions, audit (PostgreSQL on the server; SQLite for tests/local)
     "psycopg[binary]>=3.1,<4",  # driver PostgreSQL
-    "pyjwt>=2.8,<3",        # token sesi JWT (HS256)
+    "pyjwt>=2.8,<3",        # JWT session tokens (HS256)
 ]
 
 [project.optional-dependencies]
 test = [
-    "pytest>=8",   # menjalankan uji
-    "httpx>=0.27", # dibutuhkan klien uji FastAPI
+    "pytest>=8",   # runs the tests
+    "httpx>=0.27", # needed by the FastAPI test client
 ]
 s3 = [
-    "boto3>=1.34", # impor dari awalan S3 (Tahap 19); hanya ListObjectsV2 dan GetObject
+    "boto3>=1.34", # import from an S3 prefix (Stage 19); only ListObjectsV2 and GetObject
 ]
 kafka = [
-    "kafka-python>=2.0.2,<4", # log dari Kafka (Rancher cluster logging); murni Python, mendukung SASL PLAIN/SCRAM dan SSL
+    "kafka-python>=2.0.2,<4", # logs from Kafka (Rancher cluster logging); pure Python, supports SASL PLAIN/SCRAM and SSL
 ]
 
-[tool.setuptools]
-packages = ["monishield", "monishield.derive", "monishield.api"]
+[tool.setuptools.packages.find]
+include = ["monishield*"]   # clean architecture layers: domain, application, infrastructure, interfaces
 
 [tool.setuptools.package-data]
-monishield = ["schema.sql", "derive/*.sql", "crs_rules.json", "capec.json", "CRS-LICENSE.txt"]
+"monishield.domain" = ["crs_rules.json", "capec.json", "CRS-LICENSE.txt"]
+"monishield.infrastructure" = ["schema.sql"]
+"monishield.infrastructure.derive" = ["*.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

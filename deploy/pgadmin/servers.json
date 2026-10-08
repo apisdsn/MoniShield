@@ -1,14 +1,14 @@
 {
   "Servers": {
     "1": {
-      "Name": "MoniShield — akun, sesi, audit",
+      "Name": "MoniShield — accounts, sessions, audit",
       "Group": "MoniShield",
       "Host": "postgres",
       "Port": 5432,
       "MaintenanceDB": "monishield",
       "Username": "monishield",
       "SSLMode": "prefer",
-      "Comment": "PostgreSQL di jaringan compose. Sandi = POSTGRES_PASSWORD di .env (diminta saat pertama tersambung). Data log ada di DuckDB, bukan di sini: lihat lewat DbGate (--profile dbgate)."
+      "Comment": "PostgreSQL on the compose network. Password = POSTGRES_PASSWORD in .env (asked on first connect). Log data is in DuckDB, not here: view it through DbGate (--profile dbgate)."
     }
   }
 }

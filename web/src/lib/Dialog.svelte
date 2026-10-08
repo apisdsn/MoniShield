@@ -1,10 +1,10 @@
-<!-- Dialog modal (DRD §3.11): <dialog> bawaan browser dengan showModal(), jadi isi di belakangnya tidak bisa
-     difokus (fokus terkunci di dalam), Esc menutup, dan judul menjadi nama aksesibel. Fokus kembali ke elemen yang
-     membukanya. Di ponsel (≤ 560 px) layar penuh. open = $bindable; onclose dipanggil setiap kali tertutup. -->
+<!-- Modal dialog (DRD §3.11): the browser's built-in <dialog> with showModal(), so content behind it cannot be
+     focused (focus trapped inside), Esc closes, and the title becomes the accessible name. Focus returns to the element
+     that opened it. Full screen on phones (≤ 560 px). open = $bindable; onclose is called every time it closes. -->
 <script>
   import { tick } from 'svelte';
   import { t } from '../i18n.js';
-  let { open = $bindable(false), title, onclose = null, returnFocus = null, children, footer = null } = $props();   // returnFocus: cadangan bila pemicunya sudah hilang dari halaman
+  let { open = $bindable(false), title, onclose = null, returnFocus = null, children, footer = null } = $props();   // returnFocus: fallback when the trigger is already gone from the page
   let el = $state(), trigger = null;
   const id = `dlg-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -40,7 +40,7 @@
   }
   .dlg::backdrop { background: rgba(3, 7, 10, 0.62); }
   header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 6px; }
-  .dlg h2 { font-size: 1.0625rem; font-weight: 600; color: var(--heading); text-transform: none; }   /* judul memuat nama user: apa adanya */
+  .dlg h2 { font-size: 1.0625rem; font-weight: 600; color: var(--heading); text-transform: none; }   /* title contains the user name: as is */
   .x { width: 36px; height: 36px; font-size: 1.25rem; }
   .body { padding: 6px 20px 20px; }
   footer { display: flex; gap: 10px; flex-wrap: wrap; padding: 0 20px 20px; }

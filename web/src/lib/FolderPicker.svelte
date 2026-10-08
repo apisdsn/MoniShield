@@ -1,12 +1,12 @@
-<!-- Pemilih folder (DRD §6.1, ASUMSI D1): select bawaan browser, terbaru di atas, dikelompokkan per bulan bila
-     folder > 60. Panah ◀ ▶ untuk folder sebelum/berikut (U14; pintasan [ ] di App). Nonaktif di Tren. -->
+<!-- Folder picker (DRD §6.1, ASSUMPTION D1): the browser's built-in select, newest on top, grouped per month when
+     folders > 60. ◀ ▶ arrows for previous/next folder (U14; shortcuts [ ] in App). Disabled in Trends. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { dLabel, dShort } from '../format.js';
   import { onMount } from 'svelte';
   let { folders = [], value, disabled = false, onchange } = $props();
 
-  // layar sempit: label pendek (tanggal saja) agar tidak terpotong; nama "Folder log" tetap di <label> tersembunyi
+  // narrow screen: short label (date only) so it is not cut off; the name "Folder log" stays in a hidden <label>
   let compact = $state(false);
   onMount(() => {
     const mq = matchMedia('(max-width: 900px)');
@@ -16,7 +16,7 @@
     return () => mq.removeEventListener('change', f);
   });
 
-  const idx = $derived(folders.findIndex((f) => f.folder === value));   // folders: terbaru dulu
+  const idx = $derived(folders.findIndex((f) => f.folder === value));   // folders: newest first
   const groups = $derived.by(() => {
     if (folders.length <= 60) return [{ label: null, items: folders }];
     const g = new Map();
@@ -28,7 +28,8 @@
     return [...g.values()];
   });
   function label(f) {
-    let s = compact ? dLabel(f.folder, $lang) : $t('folder.option', { date: dLabel(f.folder, $lang) });
+    const d = f.source === 'kafka' ? $t('folder.kafka', { date: dLabel(f.folder, $lang) }) : dLabel(f.folder, $lang);   // Kafka folders are labelled
+    let s = compact ? d : $t('folder.option', { date: d });
     if (!compact && f.range_start) s += ` · ${$t('folder.log_of', { date: dShort(f.range_start, $lang) })}`;
     if (!f.lines) s += ` · ${f.files_corrupt ? $t('folder.corrupt') : $t('folder.empty')}`;
     return s;

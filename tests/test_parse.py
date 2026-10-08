@@ -1,10 +1,11 @@
-"""Parser v2 (TRD §9.1): (a) baris asli per format -> baris tabel dan penghitung; (b) file log nyata di tiga
-folder -> sama dengan parse() sistem lama: baris, error, warning, level, dan isi yang kelak diagregasi."""
+"""Parser v2 (TRD §9.1): (a) real lines per format -> table rows and counters; (b) real log files in three
+folders -> same as the old system's parse(): lines, errors, warnings, levels, and the content aggregated later."""
 import collections, csv, datetime, glob, os
 
 import pytest
 
-from monishield import db, parse, rules
+from monishield.infrastructure import db, logfiles
+from monishield.domain import parse, rules
 from conftest import ROOT
 
 FIX = os.path.join(os.path.dirname(__file__), 'fixtures', 'lines')
@@ -15,7 +16,7 @@ def read_tables(out_dir):
     out = {}
     for f in glob.glob(os.path.join(out_dir, '*.csv')):
         with open(f, newline='', encoding='utf-8') as fh:
-            rows = list(csv.reader(fh, quoting=csv.QUOTE_NOTNULL))  # kosong tanpa kutip -> None
+            rows = list(csv.reader(fh, quoting=csv.QUOTE_NOTNULL))  # empty without quotes -> None
         out[os.path.basename(f)[:-4]] = [dict(zip(rows[0], r)) for r in rows[1:]]
     return out
 
@@ -25,18 +26,18 @@ def run(tmp_path, service, fixture=None, lines=None):
     if lines is not None:
         os.makedirs(tmp_path, exist_ok=True)
         src = str(tmp_path / 'in.log'); open(src, 'w', encoding='utf-8').write(''.join(l + '\n' for l in lines))
-    s = parse.parse_file(src, service, str(tmp_path / 'out'))
+    s = logfiles.parse_file(src, service, str(tmp_path / 'out'))
     return s, collections.defaultdict(list, read_tables(str(tmp_path / 'out')))
 
 
-# ------------------------------------------------------------------ (a) baris asli per format
+# ------------------------------------------------------------------ (a) real lines per format
 def test_kolom_csv_sama_dengan_skema():
     con = db.open(':memory:')
     for table, cols in parse.TABLES.items():
         skema = [r[0] for r in con.execute(f"select column_name from information_schema.columns where table_name = '{table}' order by ordinal_position").fetchall()]
-        turunan = ['crs_rules', 'capec', 'crs_attack', 'crs_severity', 'crs_score'] if table == 'nginx_access' else []   # Tahap 21: diisi derive, bukan parser
+        turunan = ['crs_rules', 'capec', 'crs_attack', 'crs_severity', 'crs_score'] if table == 'nginx_access' else []   # Stage 21: filled by derive, not the parser
         assert skema == ['file_id', 'line_no', 'folder'] + cols[1:] + turunan, table
-    db.open(':memory:').execute(open(db.SCHEMA).read())  # skema aman dijalankan dua kali
+    db.open(':memory:').execute(open(db.SCHEMA).read())  # schema is safe to run twice
 
 
 def test_nginx(tmp_path):
@@ -49,10 +50,10 @@ def test_nginx(tmp_path):
     assert a[0]['attack_cat'] is None and a[0]['is_uptime_kuma'] == 'false' and len(a[0]['request_id']) == 32
     assert a[1]['is_uptime_kuma'] == 'true' and a[1]['pod_final'] == '10.42.233.139:3000' and a[1]['up_addrs'] == '10.42.233.139:3000' and a[1]['up_statuses'] == '200'
     assert a[1]['request_id'] == 'bbc49c2ed69b931599dd60d93314128c' and a[1]['request_time'] == '0.001'
-    # retry: dua percobaan, pod yang menjawab = alamat terakhir
+    # retry: two attempts, answering pod = last address
     addrs, sts = a[2]['up_addrs'].split(','), a[2]['up_statuses'].split(',')
     assert len(addrs) == len(sts) == 2 and a[2]['pod_final'] == addrs[-1] and a[2]['path_key'] == '/tx-laporan/count' and '?' in a[2]['path']
-    # ditolak di ingress: tanpa upstream
+    # rejected at the ingress: no upstream
     assert (a[3]['upstream'], a[3]['pod_final'], a[3]['up_addrs'], a[3]['up_statuses'], a[3]['status']) == ('-', '-', '-', '-', '403')
     assert a[3]['attack_cat'] == 'Probe PHP / CGI'
     assert a[4]['status'] == '401' and a[4]['path_key'] == '/v1/user/select'
@@ -63,17 +64,17 @@ def test_nginx(tmp_path):
     assert e[0] == dict(line_no='8', service='nginx-ingress-controller', ts_utc='2026-09-27 18:45:30', level='error',
                         message='recv() failed (104: Connection reset by peer) while reading response header from upstream',
                         upstream_host='10.42.245.132:8080', kind='recv() failed (Connection reset by peer) while reading response header from upstream', request='GET /')
-    assert (e[1]['upstream_host'], e[1]['kind'], e[1]['request']) == (None, None, None)  # bukan error upstream
+    assert (e[1]['upstream_host'], e[1]['kind'], e[1]['request']) == (None, None, None)  # not an upstream error
     assert e[2]['upstream_host'] == '10.42.245.145:3000'
     m = t['log_message']
     assert [(r['line_no'], r['level']) for r in m] == [('8', 'ERROR'), ('9', 'WARN'), ('10', 'CRIT')]
     assert m[1]['msg_key'] == 'WARN | a client request body is buffered to a temporary file /tmp/client-body/#' and m[1]['raw'].startswith('2026/09/27 19:23:53 [warn]')
-    assert s['rows'] == dict(nginx_access=7, nginx_error=3, log_message=3) and s['counters'] == []  # baris pengendali diabaikan
+    assert s['rows'] == dict(nginx_access=7, nginx_error=3, log_message=3) and s['counters'] == []  # control lines ignored
 
 
 def test_frontend(tmp_path):
     s, t = run(tmp_path, 'om-fe-inhouse')
-    assert (s['lines'], s['err'], s['warn']) == (5, 1, 0)  # [notice] tanpa '*N' dan entrypoint diabaikan
+    assert (s['lines'], s['err'], s['warn']) == (5, 1, 0)  # [notice] without '*N' and entrypoint are ignored
     assert t['fe_access'] == [
         dict(line_no='1', ts_utc='2026-09-27 17:03:24', ip='103.176.97.213', method='GET', path='/lapor-ombudsman', path_key='/lapor-ombudsman', status='200'),
         dict(line_no='2', ts_utc='2026-09-27 23:29:19', ip='103.142.111.209', method='GET', path='/apple-touch-icon-precomposed.png', path_key='/apple-touch-icon-precomposed.png', status='404')]
@@ -82,7 +83,7 @@ def test_frontend(tmp_path):
 
 
 def test_level_error_nginx_sama_di_ingress_dan_frontend(tmp_path):
-    """TRD §4.4 butir 3: crit/alert/emerg = error di kedua layanan (lama: frontend menghitungnya warning)."""
+    """TRD §4.4 item 3: crit/alert/emerg = error in both services (old: the frontend counted them as warnings)."""
     crit = open(os.path.join(FIX, 'nginx-ingress-controller.txt')).read().splitlines()[9]
     lines = [crit, crit.replace('[crit]', '[alert]'), crit.replace('[crit]', '[emerg]'), crit.replace('[crit]', '[warn]'), crit.replace('[crit]', '[info]')]
     for svc in ('nginx-ingress-controller', 'om-fe-inhouse'):
@@ -92,14 +93,14 @@ def test_level_error_nginx_sama_di_ingress_dan_frontend(tmp_path):
 
 def test_simpel_loop(tmp_path):
     s, t = run(tmp_path, 'om-be-simpel-loop')
-    assert (s['lines'], s['err'], s['warn']) == (9, 0, 2)  # dua event gagal non-5xx
+    assert (s['lines'], s['err'], s['warn']) == (9, 0, 2)  # two non-5xx failed events
     ev = t['sl_event']
     assert ev[0] == dict(line_no='1', level='INFO', request_id='b822909ecd30abd7322cb20867352854', event='http.request.completed', method='GET',
                          path='/tx-file-upload', path_key='/tx-file-upload', status='200', ip='103.176.97.213', duration_ms='48', failed='false', err_name=None, err_message=None)
     assert (ev[1]['method'], ev[1]['duration_ms'], ev[1]['status']) == ('PATCH', '3243', '200')
     assert ev[2] == dict(line_no='3', level='ERROR', request_id='69dda3958192b7ac11f28e3e2dc2f10c', event='http.request.failed', method='GET', path='/tx-laporan/count',
                          path_key='/tx-laporan/count', status='401', ip=None, duration_ms='1', failed='true', err_name='UnauthorizedError', err_message='Unauthorized')
-    assert (ev[3]['status'], ev[3]['failed'], ev[3]['err_name']) == ('200', 'true', 'MulterError')  # gagal walau status 200
+    assert (ev[3]['status'], ev[3]['failed'], ev[3]['err_name']) == ('200', 'true', 'MulterError')  # failed even though status 200
     assert [r['msg_key'] for r in t['log_message']] == ['WARN | # UnauthorizedError: Unauthorized', 'WARN | # MulterError: File too large']
     assert s['counters'] == [['biz', 'Email Terkirim', 1], ['level', 'ERROR', 2], ['level', 'INFO', 4], ['level', 'PERFORMANCE', 1],
                              ['mail', 'sendNotificationMailToKepalaKeasistenanRiksa', 1]]
@@ -122,20 +123,20 @@ def test_spring_appsmanager(tmp_path):
     assert len(r) == 7 and (r[0]['ts_utc'], r[0]['level'], r[0]['thread'], r[0]['logger']) == ('2026-09-25 16:04:28', 'INFO', '           main', 'i.c.appsmanager.AppsmanagerApplication')
     assert (r[0]['restart_app'], r[0]['restart_seconds']) == ('AppsmanagerApplication', '17.163')
     assert r[1]['jwt_expired_ms'] == '385316' and r[1]['refresh_expired'] == 'false' and r[1]['level'] == 'ERROR'
-    assert r[2]['refresh_expired'] == 'true' and r[2]['jwt_expired_ms'] is None  # pola JWT tidak cocok pada baris refresh
+    assert r[2]['refresh_expired'] == 'true' and r[2]['jwt_expired_ms'] is None  # JWT pattern does not match the refresh line
     assert (r[3]['login_kind'], r[3]['login_account'], r[3]['login_ip']) == ('fail', 'akun.contoh@ombudsman.go.id', '39.194.3.114')
     assert (r[4]['login_kind'], r[4]['login_ip']) == ('lock', '36.83.211.41')
     assert (r[5]['login_kind'], r[5]['login_account'], r[5]['login_ip']) == ('ok', 'akun.contoh', '103.189.62.129')
     assert r[6]['login_kind'] is None and r[6]['level'] == 'WARN'
     assert [(m['line_no'], m['level']) for m in t['log_message']] == [('2', 'ERROR'), ('3', 'WARN'), ('4', 'WARN'), ('5', 'WARN'), ('7', 'WARN'), ('8', 'EXC')]
     assert t['log_message'][2]['msg_key'] == "WARN | UserController: SECURITY EVENT: Invalid password for user/email: '<email>' from IP: #.# (Attempt #/#)"
-    assert s['counters'] == [['level', 'ERROR', 1], ['level', 'Hibernate SQL', 1], ['level', 'INFO', 2], ['level', 'WARN', 4]]  # EXC tidak menambah err
+    assert s['counters'] == [['level', 'ERROR', 1], ['level', 'Hibernate SQL', 1], ['level', 'INFO', 2], ['level', 'WARN', 4]]  # EXC does not add to err
 
 
 def test_spring_report_template_per_thread(tmp_path):
     s, t = run(tmp_path, 'om-be-report')
     assert [(r['pdf_template'], r['pdf_failed']) for r in t['spring_line']] == [(None, None), ('cover_map_kuning', 'false'), (None, None), ('?', 'true')]
-    # baris ke-4 memakai thread lain (exec-10) daripada 'pdf path' di baris ke-3 (exec-3) -> template '?', seperti sistem lama
+    # line 4 uses another thread (exec-10) than 'pdf path' on line 3 (exec-3) -> template '?', like the old system
 
 
 def test_coredns(tmp_path):
@@ -161,7 +162,7 @@ def test_gz_sama_dengan_log(tmp_path):
     import gzip, shutil
     src = os.path.join(FIX, 'om-be-simpel-loop.txt'); gz = str(tmp_path / 'x.log.gz')
     with open(src, 'rb') as a, gzip.open(gz, 'wb') as b: shutil.copyfileobj(a, b)
-    s1 = parse.parse_file(src, 'om-be-simpel-loop', str(tmp_path / 'a')); s2 = parse.parse_file(gz, 'om-be-simpel-loop', str(tmp_path / 'b'))
+    s1 = logfiles.parse_file(src, 'om-be-simpel-loop', str(tmp_path / 'a')); s2 = logfiles.parse_file(gz, 'om-be-simpel-loop', str(tmp_path / 'b'))
     assert s1 == s2 and read_tables(str(tmp_path / 'a')) == read_tables(str(tmp_path / 'b'))
 
 
@@ -169,10 +170,10 @@ def test_teks_kosong_dibedakan_dari_null(tmp_path):
     line = '1.2.3.4 - - [04/Oct/2026:17:00:34 +0000] "GET / HTTP/1.1" 200 6599 "-" "" 355 0.001 [] [] - - - - ' + 'a' * 32
     _, t = run(tmp_path, 'nginx-ingress-controller', lines=[line, line[:-33]])
     assert t['nginx_access'][0]['ua'] == '' and t['nginx_access'][0]['attack_cat'] is None and t['nginx_access'][0]['upstream'] == '-'
-    assert t['nginx_access'][1]['request_id'] is None and t['nginx_access'][1]['pod_final'] == '-'  # ekor tidak cocok
+    assert t['nginx_access'][1]['request_id'] is None and t['nginx_access'][1]['pod_final'] == '-'  # tail does not match
 
 
-# ------------------------------------------------------------------ (b) file nyata vs parse() lama
+# ------------------------------------------------------------------ (b) real files vs old parse()
 FOLDERS = ('2026-09-27', '2026-09-29', '2026-10-06')
 SERVICES = ('nginx-ingress-controller', 'om-fe-inhouse', 'om-be-simpel-loop', 'om-be-appsmanager', 'om-be-referensi', 'om-be-report', 'coredns')
 
@@ -189,8 +190,8 @@ def test_sama_dengan_parser_lama(old, tmp_path, folder, service):
     for i, f in enumerate(files):
         pod = rules.pod_name(service, os.path.basename(f)); s['_pod'] = pod; e0, w0, n = s['err'], s['warn'], 0
         for n, line in enumerate(open(f, errors='replace'), 1): old.parse(service, line, s)
-        new = parse.parse_file(f, service, str(tmp_path / str(i)))
-        assert (new['lines'], new['err'], new['warn']) == (n, s['err'] - e0, s['warn'] - w0), os.path.basename(f)  # = D.files lama
+        new = logfiles.parse_file(f, service, str(tmp_path / str(i)))
+        assert (new['lines'], new['err'], new['warn']) == (n, s['err'] - e0, s['warn'] - w0), os.path.basename(f)  # = old D.files
         for k, key, c in new['counters']: counters[k, key] += c
         for table, rows in read_tables(str(tmp_path / str(i))).items():
             for r in rows: T[table].append(dict(r, pod=pod))

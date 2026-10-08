@@ -1,6 +1,6 @@
-<!-- Pod (DRD §3.7, inv. §2.7): 5 KPI, catatan, 2 chart, 3 tabel. File log dari ringkasan folder (sudah dimuat kerangka);
-     pod backend + restart dari GET /api/folders/{folder}/pods. Berubah: "Pod dengan retry 502" -> "Pod dengan retry"
-     (B10); status file "Rusak" (B05). -->
+<!-- Pods (DRD §3.7, inv. §2.7): 5 KPIs, notes, 2 charts, 3 tables. Log files from the folder summary (already loaded by the shell);
+     backend pods + restarts from GET /api/folders/{folder}/pods. Changed: "Pod dengan retry 502" -> "Pod dengan retry"
+     (B10); file status "Rusak" (B05). -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -35,7 +35,7 @@
   const errFiles = $derived((files || []).filter((f) => f.err).sort((a, b) => b.err - a.err).slice(0, 15));
   const pods = $derived(data?.tables['backend-pods'] || { total: 0, rows: [] });
   const topPods = $derived([...pods.rows].sort((a, b) => b.requests - a.requests).slice(0, 15));
-  const STATUS = { ok: ['ok', 'pod.has_log'], kosong: [2, 'pod.no_log'], rusak: [2, 'file.rusak'], gagal: [3, 'file.gagal'] };
+  const STATUS = { ok: ['ok', 'pod.has_log'], empty: [2, 'pod.no_log'], corrupt: [2, 'file.rusak'], failed: [3, 'file.gagal'] };
 </script>
 
 {#if error && !data}

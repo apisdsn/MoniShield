@@ -1,6 +1,6 @@
-<!-- Akar Masalah (DRD §3.5, inv. §2.5): "Ringkasan akar masalah" (hingga 5 butir), 4 chart, 3 tabel.
-     Baru (B07): "Refresh token kedaluwarsa: N" di bawah chart umur JWT. Upstream DNS dari konfigurasi (lama: tulis mati).
-     Satu permintaan: GET /api/folders/{folder}/rootcause. -->
+<!-- Root Cause (DRD §3.5, inv. §2.5): "Ringkasan akar masalah" (up to 5 items), 4 charts, 3 tables.
+     New (B07): "Refresh token kedaluwarsa: N" below the JWT age chart. DNS upstream from configuration (old: hard-coded).
+     One request: GET /api/folders/{folder}/rootcause. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -31,7 +31,7 @@
 
   const BUCKETS = ['< 5 Menit', '5–60 Menit', '1–24 Jam', '1–7 Hari', '> 7 Hari'];
   const bucketKey = (b) => `jwt.b${BUCKETS.indexOf(b)}`;
-  // dampak DNS timeout per domain (lama: DNS_IMPACT); lainnya "Resolusi domain eksternal"
+  // DNS timeout impact per domain (old: DNS_IMPACT); others "Resolusi domain eksternal"
   const IMPACT = [[/backup|s3\./i, 'rc.impact.backup'], [/pg-|postgres|\.local\.?$/i, 'rc.impact.db'], [/rancher|longhorn/i, 'rc.impact.rancher']];
   const impact = (d) => (IMPACT.find(([r]) => r.test(d)) || [0, 'rc.impact.external'])[1];
   const pct0 = (a, b) => (b ? `${num((a / b) * 100, $lang, 0)}%` : '-');

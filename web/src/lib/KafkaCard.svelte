@@ -1,15 +1,16 @@
-<!-- Kartu "Log dari Kafka" (permintaan pemilik 2026-10-07: "bagaimana cara mengecek hasil logging dari Kafka? bisa dibuat
-     seperti logging yang sekarang?"; API monishield/api/kafka.py). Menampilkan status konsumen (tersambung / galat),
-     pesan diterima, ditulis ke folder, dilewati (+ alasan contoh), per layanan, ingest terakhir, dan 50 pesan terakhir.
-     "Cek pesan di topic" mengambil pesan TERAKHIR langsung dari Kafka (tanpa menggeser posisi baca) dan menunjukkan file
-     tujuan masing-masing — cara memastikan format Rancher terbaca sebelum/tanpa menunggu ingest.
-     Dipakai di layar Ingest & impor dan di bagian Kafka layar Konfigurasi (`compact`). -->
+<!-- "Log dari Kafka" card (owner request 2026-10-07: "bagaimana cara mengecek hasil logging dari Kafka? bisa dibuat
+     seperti logging yang sekarang?" — how to check the logging results from Kafka, like the current logging; API monishield/api/kafka.py).
+     Shows the consumer status (connected / error), messages received, written to folders, skipped (+ sample reasons),
+     per service, last ingest, and the last 50 messages.
+     "Cek pesan di topic" fetches the LATEST messages directly from Kafka (without moving the read position) and shows each one's
+     target file — a way to confirm the Rancher format is readable before/without waiting for ingest.
+     Used on the Ingest & import screen and in the Kafka section of the Configuration page (`compact`). -->
 <script>
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num, tWIB, utcToWib } from '../format.js';
-  import { errText } from '../srv.js';
+  import { errText, srv } from '../srv.js';
   import { toast } from './Toast.svelte';
   import SeverityTag from './SeverityTag.svelte';
 
@@ -27,7 +28,7 @@
     busy = 'ingest';
     try { await api.post('/api/admin/kafka/ingest', {}); toast($t('kf.ingest_started')); setTimeout(load, 800); } catch (e) { toast($errText(e)); } finally { busy = ''; }
   }
-  const STATE = { berjalan: ['ok', 'kf.st.running'], menyambung: [1, 'kf.st.connecting'], galat: [3, 'kf.st.error'], mati: [1, 'kf.st.off'] };
+  const STATE = { running: ['ok', 'kf.st.running'], connecting: [1, 'kf.st.connecting'], error: [3, 'kf.st.error'], off: [1, 'kf.st.off'] };
   const when = (x) => (x ? tWIB(utcToWib(x.replace('T', ' ')), $lang) : '—');
   const svc = $derived(s ? Object.entries(s.per_service).sort((a, b) => b[1] - a[1]) : []);
 </script>
@@ -35,7 +36,7 @@
 <section class="card wide kf" class:compact aria-labelledby="kf-h">
   <header>
     <h2 id="kf-h">{$t('kf.title')}</h2>
-    {#if s}{@const st = STATE[s.state] || STATE.mati}<SeverityTag level={st[0]} text={$t(st[1])} />{/if}
+    {#if s}{@const st = STATE[s.state] || STATE.off}<SeverityTag level={st[0]} text={$t(st[1])} />{/if}
   </header>
   {#if err}<p class="err" role="alert">{err}</p>
   {:else if !s}<p class="muted small">{$t('state.loading')}</p>
@@ -53,7 +54,7 @@
       <div><dt>{$t('kf.live_folder')}</dt><dd class="sm">{s.live_folder}</dd></div>
     </dl>
     <p class="muted xs">{$t('kf.folder_note', { m: s.ingest_minutes })}</p>
-    {#if s.last_skip}<p class="warnline xs">{$t('kf.skip_reason', { why: s.last_skip.reason })} <code>{s.last_skip.sample}</code></p>{/if}
+    {#if s.last_skip}<p class="warnline xs">{$t('kf.skip_reason', { why: $srv(s.last_skip.reason) })} <code>{s.last_skip.sample}</code></p>{/if}
     {#if svc.length && !compact}
       <ul class="svc">{#each svc as [k, n]}<li><code>{k}</code> <span class="muted">{num(n, $lang)}</span></li>{/each}</ul>
     {/if}
@@ -71,7 +72,7 @@
             <li>
               <div class="meta"><SeverityTag level={m.ok ? 'ok' : 3} text={m.ok ? $t('kf.ok') : $t('kf.bad')} />
                 <span class="muted xs">{when(m.at)} · p{m.partition}#{m.offset}</span></div>
-              {#if m.ok}<div class="xs">→ <code>{m.target}</code></div>{:else}<div class="xs warnline">{m.reason}</div>{/if}
+              {#if m.ok}<div class="xs">→ <code>{m.target}</code></div>{:else}<div class="xs warnline">{$srv(m.reason)}</div>{/if}
               <pre>{m.raw}</pre>
             </li>
           {/each}

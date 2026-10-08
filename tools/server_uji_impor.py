@@ -1,9 +1,9 @@
-"""Server dashboard UNTUK UJI layar impor (Tahap 19): data kecil buatan (tests/logs_mini) + S3 tiruan lokal.
+"""Dashboard server FOR TESTING the import page (Stage 19): small synthetic data (tests/logs_mini) + a local fake S3.
 
-  .venv/bin/python tools/server_uji_impor.py <port> <direktori-kerja>
+  .venv/bin/python tools/server_uji_impor.py <port> <work-directory>
 
-Bukan untuk produksi: titik akhir S3 dialihkan ke S3 tiruan (importer.ENDPOINT), hal yang sengaja tidak bisa
-dilakukan lewat konfigurasi. Admin: 'admin' / 'sandi-awal-admin-uji-19' (wajib diganti saat masuk pertama).
+Not for production: the S3 endpoint is redirected to the fake S3 (importer.ENDPOINT), something deliberately not
+possible through configuration. Admin: 'admin' / 'sandi-awal-admin-uji-19' (must be changed at first login).
 """
 import dataclasses, gzip, os, sys
 
@@ -14,8 +14,9 @@ import uvicorn  # noqa: E402
 
 import logs_mini  # noqa: E402
 from s3_tiruan import KEY_OK, S3Tiruan  # noqa: E402
-from monishield import config, db, importer, ingest  # noqa: E402
-from monishield.api import app as appmod  # noqa: E402
+from monishield.infrastructure import config, db, importer
+from monishield.infrastructure import ingest  # noqa: E402
+from monishield.interfaces.api import app as appmod  # noqa: E402
 
 D = '2026-01-05'
 SECRET = 'rahasiaTiruanUjiYangTidakBolehBocor0001'

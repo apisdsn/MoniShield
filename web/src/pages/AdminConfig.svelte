@@ -1,9 +1,9 @@
-<!-- Konfigurasi (permintaan pemilik 2026-10-07: "satu halaman untuk semua kredensial"), hanya admin. Satu tempat untuk:
-     kredensial AWS S3 + wilayah, folder induk S3 otomatis, kunci MaxMind GeoLite2, notifikasi (Telegram/Discord/email),
-     pengecualian daftar blokir, dan status kunci yang hanya bisa diisi lewat .env. API: /api/admin/config (monishield/
-     settings.py), /api/admin/import/watch, /api/admin/alerts. Rahasia tidak pernah dikirim balik oleh server: kolomnya
-     tampil "sudah diisi"; dibiarkan kosong saat menyimpan = tidak diubah; "Hapus dari .env" = baris dinonaktifkan (bawaan).
-     Semua isian DITULIS KE FILE .env server (permintaan pemilik 2026-10-07) dan langsung berlaku tanpa mulai ulang. -->
+<!-- Configuration (owner request 2026-10-07: "satu halaman untuk semua kredensial" — one page for all credentials), admin only. One place for:
+     AWS S3 credentials + region, automatic S3 parent folder, MaxMind GeoLite2 key, notifications (Telegram/Discord/email),
+     blocklist exclusions, and the status of keys that can only be set via .env. API: /api/admin/config (monishield/
+     settings.py), /api/admin/import/watch, /api/admin/alerts. Secrets are never sent back by the server: their fields
+     show "sudah diisi"; left empty on save = unchanged; "Hapus dari .env" = line disabled (default).
+     Every field is WRITTEN TO THE server's .env FILE (owner request 2026-10-07) and takes effect immediately without a restart. -->
 <script>
   import { onMount, tick } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -21,13 +21,13 @@
   const SECTIONS = ['aws', 'watch', 'kafka', 'maxmind', 'notif', 'blocklist', 'server'];
 
   let v = $state.raw(null), imp = $state.raw(null), error = $state(null);
-  // isian per kelompok; kolom rahasia selalu mulai kosong (kosong = tidak diubah)
+  // fields per group; secret fields always start empty (empty = unchanged)
   let aws = $state({ ak: '', sk: '', st: '', region: '' });
   let mm = $state({ id: '', key: '' });
   let kf = $state({}), kcard = $state();
   let bl = $state({ ex: '', org: '' });
   let wf = $state({ url: '', minutes: 60 });
-  let busy = $state(''), msg = $state({});   // msg[kelompok] = {ok, text}
+  let busy = $state(''), msg = $state({});   // msg[group] = {ok, text}
 
   function fill(r) {
     v = r;
@@ -50,7 +50,7 @@
   }
   let ready = $state(false);
   onMount(async () => { await load(); ready = true; });
-  // #/admin/notifikasi -> langsung ke bagian itu (juga saat berpindah dari #/admin/konfigurasi tanpa memuat ulang halaman)
+  // #/admin/notifikasi -> straight to that section (also when coming from #/admin/konfigurasi without reloading the page)
   $effect(() => { if (ready && focus) tick().then(() => jump(focus)); });
   function jump(id) {
     const el = document.getElementById(`cf-${id}`);
@@ -68,7 +68,7 @@
   const typed = (g) => (g === 'aws' ? aws.ak || aws.sk || aws.st || aws.region.trim() !== (v.aws.import_region.value || '') : mm.id || mm.key);
 
   async function test(kind) {
-    if (typed(kind) && !(await save(kind, kind === 'aws' ? awsBody() : mmBody()))) return;   // uji memakai setelan TERSIMPAN
+    if (typed(kind) && !(await save(kind, kind === 'aws' ? awsBody() : mmBody()))) return;   // the test uses the SAVED settings
     busy = `${kind}-test`; msg = { ...msg, [kind]: null };
     try {
       const r = await api.post('/api/admin/config/test', { kind });
@@ -88,7 +88,7 @@
     finally { busy = ''; }
   }
 
-  // sumber nilai: 'file' = .env, 'environment' = variabel lingkungan proses (mengalahkan .env), null = bawaan / belum diisi
+  // value source: 'file' = .env, 'environment' = process environment variable (overrides .env), null = default / not set
   const src = (it) => $t(it.source === 'file' ? 'cf.src.screen' : it.source === 'environment' ? 'cf.src.env' : it.set || it.value ? 'cf.src.default' : 'cf.src.none');
   const anyScreen = (g) => Object.values(v[g]).some((it) => it.source === 'file' && (it.set || it.value));
   const keys = (g) => Object.keys(v[g]);
@@ -170,7 +170,7 @@
       </form>
     </section>
 
-    <!-- 2. Folder S3 otomatis -->
+    <!-- 2. Automatic S3 folder -->
     <section class="card" id="cf-watch" tabindex="-1" aria-labelledby="cf-watch-h">
       <header>
         <h2 id="cf-watch-h">{$t('cf.s.watch')}</h2>
@@ -200,7 +200,7 @@
           </div>
         </form>
         {@render result('watch')}
-        {#if imp.watch?.problem}<p class="err small">{imp.watch.problem}</p>{/if}
+        {#if imp.watch?.problem}<p class="err small">{$errText({ code: imp.watch.problem_code, message: imp.watch.problem })}</p>{/if}
         {#if imp.watch?.enabled && !imp.credentials.available}<p class="warnline small">{$t('cf.watch.no_cred')}</p>{/if}
       {/if}
       <p class="muted xs"><a href={ingestLink}>{$t('cf.watch.more')}</a></p>
@@ -280,10 +280,10 @@
       </form>
     </section>
 
-    <!-- 4. Notifikasi -->
+    <!-- 4. Notifications -->
     <div id="cf-notif" tabindex="-1" class="anchor"><AdminAlerts /></div>
 
-    <!-- 5. Daftar blokir -->
+    <!-- 5. Blocklist -->
     <section class="card" id="cf-blocklist" tabindex="-1" aria-labelledby="cf-bl-h">
       <header><h2 id="cf-bl-h">{$t('cf.s.blocklist')}</h2></header>
       <p class="muted small">{$t('cf.bl.intro')}</p>
@@ -307,7 +307,7 @@
       </form>
     </section>
 
-    <!-- 6. Hanya .env -->
+    <!-- 6. .env only -->
     <section class="card" id="cf-server" tabindex="-1" aria-labelledby="cf-sv-h">
       <header><h2 id="cf-sv-h">{$t('cf.s.server')}</h2></header>
       <p class="muted small">{$t('cf.sv.intro')}</p>
@@ -336,7 +336,7 @@
   .chip { border: 1px solid var(--line); background: transparent; color: var(--fg); border-radius: 999px; padding: 0.35rem 0.85rem; font-size: 0.8125rem; cursor: pointer; min-height: 34px; }
   .chip:hover { border-color: var(--accent); color: var(--accent); }
   .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px 16px; margin-top: 12px; }
-  .fields > div { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }   /* kolom sebaris tetap rata walau label terlipat */
+  .fields > div { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }   /* inline fields stay aligned even when the label wraps */
   label { font-size: 0.8125rem; color: var(--kpi-label); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   input, select, textarea { min-height: var(--touch); border-radius: 12px; width: 100%; }
   textarea { font-family: var(--mono, ui-monospace, monospace); font-size: 0.8125rem; padding: 8px 10px; resize: vertical; }

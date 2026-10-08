@@ -1,257 +1,257 @@
-# 06 — Menjalankan MoniShield dengan Docker
+# 06 — Running MoniShield with Docker
 
-Langkah 7 (`migrate/07-docker-compose.md`), mengikuti TRD §7. Berkas: `Dockerfile`, `docker-compose.yml`,
+Step 7 (`migrate/07-docker-compose.md`), following TRD §7. Files: `Dockerfile`, `docker-compose.yml`,
 `.dockerignore`, `.env.example`, `deploy/Caddyfile`, `deploy/pgadmin/servers.json`, `tools/uji_docker.cjs`.
 
-## 1. Layanan
+## 1. Services
 
-| Layanan | Selalu? | Untuk | Alasan ada |
+| Service | Always? | For | Why it exists |
 |---|---|---|---|
-| `app` | ya | API + tampilan (hasil build Svelte) + **ingest di dalam proses** | inti; satu-satunya pembuka DuckDB (§3) |
-| `postgres` | ya | akun, sesi, audit, riwayat impor S3 | TRD K11: data akun tidak boleh hilang saat `s4-data` dibangun ulang, dan perlu `pg_dump` |
-| `ingest` | profil `job`, sekali jalan | memicu ingest di `app` lewat HTTP, menunggu, lalu keluar | titik masuk untuk cron (§4); tanpa volume, tidak membuka DuckDB sendiri |
-| `proxy` | profil `proxy`, opsional | HTTPS (Caddy) | hanya bila server belum punya reverse proxy (TRD §7.1 ASUMSI T5); dashboard wajib HTTPS + login |
-| `pgadmin` | profil `pgadmin`, opsional | melihat PostgreSQL | permintaan pemilik 2026-10-07 |
-| `dbgate` | profil `dbgate`, opsional | melihat **data log** (DuckDB) dan PostgreSQL | permintaan pemilik 2026-10-07: pgAdmin tidak bisa membuka DuckDB |
+| `app` | yes | API + UI (Svelte build output) + **in-process ingest** | core; the only process that opens DuckDB (§3) |
+| `postgres` | yes | accounts, sessions, audit, S3 import history | TRD K11: account data must not be lost when `s4-data` is rebuilt, and `pg_dump` is needed |
+| `ingest` | `job` profile, one-off | triggers ingest in `app` over HTTP, waits, then exits | entry point for cron (§4); no volumes, does not open DuckDB itself |
+| `proxy` | `proxy` profile, optional | HTTPS (Caddy) | only if the server has no reverse proxy yet (TRD §7.1 ASSUMPTION T5); the dashboard requires HTTPS + login |
+| `pgadmin` | `pgadmin` profile, optional | viewing PostgreSQL | owner request 2026-10-07 |
+| `dbgate` | `dbgate` profile, optional | viewing **log data** (DuckDB) and PostgreSQL | owner request 2026-10-07: pgAdmin cannot open DuckDB |
 
-Tanpa `--profile`, `docker compose up -d` hanya menyalakan `app` dan `postgres`.
+Without `--profile`, `docker compose up -d` only starts `app` and `postgres`.
 
-## 2. Menjalankan
+## 2. Running
 
-Prasyarat: Docker Engine 26+ dengan Compose 2.30+ (diuji Engine 29.8, Compose 5.6). Versi itu dibutuhkan untuk
-`volume.subpath` di layanan `dbgate`.
+Prerequisites: Docker Engine 26+ with Compose 2.30+ (tested with Engine 29.8, Compose 5.6). Those versions are needed for
+`volume.subpath` in the `dbgate` service.
 
 ```sh
 cd MoniShield
-cp .env.example .env && chmod 600 .env       # isi: lihat tabel di bawah; .env tidak ikut git maupun image
-sudo chgrp 10001 .env && chmod 660 .env      # pengguna container (gid 10001) boleh membaca + menulis .env (layar Konfigurasi)
-docker compose build                         # ±1–3 menit pertama kali
-docker compose up -d                         # app + postgres; tunggu "healthy":
+cp .env.example .env && chmod 600 .env       # contents: see the table below; .env goes into neither git nor the image
+sudo chgrp 10001 .env && chmod 660 .env      # the container user (gid 10001) may read + write .env (Configuration page)
+docker compose build                         # ±1–3 minutes the first time
+docker compose up -d                         # app + postgres; wait for "healthy":
 docker compose ps
 ```
 
-| Variabel `.env` | Wajib | Isi |
+| `.env` variable | Required | Value |
 |---|---|---|
-| `DOCKER_LOG_DIR` | ya | folder log di **host**, mis. `/srv/log` (dipasang hanya-baca ke `/logs`) |
-| `POSTGRES_PASSWORD` | ya | acak, tidak perlu diingat |
-| `S4_JWT_SECRET` | ya | acak ≥ 32 karakter |
-| `S4_ADMIN_PASSWORD` | ya | sandi admin pertama; wajib diganti saat masuk pertama |
-| `S4_JOB_TOKEN` | ya untuk cron | token mesin yang dipakai layanan `ingest` |
-| `S4_COOKIE_SECURE` | — | `true` (bawaan) di balik HTTPS; `false` hanya untuk mencoba lewat `http://127.0.0.1:8000` |
-| `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY` | — | lokasi IP di peta (GeoLite2, gratis) |
-| `PGADMIN_EMAIL`, `PGADMIN_PASSWORD` | bila pgAdmin | login pgAdmin (email hanya nama login; `.local` diterima) |
-| `DBGATE_LOGIN`, `DBGATE_PASSWORD` | bila DbGate | login DbGate; sandi ≥ 12 karakter, tanpa itu DbGate menolak mulai |
+| `DOCKER_LOG_DIR` | yes | log folder on the **host**, e.g. `/srv/log` (mounted read-only at `/logs`) |
+| `POSTGRES_PASSWORD` | yes | random, no need to remember it |
+| `S4_JWT_SECRET` | yes | random ≥ 32 characters |
+| `S4_ADMIN_PASSWORD` | yes | first admin password; must be changed at first sign-in |
+| `S4_JOB_TOKEN` | yes for cron | machine token used by the `ingest` service |
+| `S4_COOKIE_SECURE` | — | `true` (default) behind HTTPS; `false` only for trying it out via `http://127.0.0.1:8000` |
+| `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY` | — | IP locations on the map (GeoLite2, free) |
+| `PGADMIN_EMAIL`, `PGADMIN_PASSWORD` | if pgAdmin | pgAdmin login (the email is only a login name; `.local` is accepted) |
+| `DBGATE_LOGIN`, `DBGATE_PASSWORD` | if DbGate | DbGate login; password ≥ 12 characters, otherwise DbGate refuses to start |
 
-Lalu buka `http://127.0.0.1:8000` (atau domain proxy), masuk sebagai `admin` dengan `S4_ADMIN_PASSWORD`, ganti sandi.
-Server meng-ingest semua folder saat mulai (`S4_INGEST_ON_START`, bawaan `true`); dashboard sudah bisa dibuka selama itu.
+Then open `http://127.0.0.1:8000` (or the proxy domain), sign in as `admin` with `S4_ADMIN_PASSWORD`, change the password.
+The server ingests all folders on start (`S4_INGEST_ON_START`, default `true`); the dashboard can already be opened meanwhile.
 
-**Server tanpa internet:** isi volume cache dari salinan `.cache` yang sudah ada (±190 MB), sebelum `up`:
+**Server without internet:** fill the cache volume from an existing copy of `.cache` (±190 MB) before `up`:
 
 ```sh
-docker compose create                        # membuat volume tanpa menyalakan apa pun
+docker compose create                        # creates the volumes without starting anything
 docker run --rm -v "$PWD/../.cache":/src:ro -v monishield_s4-cache:/cache --entrypoint sh monishield:2.0.0 -c 'cp -r /src/. /cache/'
 ```
 
-**Dari komputer lain:** semua port terikat ke `127.0.0.1` host. Untuk dashboard pakai reverse proxy server (atau
-`--profile proxy`). Untuk pgAdmin/DbGate pakai tunnel SSH, mis. `ssh -L 5051:127.0.0.1:5051 server`.
+**From another computer:** all ports are bound to the host's `127.0.0.1`. For the dashboard use the server's reverse proxy (or
+`--profile proxy`). For pgAdmin/DbGate use an SSH tunnel, e.g. `ssh -L 5051:127.0.0.1:5051 server`.
 
-## 3. DuckDB hanya satu pembuka — keputusan
+## 3. DuckDB has a single opener — decision
 
-DuckDB mengizinkan **satu proses** membuka file untuk menulis, dan selama itu proses lain tidak bisa membukanya, termasuk
-hanya-baca. Pilihan yang dipakai (TRD §7.2, K1): **ingest berjalan di dalam proses `app`**, di thread terpisah, dengan
-koneksi DuckDB yang sama. Pembacaan dashboard memakai kursor sendiri dan tetap melihat data lama yang utuh sampai transaksi
-ingest per folder di-commit (MVCC DuckDB).
+DuckDB allows **one process** to open a file for writing, and meanwhile other processes cannot open it, not even
+read-only. The chosen option (TRD §7.2, K1): **ingest runs inside the `app` process**, in a separate thread, with the
+same DuckDB connection. Dashboard reads use their own cursor and keep seeing the old, consistent data until the per-folder
+ingest transaction is committed (DuckDB MVCC).
 
-- Layanan `ingest` **tidak** memasang volume data. Ia memanggil `POST /api/admin/ingest` di `app` dengan
-  `S4_JOB_TOKEN`, menunggu sampai selesai, lalu keluar dengan kode 0 (berhasil) atau ≠ 0 (gagal / server berhenti).
-- Ditolak: "app hanya-baca + ingest menulis file baru lalu ditukar". Cara itu menyalin ±100 MB tiap ingest dan butuh
-  `app` membuka ulang koneksi. Lagi pula DuckDB tidak bisa dibuka hanya-baca saat proses lain sedang menulis file yang sama.
-- **Penampil luar (DbGate)** juga tidak boleh membuka file milik `app`. Karena itu `app` menulis **salinan baca**
-  `/data/snapshot/monishield.duckdb` (`S4_DUCKDB_SNAPSHOT=true`, bawaan di compose) saat mulai bila belum ada dan setiap
-  kali ingest selesai. Salinan ditulis ke `.tmp` lalu diganti atomik (`os.replace`); DbGate yang sedang terhubung tetap
-  membaca versi lama sampai disambung ulang. Formatnya `STORAGE_VERSION 'v1.2.0'` agar terbaca DuckDB 1.2.1 di DbGate
-  6.6.4. Biaya: ±4 detik dan ±50 % ukuran database. Set `S4_DUCKDB_SNAPSHOT=false` bila DbGate tidak dipakai.
+- The `ingest` service does **not** mount the data volume. It calls `POST /api/admin/ingest` on `app` with
+  `S4_JOB_TOKEN`, waits until it finishes, then exits with code 0 (success) or ≠ 0 (failure / server stopped).
+- Rejected: "read-only app + ingest writes a new file that is then swapped in". That approach copies ±100 MB per ingest and requires
+  `app` to reopen its connection. Moreover, DuckDB cannot be opened read-only while another process is writing the same file.
+- **External viewers (DbGate)** must not open the file owned by `app` either. Therefore `app` writes a **read-only copy**
+  `/data/snapshot/monishield.duckdb` (`S4_DUCKDB_SNAPSHOT=true`, default in compose) on start if it does not exist yet and every
+  time an ingest finishes. The copy is written to `.tmp` and then replaced atomically (`os.replace`); a connected DbGate keeps
+  reading the old version until it reconnects. Its format is `STORAGE_VERSION 'v1.2.0'` so that DuckDB 1.2.1 in DbGate
+  6.6.4 can read it. Cost: ±4 seconds and ±50 % of the database size. Set `S4_DUCKDB_SNAPSHOT=false` if DbGate is not used.
 
-Diuji di container (§8): 73 permintaan data dashboard selama ingest paksa 51 detik, semuanya 200 (median 54 ms, maks 610 ms).
+Tested in the container (§8): 73 dashboard data requests during a 51-second forced ingest, all 200 (median 54 ms, max 610 ms).
 
-## 4. Ingest harian
+## 4. Daily ingest
 
-Server sudah meng-ingest saat mulai. Admin juga bisa menekan **Sinkronkan data** di dashboard. Untuk jadwal tetap, pakai
-cron di host:
+The server already ingests on start. An admin can also press **Sync data** in the dashboard. For a fixed schedule, use
+cron on the host:
 
 ```cron
-# setiap hari 06.15 WIB (server ber-zona Asia/Jakarta); keluaran ke log host
+# every day at 06.15 WIB (server in the Asia/Jakarta time zone); output to a host log
 15 6 * * *  cd /srv/monishield/v2 && docker compose run --rm ingest >> /var/log/monishield-ingest.log 2>&1
 ```
 
-| Keadaan | Yang terjadi |
+| Situation | What happens |
 |---|---|
-| Tidak ada folder baru | selesai < 1 detik ("0 file berubah"); hanya file baru/berubah yang di-parse |
-| Dijalankan dua kali bersamaan (cron + tombol, atau dua cron) | yang kedua menunggu ingest yang sedang berjalan lalu melaporkan hasilnya ("ingest sudah berjalan di server; menunggu selesai"); tidak ada parse ganda |
-| Terputus di tengah (container dimatikan, `kill -9`, listrik) | tiap folder di-commit dalam satu transaksi: folder yang sudah selesai tetap ada, folder yang sedang diproses kembali ke isi sebelumnya. Ingest berikutnya menandai run yang terputus sebagai `gagal` ("terputus: …"), menghapus CSV sementaranya, dan memproses ulang folder yang belum selesai |
-| `app` mati / tidak sehat | `ingest` keluar dengan kode ≠ 0 ("server berhenti menjawab saat ingest berjalan"); cron mencatatnya di log |
-| Unduhan database acuan gagal | ingest tetap `ok` dengan peringatan "refdata gagal …"; lokasi/pemilik IP memakai berkas lama di cache, atau dikosongkan bila belum pernah ada |
+| No new folders | finishes in < 1 second ("0 files changed"); only new/changed files are parsed |
+| Run twice at the same time (cron + button, or two crons) | the second one waits for the running ingest and then reports its result ("ingest already running on the server; waiting for it to finish"); nothing is parsed twice |
+| Interrupted midway (container stopped, `kill -9`, power) | each folder is committed in one transaction: finished folders stay, the folder being processed returns to its previous contents. The next ingest marks the interrupted run as `failed` ("interrupted: …"), deletes its temporary CSVs, and reprocesses the unfinished folders |
+| `app` down / unhealthy | `ingest` exits with code ≠ 0 ("server stopped responding while ingest was running"); cron records it in the log |
+| Reference database download fails | ingest still ends `ok` with the warning "refdata failed …"; IP location/owner uses the old file in the cache, or is left empty if there never was one |
 
-### Folder log tanpa menyalin ke server
+### Log folders without copying to the server
 
-- **Sinkron otomatis dari S3**: isi `S4_IMPORT_BUCKETS` dan kunci AWS di `.env`, lalu di layar Ingest & impor isi folder induk
-  (mis. `s3://nama-bucket/k8s-logs`) → Simpan & aktifkan (tersimpan di PostgreSQL, tabel `app_setting`). Alternatif: `S4_S3_WATCH` di `.env`.
-  `app` memeriksa bucket tiap `S4_S3_WATCH_MINUTES` menit, mengunduh folder tanggal baru ke volume `s4-inbox`, lalu
-  meng-ingest-nya. Pemeriksaan pertama 1 menit setelah container mulai. Cron dengan token mesin juga bisa memicunya:
+- **Automatic sync from S3**: set `S4_IMPORT_BUCKETS` and the AWS keys in `.env`, then on the Ingest & import page enter the parent folder
+  (e.g. `s3://nama-bucket/k8s-logs`) → Save & enable (stored in PostgreSQL, table `app_setting`). Alternative: `S4_S3_WATCH` in `.env`.
+  `app` checks the bucket every `S4_S3_WATCH_MINUTES` minutes, downloads new date folders to the `s4-inbox` volume, then
+  ingests them. The first check is 1 minute after the container starts. A cron job with the machine token can also trigger it:
   `curl -X POST -H "Authorization: Bearer $S4_JOB_TOKEN" -H "X-Requested-With: job" http://127.0.0.1:8000/api/admin/import/sync`.
-- **Unggah dari browser**: layar Ingest & impor → Unggah folder log. File masuk ke `s4-inbox` lalu di-ingest. Reverse proxy
-  di depan `app` harus mengizinkan badan permintaan sebesar file log terbesar (nginx: `client_max_body_size 1024m;`;
-  Caddy dari profil `proxy` tidak membatasi).
+- **Upload from the browser**: Ingest & import page → Upload log folder. Files go to `s4-inbox` and are then ingested. The reverse proxy
+  in front of `app` must allow request bodies as large as the largest log file (nginx: `client_max_body_size 1024m;`;
+  Caddy from the `proxy` profile has no limit).
 
-### Dokumentasi API
+### API documentation
 
-Swagger UI di `https://<server>/api/docs` (skema: `/api/openapi.json`), hanya setelah masuk dengan akun dashboard yang
-sama. Aset Swagger UI disalin ke image saat build (`web/dist/swagger/`, dari `swagger-ui-dist`); tidak ada CDN.
+Swagger UI at `https://<server>/api/docs` (schema: `/api/openapi.json`), only after signing in with the same dashboard
+account. The Swagger UI assets are copied into the image at build time (`web/dist/swagger/`, from `swagger-ui-dist`); there is no CDN.
 
-## 5. Melihat isi database
+## 5. Viewing the database contents
 
-| Alat | Alamat | Melihat | Catatan |
+| Tool | Address | Shows | Notes |
 |---|---|---|---|
-| pgAdmin 9.8 | `http://127.0.0.1:5050` | PostgreSQL: `app_user`, `app_session`, `audit_log`, `import_job` | `docker compose --profile pgadmin up -d`. Server "MoniShield" sudah terdaftar (`deploy/pgadmin/servers.json`); sandi basis data = `POSTGRES_PASSWORD` |
-| DbGate 6.6.4 | `http://127.0.0.1:5051` | **data log** (DuckDB, salinan baca) + PostgreSQL | `docker compose --profile dbgate up -d`. Kedua koneksi terdaftar dan ditandai read-only |
+| pgAdmin 9.8 | `http://127.0.0.1:5050` | PostgreSQL: `app_user`, `app_session`, `audit_log`, `import_job` | `docker compose --profile pgadmin up -d`. The "MoniShield" server is already registered (`deploy/pgadmin/servers.json`); database password = `POSTGRES_PASSWORD` |
+| DbGate 6.6.4 | `http://127.0.0.1:5051` | **log data** (DuckDB, read-only copy) + PostgreSQL | `docker compose --profile dbgate up -d`. Both connections are registered and marked read-only |
 
-**Data log tidak ada di PostgreSQL.** Tabel seperti `nginx_access`, `spring_line`, `agg_*`, dan `folder_state` ada di
-DuckDB, jadi lihat lewat DbGate. pgAdmin hanya untuk akun dan audit. Bila DbGate menampilkan data lama setelah ingest,
-klik kanan koneksi DuckDB lalu pilih *Refresh* / sambung ulang.
+**Log data is not in PostgreSQL.** Tables such as `nginx_access`, `spring_line`, `agg_*`, and `folder_state` are in
+DuckDB, so view them through DbGate. pgAdmin is only for accounts and audit. If DbGate shows old data after an ingest,
+right-click the DuckDB connection and choose *Refresh* / reconnect.
 
-DbGate tidak bisa memasang salinan sebagai mount `:ro`: plugin DuckDB-nya selalu membuka berkas dalam mode tulis dan
-mengabaikan `READONLY_`. Karena itu yang dipasang hanya **folder** `snapshot/` (`volume.subpath`), baca-tulis. File
-DuckDB milik `app` tidak terlihat dari container DbGate. Apa pun yang tertulis hanya mengenai salinan, dan sisa WAL
-salinan lama dibuang sebelum salinan baru dipasang.
+DbGate cannot mount the copy as a `:ro` mount: its DuckDB plugin always opens the file in write mode and
+ignores `READONLY_`. Therefore only the `snapshot/` **folder** is mounted (`volume.subpath`), read-write. The DuckDB file
+owned by `app` is not visible from the DbGate container. Anything written only affects the copy, and leftover WAL of the
+old copy is discarded before the new copy is put in place.
 
-## 6. Keamanan
+## 6. Security
 
-- Proses `app` berjalan sebagai pengguna `monishield` (uid 10001), dengan `read_only: true`, `cap_drop: ALL`, dan
-  `no-new-privileges`. Hanya volume data dan `/tmp` (tmpfs) yang bisa ditulis.
-- Port hanya `127.0.0.1:8000` (dashboard); pgAdmin/DbGate `127.0.0.1:5050/5051` dan hanya bila profilnya dinyalakan.
-  PostgreSQL tidak punya port ke host. `proxy` membuka 443.
-- Tidak ada rahasia di image maupun `docker-compose.yml`: semua dari `.env`, dan `.env` dikecualikan oleh
-  `.dockerignore` dan `.gitignore`. CA proxy untuk build masuk sebagai *build secret*, tidak tersimpan di lapisan image.
-- Log (berisi IP dan email pengguna) **tidak pernah** disalin ke image. `.dockerignore` menolak `*.log`, `*.log.gz`, `data/`,
-  dan folder tanggal. Log dipasang hanya-baca dari host ke `/logs`.
-- Lokasi dan pemilik IP dicocokkan **offline** dari database yang diunduh ke `s4-cache`. Tidak ada IP pengguna yang
-  dikirim ke layanan luar.
-- Pemeriksaan kesehatan `GET /api/health` tiap 30 detik; `restart: unless-stopped` untuk `app`, `postgres`, `proxy`,
-  `pgadmin`, dan `dbgate`.
-- pgAdmin: `SERVER_MODE`, tanpa cek versi ke internet. DbGate: menolak mulai tanpa login dan sandi ≥ 12 karakter, karena
-  tanpa `LOGIN` DbGate terbuka untuk siapa saja.
+- The `app` process runs as the `monishield` user (uid 10001), with `read_only: true`, `cap_drop: ALL`, and
+  `no-new-privileges`. Only the data volumes and `/tmp` (tmpfs) are writable.
+- Ports are only `127.0.0.1:8000` (dashboard); pgAdmin/DbGate `127.0.0.1:5050/5051`, and only when their profile is enabled.
+  PostgreSQL has no port on the host. `proxy` opens 443.
+- No secrets in the image or in `docker-compose.yml`: everything comes from `.env`, and `.env` is excluded by
+  `.dockerignore` and `.gitignore`. The proxy CA for the build comes in as a *build secret* and is not stored in an image layer.
+- Logs (containing user IPs and emails) are **never** copied into the image. `.dockerignore` rejects `*.log`, `*.log.gz`, `data/`,
+  and date folders. Logs are mounted read-only from the host at `/logs`.
+- IP location and owner are matched **offline** against databases downloaded into `s4-cache`. No user IP is
+  sent to an external service.
+- Health check `GET /api/health` every 30 seconds; `restart: unless-stopped` for `app`, `postgres`, `proxy`,
+  `pgadmin`, and `dbgate`.
+- pgAdmin: `SERVER_MODE`, no version check over the internet. DbGate: refuses to start without a login and a password ≥ 12 characters, because
+  without `LOGIN` DbGate is open to anyone.
 
-## 7. Akses internet (firewall keluar)
+## 7. Internet access (outbound firewall)
 
-Hanya `app`, dan hanya saat ingest (refdata), dengan masa simpan di cache. `S4_OFFLINE=true` mematikan semua unduhan.
+Only `app`, and only during ingest (refdata), with a cache retention period. `S4_OFFLINE=true` turns off all downloads.
 
-| Host | Berkas | Bila gagal |
+| Host | File | If it fails |
 |---|---|---|
-| `iptoasn.com` | `ip2asn-v4.tsv.gz` (pemilik IP) | pemilik IP dari berkas lama / kosong |
-| `download.maxmind.com` | GeoLite2-City CSV (butuh akun gratis) | jatuh ke `download.db-ip.com` |
-| `download.db-ip.com` | `dbip-city-lite-YYYY-MM.csv.gz` (lokasi IP) | lokasi IP dari berkas lama / kosong |
-| `raw.githubusercontent.com` | Natural Earth: daratan, batas negara, provinsi, nama negara | peta memakai berkas lama |
-| `download.geonames.org` | `ID.zip` (nama wilayah Indonesia) | label wilayah memakai berkas lama |
-| endpoint S3 (bila impor S3 dipakai) | folder log `s3://…` | impor gagal dengan pesan; data lain tidak terpengaruh |
+| `iptoasn.com` | `ip2asn-v4.tsv.gz` (IP owner) | IP owner from the old file / empty |
+| `download.maxmind.com` | GeoLite2-City CSV (needs a free account) | falls back to `download.db-ip.com` |
+| `download.db-ip.com` | `dbip-city-lite-YYYY-MM.csv.gz` (IP location) | IP location from the old file / empty |
+| `raw.githubusercontent.com` | Natural Earth: land, country borders, provinces, country names | the map uses the old files |
+| `download.geonames.org` | `ID.zip` (Indonesian region names) | region labels use the old file |
+| S3 endpoint (if S3 import is used) | log folders `s3://…` | the import fails with a message; other data is unaffected |
 
-Notifikasi (bila diaktifkan di layar Konfigurasi → Notifikasi): `api.telegram.org`, `discord.com`, dan/atau server SMTP
-kantor. Isi pesan hanya angka ringkasan + tautan dashboard, tanpa alamat IP pengguna. Tombol **Uji koneksi** MaxMind di
-layar Konfigurasi hanya meminta tautan unduhan ke `download.maxmind.com` (tanpa mengunduh, tanpa alamat IP pengguna).
+Notifications (if enabled on the Configuration → Notifications page): `api.telegram.org`, `discord.com`, and/or the office SMTP
+server. Messages contain only summary numbers + a dashboard link, without user IP addresses. The MaxMind **Test connection** button on
+the Configuration page only requests a download link from `download.maxmind.com` (without downloading, without user IP addresses).
 
-### `.env` dipasang ke container, dan layar Konfigurasi menulis ke sana
+### `.env` is mounted into the container, and the Configuration page writes to it
 
-`app` tidak lagi memakai `env_file:`; `./.env` dipasang sebagai file ke `/app/.env` dan dibaca server sendiri saat mulai.
-Layar **Konfigurasi** (kunci AWS, MaxMind, folder S3 otomatis, notifikasi, daftar blokir) menulis ke file itu **di
-tempat** (tanpa ganti-nama, aman untuk bind mount), lalu nilainya langsung berlaku; setelah `docker compose restart` atau
-`up -d` nilainya tetap. Syarat: pengguna container (uid/gid 10001) boleh menulis:
+`app` no longer uses `env_file:`; `./.env` is mounted as a file at `/app/.env` and read by the server itself on start.
+The **Configuration** page (AWS keys, MaxMind, automatic S3 folders, notifications, block list) writes to that file **in
+place** (no rename, safe for bind mounts), and the values take effect immediately; after `docker compose restart` or
+`up -d` the values persist. Requirement: the container user (uid/gid 10001) must be allowed to write:
 
 ```sh
 sudo chgrp 10001 .env && chmod 660 .env
 ```
 
-Tanpa izin itu layar menampilkan peringatan "tidak bisa ditulis" dan menolak **Simpan** (nilai lain tetap jalan).
-Variabel di blok `environment:` compose (path `/logs`, `/data`, URL PostgreSQL, dll.) tetap mengalahkan `.env`.
-`ingest` memasang file yang sama hanya-baca. Mengubah `.env` dengan editor juga boleh — mulai ulang `app` sesudahnya;
-pakai editor yang menulis di tempat (mis. `nano`, `vi` dengan `:set backupcopy=yes`), karena editor yang mengganti-nama
-file memutus bind mount sampai container dibuat ulang.
+Without that permission the page shows a "not writable" warning and refuses **Save** (other values keep working).
+Variables in the compose `environment:` block (path `/logs`, `/data`, PostgreSQL URL, etc.) still override `.env`.
+`ingest` mounts the same file read-only. Editing `.env` with an editor is fine too — restart `app` afterwards;
+use an editor that writes in place (e.g. `nano`, `vi` with `:set backupcopy=yes`), because editors that rename the
+file break the bind mount until the container is recreated.
 
-Alamat sumber unduhan (MaxMind, ip2asn, Natural Earth, GeoNames) dan API Telegram juga diatur di `.env`
-(`S4_URL_*`, `S4_TELEGRAM_API`, bagian 10 `.env.example`) — berguna bila server hanya boleh keluar lewat cermin/proxy internal.
+The download source addresses (MaxMind, ip2asn, Natural Earth, GeoNames) and the Telegram API are also set in `.env`
+(`S4_URL_*`, `S4_TELEGRAM_API`, section 10 of `.env.example`) — useful if the server may only go out through an internal mirror/proxy.
 
-Saat build saja: `registry-1.docker.io` / `production.cloudflare.docker.com` (image dasar), `registry.npmjs.org`, dan
+At build time only: `registry-1.docker.io` / `production.cloudflare.docker.com` (base images), `registry.npmjs.org`, and
 `pypi.org` + `files.pythonhosted.org`.
 
-### Kafka untuk log Rancher (profil `kafka`, opsional)
+### Kafka for Rancher logs (`kafka` profile, optional)
 
-Bila belum ada Kafka, compose menyediakan broker satu node (Apache Kafka 3.9, KRaft, tanpa Zookeeper):
+If there is no Kafka yet, compose provides a single-node broker (Apache Kafka 3.9, KRaft, without Zookeeper):
 
 ```sh
 # .env
-DOCKER_KAFKA_HOST=10.10.1.5          # alamat server ini yang terjangkau dari node cluster (diisi di Rancher)
-DOCKER_KAFKA_BIND=0.0.0.0            # bawaan 127.0.0.1 (hanya host ini)
+DOCKER_KAFKA_HOST=10.10.1.5          # address of this server reachable from the cluster nodes (entered in Rancher)
+DOCKER_KAFKA_BIND=0.0.0.0            # default 127.0.0.1 (this host only)
 DOCKER_KAFKA_PORT=9094
-S4_KAFKA_BROKERS=kafka:9092          # app membaca lewat jaringan compose
+S4_KAFKA_BROKERS=kafka:9092          # app reads over the compose network
 S4_KAFKA_TOPIC=k8s-logs
 docker compose --profile kafka up -d
 ```
 
-Di Rancher: Endpoint Type **Broker**, Endpoint `10.10.1.5:9094`, Topic `k8s-logs`. Listener ini **tanpa sandi**:
-batasi port 9094 dengan firewall hanya untuk IP node cluster (atau pakai Kafka kantor yang ber-SASL dan isi
-`S4_KAFKA_SECURITY`/`S4_KAFKA_USERNAME`/`KAFKA_PASSWORD`). Satu partisi (urutan baris per pod terjaga); retensi
-`DOCKER_KAFKA_RETENTION_HOURS` (bawaan 168 jam). Yang sudah ditulis MoniShield ke `s4-inbox` tidak bergantung pada
-retensi itu. Diverifikasi 2026-10-07: app di container membaca `kafka:9092`, 500 pesan Rancher → folder 2026-10-08
-(14 file) → ingest otomatis.
+In Rancher: Endpoint Type **Broker**, Endpoint `10.10.1.5:9094`, Topic `k8s-logs`. This listener has **no password**:
+restrict port 9094 with a firewall to the cluster node IPs only (or use the office Kafka with SASL and set
+`S4_KAFKA_SECURITY`/`S4_KAFKA_USERNAME`/`KAFKA_PASSWORD`). One partition (line order per pod is preserved); retention
+`DOCKER_KAFKA_RETENTION_HOURS` (default 168 hours). What MoniShield has already written to `s4-inbox` does not depend on that
+retention. Verified 2026-10-07: the app in the container reads `kafka:9092`, 500 Rancher messages → folder 2026-10-08
+(14 files) → automatic ingest.
 
-## 8. Cadangan dan pembaruan
+## 8. Backups and updates
 
-| Volume | Isi | Cadangkan? |
+| Volume | Contents | Back up? |
 |---|---|---|
-| `s4-pgdata` | akun, sesi, audit | **wajib**: `docker compose exec postgres pg_dump -U monishield monishield > akun.sql` |
-| `s4-inbox` | folder log hasil impor S3 | ya (log mentah) |
-| `s4-data` | `monishield.duckdb`, salinan baca, berkas peta | tidak wajib: bisa dibangun ulang dari log |
-| `s4-cache` | database acuan ±190 MB | tidak: bisa diunduh ulang |
-| `s4-pgadmin`, `s4-dbgate` | setelan penampil | tidak |
+| `s4-pgdata` | accounts, sessions, audit | **required**: `docker compose exec postgres pg_dump -U monishield monishield > akun.sql` |
+| `s4-inbox` | log folders from S3 import | yes (raw logs) |
+| `s4-data` | `monishield.duckdb`, read-only copy, map files | not required: can be rebuilt from the logs |
+| `s4-cache` | reference databases ±190 MB | no: can be downloaded again |
+| `s4-pgadmin`, `s4-dbgate` | viewer settings | no |
 
-Pembaruan aplikasi: `git pull && docker compose build && docker compose up -d`. Skema DuckDB diterapkan ulang saat mulai
-(aman diulang).
+Application update: `git pull && docker compose build && docker compose up -d`. The DuckDB schema is re-applied on start
+(safe to repeat).
 
-### Ganti nama 2026-10-07 (simpel4 → monishield)
+### Rename 2026-10-07 (simpel4 → monishield)
 
-Pengguna dan basis data PostgreSQL di compose kini `monishield` (dulu `simpel4`), berkas DuckDB `monishield.duckdb`
-(dulu `simpel4.duckdb`; dipindah otomatis saat server mulai, tanpa ingest ulang), penerbit JWT `monishield` (sesi lama
-berakhir, cukup masuk lagi). Volume `s4-pgdata` yang dibuat versi sebelumnya masih berisi pengguna `simpel4`: karena
-belum dipasang di server, cukup buat ulang dengan `docker compose down -v` (akun di volume itu ikut terhapus).
+The PostgreSQL user and database in compose are now `monishield` (formerly `simpel4`), the DuckDB file is `monishield.duckdb`
+(formerly `simpel4.duckdb`; moved automatically when the server starts, without re-ingesting), the JWT issuer is `monishield` (old sessions
+end, just sign in again). An `s4-pgdata` volume created by an earlier version still contains the `simpel4` user: since it
+has not been deployed on the server yet, simply recreate it with `docker compose down -v` (the accounts in that volume are deleted too).
 
-## 9. Hasil verifikasi (2026-10-07, mesin pengembang, Docker 29.8.2, Compose 5.6.0)
+## 9. Verification results (2026-10-07, developer machine, Docker 29.8.2, Compose 5.6.0)
 
-| # | Langkah | Hasil |
+| # | Step | Result |
 |---|---|---|
-| 1 | `docker compose build` | berhasil, 41 detik (lapisan dependensi dari cache); image `monishield:2.0.0` **413 MB di disk / 105 MB terkompresi**; tanpa Node/`node_modules` |
-| 2 | `docker compose run --rm ingest` (11 folder, 195 file) | `ok; 195 file dilihat, 195 file berubah … 11 folder berubah; 73.44 detik` (job menunggu ingest saat-mulai yang sedang berjalan); ingest paksa ulang 50.75 detik; tanpa perubahan 0.03 detik |
-| 3 | `docker compose up -d` | `app` *healthy* dalam ±11 detik |
-| 4 | browser (`tools/uji_docker.cjs`) | 8/8 LULUS: masuk + wajib ganti sandi, Ringkasan (KPI), layanan `nginx-ingress-controller`, Command Center (peta MapLibre), 11 folder, tanpa galat JS; pgAdmin masuk + server terdaftar; DbGate masuk + tabel `nginx_access` terbaca dari salinan |
-| 5 | `down` lalu `up -d` | data utuh tanpa ingest ulang (`last_run ok 195`, ingest saat mulai "0 file berubah"); akun admin dengan sandi yang sudah diganti dan 4 baris audit tetap ada |
-| — | dashboard selama ingest | 73 permintaan `/api/folders/…` selama ingest paksa 51 detik: 73 OK, 0 gagal |
-| — | `kill -9` di tengah ingest | job keluar ≠ 0; setelah `up`, data utuh; sisa `tmp/run-6` (194 MB CSV) dan baris run `berjalan` dibersihkan oleh ingest berikutnya |
-| — | ingest saat DbGate membuka salinan | `snapshot_error: None`; salinan diganti, DbGate membaca versi baru setelah sambung ulang |
+| 1 | `docker compose build` | succeeded, 41 seconds (dependency layers from cache); image `monishield:2.0.0` **413 MB on disk / 105 MB compressed**; no Node/`node_modules` |
+| 2 | `docker compose run --rm ingest` (11 folders, 195 files) | `ok; 195 files seen, 195 files changed … 11 folders changed; 73.44 seconds` (the job waited for the start-up ingest that was running); forced re-ingest 50.75 seconds; no changes 0.03 seconds |
+| 3 | `docker compose up -d` | `app` *healthy* within ±11 seconds |
+| 4 | browser (`tools/uji_docker.cjs`) | 8/8 PASSED: sign-in + forced password change, Overview (KPIs), service `nginx-ingress-controller`, Command Center (MapLibre map), 11 folders, no JS errors; pgAdmin sign-in + registered server; DbGate sign-in + `nginx_access` table readable from the copy |
+| 5 | `down` then `up -d` | data intact without re-ingesting (`last_run ok 195`, start-up ingest "0 files changed"); admin account with the changed password and 4 audit rows still present |
+| — | dashboard during ingest | 73 `/api/folders/…` requests during a 51-second forced ingest: 73 OK, 0 failed |
+| — | `kill -9` in the middle of an ingest | the job exits ≠ 0; after `up`, data intact; leftover `tmp/run-6` (194 MB of CSV) and the `running` run row cleaned up by the next ingest |
+| — | ingest while DbGate has the copy open | `snapshot_error: None`; the copy is replaced, DbGate reads the new version after reconnecting |
 
-Masalah yang ditemukan dan diperbaiki saat verifikasi:
+Problems found and fixed during verification:
 
-- `${PGADMIN_EMAIL:?}` membuat `docker compose up` gagal walau profil pgAdmin tidak dipakai. Sekarang memakai `:-`;
-  pgAdmin menolak sendiri bila kosong, dan DbGate memakai pemeriksaan di `entrypoint`.
-- pgAdmin menolak email `@….local` → `ALLOW_SPECIAL_EMAIL_DOMAINS`.
-- pgAdmin mendengarkan `[::]` dan gagal di jaringan docker tanpa IPv6 → `PGADMIN_LISTEN_ADDRESS=0.0.0.0`.
-- DbGate gagal membuka salinan di mount `:ro` → mount folder `snapshot/` baca-tulis (§5).
-- `kill -9` meninggalkan CSV sementara dan run `berjalan` → dibersihkan di awal ingest berikutnya.
+- `${PGADMIN_EMAIL:?}` made `docker compose up` fail even when the pgAdmin profile was not used. Now uses `:-`;
+  pgAdmin refuses by itself if it is empty, and DbGate uses a check in its `entrypoint`.
+- pgAdmin rejects `@….local` emails → `ALLOW_SPECIAL_EMAIL_DOMAINS`.
+- pgAdmin listens on `[::]` and fails on a docker network without IPv6 → `PGADMIN_LISTEN_ADDRESS=0.0.0.0`.
+- DbGate fails to open the copy on a `:ro` mount → read-write mount of the `snapshot/` folder (§5).
+- `kill -9` leaves temporary CSVs and a `running` run behind → cleaned up at the start of the next ingest.
 
-## 10. Perubahan kode aplikasi di langkah ini
+## 10. Application code changes in this step
 
-| Berkas | Perubahan | Alasan |
+| File | Change | Reason |
 |---|---|---|
-| `config.py` | `S4_API_URL` | `ingest` di container memanggil `app` lewat HTTP, tidak membuka DuckDB |
-| `config.py`, `db.py`, `api/admin.py`, `api/app.py` | `S4_DUCKDB_SNAPSHOT` + `db.snapshot()` | salinan baca untuk DbGate (§3) |
-| `ingest.py` | `_cleanup_killed()` di awal ingest | sisa run yang dimatikan paksa (§4) |
-| `cli.py` | `ingest` dengan `S4_API_URL` → lewat API, menunggu, kode keluar | layanan `ingest` / cron |
+| `config.py` | `S4_API_URL` | `ingest` in the container calls `app` over HTTP and does not open DuckDB |
+| `config.py`, `db.py`, `api/admin.py`, `api/app.py` | `S4_DUCKDB_SNAPSHOT` + `db.snapshot()` | read-only copy for DbGate (§3) |
+| `ingest.py` | `_cleanup_killed()` at the start of ingest | leftovers of a forcibly killed run (§4) |
+| `cli.py` | `ingest` with `S4_API_URL` → via the API, waits, exit code | the `ingest` service / cron |
 
-Uji: `tests/test_ingest.py::test_salinan_baca_untuk_dbgate`,
-`::test_dimatikan_paksa_dibersihkan_pada_ingest_berikutnya`, dan `tests/test_api.py::test_salinan_duckdb_untuk_dbgate`.
+Tests: `tests/test_ingest.py::test_salinan_baca_untuk_dbgate`,
+`::test_dimatikan_paksa_dibersihkan_pada_ingest_berikutnya`, and `tests/test_api.py::test_salinan_duckdb_untuk_dbgate`.

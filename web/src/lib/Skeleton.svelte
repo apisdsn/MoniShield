@@ -1,5 +1,5 @@
-<!-- Kerangka abu seukuran isi akhir (DRD §6.5): baris KPI, kartu chart 280 px, tabel 6 baris. Muncul hanya bila
-     data belum tiba dalam 200 ms, supaya perpindahan cepat tidak berkedip. -->
+<!-- Gray skeleton the size of the final content (DRD §6.5): KPI row, 280 px chart card, 6-row table. Appears only when
+     data has not arrived within 200 ms, so fast transitions do not flicker. -->
 <script>
   import { onMount } from 'svelte';
   import { t } from '../i18n.js';

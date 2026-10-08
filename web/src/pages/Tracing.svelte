@@ -1,8 +1,8 @@
-<!-- Pelacakan Request (DRD §3.9, inv. §2.9): 6 KPI, catatan, 2 chart, tabel jejak gagal/lambat nginx → aplikasi.
-     Satu permintaan: GET /api/folders/{folder}/tracing. Berubah dari lama: jejak tidak dipotong 300 (TRD §4.4 butir 1;
-     KPI dan chart dihitung dari semua jejak, tabel 300 pertama + "tampilkan berikutnya"); "lambat ≥ 5 dtk" memuat
-     semua status selain gagal (butir 9). ASUMSI: tanpa satu pun request yang cocok (matched = 0) tampil catatan,
-     bukan halaman berisi nol seperti lama (DRD §6.6). -->
+<!-- Request Tracing (DRD §3.9, inv. §2.9): 6 KPIs, notes, 2 charts, table of failed/slow nginx → application traces.
+     One request: GET /api/folders/{folder}/tracing. Changed from the old one: traces are not truncated at 300 (TRD §4.4 item 1;
+     KPIs and charts computed from all traces, table shows the first 300 + "tampilkan berikutnya"); "lambat ≥ 5 dtk" includes
+     all statuses except failed (item 9). ASSUMPTION: with no matching request at all (matched = 0) a note is shown,
+     not a page full of zeros like the old one (DRD §6.6). -->
 <script>
   import { srv, errText } from '../srv.js';
   import { lang, t } from '../i18n.js';
@@ -34,7 +34,7 @@
   $effect(() => { void [folder, reloadKey]; if (folder) load(); });
 
   const pct1 = (a, b) => (b ? `${num((a / b) * 100, $lang, 1)}%` : '-');
-  // URL panjang dipotong 200 karakter (lama); teks lengkap di tooltip sel
+  // long URLs truncated to 200 characters (old); full text in the cell tooltip
   const cut200 = (s) => (s.length > 200 ? s.slice(0, 199) + '…' : s);
 </script>
 
