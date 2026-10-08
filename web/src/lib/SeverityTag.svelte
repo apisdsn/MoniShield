@@ -1,5 +1,5 @@
-<!-- Tag tingkat bahaya (DRD §4.5): pil 11 px tebal dengan titik; tingkat dibedakan juga oleh teks (§9.2).
-     level: 3 kritis, 2 sedang, 1 rendah/netral, 'ok' (Jaringan Ombudsman, Ada log). -->
+<!-- Severity tag (DRD §4.5): bold 11 px pill with a dot; levels are also distinguished by text (§9.2).
+     level: 3 critical, 2 medium, 1 low/neutral, 'ok' (Jaringan Ombudsman, Ada log). -->
 <script>
   let { level = 1, text } = $props();
 </script>

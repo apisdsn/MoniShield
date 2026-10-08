@@ -1,12 +1,14 @@
-"""Notifikasi Telegram / Discord / email (permintaan pemilik 2026-10-07). Tanpa jaringan: pengirim HTTP dan SMTP ditiru."""
+"""Telegram / Discord / email notifications (owner request 2026-10-07). No network: the HTTP and SMTP senders are faked."""
 import dataclasses, datetime, http.server, json, os, shutil, threading, time
 
 import pytest
 from fastapi.testclient import TestClient
 
 import logs_mini
-from monishield import alerts, auth, config, db, ingest
-from monishield.api import app as appmod
+from monishield.application import alert_service
+from monishield.domain import accounts, alerts
+from monishield.infrastructure import config, db, ingest, notify_channels
+from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
 X = {'X-Requested-With': 'uji'}
@@ -19,9 +21,9 @@ B = '2026-01-02'
 
 @pytest.fixture
 def sent(monkeypatch):
-    """Tangkap semua kiriman HTTP (Telegram/Discord) dan SMTP."""
+    """Capture every HTTP (Telegram/Discord) and SMTP send."""
     box = []
-    monkeypatch.setattr(alerts, '_post_json', lambda url, payload: box.append(('http', url, payload)) or 200)
+    monkeypatch.setattr(notify_channels, '_post_json', lambda url, payload: box.append(('http', url, payload)) or 200)
 
     class FakeSMTP:
         def __init__(self, host, port, timeout=None, **kw): box.append(('smtp-open', host, port))
@@ -30,14 +32,14 @@ def sent(monkeypatch):
         def starttls(self, context=None): box.append(('smtp-starttls',))
         def login(self, u, p): box.append(('smtp-login', u, p == SMTP_PW))
         def send_message(self, m): box.append(('smtp-send', m['Subject'], m['To'], m.get_content()))
-    monkeypatch.setattr(alerts.smtplib, 'SMTP', FakeSMTP)
+    monkeypatch.setattr(notify_channels.smtplib, 'SMTP', FakeSMTP)
     return box
 
 
 @pytest.fixture
 def app_env(tmp_path, auth_url, monkeypatch):
-    """Folder B + empat salinannya (rata-rata tersedia) + 2026-01-07 = B dengan error dilipatgandakan nanti."""
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    """Folder B + four copies of it (average available) + 2026-01-07 = B with errors multiplied later."""
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     root = logs_mini.build(tmp_path / 'logs')
     for d in ('2026-01-03', '2026-01-04', '2026-01-05', '2026-01-06'): shutil.copytree(os.path.join(root, B), os.path.join(root, d))
     c = dataclasses.replace(config.Config(), log_dir=root, data_dir=str(tmp_path / 'data'), state_dir=str(tmp_path / 'state'), inbox_dir=str(tmp_path / 'inbox'),
@@ -68,13 +70,13 @@ def test_kredensial_tidak_pernah_dikirim_balik(app_env):
     ch = r.json()['channels']
     assert (ch['telegram']['bot_token'], ch['discord']['webhook_url'], ch['email']['password']) == (True, True, True)
     assert ch['telegram']['chat_id'] == '-1001234567890' and ch['email']['to'].startswith('tim@')
-    # disimpan di file .env (bukan basis data), langsung berlaku di konfigurasi server
+    # stored in the .env file (not the database), takes effect immediately in the server config
     env = config.read_dotenv(os.path.join(c.state_dir, '.env'))
     assert (env['TELEGRAM_BOT_TOKEN'], env['S4_ALERT_TELEGRAM'], env['S4_ALERT_TELEGRAM_CHAT_ID'], env['DISCORD_WEBHOOK_URL'], env['SMTP_PASSWORD']) == \
         (TOKEN, 'true', '-1001234567890', HOOK, SMTP_PW)
     assert env['S4_SMTP_TO'] == 'tim@contoh.go.id, ketua@contoh.go.id' and env['S4_DASHBOARD_URL'] == 'https://monishield.contoh.go.id'
     assert tc.app.state.cfg.telegram_bot_token == TOKEN and tc.app.state.auth.setting_get('alerts') is None
-    # simpan lagi tanpa kredensial: tetap tersimpan; `clear` menghapus
+    # save again without credentials: they stay stored; `clear` removes them
     r = tc.put('/api/admin/alerts', json=dict(channels=dict(telegram=dict(bot_token='', enabled=True))), headers=X)
     assert r.json()['channels']['telegram']['bot_token'] is True
     r = tc.put('/api/admin/alerts', json=dict(channels=dict(discord=dict(enabled=False)), clear=['discord.webhook_url']), headers=X)
@@ -84,11 +86,11 @@ def test_kredensial_tidak_pernah_dikirim_balik(app_env):
     assert 'alerts.update' in audit and TOKEN not in audit and SMTP_PW not in audit
 
 
-@pytest.mark.parametrize('ch,msg', [(dict(telegram=dict(bot_token='bukan-token')), 'Token bot'), (dict(telegram=dict(chat_id='abc')), 'Chat ID'),
-                                    (dict(discord=dict(webhook_url='https://evil.example/api/webhooks/1/x')), 'webhook Discord'),
-                                    (dict(discord=dict(webhook_url='http://discord.com/api/webhooks/1/x')), 'webhook Discord'),
-                                    (dict(email=dict(to='bukan email')), 'Penerima'), (dict(email=dict(enabled=True)), 'belum lengkap'),
-                                    (dict(telegram=dict(enabled=True)), 'belum diisi')])
+@pytest.mark.parametrize('ch,msg', [(dict(telegram=dict(bot_token='bukan-token')), 'bot token'), (dict(telegram=dict(chat_id='abc')), 'chat ID'),
+                                    (dict(discord=dict(webhook_url='https://evil.example/api/webhooks/1/x')), 'Discord webhook URL'),
+                                    (dict(discord=dict(webhook_url='http://discord.com/api/webhooks/1/x')), 'Discord webhook URL'),
+                                    (dict(email=dict(to='bukan email')), 'recipients'), (dict(email=dict(enabled=True)), 'incomplete'),
+                                    (dict(telegram=dict(enabled=True)), 'not set')])
 def test_isian_diperiksa(app_env, ch, msg):
     tc, _, _ = app_env
     r = tc.put('/api/admin/alerts', json=dict(channels=ch), headers=X)
@@ -114,7 +116,7 @@ def test_gagal_kirim_dilaporkan_tanpa_kredensial(app_env, monkeypatch):
     tc, _, _ = app_env
     setel(tc)
     def tolak(url, payload): raise alerts.AlertFail('ditolak HTTP 401')
-    monkeypatch.setattr(alerts, '_post_json', tolak)
+    monkeypatch.setattr(notify_channels, '_post_json', tolak)
     r = tc.post('/api/admin/alerts/test', json=dict(channel='telegram'), headers=X)
     assert r.status_code == 502 and 'HTTP 401' in r.json()['error']['message'] and TOKEN not in r.text
     assert tc.get('/api/admin/alerts').json()['history'][0]['ok'] is False
@@ -125,25 +127,25 @@ def test_lonjakan_dan_serangan_kritis_tanpa_alamat_ip(app_env, sent):
     setel(tc)
     con = tc.app.state.con.cursor()
     try:
-        con.execute("UPDATE agg_service SET err = err + 500 WHERE folder = '2026-01-06'")   # lonjakan error vs rata-rata 01-02..01-05
+        con.execute("UPDATE agg_service SET err = err + 500 WHERE folder = '2026-01-06'")   # error spike vs the 01-02..01-05 average
         cfg = alerts.load(tc.app.state.cfg)
-        ev = {e[0]: e for e in alerts.folder_events(con, cfg, '2026-01-06', True)}
+        ev = {e[0]: e for e in alerts.folder_events(cfg, '2026-01-06', tc.app.state.warehouse.folder_facts('2026-01-06', True))}
     finally: con.close()
     assert set(ev) == {'spike', 'critical'}
     _, key, title, text = ev['spike']
     assert key == 'spike:2026-01-06' and 'Error (semua layanan)' in text and 'rata-rata 4 folder' in text and '#/peta?folder=2026-01-06' in text
     _, key, title, text = ev['critical']
     assert 'IP' in text and '34.19.127.199' not in text and '#/keamanan?folder=2026-01-06' in text
-    # kirim: semua saluran aktif, sekali per kunci
+    # send: all enabled channels, once per key
     cfg = alerts.load(tc.app.state.cfg)
-    r = alerts.deliver(tc.app.state.auth, cfg, ev['spike'][1], 'spike', ev['spike'][2], ev['spike'][3])
+    r = alert_service.deliver(tc.app.state, cfg, ev['spike'][1], 'spike', ev['spike'][2], ev['spike'][3])
     assert r == dict(telegram=None, discord=None, email=None)
-    assert alerts.deliver(tc.app.state.auth, cfg, ev['spike'][1], 'spike', 'x', 'y') == {}
+    assert alert_service.deliver(tc.app.state, cfg, ev['spike'][1], 'spike', 'x', 'y') == {}
     for x in sent: assert '34.19.127.199' not in json.dumps(x)
-    # bahasa Inggris
+    # English
     tc.put('/api/admin/alerts', json=dict(lang='en'), headers=X)
     con = tc.app.state.con.cursor()
-    try: ev = {e[0]: e for e in alerts.folder_events(con, alerts.load(tc.app.state.cfg), '2026-01-06', True)}
+    try: ev = {e[0]: e for e in alerts.folder_events(alerts.load(tc.app.state.cfg), '2026-01-06', tc.app.state.warehouse.folder_facts('2026-01-06', True))}
     finally: con.close()
     assert ev['spike'][2] == 'Spike in folder 2026-01-06' and 'Errors (all services)' in ev['spike'][3]
 
@@ -169,12 +171,12 @@ def test_folder_hari_ini_belum_datang(app_env, sent):
     tc, _, _ = app_env
     setel(tc)
     n = tc.app.state.alerts
-    pagi = datetime.datetime(2026, 10, 7, 1, 0, tzinfo=datetime.timezone.utc)      # 08.00 WIB: belum waktunya
+    pagi = datetime.datetime(2026, 10, 7, 1, 0, tzinfo=datetime.timezone.utc)      # 08:00 WIB: not yet time
     assert n.check_missing(pagi) is None
-    siang = datetime.datetime(2026, 10, 7, 4, 0, tzinfo=datetime.timezone.utc)     # 11.00 WIB
+    siang = datetime.datetime(2026, 10, 7, 4, 0, tzinfo=datetime.timezone.utc)     # 11:00 WIB
     assert n.check_missing(siang) == dict(telegram=None, discord=None, email=None)
     assert any('Folder log 2026-10-07 belum datang' in json.dumps(x) for x in sent)
-    assert n.check_missing(siang) == {}                                            # sekali per hari
+    assert n.check_missing(siang) == {}                                            # once per day
 
 
 def test_tanpa_saluran_aktif_tidak_ada_kiriman(app_env, sent):
@@ -195,8 +197,8 @@ def test_post_json_sungguhan_ke_server_lokal(monkeypatch):
     base = f'http://127.0.0.1:{srv.server_address[1]}'
     try:
         monkeypatch.setenv('NO_PROXY', '127.0.0.1')
-        assert alerts._post_json(base + '/ok', dict(a=1)) == 200 and got == [dict(a=1)]
-        with pytest.raises(alerts.AlertFail, match='HTTP 401'): alerts._post_json(base + '/tolak', {})
+        assert notify_channels._post_json(base + '/ok', dict(a=1)) == 200 and got == [dict(a=1)]
+        with pytest.raises(alerts.AlertFail, match='HTTP 401'): notify_channels._post_json(base + '/tolak', {})
     finally: srv.shutdown(); srv.server_close()
 
 

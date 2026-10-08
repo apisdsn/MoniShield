@@ -1,16 +1,16 @@
-<!-- Peta asal request (DRD §7) dengan MapLibre GL. Tanpa permintaan ke domain luar: daratan/batas dari /map/*.geojson
-     (dibuat ingest), label dari /map/labels.json, huruf Noto Sans dari /fonts (dibundel). 13 lapisan §7.3; preset
-     Indonesia/Dunia (fit bounds); titik per lokasi + pengelompokan < 40 px sampai zoom 7 (lingkaran kelompok
-     tanpa angka, keputusan pemilik 2026-10-06; angka di tooltip dan di label 6 lokasi terbesar); busur per lokasi; titik
-     server; tooltip bergaya chart dengan "Lihat di tabel"; gerakan kooperatif (Ctrl + roda, dua jari); keyboard
-     (panah, +/−, 0, Esc); atribusi selalu terlihat; ganti tema/bahasa/data tanpa kehilangan posisi.
-     MapLibre dimuat terpisah (import dinamis) agar halaman lain tidak ikut membawanya.
-     Animasi alur (permintaan pemilik 2026-10-07; lib/mapFlow.js): partikel berjalan dari lokasi asal ke titik server +
-     riak saat tiba; busur bergradasi pudar -> terang ke arah server. Tombol putar/jeda (diingat per browser; bawaan mati
-     bila sistem meminta gerak dikurangi). Siap realtime: `pulse({lat, lon, n})` (bind:this) atau event jendela
-     `monishield:map-pulse`; prop `live` mematikan partikel ambient sehingga hanya kejadian nyata yang bergerak. -->
+<!-- Request origin map (DRD §7) with MapLibre GL. No requests to outside domains: land/borders from /map/*.geojson
+     (built by ingest), labels from /map/labels.json, Noto Sans glyphs from /fonts (bundled). 13 layers §7.3; presets
+     Indonesia/World (fit bounds); dots per location + clustering < 40 px up to zoom 7 (cluster circles
+     without numbers, owner decision 2026-10-06; numbers in the tooltip and on the labels of the 6 largest locations); arcs per location; server
+     dot; chart-style tooltip with "Lihat di tabel"; cooperative gestures (Ctrl + wheel, two fingers); keyboard
+     (arrows, +/−, 0, Esc); attribution always visible; theme/language/data change without losing position.
+     MapLibre is loaded separately (dynamic import) so other pages do not carry it.
+     Flow animation (owner request 2026-10-07; lib/mapFlow.js): particles travel from the origin location to the server dot +
+     a ripple on arrival; arcs graded faint -> bright toward the server. Play/pause button (remembered per browser; off by default
+     when the system asks for reduced motion). Realtime-ready: `pulse({lat, lon, n})` (bind:this) or the window event
+     `monishield:map-pulse`; the `live` prop turns off ambient particles so only real events move. -->
 <script module>
-  let labelsP = null;   // labels.json dipakai bersama semua peta di halaman
+  let labelsP = null;   // labels.json is shared by all maps on the page
   const loadLabels = () => (labelsP ||= fetch('/map/labels.json').then((r) => (r.ok ? r.json() : { c: [], p: [], k: [] })).catch(() => ({ c: [], p: [], k: [] })));
   export const PRESETS = { id: [[94, -12], [142, 8]], world: [[-168, -60], [168, 80]] };
 </script>
@@ -23,15 +23,15 @@
   import { load as loadPref, save as savePref } from '../store.js';
   import { FlowAnimator, flowSources, flowLayers, arcGradient, tailGradient, arcOf } from './mapFlow.js';
 
-  /** points: [{lat, lon, city, region, cc, ips, requests, modules: {modul: n}}] (urut naik); server: {ip, lat, lon, city, cc} */
-  let { points = [], server = null, preset = $bindable('id'), onpick = null, label = '', compact = false, tall = false, live = false } = $props();   // tall: setinggi layar (Command Center)
+  /** points: [{lat, lon, city, region, cc, ips, requests, modules: {module: n}}] (ascending); server: {ip, lat, lon, city, cc} */
+  let { points = [], server = null, preset = $bindable('id'), onpick = null, label = '', compact = false, tall = false, live = false } = $props();   // tall: as tall as the screen (Command Center)
   let box = $state(), wrap = $state(), map = null, ml = null, ready = $state(false), failed = $state(false);
   let tip = $state(null), full = $state(false);   // tip: {x, y, kind, ...}
   let anim = null;
   const pref = loadPref('map_anim', null);
   let playing = $state(pref === null ? !matchMedia('(prefers-reduced-motion: reduce)').matches : pref === '1');
   function togglePlay() { playing = !playing; savePref('map_anim', playing ? '1' : '0'); anim?.setPlaying(playing); }
-  /** Satu kejadian nyata (mis. dari Kafka): partikel dari (lat, lon) ke server. -> true bila tergambar. */
+  /** One real event (e.g. from Kafka): a particle from (lat, lon) to the server. -> true when drawn. */
   export function pulse(ev) { return anim?.pulse(ev) ?? false; }
 
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -46,7 +46,7 @@
     const loc = pts.map((p, i) => ({ type: 'Feature', id: i + 1, geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
       properties: { i, requests: p.requests, ips: p.ips, rank: rank.get(p), name: shortName(p), sub: `${num(p.ips, $lang)} IP · ${num(p.requests, $lang)} req` } }));
     const arcs = server ? pts.map((p) => {
-      const { x0, y0, x1, y1, cx, cy } = arcOf(p.lon, p.lat, server.lon, server.lat);   // lengkung lama: kontrol di atas titik tengah
+      const { x0, y0, x1, y1, cx, cy } = arcOf(p.lon, p.lat, server.lon, server.lat);   // old curve: control point above the midpoint
       const line = Array.from({ length: 25 }, (_, k) => { const s = k / 24, u = 1 - s; return [u * u * x0 + 2 * u * s * cx + s * s * x1, u * u * y0 + 2 * u * s * cy + s * s * y1]; });
       return { type: 'Feature', geometry: { type: 'LineString', coordinates: line },
         properties: { w: 1 + (3 * p.requests) / max, op: p.requests < max * 0.01 ? 0.25 : 0.45 } };
@@ -65,7 +65,7 @@
     };
   }
 
-  // ---------------------------------------------------------------- gaya
+  // ---------------------------------------------------------------- style
   function colors() {
     return { sea: css('--card2'), land: css('--land'), coast: css('--coast'), accent: css('--accent'), server: css('--c10'), fg: css('--fg'), muted: css('--muted'),
       halo: css('--card2') };
@@ -74,12 +74,12 @@
     const font = ['Noto Sans Regular'], bold = ['Noto Sans Bold'];
     const o = location.origin;
     return {
-      version: 8, glyphs: `${o}/fonts/{fontstack}/{range}.pbf`,   // huruf dibundel (DRD §7.2); tanpa sprite
+      version: 8, glyphs: `${o}/fonts/{fontstack}/{range}.pbf`,   // bundled glyphs (DRD §7.2); no sprite
       sources: {
         land: { type: 'geojson', data: `${o}/map/land.geojson` },
         borders: { type: 'geojson', data: `${o}/map/borders-country.geojson` },
         prov: { type: 'geojson', data: `${o}/map/borders-province-id.geojson` },
-        arcs: { type: 'geojson', data: d.arcs, lineMetrics: true },   // lineMetrics: gradasi arah (asal pudar -> server terang)
+        arcs: { type: 'geojson', data: d.arcs, lineMetrics: true },   // lineMetrics: directional gradient (origin faint -> server bright)
         ...flowSources(),
         loc: { type: 'geojson', data: d.loc, cluster: true, clusterRadius: 40, clusterMaxZoom: 7,
           clusterProperties: { requests: ['+', ['get', 'requests']], ips: ['+', ['get', 'ips']] } },
@@ -99,10 +99,10 @@
           paint: { 'circle-color': c.accent, 'circle-opacity': 0.28, 'circle-stroke-color': c.accent, 'circle-stroke-width': 2, 'circle-stroke-opacity': 0.9,
             'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'requests']], 0, 12, Math.sqrt(Math.max(d.max * 4, 1)), 22] } },
         { id: 'points', type: 'circle', source: 'loc', filter: ['!', ['has', 'point_count']],
-          layout: { 'circle-sort-key': ['get', 'requests'] },   // terbesar paling atas (lama)
+          layout: { 'circle-sort-key': ['get', 'requests'] },   // largest on top (old)
           paint: { 'circle-radius': 5, 'circle-color': c.accent, 'circle-stroke-color': c.accent, 'circle-stroke-width': 2, 'circle-stroke-opacity': 0.45 } },
         { id: 'server', type: 'circle', source: 'srv', paint: { 'circle-radius': 7, 'circle-color': c.server, 'circle-stroke-color': c.halo, 'circle-stroke-width': 2 } },
-        // label: urutan bawah -> atas = prioritas rendah -> tinggi (kabupaten < provinsi < negara < lokasi IP < server)
+        // labels: bottom -> top order = low -> high priority (regency < province < country < IP location < server)
         { id: 'lbl-kab', type: 'symbol', source: 'lk', minzoom: 7,
           layout: { 'text-field': ['get', 'n'], 'text-font': font, 'text-size': 10, 'text-padding': 4 },
           paint: { 'text-color': c.muted, 'text-halo-color': c.halo, 'text-halo-width': 1.2 } },
@@ -119,9 +119,9 @@
           layout: { 'text-field': ['get', 'name'], 'text-font': font, 'text-size': 11, 'text-anchor': 'left', 'text-offset': [0.9, 0], 'text-optional': true,
             'symbol-sort-key': ['-', ['get', 'requests']] },
           paint: { 'text-color': c.fg, 'text-halo-color': c.halo, 'text-halo-width': 1.4 } },
-        { id: 'lbl-top', type: 'symbol', source: 'top',   // 6 lokasi terbesar selalu berlabel (lama)
-          // 6 terbesar: ditempatkan paling dulu (lapisan teratas) dan boleh pindah sisi; tidak menimpa label lain (§7.3)
-          // nama tebal + baris kecil "N IP · N req" (gaya label lama; diminta pemilik 2026-10-06)
+        { id: 'lbl-top', type: 'symbol', source: 'top',   // the 6 largest locations are always labeled (old)
+          // 6 largest: placed first (top layer) and may switch sides; do not overlap other labels (§7.3)
+          // bold name + small "N IP · N req" line (old label style; requested by the owner 2026-10-06)
           layout: { 'text-field': ['format', ['get', 'name'], { 'text-font': ['literal', bold] }, '\n', {}, ['get', 'sub'], { 'font-scale': 0.85, 'text-font': ['literal', ['Noto Sans Regular']] }],
             'text-font': bold, 'text-size': 12, 'text-line-height': 1.25,
             'text-variable-anchor': ['left', 'right', 'top', 'bottom', 'top-left', 'bottom-left', 'top-right', 'bottom-right'], 'text-radial-offset': 0.9,
@@ -129,13 +129,13 @@
           paint: { 'text-color': c.fg, 'text-halo-color': c.halo, 'text-halo-width': 1.6 } },
         { id: 'lbl-srv', type: 'symbol', source: 'srv',
           layout: { 'text-field': ['get', 'name'], 'text-font': bold, 'text-size': 11, 'text-anchor': 'right', 'text-justify': 'right', 'text-offset': [-1, 0],
-            'text-allow-overlap': true },   // selalu tampil, dan label lain menghindarinya
+            'text-allow-overlap': true },   // always shown, and other labels avoid it
           paint: { 'text-color': c.server, 'text-halo-color': c.halo, 'text-halo-width': 1.6 } },
       ],
     };
   }
 
-  // ---------------------------------------------------------------- teks antarmuka MapLibre (dua bahasa)
+  // ---------------------------------------------------------------- MapLibre UI text (bilingual)
   const uiText = (l) => ({
     'CooperativeGesturesHandler.WindowsHelpText': l === 'en' ? 'Hold Ctrl and scroll to zoom the map' : 'Tahan Ctrl lalu gulir untuk memperbesar peta',
     'CooperativeGesturesHandler.MacHelpText': l === 'en' ? 'Hold ⌘ and scroll to zoom the map' : 'Tahan ⌘ lalu gulir untuk memperbesar peta',
@@ -156,9 +156,9 @@
           container: box, style: style(LF, d, colors(), l), bounds: PRESETS[preset], fitBoundsOptions: { padding: 12 },
           maxZoom: 10, minZoom: 0.5, renderWorldCopies: false, dragRotate: false, pitchWithRotate: false, touchPitch: false,
           cooperativeGestures: true, attributionControl: false, locale: uiText(l), maxPitch: 0,
-          canvasContextAttributes: { preserveDrawingBuffer: tall },   // Command Center: kanvas ikut tercetak di ringkasan PDF (Tahap 24)
+          canvasContextAttributes: { preserveDrawingBuffer: tall },   // Command Center: the canvas is included in the PDF summary print (Stage 24)
         });
-        box.__map = map;   // dibaca alat uji (tools/uji_tahap20.cjs): posisi, zoom, fitur yang tergambar
+        box.__map = map;   // read by test tools (tools/uji_tahap20.cjs): position, zoom, drawn features
         map.touchZoomRotate.disableRotation();
         map.keyboard.disableRotation();
         map.getCanvas().setAttribute('aria-label', label);
@@ -166,7 +166,7 @@
           ready = true;
           anim = new FlowAnimator(map, box);
           anim.setLive(live); anim.setPlaying(playing); anim.setData(points, server);
-          box.__flow = anim;   // dibaca alat uji (seperti __map)
+          box.__flow = anim;   // read by test tools (like __map)
         });
         map.on('error', (e) => { if (/WebGL/i.test(String(e?.error?.message))) failed = true; });
         map.on('movestart', () => (tip = null));
@@ -177,7 +177,7 @@
           map.on('click', id, (e) => { e.preventDefault(); clickOn(id, e.features[0], e.point); });
         }
         map.on('click', (e) => { if (!e.defaultPrevented) tip = null; });
-        // tema & bahasa: ubah cat/teks di tempat (posisi dan zoom tetap)
+        // theme & language: change paint/text in place (position and zoom kept)
         let firstT = true, firstL = true;
         offTheme = theme.subscribe(() => { if (firstT) return (firstT = false); tick().then(repaint); });
         offLang = lang.subscribe((nl) => { if (firstL) return (firstL = false); relabel(nl); });
@@ -188,7 +188,7 @@
     return () => { alive = false; offTheme?.(); offLang?.(); window.removeEventListener('monishield:map-pulse', onPulse); anim?.destroy(); anim = null; map?.remove(); map = null; };
   });
 
-  // data berganti (mis. pilih modul): ganti isi sumber; kamera tidak disentuh
+  // data changes (e.g. module selected): replace source contents; the camera is not touched
   $effect(() => {
     const d = features(points);
     void server;
@@ -199,7 +199,7 @@
     tip = null;
   });
   $effect(() => { const l = live; anim?.setLive(l); });
-  // preset dari tombol Indonesia | Dunia
+  // preset from the Indonesia | World buttons
   let lastPreset = null;
   $effect(() => { const p = preset; if (ready && map && lastPreset !== null && p !== lastPreset) fit(); lastPreset = p; });
   const fit = () => map?.fitBounds(PRESETS[preset], { padding: 12, duration: 400 });
@@ -219,11 +219,11 @@
   function relabel(l) {
     if (!map) return;
     for (const id of ['lbl-country', 'lbl-country-small']) map.getLayer(id) && map.setLayoutProperty(id, 'text-field', ['get', l === 'en' ? 'en' : 'id']);
-    // teks gerakan kooperatif dibaca MapLibre saat diaktifkan: tulis ulang lalu aktifkan lagi (map._locale = kamus UI MapLibre)
+    // cooperative gesture text is read by MapLibre when enabled: rewrite it then enable again (map._locale = MapLibre UI dictionary)
     Object.assign(map._locale, uiText(l));
     map.cooperativeGestures.disable(); map.cooperativeGestures.enable();
     map.getCanvas().setAttribute('aria-label', label);
-    const d = features(points); map.getSource('loc')?.setData(d.loc); map.getSource('top')?.setData(d.top);   // "N IP · N req" dan nama negara mengikuti bahasa
+    const d = features(points); map.getSource('loc')?.setData(d.loc); map.getSource('top')?.setData(d.top);   // "N IP · N req" and country names follow the language
     tip = null;
   }
 

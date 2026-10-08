@@ -1,5 +1,5 @@
-<!-- Kerangka aplikasi (DRD §2, §6, §8, §9): masuk/ganti sandi wajib -> dashboard. Sidebar + baris alat lekat + isi.
-     Data dashboard tidak dimuat sebelum masuk (DRD §6.9). Halaman data dipasang per tab (pages/*.svelte). -->
+<!-- App shell (DRD §2, §6, §8, §9): login/forced password change -> dashboard. Sidebar + sticky toolbar + content.
+     Dashboard data is not loaded before login (DRD §6.9). Data pages are mounted per tab (pages/*.svelte). -->
 <script>
   import { onMount, tick, untrack } from 'svelte';
   import { get } from 'svelte/store';
@@ -31,8 +31,8 @@
   import RootCause from './pages/RootCause.svelte';
   import Availability from './pages/Availability.svelte';
 
-  // ASUMSI (DRD §6.6 "praktis kosong"): folder dengan < 1.000 baris log diberi pita kuning (jumlah file rusak ikut
-  // disebut). File rusak saja tidak cukup: folder penuh pun sering punya 1–3 file berbaris rusak.
+  // ASSUMPTION (DRD §6.6 "practically empty"): a folder with < 1,000 log lines gets a yellow band (the corrupt file count is
+  // mentioned too). Corrupt files alone are not enough: even full folders often have 1–3 files with corrupt lines.
   const SPARSE_LINES = 1000;
 
   let screen = $state('boot');          // boot | login | force-password | app
@@ -40,13 +40,13 @@
   let bootError = $state(null), expired = $state(false);
   let reloadKey = $state(0), pageReady = $state(true), announce = $state('');
   let drawer = $state(false), menuBtn = $state(), h1 = $state();
-  let collapsed = $state(load('side', 'open') === 'collapsed');   // navigasi kiri diciutkan (layar lebar), per browser
-  function toggleSide() { collapsed = !collapsed; save('side', collapsed ? 'collapsed' : 'open'); }   // h1 = judul halaman di Header (fokus saat pindah tab)
+  let collapsed = $state(load('side', 'open') === 'collapsed');   // left navigation collapsed (wide screen), per browser
+  function toggleSide() { collapsed = !collapsed; save('side', collapsed ? 'collapsed' : 'open'); }   // h1 = page title in the Header (focused when switching tabs)
   let lastFolder = null;
 
-  // ---------------------------------------------------------------- masuk
-  // /api/docs (Swagger) mengarahkan ke sini dengan ?next=/api/docs bila belum masuk: sesudah masuk (dan ganti sandi
-  // awal) kembali ke sana. Hanya alamat dalam daftar ini yang diikuti (bukan pengalihan terbuka).
+  // ---------------------------------------------------------------- login
+  // /api/docs (Swagger) redirects here with ?next=/api/docs when not logged in: after login (and the initial password
+  // change) go back there. Only addresses in this list are followed (not an open redirect).
   const NEXT = ['/api/docs'];
   function goNext() {
     const n = new URLSearchParams(location.search).get('next');
@@ -73,19 +73,19 @@
   function onlogin(u) {
     me = u; expired = false;
     if (u.must_change_password) screen = 'force-password';
-    else if (!goNext()) loadMeta().then(() => meta && (screen = 'app'));   // kembali ke alamat yang tadi diminta: alamat tidak diubah
+    else if (!goNext()) loadMeta().then(() => meta && (screen = 'app'));   // return to the previously requested address: the address is not changed
   }
-  // peran/nama bisa diubah admin kapan saja: dibaca ulang tiap pindah tab dan muat ulang ("pada permintaan berikutnya")
+  // role/name can be changed by an admin at any time: re-read on every tab switch and reload ("on the next request")
   async function refreshMe() {
     try {
       const u = await api.get('/api/me');
       if (u.role !== me?.role || u.display_name !== me?.display_name) me = u;
       if (u.must_change_password) screen = 'force-password';
-    } catch { /* 401 -> sesi habis ditangani api.js */ }
+    } catch { /* 401 -> expired session handled by api.js */ }
   }
   function clear() { me = null; meta = null; summary = null; lastFolder = null; }
   async function logout() {
-    try { await api.post('/api/auth/logout'); } catch { /* sesi mungkin sudah habis */ }
+    try { await api.post('/api/auth/logout'); } catch { /* session may have expired already */ }
     clear(); expired = false; screen = 'login';
   }
   onMount(() => {
@@ -98,21 +98,23 @@
     return () => { off1(); off2(); };
   });
 
-  // ---------------------------------------------------------------- folder dan tab
+  // ---------------------------------------------------------------- folders and tabs
   const folders = $derived(meta?.folders || []);
   const folder = $derived(folders.some((f) => f.folder === $route.folder) ? $route.folder : folders[0]?.folder ?? null);
   const folderInfo = $derived(folders.find((f) => f.folder === folder) || null);
+  // folder date as shown; folders filled by the Kafka consumer are labelled "(Kafka)"
+  const folderName = $derived(folder ? (folderInfo?.source === 'kafka' ? $t('folder.kafka', { date: dLabel(folder, $lang) }) : dLabel(folder, $lang)) : '');
   const isAdminTab = $derived(ADMIN.includes($route.tab));
   const isDataTab = $derived(!isAdminTab && $route.tab !== 'sandi');
 
-  // folder di alamat tidak ada -> folder terbaru + pemberitahuan (DRD §1.3); tanpa folder -> folder terbaru di alamat
+  // folder in the address does not exist -> newest folder + notice (DRD §1.3); no folder -> newest folder in the address
   $effect(() => {
     if (screen !== 'app' || !folder || $route.folder === folder) return;
     if ($route.folder) toast(get(t)('folder.not_found', { date: $route.folder }));
     go({ folder }, { replace: true });
   });
 
-  // ringkasan folder: sidebar (layanan, lencana) dan subjudul. Daftar lama tetap tampil sampai yang baru tiba (§6.5).
+  // folder summary: sidebar (services, badges) and subtitle. The old list stays visible until the new one arrives (§6.5).
   let sumSeq = 0;
   async function loadSummary(f) {
     const my = ++sumSeq;
@@ -120,24 +122,24 @@
       const s = await api.get(`/api/folders/${encodeURIComponent(f)}`);
       if (my === sumSeq) summary = s;
     } catch (e) {
-      if (my === sumSeq && e.status === 404) reload();   // folder hilang (dilupakan admin): ambil daftar baru
+      if (my === sumSeq && e.status === 404) reload();   // folder gone (forgotten by an admin): fetch a new list
     }
   }
   $effect(() => {
     void reloadKey;
     if (screen === 'app' && folder) loadSummary(folder);
   });
-  // tab layanan yang tidak ada di folder terpilih -> Overview (lama)
+  // service tab not present in the selected folder -> Overview (old)
   $effect(() => {
     if (screen === 'app' && summary?.folder === folder && $route.tab === 'layanan' && !summary.services.some((s) => s.service === $route.service))
       go({ tab: 'overview' }, { replace: true });
   });
-  // ganti folder: posisi gulir ke atas (DRD §6.1)
+  // folder change: scroll position to top (DRD §6.1)
   $effect(() => {
     if (folder && lastFolder && folder !== lastFolder) window.scrollTo({ top: 0 });
     lastFolder = folder;
   });
-  // pindah tab: gulir ke atas, fokus ke judul (DRD §6.8)
+  // tab switch: scroll to top, focus the title (DRD §6.8)
   let lastTab = null;
   $effect(() => {
     const key = `${$route.tab}/${$route.service}`;
@@ -152,7 +154,7 @@
     reloadKey++;
   }
   function setFolder(f) { go({ folder: f }); }
-  // tombol Sinkronkan (admin): setelah ingest, muat ulang daftar folder + halaman; ada folder baru -> pindah ke yang terbaru
+  // Sync button (admin): after ingest, reload the folder list + page; a new folder exists -> switch to the newest
   async function onsynced() {
     const before = new Set(folders.map((f) => f.folder));
     await loadMeta(); refreshMe(); reloadKey++;
@@ -160,7 +162,7 @@
     if (baru.length) go({ folder: baru[baru.length - 1] });
   }
 
-  // ---------------------------------------------------------------- judul
+  // ---------------------------------------------------------------- title
   const title = $derived.by(() => {
     const r = $route;
     if (r.tab === 'overview') return $t('title.overview');
@@ -172,17 +174,17 @@
     if (r.tab === 'admin/konfigurasi' || r.tab === 'admin/notifikasi') return $t('menu.config');
     return $t(`tab.${r.tab}`);
   });
-  // baris kesegaran data di bawah kepala (U2 + pengganti "streaming · last event" referensi selama Kafka ditunda)
+  // data freshness line under the header (U2 + stand-in for the reference's "streaming · last event" while Kafka is deferred)
   const subtitle = $derived.by(() => {
     if (!isDataTab || !folder) return '';
     if ($route.tab === 'tren') return $t('sub.trends', { n: num(folders.length, $lang) });
-    const parts = [$t('sub.folder', { date: dLabel(folder, $lang) })];
+    const parts = [$t('sub.folder', { date: folderName })];
     const rng = logRange(folderInfo?.range_start, folderInfo?.range_end, $lang);
     if (rng) parts.push($t('sub.contains', { range: rng }));
     if (folderInfo?.derived_at) parts.push($t('sub.derived', { time: tWIB(folderInfo.derived_at, $lang) }));
     return parts.join(' · ');
   });
-  // baris status ringkas di bawah judul (gaya referensi DRD §12): jumlah layanan, error, warning, IP serangan
+  // compact status line under the title (reference style DRD §12): number of services, errors, warnings, attack IPs
   const status = $derived.by(() => {
     if (!isDataTab || $route.tab === 'tren' || summary?.folder !== folder) return [];
     const sv = $route.tab === 'layanan' ? summary.services.filter((x) => x.service === $route.service) : summary.services;
@@ -195,16 +197,16 @@
     if ($route.tab !== 'layanan' && summary.attack_ip_count) out.push({ tone: 'err', n: num(summary.attack_ip_count, $lang), text: $t('status.attack_ips') });
     return out;
   });
-  const suffix = $derived(isDataTab && folder && $route.tab !== 'tren' ? dLabel(folder, $lang) : '');
+  const suffix = $derived(isDataTab && folder && $route.tab !== 'tren' ? folderName : '');
   $effect(() => { document.title = screen === 'app' ? `${title} · ${APP_NAME}` : APP_NAME; });
   const sparse = $derived(isDataTab && $route.tab !== 'tren' && folderInfo && folderInfo.lines < SPARSE_LINES);
 
-  // ---------------------------------------------------------------- sesi menganggur (DRD §6.9)
+  // ---------------------------------------------------------------- idle session (DRD §6.9)
   let now = $state(Date.now());
   onMount(() => { const id = setInterval(() => (now = Date.now()), 15000); return () => clearInterval(id); });
-  // server mencatat aktivitas paling sering semenit sekali: hitung mundur dengan cadangan 1 menit
+  // the server records activity at most once a minute: count down with a 1-minute margin
   const idleLeft = $derived(me?.session_idle_minutes ? $lastActivity + (me.session_idle_minutes - 1) * 60000 - now : Infinity);
-  async function stay() { try { await api.get('/api/me'); now = Date.now(); } catch { /* 401 -> sesi habis */ } }
+  async function stay() { try { await api.get('/api/me'); now = Date.now(); } catch { /* 401 -> session expired */ } }
 
   // ---------------------------------------------------------------- keyboard (DRD §9.3)
   function onkey(e) {
@@ -219,7 +221,7 @@
   }
   async function closeDrawer() {
     drawer = false;
-    await tick();          // isi lain baru lepas dari inert setelah render: baru fokus bisa kembali ke ☰
+    await tick();          // the rest of the content is released from inert only after render: only then can focus return to ☰
     menuBtn?.focus();
   }
   async function openDrawer() {
@@ -289,7 +291,7 @@
       {:else if $route.tab === 'admin/ingest'}
         <AdminIngest onfinished={reload} />
       {:else if $route.tab === 'admin/konfigurasi' || $route.tab === 'admin/notifikasi'}
-        <!-- #/admin/notifikasi (alamat lama) = halaman Konfigurasi, langsung ke bagian notifikasi -->
+        <!-- #/admin/notifikasi (old address) = Configuration page, straight to the notifications section -->
         <AdminConfig focus={$route.tab === 'admin/notifikasi' ? 'notif' : ''} />
       {:else if !folders.length}
         <EmptyState title={$t('state.no_data')} text={me.role === 'admin' ? '' : $t('state.no_data_user')}>
@@ -362,7 +364,7 @@
       width: min(300px, 86vw); transform: translateX(-100%); visibility: hidden; transition: transform 0.15s, visibility 0.15s;
       box-shadow: var(--glow); overflow-y: auto;
     }
-    .side.open { transform: none; visibility: visible; transition: transform 0.15s, visibility 0s; }   /* terlihat seketika agar bisa difokus */
+    .side.open { transform: none; visibility: visible; transition: transform 0.15s, visibility 0s; }   /* visible immediately so it can be focused */
     .backdrop { display: block; position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, 0.45); border: 0; }
     .wrap { margin-left: 0; padding: 0 16px 32px; }
     .sub { text-align: left; margin: -4px 0 14px; }

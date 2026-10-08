@@ -1,21 +1,22 @@
-"""rules.py harus identik dengan build_dashboard.py (TRD §4.1, §9.2).
+"""rules.py must be identical to build_dashboard.py (TRD §4.1, §9.2).
 
-(a) isi demo() sistem lama; (b) definisi pola sama persis; (c) hasil fungsi sama atas masukan nyata dari log.
-Bagian (b) dan (c) dilewati bila build_dashboard.py tidak ada.
+(a) contents of the old system's demo(); (b) pattern definitions exactly the same; (c) same function results on real input from logs.
+Parts (b) and (c) are skipped when build_dashboard.py is missing.
 """
 import csv, glob, gzip, itertools, json, os, re
 
 import pytest
 
-from monishield import rules
+from monishield.domain import rules
+from monishield.infrastructure import refdata
 from conftest import ROOT, log_files
 
 NGINX_FOLDERS = ('2026-09-29', '2026-09-30', '2026-10-03', '2026-10-05', '2026-10-06')
 CACHE = os.path.join(ROOT, '.cache')
-FE_UA = re.compile(r'" \d{3} \d+ "[^"]*" "([^"]*)" "')  # User-Agent di access log frontend
+FE_UA = re.compile(r'" \d{3} \d+ "[^"]*" "([^"]*)" "')  # User-Agent in the frontend access log
 
 
-# ------------------------------------------------------------------ (a) demo() lama
+# ------------------------------------------------------------------ (a) old demo()
 def test_demo_geo_scan():
     rows = [['1.0.0.0', '1.0.0.255', 'OC', 'AU', 'Queensland', 'Brisbane', '-27.5', '153.0'],
             ['1.0.2.0', '1.0.2.255', 'AS', 'ID', 'Jakarta', 'Jakarta', '-6.2', '106.8'], ['2001::', '2001::1', '', '', '', '', '0', '0']]
@@ -29,7 +30,7 @@ def test_demo_kab_name():
 
 
 def test_demo_baris_nginx_dengan_retry():
-    """Baris contoh demo(): pola cocok dan pod yang menjawab = alamat terakhir (parser-nya diuji di Tahap 3)."""
+    """demo() sample lines: patterns match and the answering pod = last address (its parser is tested in Stage 3)."""
     line = ('1.2.3.4 - - [04/Oct/2026:17:00:34 +0000] "GET / HTTP/1.1" 200 6599 "-" "x" 355 0.001 '
             '[ombudsman-ombudsman-om-fe-inhouse-3000] [] 10.42.1.1:3000, 10.42.2.2:3000 0, 6599 0.000, 0.001 502, 200 ' + 'a' * 32)
     m = rules.NGINX.match(line); tm = rules.NGX_TAIL.search(line.rstrip())
@@ -45,7 +46,7 @@ def test_pemindaian_file():
     assert rules.split_relpath(os.path.join('2026-09-26', 'a.log')) is None
 
 
-# ------------------------------------------------------------------ (b) definisi sama persis
+# ------------------------------------------------------------------ (b) definitions exactly the same
 def test_pola_dan_tabel_sama(old):
     for name in ('NGINX', 'FE', 'JAVA', 'NGX_TAIL', 'NGX_ERR', 'SCANNER_UA', 'LOGIN_FAIL', 'LOGIN_LOCK', 'LOGIN_OK'):
         a, b = getattr(rules, name), getattr(old, name)
@@ -56,17 +57,17 @@ def test_pola_dan_tabel_sama(old):
 
 
 def test_pola_dalam_parse_sama_dengan_sumber_lama(old):
-    """Pola yang di sistem lama ditulis langsung di parse(): teks polanya harus ada di sumber lama."""
+    """Patterns the old system wrote directly in parse(): their pattern text must exist in the old source."""
     src = open(old.__file__, encoding='utf-8').read()
     for name in ('SL_LINE', 'SL_NOTIF', 'COREDNS', 'COREDNS_ADDR', 'NGX_UPSTREAM', 'NGX_ERR_TS', 'NGX_ERR_REQ', 'NGX_ERRNO',
                  'SPRING_STARTED', 'SPRING_JWT', 'SPRING_PDF', 'SPRING_EXC'):
         assert f"r'{getattr(rules, name).pattern}'" in src, name
 
 
-# ------------------------------------------------------------------ (c) hasil sama atas masukan nyata
+# ------------------------------------------------------------------ (c) same results on real input
 @pytest.fixture(scope='session')
 def real(old):
-    """Path, UA, IP, dan pesan dari log nyata; statistik mentah parser lama untuk akun dan insiden."""
+    """Paths, UAs, IPs, and messages from real logs; the old parser's raw statistics for accounts and incidents."""
     pairs, ips, msgs, jwt_ms, lev, inc = set(), set(), set(), set(), {}, {}
     for d in NGINX_FOLDERS:
         s = old.new_stats()
@@ -87,7 +88,7 @@ def real(old):
                         if j := re.search(r'a difference of (\d+) milliseconds', m[5]): jwt_ms.add(int(j[1]))
         lev[d] = list(s['lev'])
     uas = {u for _, u in pairs}
-    for f in glob.glob(os.path.join(ROOT, '2026-*', '**', 'om-fe-inhouse', '*.log'), recursive=True):  # UA tambahan: log nginx saja < 500 UA unik
+    for f in glob.glob(os.path.join(ROOT, '2026-*', '**', 'om-fe-inhouse', '*.log'), recursive=True):  # extra UAs: nginx logs alone have < 500 unique UAs
         for line in open(f, errors='replace'):
             if m := FE_UA.search(line): uas.add(m[1])
     for f in log_files('om-be-simpel-loop', ('2026-09-29',)) + log_files('coredns'):
@@ -110,8 +111,8 @@ def test_classify_sama(old, real):
     pairs = real['pairs'] + list(itertools.product(SERANGAN, UA_UJI)) + [('/', u) for u in real['uas']] + [('/.env', u) for u in real['uas']]
     beda = [(p, u) for p, u in pairs if rules.classify(p, u) != old.classify(p, u)]
     assert not beda, beda[:3]
-    assert {rules.classify(p, 'x') for p in SERANGAN} >= {n for n, _ in rules.ATTACKS} | {None}  # semua kategori teruji
-    assert sum(1 for p, u in real['pairs'] if rules.classify(p, u)) > 100  # log nyata memang berisi serangan
+    assert {rules.classify(p, 'x') for p in SERANGAN} >= {n for n, _ in rules.ATTACKS} | {None}  # every category tested
+    assert sum(1 for p, u in real['pairs'] if rules.classify(p, u)) > 100  # the real logs do contain attacks
 
 
 def test_path_key_sama(old, real):
@@ -137,7 +138,7 @@ def test_accounts_sama(old, real):
     assert sum(len(v) for v in real['lev'].values()) > 500
     for d, lev in real['lev'].items():
         assert rules.accounts(lev) == old.accounts(lev), d
-    assert sum(len(rules.accounts(v)) for v in real['lev'].values()) > 50  # memang ada akun yang dianalisis
+    assert sum(len(rules.accounts(v)) for v in real['lev'].values()) > 50  # there really are analyzed accounts
 
 
 def test_incidents_sama(old, real):
@@ -149,7 +150,7 @@ def test_incidents_sama(old, real):
 def test_ip_owner_sama(old, real):
     path = os.path.join(CACHE, 'ip2asn-v4.tsv.gz')
     if not os.path.exists(path): pytest.skip('cache ip2asn tidak ada')
-    db = rules.load_ip2asn(path, max_age_days=10**6)  # umur tak terbatas: uji tidak boleh mengunduh
+    db = refdata.load_ip2asn(path, max_age_days=10**6)  # unlimited age: the test must not download
     old_db = getattr(old, '_db_uji', None) or old.load_ip2asn(max_age_days=10**6)
     assert db == old_db
     ips = real['ips'] + ['10.0.0.1', '127.0.0.1', '192.168.1.1', '0.0.0.0', '255.255.255.255', '2001:db8::1', 'bukan-ip', '']
@@ -165,12 +166,12 @@ def test_geo_scan_sama(old, real):
     with gzip.open(path, 'rt', encoding='utf-8', newline='') as fh: a = rules.geo_scan(need, csv.reader(fh))
     with gzip.open(path, 'rt', encoding='utf-8', newline='') as fh: b = old.geo_scan(need, csv.reader(fh))
     assert a == b and sum(1 for v in a.values() if v) > 1000
-    cache = json.load(open(os.path.join(CACHE, 'geo.json')))  # hasil sistem lama untuk IP yang sama
+    cache = json.load(open(os.path.join(CACHE, 'geo.json')))  # old system's result for the same IP
     assert all(a[ip] == cache[ip] for ip in a if ip in cache)
 
 
 def test_map_labels_sama(old):
     files = os.path.join(CACHE, 'ne_110m_countries.geojson'), os.path.join(CACHE, 'geonames-ID.zip')
     if not all(map(os.path.exists, files)): pytest.skip('cache label peta tidak ada')
-    out = rules.map_labels(*files)
+    out = refdata.map_labels(*files)
     assert out == old.map_labels() and {k: len(v) for k, v in out.items()} == dict(c=177, p=38, k=514)

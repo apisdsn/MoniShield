@@ -1,20 +1,21 @@
-// Animasi alur di peta (permintaan pemilik 2026-10-07: "garis peta diberi animasi gerak agar kelihatan ke arah IP tujuan",
-// persiapan realtime Kafka). Partikel bercahaya berjalan di sepanjang busur dari lokasi asal ke titik server, dengan ekor
-// memudar; setiap partikel yang tiba memicu riak di titik server.
+// Flow animation on the map (owner request 2026-10-07: "garis peta diberi animasi gerak agar kelihatan ke arah IP tujuan",
+// i.e. animate the map lines so the direction to the target IP is visible; Kafka realtime preparation). Glowing particles
+// travel along the arcs from the origin location to the server dot, with a fading tail; every particle that arrives
+// triggers a ripple at the server dot.
 //
-// Dua sumber partikel:
-//   ambient  data historis (satu folder): tiap busur memunculkan partikel berkala, makin sering bila request-nya makin
-//            banyak (akar kuadrat, agar lokasi kecil tetap terlihat).
-//   pulse()  satu kejadian nyata (mis. pesan Kafka yang diteruskan ke browser): partikel di busur lokasi itu, atau busur
-//            sementara bila lokasinya belum ada di peta. Mode `live` mematikan ambient sehingga yang bergerak hanya
-//            kejadian nyata. Kode lain cukup mengirim event jendela `monishield:map-pulse` {lat, lon, n}.
+// Two particle sources:
+//   ambient  historical data (one folder): each arc spawns particles periodically, more often the more requests it
+//            has (square root, so small locations stay visible).
+//   pulse()  one real event (e.g. a Kafka message forwarded to the browser): a particle on that location's arc, or a temporary
+//            arc when the location is not on the map yet. `live` mode turns off ambient so only real events
+//            move. Other code only needs to send the window event `monishield:map-pulse` {lat, lon, n}.
 //
-// Murah: hanya dua sumber GeoJSON kecil yang diperbarui ±30 kali/detik (maks. MAX partikel); berhenti sendiri saat peta
-// tidak terlihat, tab tersembunyi, atau dijeda. Arah juga terbaca tanpa gerak: busur dasar diberi gradasi pudar -> terang.
+// Cheap: only two small GeoJSON sources updated ±30 times/second (max. MAX particles); stops by itself when the map
+// is not visible, the tab is hidden, or paused. Direction is readable without motion too: base arcs get a faint -> bright gradient.
 
-const MAX = 320;          // partikel aktif maksimal
+const MAX = 320;          // maximum active particles
 const FPS_MS = 33;        // ±30 fps
-const TAIL = 0.14;        // panjang ekor (fraksi busur)
+const TAIL = 0.14;        // tail length (fraction of the arc)
 const RIPPLE_MS = 1100;
 
 export function rgba(color, a) {
@@ -24,7 +25,7 @@ export function rgba(color, a) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
-/** Busur kuadratik (sama dengan garis busur peta): titik kontrol di atas titik tengah. */
+/** Quadratic arc (same as the map's arc lines): control point above the midpoint. */
 export function arcOf(x0, y0, x1, y1) {
   return { x0, y0, x1, y1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 + Math.hypot(x1 - x0, y1 - y0) / 4 };
 }
@@ -41,7 +42,7 @@ export const flowSources = () => ({
 export const flowLayers = (accent, server) => [
   { id: 'flow-tail', type: 'line', source: 'flow-tail', layout: { 'line-cap': 'round' },
     paint: { 'line-width': ['get', 'w'], 'line-gradient': tailGradient(accent) } },
-  { id: 'flow-glow', type: 'circle', source: 'flow-head',   // pendar di sekitar kepala partikel
+  { id: 'flow-glow', type: 'circle', source: 'flow-head',   // glow around the particle head
     paint: { 'circle-radius': ['*', ['get', 'r'], 2.8], 'circle-color': accent, 'circle-blur': 1, 'circle-opacity': 0.3 } },
   { id: 'flow-head', type: 'circle', source: 'flow-head',
     paint: { 'circle-radius': ['get', 'r'], 'circle-color': accent, 'circle-blur': 0.35, 'circle-opacity': 0.95 } },
@@ -53,7 +54,7 @@ export const tailGradient = (accent) => ['interpolate', ['linear'], ['line-progr
 export const arcGradient = (accent) => ['interpolate', ['linear'], ['line-progress'], 0, rgba(accent, 0.25), 1, accent];
 
 export class FlowAnimator {
-  /** map: maplibre Map yang sudah memuat flowSources/flowLayers; box: elemen peta (untuk deteksi terlihat). */
+  /** map: maplibre Map that has loaded flowSources/flowLayers; box: map element (for visibility detection). */
   constructor(map, box) {
     this.map = map; this.arcs = []; this.parts = []; this.ripples = []; this.server = null;
     this.on = true; this.live = false; this.visible = true; this.raf = 0; this.last = 0; this.cleared = true;
@@ -63,7 +64,7 @@ export class FlowAnimator {
     document.addEventListener('visibilitychange', this._onVis);
   }
 
-  /** pts: [{lon, lat, requests}], server: {lon, lat} — busur ambient dibangun ulang (partikel berjalan dibuang). */
+  /** pts: [{lon, lat, requests}], server: {lon, lat} — ambient arcs rebuilt (travelling particles dropped). */
   setData(pts, server) {
     this.server = server && Number.isFinite(server.lon) ? server : null;
     const max = Math.max(1, ...pts.map((p) => p.requests || 0));
@@ -71,9 +72,9 @@ export class FlowAnimator {
     this.arcs = this.server ? pts.map((p) => {
       const a = arcOf(p.lon, p.lat, this.server.lon, this.server.lat);
       const share = Math.sqrt((p.requests || 0) / max);
-      a.every = 3800 - 3200 * share;            // ms antar partikel: 0,6 dtk (terbesar) .. 3,8 dtk (terkecil)
+      a.every = 3800 - 3200 * share;            // ms between particles: 0.6 s (largest) .. 3.8 s (smallest)
       a.w = 1.5 + 2.5 * share;
-      a.next = now + Math.random() * a.every;  // tidak serempak
+      a.next = now + Math.random() * a.every;  // not in sync
       return a;
     }) : [];
     this.parts = []; this.ripples = [];
@@ -83,7 +84,7 @@ export class FlowAnimator {
   setPlaying(on) { this.on = on; if (!on) this._clear(); this._kick(); }
   setLive(live) { this.live = live; this._kick(); }
 
-  /** Satu kejadian nyata dari (lat, lon) menuju server; n = jumlah request (partikel maks. 5, berjeda). */
+  /** One real event from (lat, lon) toward the server; n = request count (max. 5 particles, staggered). */
   pulse({ lat, lon, n = 1, w = 2.5 }) {
     if (!this.server || !Number.isFinite(lat) || !Number.isFinite(lon)) return false;
     let a = this.arcs.find((x) => Math.abs(x.x0 - lon) < 0.05 && Math.abs(x.y0 - lat) < 0.05);
@@ -100,7 +101,7 @@ export class FlowAnimator {
     document.removeEventListener('visibilitychange', this._onVis);
   }
 
-  // ------------------------------------------------------------------ dalam
+  // ------------------------------------------------------------------ internals
   _spawn(a, t0) {
     if (this.parts.length >= MAX) return;
     this.parts.push({ a, t0, dur: durOf(a) });
@@ -127,7 +128,7 @@ export class FlowAnimator {
         const s = (now - p.t0) / p.dur;
         if (s >= 1) { if (this.ripples.length < 8) this.ripples.push(now); continue; }
         keep.push(p);
-        const e = s * s * (3 - 2 * s);          // perlahan di awal/akhir
+        const e = s * s * (3 - 2 * s);          // slow at the start/end
         const s0 = Math.max(0, e - TAIL);
         tails.push({ type: 'Feature', properties: { w: p.a.w }, geometry: { type: 'LineString', coordinates: [0, 0.25, 0.5, 0.75, 1].map((k) => at(p.a, s0 + (e - s0) * k)) } });
         heads.push({ type: 'Feature', properties: { r: 1.6 + p.a.w * 0.7 }, geometry: { type: 'Point', coordinates: at(p.a, e) } });

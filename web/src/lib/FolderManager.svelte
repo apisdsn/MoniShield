@@ -1,8 +1,8 @@
-<!-- Kelola folder log (permintaan pemilik 2026-10-07; admin, halaman Ingest & impor). GET /api/admin/folders: folder di
-     dashboard, di disk, dan yang diabaikan. "Hapus" -> dialog konfirmasi -> POST /api/admin/folders/{f}/delete:
-     data folder dihapus dari dashboard; file di kotak masuk (hasil impor S3) ikut dihapus bila dicentang; file di folder
-     log utama TIDAK pernah dihapus (hanya dibaca) — folder itu ditandai "diabaikan" agar sinkronisasi tidak
-     memasukkannya lagi. "Pulihkan" -> POST …/restore, lalu sinkronisasi memasukkannya kembali. -->
+<!-- Manage log folders (owner request 2026-10-07; admin, Ingest & import page). GET /api/admin/folders: folders in the
+     dashboard, on disk, and ignored ones. "Hapus" -> confirmation dialog -> POST /api/admin/folders/{f}/delete:
+     the folder's data is removed from the dashboard; files in the inbox (S3 import results) are deleted too when checked; files in the main
+     log folder are NEVER deleted (read-only) — that folder is marked "ignored" so sync does not
+     ingest it again. "Pulihkan" -> POST …/restore, then sync ingests it again. -->
 <script>
   import { srv, errText } from '../srv.js';
   import { onMount } from 'svelte';
@@ -38,7 +38,7 @@
 
 {#if rows}
   <DataTable title={$t('fm.title')} {rows} limit={30} columns={[
-    { key: 'folder', label: $t('ipp.col.folder'), fmt: (r) => dLabel(r.folder, $lang), cls: () => 'nowrap', sort: true },
+    { key: 'folder', label: $t('ipp.col.folder'), fmt: (r) => (r.source === 'kafka' ? $t('folder.kafka', { date: dLabel(r.folder, $lang) }) : dLabel(r.folder, $lang)), cls: () => 'nowrap', sort: true },
     { key: 'files', label: $t('kpi.files'), type: 'num', sort: true },
     { key: 'lines', label: $t('col.lines'), type: 'num', sort: true },
     { key: 'where', label: $t('fm.col.where'), custom: true, minw: 200 },
@@ -49,7 +49,7 @@
         <div class="tags">
           {#if r.ignored}<SeverityTag level={2} text={$t('fm.tag.ignored')} />{:else if !r.in_db}<SeverityTag level={1} text={$t('fm.tag.new')} />{/if}
           {#if r.log}<SeverityTag level="ok" text={$t('fm.tag.log')} />{/if}
-          {#if r.inbox}<SeverityTag level="ok" text={$t('fm.tag.inbox')} />{/if}
+          {#if r.inbox}<SeverityTag level="ok" text={r.source === 'kafka' ? $t('fm.tag.kafka') : $t('fm.tag.inbox')} />{/if}
         </div>
         {#if r.ignored && r.ignored_by}<div class="muted small">{$t('fm.ignored_by', { user: r.ignored_by, time: r.ignored_at ? tWIB(utcToWib(r.ignored_at), $lang) : '' })}</div>{/if}
       {:else if r.ignored}

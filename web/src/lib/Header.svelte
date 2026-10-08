@@ -1,7 +1,7 @@
-<!-- Kepala halaman (DRD §2.1 U3, §8.2, gaya §12). Layar lebar: satu kartu lekat berisi judul + baris status ringkas
-     (kiri) dan pemilih folder, bahasa, tema, muat ulang, menu user (kanan). ≤ 900 px: bar 52 px lekat
-     [☰] MoniShield [Folder ▾] [⋯] (bahasa, tema, muat ulang, isi menu user masuk ⋯); judul mengalir di bawahnya.
-     Urutan DOM = urutan Tab: alat dulu, judul (h1, tabindex -1) sesudahnya; letak visual diatur grid. -->
+<!-- Page header (DRD §2.1 U3, §8.2, §12 style). Wide screen: one sticky card holding the title + compact status line
+     (left) and the folder picker, language, theme, reload, user menu (right). ≤ 900 px: sticky 52 px bar
+     [☰] MoniShield [Folder ▾] [⋯] (language, theme, reload, user menu contents go into ⋯); the title flows below it.
+     DOM order = Tab order: tools first, title (h1, tabindex -1) after; visual placement set by the grid. -->
 <script>
   import Logo from './Logo.svelte';
   import { lang, t } from '../i18n.js';
@@ -100,7 +100,7 @@
     .tools :global(.fp) { flex: 1; justify-content: flex-end; max-width: 60vw; }
     .ttl { margin: 6px 0 12px; }
     h1 { font-size: 1.5rem; }
-    .sfx { display: none; }   /* tanggal sudah tampil di pemilih folder pada bar atas */
+    .sfx { display: none; }   /* the date is already shown in the folder picker in the top bar */
   }
   @media (max-width: 420px) { .brand { display: none; } .tools :global(.fp) { max-width: none; } }
 </style>

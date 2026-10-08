@@ -1,12 +1,12 @@
-<!-- Kartu chart (DRD §4.2): judul kiri, aksi kanan, kanvas 280 px. Warna dari token (§5.4), dibaca saat digambar;
-     ganti tema/bahasa = gambar ulang tanpa mengambil data. Alternatif teks: aria-label (judul + ringkasan) dan
-     "Lihat sebagai tabel" (U9). Sumbu waktu tanpa pengulangan tanggal bila semua titik satu tanggal (U10).
-     0 titik -> kartu tidak dirender (lama). -->
+<!-- Chart card (DRD §4.2): title left, actions right, 280 px canvas. Colors from tokens (§5.4), read at draw time;
+     theme/language change = redraw without fetching data. Text alternatives: aria-label (title + summary) and
+     "Lihat sebagai tabel" (U9). Time axis without repeated dates when all points are on one date (U10).
+     0 points -> the card is not rendered (old). -->
 <script module>
   import { Chart, registerables } from 'chart.js';
   Chart.register(...registerables);
 
-  // Angka persentase terbesar di tengah donat (lama: centerText)
+  // Largest percentage number in the middle of the donut (old: centerText)
   const centerText = {
     id: 'centerText',
     afterDraw(c) {
@@ -39,12 +39,12 @@
   import InfoTip from './InfoTip.svelte';
 
   /**
-   * datasets: [{label, data, color?: token ('--err' / '--c2'), colors?: [token per titik]}]
-   * timeAxis: label 'YYYY-MM-DD HH' (jam WIB dari API). fmtV: format nilai (sumbu + tooltip).
-   * tooltipTitle(i): baris judul tooltip (mis. IP + pemilik). options: digabung ke opsi Chart.js.
+   * datasets: [{label, data, color?: token ('--err' / '--c2'), colors?: [token per point]}]
+   * timeAxis: labels 'YYYY-MM-DD HH' (WIB hour from the API). fmtV: value format (axis + tooltip).
+   * tooltipTitle(i): tooltip title line (e.g. IP + owner). options: merged into the Chart.js options.
    */
   let { title, type = 'bar', labels = [], datasets = [], wide = false, timeAxis = false, fmtV = null, tooltipTitle = null,
-        options = {}, info = null, valueLabel = null, actions = null, chip = null, footer = null } = $props();   // footer: snippet keterangan di bawah chart
+        options = {}, info = null, valueLabel = null, actions = null, chip = null, footer = null } = $props();   // footer: caption snippet below the chart
 
   let canvas = $state();
   let asTable = $state(false);
@@ -73,7 +73,7 @@
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const ds = datasets.map((d, k) => {
       const c = v(d.color || PAL[k % PAL.length]);
-      const base = { label: d.label, data: [...(d.data || [])] };   // salinan: Chart.js memasang properti internal pada array data
+      const base = { label: d.label, data: [...(d.data || [])] };   // copy: Chart.js attaches internal properties to data arrays
       if (type === 'line') {
         return { ...base, fill: true, tension: 0.42, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2, borderColor: c,
           backgroundColor: (ctx) => {
@@ -99,14 +99,14 @@
         color: v('--muted'), borderColor: v('--grid'),
         font: { family: 'Outfit, system-ui, sans-serif' },
         ...(type === 'doughnut' ? { cutout: '74%' } : {}),
-        // opsi pemanggil digabung per sumbu/legenda (mis. y logaritmik, legenda kanan), bukan menimpa gaya dasar
+        // caller options are merged per axis/legend (e.g. logarithmic y, legend on the right), not overriding the base style
         scales: type === 'doughnut' ? {} : {
           x: { grid: { color: v('--grid') }, ...(options.scales?.x || {}),
                ticks: { color: v('--muted'), maxRotation: 0, autoSkip: true, autoSkipPadding: 12,
                         ...(horizontal && fmtV ? { callback: (x) => fv(x) } : {}), ...(options.scales?.x?.ticks || {}) } },
           y: { grid: { color: v('--grid') }, ...(horizontal ? {} : { beginAtZero: true }), ...(options.scales?.y || {}),
                ticks: { color: v('--muted'), ...(!horizontal && fmtV ? { callback: (x) => fv(x) } : {}),
-                        // batang horizontal: label kategori dipotong sesuai lebar kanvas (Chart.js tidak memotong; sisa teks hilang di tepi kiri)
+                        // horizontal bars: category labels truncated to the canvas width (Chart.js does not truncate; the rest of the text is lost at the left edge)
                         ...(horizontal ? { callback(val) { return cut(this.getLabelForValue(val), Math.max(14, Math.floor(this.chart.width * 0.45 / 6.4))); } } : {}),
                         ...(options.scales?.y?.ticks || {}) } },
         },
@@ -129,7 +129,7 @@
     });
   }
 
-  // gambar ulang saat data, bahasa, atau tema berubah (warna dibaca ulang dari token)
+  // redraw when data, language, or theme changes (colors re-read from tokens)
   $effect(() => {
     void [labels, datasets, $lang, $theme, canvas, asTable];
     if (points && !asTable) draw();

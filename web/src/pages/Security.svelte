@@ -1,8 +1,8 @@
-<!-- Keamanan (DRD §3.4, inv. §2.4): 8 KPI (4 + 4, U5), "Temuan utama" (9 aturan, komponen + kamus), 6 chart, 5 tabel,
-     catatan kaki. Satu permintaan: GET /api/folders/{folder}/security (tabel halaman pertama ikut di respons).
-     Tahap 21: data.scheme = 'crs' (bawaan) -> kategori = "CAPEC/keluarga CRS" (mis. '242/xss'), keparahan dari aturan
-     CRS, kolom "Aturan" berisi ID CRS, catatan kaki menyebut CRS + versi + bagian request yang diperiksa;
-     'lama' -> tampilan aturan sistem lama (uji kesetaraan). Semua teks data dirender sebagai teks. -->
+<!-- Security (DRD §3.4, inv. §2.4): 8 KPIs (4 + 4, U5), "Temuan utama" (9 rules, components + dictionary), 6 charts, 5 tables,
+     footnotes. One request: GET /api/folders/{folder}/security (first-page tables included in the response).
+     Stage 21: data.scheme = 'crs' (default) -> category = "CAPEC/CRS family" (e.g. '242/xss'), severity from the CRS
+     rule, "Aturan" column holds the CRS ID, the footnote names CRS + version + the request parts inspected;
+     'lama' -> old-system rule view (equivalence tests). All data text is rendered as text. -->
 <script>
   import BlocklistDialog from '../lib/BlocklistDialog.svelte';
   import { lang, t } from '../i18n.js';
@@ -40,10 +40,10 @@
   }
   $effect(() => { void [folder, reloadKey]; if (folder) load(); });
 
-  // label (diterjemahkan, DRD §6.3): kategori serangan, tanda akun
+  // labels (translated, DRD §6.3): attack categories, account flags
   const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
   const crs = $derived(data?.scheme === 'crs');
-  // CRS: "<nama CAPEC> · <keluarga>" — keluarga ditulis bila menambah informasi (mis. CAPEC-242 Injeksi kode · XSS)
+  // CRS: "<CAPEC name> · <family>" — the family is written when it adds information (e.g. CAPEC-242 Code injection · XSS)
   const SAMA = new Set(['66/sqli', '63/xss', '126/lfi', '253/rfi', '664/ssrf', '310/reputation-scanner']);
   const cat = (c) => {
     if (!crs) return $t(`cat.${slug(c)}`);
@@ -55,16 +55,16 @@
   const sevCrs = $derived(Object.fromEntries((data?.by_category || []).map(([c, , v]) => [c, v])));
   const sev = (c) => (crs ? sevCrs[c] || 1 : SEV[c] || 1);
   const sevTok = (s) => (s === 3 ? '--err' : s === 2 ? '--warn' : '--neutral');
-  const statusText = (sc) => Object.entries(sc).sort(([a], [b]) => a.localeCompare(b)).map(([c, n]) => `${c}×${n}`).join(' ');   // bentuk lama "200×3 401×1"
+  const statusText = (sc) => Object.entries(sc).sort(([a], [b]) => a.localeCompare(b)).map(([c, n]) => `${c}×${n}`).join(' ');   // old form "200×3 401×1"
   const has2xx = (sc) => Object.keys(sc).some((c) => c.startsWith('2'));
   const org = (o) => (o === 'Tidak diketahui' ? $t('sec.unknown_owner') : o);
   const uniq = (a) => [...new Set(a)];
 
-  // ---------------------------------------------------------------- temuan utama (urutan dan isi seperti lama)
+  // ---------------------------------------------------------------- key findings (order and content as in the old one)
   const findings = $derived.by(() => {
     if (!data) return [];
     const f = data.findings, k = data.kpi, T = data.tables;
-    const urls = T['attack-urls'], full = !crs && urls.rows.length >= urls.total;     // aturan lama + daftar lengkap -> urutan persis seperti lama
+    const urls = T['attack-urls'], full = !crs && urls.rows.length >= urls.total;     // old rules + full list -> exactly the old order
     const rowsOf = (c) => urls.rows.filter((r) => r.category === c);
     const out = [];
     if (f.log4shell) {
@@ -99,15 +99,15 @@
     return out;
   });
 
-  // tanda "Sukses Dari IP Berbeda" -> "(ISP Sama)" bila semua IP sukses ber-ASN sama dengan salah satu IP gagal (lama)
+  // "Sukses Dari IP Berbeda" flag -> "(ISP Sama)" when all successful IPs have the same ASN as one of the failed IPs (old)
   const flagsOf = (r) => {
     const same = r.ok_ips.length && r.ok_ips.every((ip) => r.fail_ips.some((f) => f.asn && f.asn === ip.asn));
     return r.flags.map((f) => (f === 'Sukses Dari IP Berbeda' && same ? 'sukses_dari_ip_berbeda_isp_sama' : slug(f)));
   };
-  // catatan kejadian "<waktu> sukses dari <ip>" (data lama, kalimat Indonesia) -> dua bahasa
-  const noteText = (n) => { const m = /^(.+) sukses dari (.+)$/.exec(n); return m ? $t('sec.note_ok_from', { time: m[1], ip: m[2] }) : n; };   // waktu apa adanya (WIB, seperti lama)
+  // event note "<time> sukses dari <ip>" (old data, Indonesian sentence) -> bilingual
+  const noteText = (n) => { const m = /^(.+) sukses dari (.+)$/.exec(n); return m ? $t('sec.note_ok_from', { time: m[1], ip: m[2] }) : n; };   // time as is (WIB, like the old one)
   const accountsOf = (r) => new Set(r.accounts.map((u) => u.split('@')[0])).size;
-  let blOpen = $state(false);   // dialog daftar blokir (2026-10-07)
+  let blOpen = $state(false);   // blocklist dialog (2026-10-07)
 </script>
 
 {#if error && !data}

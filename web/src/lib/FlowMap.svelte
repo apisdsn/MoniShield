@@ -1,8 +1,8 @@
-<!-- Kartu "Peta IP Asal → IP Tujuan" + legenda + tabel alur + catatan (DRD §3.2, §7; inv. §2.2). Dipakai halaman
-     Peta IP dan halaman layanan (terlipat). `data` = respons GET /api/folders/{folder}/map[?module=…]. Tabel alur
-     adalah pengganti peta (§7.9): tautan "Lewati peta" melompat ke sana; "Lihat di tabel" mengisi filternya.
-     `aside` (Command Center, Tahap 22): kartu yang tampil di samping peta pada layar lebar, di bawahnya pada layar sempit;
-     `tall`: peta setinggi layar dan `aside` selalu di bawah peta (permintaan pemilik: peta Command Center selebar layar). -->
+<!-- "Peta IP Asal → IP Tujuan" card + legend + flow table + notes (DRD §3.2, §7; inv. §2.2). Used by the IP Map
+     page and the service page (collapsed). `data` = response of GET /api/folders/{folder}/map[?module=…]. The flow table
+     is the map's alternative (§7.9): the "Lewati peta" link jumps there; "Lihat di tabel" fills its filter.
+     `aside` (Command Center, Stage 22): card shown beside the map on wide screens, below it on narrow screens;
+     `tall`: map as tall as the screen and `aside` always below the map (owner request: Command Center map as wide as the screen). -->
 <script>
   import { tick } from 'svelte';
   import { lang, t, countryName } from '../i18n.js';
@@ -13,8 +13,8 @@
 
   let { data, folder, module = null, server = null, aside = null, tall = false } = $props();
   let preset = $state('id'), search = $state(null), seq = 0;
-  // realtime (Kafka): /api/live/map mengirim lokasi kejadian per detik (tanpa IP). Hanya untuk folder yang sedang diisi
-  // Kafka ("hello".folder); 204 = Kafka tidak dipakai -> EventSource berhenti, peta memakai animasi biasa.
+  // realtime (Kafka): /api/live/map sends event locations per second (no IPs). Only for the folder currently being filled by
+  // Kafka ("hello".folder); 204 = Kafka not in use -> EventSource stops, the map uses the normal animation.
   let liveOn = $state(false), mapRef = $state();
   $effect(() => {
     const f = folder, mod = module;
@@ -23,7 +23,7 @@
     es.addEventListener('hello', (e) => { try { liveOn = JSON.parse(e.data).folder === f; } catch { liveOn = false; } });
     es.onmessage = (e) => {
       if (!liveOn) return;
-      try { for (const [lat, lon, n, m] of JSON.parse(e.data).p || []) if (!mod || m === mod) mapRef?.pulse({ lat, lon, n }); } catch { /* abaikan */ }
+      try { for (const [lat, lon, n, m] of JSON.parse(e.data).p || []) if (!mod || m === mod) mapRef?.pulse({ lat, lon, n }); } catch { /* ignore */ }
     };
     es.addEventListener('end', () => { liveOn = false; es.close(); });
     es.onerror = () => { if (es.readyState === 2) liveOn = false; };

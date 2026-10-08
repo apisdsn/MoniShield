@@ -1,9 +1,9 @@
-<!-- Menu aksi per baris tabel (DRD §3.11 "[⋯]"): pola menu yang sama dengan menu user (panah, Home/End, Esc
-     mengembalikan fokus). Daftar ditempatkan `position: fixed` dari posisi tombol, jadi tidak terpotong wadah tabel
-     yang bergulir. Butir yang tidak ditawarkan tetap terlihat, nonaktif, dengan sebabnya (aria-disabled + teks). -->
+<!-- Per-row table action menu (DRD §3.11 "[⋯]"): the same menu pattern as the user menu (arrows, Home/End, Esc
+     returns focus). The list is placed `position: fixed` from the button position, so it is not clipped by a scrolling
+     table container. Items not offered stay visible, disabled, with their reason (aria-disabled + text). -->
 <script>
   import { tick } from 'svelte';
-  /** items: [{label, onpick, disabled?: teks sebab, danger?}] */
+  /** items: [{label, onpick, disabled?: reason text, danger?}] */
   let { label, items = [], btn = $bindable() } = $props();
   let open = $state(false), list = $state(), pos = $state('');
   const els = () => [...(list?.querySelectorAll('[role="menuitem"]') || [])];
@@ -26,7 +26,7 @@
     else if (e.key === 'End') { e.preventDefault(); a[a.length - 1]?.focus(); }
     else if (e.key === 'Tab') close(false);
   }
-  function pick(it) { if (it.disabled) return; close(); it.onpick(); }   // fokus ke ⋯ dulu: dialog yang dibuka kembali ke sana
+  function pick(it) { if (it.disabled) return; close(); it.onpick(); }   // focus ⋯ first: a dialog that opens returns there
   function outside(e) { if (open && !btn?.contains(e.target) && !list?.contains(e.target)) open = false; }
 </script>
 

@@ -1,7 +1,7 @@
-<!-- Overview (DRD §3.1, inv. §2.1). Sumber (TRD §5.3): /overview (periode, error per jam per layanan, 25 pesan
-     teratas), ringkasan folder dari App (/api/folders/{f}: KPI, layanan, file), dan /services/nginx-ingress-controller
-     untuk bagian "Traffic HTTP seluruh sistem" (kartu layanan nginx tanpa peta dan tanpa kartu pesan). Dua
-     permintaan halaman berjalan bersamaan dan tampil bersama (U31). -->
+<!-- Overview (DRD §3.1, inv. §2.1). Sources (TRD §5.3): /overview (period, hourly errors per service, top 25
+     messages), folder summary from App (/api/folders/{f}: KPIs, services, files), and /services/nginx-ingress-controller
+     for the "Traffic HTTP seluruh sistem" section (nginx service cards without the map and without the message card). The two
+     page requests run concurrently and are shown together (U31). -->
 <script>
   import { untrack } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -18,7 +18,7 @@
   let { folder, summary, reloadKey = 0, onready = null } = $props();
   const NG = 'nginx-ingress-controller';
 
-  // view = potret data yang sedang tampil; saat ganti folder isi lama tetap terlihat (diredupkan) sampai yang baru tiba
+  // view = snapshot of the data being shown; on folder change the old content stays visible (dimmed) until the new one arrives
   let view = $state(null), busy = $state(false), error = $state(null);
   let seq = 0, loadedKey = '';
   const current = $derived(summary?.folder === folder ? summary : null);
@@ -37,7 +37,7 @@
       if (my === seq) { busy = false; onready?.(true); }
     }
   }
-  // muat sekali per (folder, muat ulang), setelah ringkasan folder itu tiba (tahu ada nginx atau tidak)
+  // load once per (folder, reload), after that folder's summary arrives (knowing whether nginx exists)
   $effect(() => {
     const key = `${folder}|${reloadKey}`;
     if (!current || key === loadedKey) return;
@@ -49,16 +49,16 @@
   const svc = $derived(summ?.services || []);
   const ngRow = $derived(svc.find((s) => s.service === NG && s.lines) || null);
 
-  // perubahan vs folder sebelumnya hanya atas layanan yang sebanding (lama: comparable/dlt, inv. §2.0)
+  // change vs the previous folder only over comparable services (old: comparable/dlt, inv. §2.0)
   const cmp = $derived(svc.filter((s) => s.lines && s.prev && s.prev.lines >= 0.5 * s.lines));
   const sum = (list, k) => list.reduce((a, s) => a + (s[k] || 0), 0);
   const d = (k, good = false) => summ?.prev_folder
     ? delta(sum(cmp, k), sum(cmp.map((s) => s.prev), k), summ.prev_folder, $lang, { good, comparable: cmp.length > 0 }) : null;
   const files = $derived(summ?.files || []);
-  const nCorrupt = $derived(files.filter((f) => f.status === 'rusak').length);
+  const nCorrupt = $derived(files.filter((f) => f.status === 'corrupt').length);
   const rate = (n, dg) => `${num((n / ngRow.requests) * 100, $lang, dg)}%`;
 
-  // error per jam per layanan: batang bertumpuk, jam gabungan semua layanan
+  // hourly errors per service: stacked bars, hours combined across all services
   const errSeries = $derived(Object.entries(page?.err_by_hour || {}));
   const hours = $derived([...new Set(errSeries.flatMap(([, pts]) => pts.map((p) => p[0])))].sort());
 </script>

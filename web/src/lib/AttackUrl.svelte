@@ -1,7 +1,7 @@
-<!-- URL lengkap endpoint serangan (inv. §2.4): per upstream, METODE + base URL upstream (bila diketahui dari
-     konfigurasi hosts) + path ter-decode; upstream tanpa host -> "[Host tidak tercatat]" ("-" = ditolak di
-     ingress). Teks data selalu dirender sebagai teks (Svelte meng-escape), jadi URL berisi <script> atau ${jndi:
-     tidak pernah dieksekusi. Di bawahnya User-Agent. -->
+<!-- Full attack endpoint URL (inv. §2.4): per upstream, METHOD + upstream base URL (when known from the
+     hosts configuration) + decoded path; upstream without a host -> "[Host tidak tercatat]" ("-" = rejected at the
+     ingress). Data text is always rendered as text (Svelte escapes it), so URLs containing <script> or ${jndi:
+     are never executed. User-Agent below it. -->
 <script>
   import { t } from '../i18n.js';
   let { methodPath, upstreams = [], ua = '', hosts = {} } = $props();

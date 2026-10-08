@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Angka acuan dari build LAMA, untuk uji kesetaraan v2 -> v2/docs/00-acuan.json.
+"""Reference numbers from the OLD build, for the v2 equivalence test -> v2/docs/00-acuan.json.
 
   python3 v2/tools/acuan_lama.py
 
-Menjalankan build_dashboard.build() apa adanya (dashboard.html ikut ditulis ulang) dan mengambil
-statistik MENTAH sebelum dipotong top-N, karena angka seperti jumlah IP unik tidak ada di dashboard.html.
-Jalankan ulang setiap ada folder log baru: angka di 00-acuan.json hanya berlaku untuk isi folder saat itu.
+Runs build_dashboard.build() as is (dashboard.html is rewritten too) and captures the RAW
+statistics before the top-N cut, because numbers such as the unique IP count are not in dashboard.html.
+Re-run whenever there is a new log folder: the numbers in 00-acuan.json only hold for the folder contents at that time.
 """
 import json, os, sys, time
 
@@ -15,7 +15,7 @@ import build_dashboard as bd  # noqa: E402
 
 cap = {}
 _correlate = bd.correlate
-bd.correlate = lambda data: (cap.update(data=data), _correlate(data))[1]  # build() tidak mengembalikan data mentah
+bd.correlate = lambda data: (cap.update(data=data), _correlate(data))[1]  # build() does not return the raw data
 t0 = time.time(); bd.build(); seconds = round(time.time() - t0, 1)
 
 html = open(os.path.join(ROOT, 'dashboard.html'), encoding='utf-8').read()
@@ -29,11 +29,11 @@ for day, v in sorted(cap['data'].items()):
     for svc, s in sorted(v.items()):
         st = s['status']
         days[day][svc] = dict(
-            # --- inti: baris, request, error, IP unik, alur IP ---
+            # --- core: lines, requests, errors, unique IPs, IP flows ---
             lines=s['lines'], err=s['err'], warn=s['warn'], req=tot(st),
             s4=sum(n for c, n in st.items() if c[0] == '4'), s5=sum(n for c, n in st.items() if c[0] == '5'),
             ip_unik=len(s['ips']), alur_ip=len(s['flow']), alur_ip_asal=len({k[0] for k in s['flow']}),
-            # --- pendukung, per fitur ---
+            # --- supporting, per feature ---
             jam=len(s['hour']), jam_total=tot(s['hour']), endpoint_unik=len(s['paths']), pesan_unik=len(s['msgs']),
             endpoint_min5=sum(len(x) >= 5 for x in s['dur'].values()), level=dict(s['extra']),
             serangan_req=tot(s['atk_cat']), serangan_kategori=dict(s['atk_cat']), serangan_url=len(s['atk']), serangan_ip=len(s['atk_ip']),
@@ -45,19 +45,19 @@ for day, v in sorted(cap['data'].items()):
             login_ip=len(s['login']), login_gagal=sum(u['fail'] for u in s['login'].values()), login_reset=sum(u['lock'] for u in s['login'].values()),
             login_sukses=sum(e[3] == 'ok' for e in s['lev']), akun_dianalisis=len(bd.accounts(s['lev'])),
         )
-        # Nilai yang SEHARUSNYA ditampilkan setelah perbaikan definisi TRD §4.4 (dipakai uji E4).
-        # Butir 2: jumlah error per jam harus sama dengan KPI Error (lama hanya menghitung 5xx).
-        # Butir 4: distribusi level simpel-loop memakai tingkat efektif, jadi ERROR/WARN = KPI Error/Warning.
-        # Butir 9: 'lambat >= 5 dtk' = semua jejak lambat yang tidak gagal (lama hanya status 2xx).
+        # Values that SHOULD be shown after the definition fixes of TRD §4.4 (used by test E4).
+        # Item 2: the hourly error count must equal the Error KPI (the old one only counted 5xx).
+        # Item 4: the simpel-loop level distribution uses the effective level, so ERROR/WARN = Error/Warning KPI.
+        # Item 9: 'slow >= 5 s' = all slow traces that did not fail (the old one only status 2xx).
         tr = s.get('trace') or []
         days[day][svc]['seharusnya'] = dict(
             herr_total=s['err'] if svc in ('nginx-ingress-controller', 'om-fe-inhouse') or svc.startswith('om-be-') and svc != 'om-be-simpel-loop' else None,
             level_error=s['err'] if svc == 'om-be-simpel-loop' else None,
             level_warn=s['warn'] if svc == 'om-be-simpel-loop' else None,
-            # dihitung dari event terkorelasi, BUKAN dari s['trace'] yang sudah dipotong 300 baris
+            # counted from the correlated events, NOT from s['trace'], which is already cut to 300 rows
             lambat_5dtk=sum(1 for e in s.get('sl', []) if e[0] in bd.REQ and not e[4] and e[3] >= 5000),
         )
-        days[day][svc]['lama'] = dict(   # yang BENAR-BENAR tampil di dashboard lama (sesudah dipotong top-N)
+        days[day][svc]['lama'] = dict(   # what ACTUALLY showed in the old dashboard (after the top-N cut)
             lambat_5dtk=sum(r[4] for r in tr if str(r[1]).startswith('2')),
             herr_total=sum(s['herr'].values()),
         )

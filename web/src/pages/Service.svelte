@@ -1,6 +1,6 @@
-<!-- Halaman layanan (DRD §3.10, inv. §2.10): satu templat untuk semua layanan. KPI: Baris log, Error, Warning,
-     (HTTP request, Rate 4xx, Rate 5xx bila ada request), 4 entri pertama distribusi level; lalu kartu 2–19.
-     Satu permintaan: GET /api/folders/{folder}/services/{service}. 0 baris -> keadaan kosong (DRD §6.6). -->
+<!-- Service page (DRD §3.10, inv. §2.10): one template for all services. KPIs: Log lines, Error, Warning,
+     (HTTP requests, 4xx rate, 5xx rate when there are requests), the first 4 entries of the level distribution; then cards 2–19.
+     One request: GET /api/folders/{folder}/services/{service}. 0 lines -> empty state (DRD §6.6). -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';

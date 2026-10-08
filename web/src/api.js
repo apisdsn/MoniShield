@@ -1,18 +1,18 @@
-// Satu pintu ke /api (TRD §5). Cookie sesi HttpOnly dikirim browser; setiap permintaan yang mengubah data membawa
-// X-Requested-With (CSRF, TRD §8.2). 401 di tengah pemakaian -> layar Masuk "Sesi Anda berakhir" (DRD §6.7);
-// 403 -> galat ber-kode (mis. "tidak punya akses"); server tak terjangkau -> pita "Tidak tersambung" + coba lagi
-// otomatis tiap 5 detik selama 1 menit, lalu manual.
+// Single gateway to /api (TRD §5). The HttpOnly session cookie is sent by the browser; every data-changing request carries
+// X-Requested-With (CSRF, TRD §8.2). 401 mid-use -> Login screen "Sesi Anda berakhir" (DRD §6.7);
+// 403 -> coded error (e.g. "tidak punya akses"); server unreachable -> "Tidak tersambung" band + automatic
+// retry every 5 seconds for 1 minute, then manual.
 import { writable, get } from 'svelte/store';
 
 export class ApiError extends Error {
   constructor(status, code, message) { super(message || code); this.status = status; this.code = code; }
 }
 
-/** 'ok' | 'expired' (sesi habis di tengah pemakaian). Diamati App.svelte. */
+/** 'ok' | 'expired' (session ended mid-use). Observed by App.svelte. */
 export const session = writable('ok');
-/** null = tersambung; {auto: bool} = tidak tersambung (auto: masih mencoba otomatis). */
+/** null = connected; {auto: bool} = not connected (auto: still retrying automatically). */
 export const offline = writable(null);
-/** Waktu (ms) permintaan terakhir yang berhasil: dasar peringatan sesi menganggur (DRD §6.9). */
+/** Time (ms) of the last successful request: basis for the idle-session warning (DRD §6.9). */
 export const lastActivity = writable(Date.now());
 
 let retryTimer = null;
@@ -30,15 +30,15 @@ async function request(method, path, body) {
   }
   if (get(offline)) stopRetry();
   let data = null;
-  try { data = await r.json(); } catch { /* bukan JSON */ }
+  try { data = await r.json(); } catch { /* not JSON */ }
   if (r.ok) { lastActivity.set(Date.now()); return data; }
   const err = data?.error || {};
   if (r.status === 401 && path !== '/api/auth/login' && path !== '/api/me') session.set('expired');
   throw new ApiError(r.status, err.code || String(r.status), err.message);
 }
 
-/** Unggah badan mentah (File/Blob) dengan kemajuan byte; XHR karena fetch tidak memberi kemajuan unggah.
- *  signal (AbortSignal) membatalkan unggahan yang sedang berjalan. */
+/** Upload a raw body (File/Blob) with byte progress; XHR because fetch gives no upload progress.
+ *  signal (AbortSignal) cancels an upload in progress. */
 function putFile(path, blob, onprogress = null, signal = null) {
   return new Promise((resolve, reject) => {
     const x = new XMLHttpRequest();
@@ -49,7 +49,7 @@ function putFile(path, blob, onprogress = null, signal = null) {
     if (onprogress) x.upload.onprogress = (e) => onprogress(e.loaded);
     x.onload = () => {
       let d = null;
-      try { d = JSON.parse(x.responseText); } catch { /* bukan JSON */ }
+      try { d = JSON.parse(x.responseText); } catch { /* not JSON */ }
       if (x.status >= 200 && x.status < 300) { lastActivity.set(Date.now()); return resolve(d); }
       if (x.status === 401) session.set('expired');
       reject(new ApiError(x.status, d?.error?.code || String(x.status), d?.error?.message));
@@ -70,7 +70,7 @@ export const api = {
   del: (path) => request('DELETE', path),
 };
 
-/** Path ke endpoint tabel (TRD §5.4); parameter kosong tidak dikirim. */
+/** Path to the table endpoint (TRD §5.4); empty parameters are not sent. */
 export function tablePath(folder, table, params = {}) {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== null && v !== undefined && v !== '') q.set(k, v);
@@ -78,11 +78,11 @@ export function tablePath(folder, table, params = {}) {
   return `/api/folders/${encodeURIComponent(folder)}/tables/${encodeURIComponent(table)}${s ? '?' + s : ''}`;
 }
 
-// ---------------------------------------------------------------- tidak tersambung
+// ---------------------------------------------------------------- not connected
 const RETRY_MS = 5000, RETRY_FOR_MS = 60000;
 let retryStart = 0;
 const listeners = new Set();
-/** Dipanggil saat sambungan pulih (App memuat ulang tab aktif). */
+/** Called when the connection recovers (App reloads the active tab). */
 export const onReconnect = (fn) => (listeners.add(fn), () => listeners.delete(fn));
 
 function startRetry() {
@@ -100,14 +100,14 @@ async function probe() {
   try {
     const r = await fetch('/api/health', { credentials: 'same-origin' });
     if (r.ok) return stopRetry();
-  } catch { /* masih mati */ }
+  } catch { /* still down */ }
   if (Date.now() - retryStart >= RETRY_FOR_MS) { clearInterval(retryTimer); retryTimer = null; offline.set({ auto: false }); }
 }
-/** Tombol "Coba lagi" di pita. */
+/** "Coba lagi" (Try again) button in the band. */
 export async function retryNow() {
   try {
     const r = await fetch('/api/health', { credentials: 'same-origin' });
     if (r.ok) return stopRetry();
-  } catch { /* masih mati */ }
+  } catch { /* still down */ }
   offline.set({ auto: false });
 }

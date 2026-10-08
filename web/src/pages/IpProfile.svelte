@@ -1,7 +1,7 @@
-<!-- Profil IP (Tahap 24 butir 4): #/ip/<ip>?folder=… — dibuka dari sel IP di tabel mana pun atau dari pencarian global.
-     Satu permintaan: GET /api/folders/{folder}/ips/{ip}. Isi: pemilik & lokasi (database offline), 8 KPI folder ini,
-     akun yang dicoba, jejak IP di semua folder (tautan ke profilnya di folder itu), dan semua request ingress di folder
-     ini (maks. 1.000) dengan kategori + aturan CRS. ?cari= (requestId dari pencarian) mengisi filter tabel request. -->
+<!-- IP profile (Stage 24 item 4): #/ip/<ip>?folder=… — opened from an IP cell in any table or from the global search.
+     One request: GET /api/folders/{folder}/ips/{ip}. Contents: owner & location (offline database), 8 KPIs for this folder,
+     accounts tried, the IP's trail across all folders (links to its profile in that folder), and all ingress requests in this
+     folder (max. 1,000) with category + CRS rule. ?cari= (requestId from the search) fills the request table filter. -->
 <script>
   import { lang, t, countryName } from '../i18n.js';
   import { api } from '../api.js';

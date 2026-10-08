@@ -1,5 +1,5 @@
-# Hanya pyproject.toml, monishield/, dan web/ (tanpa node_modules/dist) yang dibutuhkan build.
-# Rahasia, data, dan log TIDAK BOLEH masuk image.
+# Only pyproject.toml, monishield/ and web/ (without node_modules/dist) are needed by the build.
+# Secrets, data and logs MUST NOT go into the image.
 .env
 .env.*
 !.env.example
@@ -19,5 +19,5 @@ deploy/
 *.log.gz
 *.duckdb
 *.db
-# folder log bertanggal (bila pernah disalin ke v2/ untuk mencoba): berisi IP dan email pengguna
+# dated log folders (if ever copied into v2/ to try things): they contain user IPs and emails
 [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/

@@ -1,8 +1,8 @@
-<!-- Navigasi (DRD §1.1, §2.1, §9.4, gaya §12): grup Analisis (9 tab, urutan lama) dan Layanan (yang ada di folder
-     terpilih, urutan file), tiap butir berikon. Lencana: Keamanan "N IP", layanan = jumlah error; punya teks
-     tersembunyi untuk pembaca layar. Kaki: kartu zona waktu + status ingest. Sama untuk admin dan user.
-     Di layar sempit tampil sebagai laci (App.svelte). Di layar lebar bisa diciutkan jadi lajur ikon (permintaan pemilik
-     2026-10-07; tombol di samping logo, pilihan disimpan per browser): label lewat `title`, lencana jadi titik. -->
+<!-- Navigation (DRD §1.1, §2.1, §9.4, §12 style): Analysis group (9 tabs, old order) and Services (those in the selected
+     folder, file order), each item with an icon. Badges: Security "N IP", services = error count; with hidden text
+     for screen readers. Footer: time zone card + ingest status. Same for admin and user.
+     On narrow screens shown as a drawer (App.svelte). On wide screens it can be collapsed into an icon rail (owner request
+     2026-10-07; button next to the logo, choice stored per browser): labels via `title`, badges become dots. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { num, sysName } from '../format.js';
@@ -101,9 +101,9 @@
   .tz { text-transform: capitalize; }
   @media (max-width: 900px) {
     a { min-height: var(--touch); }
-    .tog { display: none; }   /* layar sempit: laci dengan ☰ di kepala halaman, tidak diciutkan */
+    .tog { display: none; }   /* narrow screen: drawer with ☰ in the page header, not collapsed */
   }
-  /* lajur ikon (hanya layar lebar; lebar --side-w-c di theme.css) */
+  /* icon rail (wide screens only; width --side-w-c in theme.css) */
   @media (min-width: 901px) {
     .logo.c { flex-direction: column; padding: 2px 0 6px; gap: 12px; }
     .logo.c .name, nav.c .lbl, nav.c .b, .foot.c .tz { display: none; }

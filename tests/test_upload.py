@@ -1,12 +1,13 @@
-"""Unggah folder log dari browser (permintaan pemilik 2026-10-07): rencana -> file satu per satu -> kotak masuk -> ingest."""
+"""Upload a log folder from the browser (owner request 2026-10-07): plan -> files one by one -> inbox -> ingest."""
 import dataclasses, gzip, os, time
 
 import pytest
 from fastapi.testclient import TestClient
 
 import logs_mini
-from monishield import auth, config, db, importer, ingest, upload
-from monishield.api import app as appmod
+from monishield.domain import accounts, uploads as upload_rules
+from monishield.infrastructure import config, db, importer, ingest, logfolders
+from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
 X = {'X-Requested-With': 'uji'}
@@ -27,25 +28,25 @@ def cfg(tmp_path):
 
 
 def rencana(cfg, paths, folder=''):
-    return upload.plan(cfg, [dict(path=p, size=10) for p in paths], folder)
+    return upload_rules.plan(cfg, [dict(path=p, size=10) for p in paths], folder, in_log_dir=logfolders.LogFolders(cfg).in_log_dir)
 
 
 def test_rencana_bentuk_jalur(cfg):
     ok, skip = rencana(cfg, [
-        f'unduhan/{D}/ombudsman/om-be-appsmanager/a.log',     # induk folder tanggal
-        '2026-01-10/ombudsman/om-fe-inhouse/b.log.gz',        # beberapa tanggal sekaligus
-        f'{D}/ombudsman/om-be-appsmanager/a.log.gz',          # berpasangan dengan .log: dilewati
-        f'{D}/.DS_Store', f'{D}/catatan.txt',                 # bukan log
-        f'{D}/lepas.log',                                     # kurang komponen
-        '2026-01-01/ombudsman/om-be-appsmanager/c.log',       # ada di folder log utama
-        'ombudsman/om-be-report/d.log',                       # tanpa tanggal, tanggal tidak diisi
+        f'unduhan/{D}/ombudsman/om-be-appsmanager/a.log',     # parent of the date folders
+        '2026-01-10/ombudsman/om-fe-inhouse/b.log.gz',        # several dates at once
+        f'{D}/ombudsman/om-be-appsmanager/a.log.gz',          # paired with a .log: skipped
+        f'{D}/.DS_Store', f'{D}/catatan.txt',                 # not a log
+        f'{D}/lepas.log',                                     # missing components
+        '2026-01-01/ombudsman/om-be-appsmanager/c.log',       # exists in the main log folder
+        'ombudsman/om-be-report/d.log',                       # no date, date not filled in
     ])
     assert [o['rel'] for o in ok] == [f'{D}/ombudsman/om-be-appsmanager/a.log', '2026-01-10/ombudsman/om-fe-inhouse/b.log.gz']
     why = {s['path']: s['reason'] for s in skip}
-    assert why[f'{D}/ombudsman/om-be-appsmanager/a.log.gz'] == '.gz berpasangan dengan .log' and why[f'{D}/.DS_Store'] == 'bukan file log'
-    assert 'folder log utama' in why['2026-01-01/ombudsman/om-be-appsmanager/c.log'] and 'isi tanggal' in why['ombudsman/om-be-report/d.log']
+    assert why[f'{D}/ombudsman/om-be-appsmanager/a.log.gz'] == '.gz paired with .log' and why[f'{D}/.DS_Store'] == 'not a log file'
+    assert 'main log folder' in why['2026-01-01/ombudsman/om-be-appsmanager/c.log'] and 'fill in the folder date' in why['ombudsman/om-be-report/d.log']
     assert 'namespace' in why[f'{D}/lepas.log']
-    # isi satu tanggal tanpa nama tanggal: folder yang dipilih (komponen pertama) diganti tanggal pilihan
+    # one date's contents without a date name: the chosen folder (first component) is replaced by the chosen date
     ok, _ = rencana(cfg, ['salinan-server/ombudsman/om-be-report/d.log'], folder=D)
     assert [o['rel'] for o in ok] == [f'{D}/ombudsman/om-be-report/d.log']
 
@@ -59,7 +60,7 @@ def test_rencana_ditolak(cfg, paths, folder, code):
 
 def test_rencana_batas(cfg):
     big = dataclasses.replace(cfg, import_max_object_mb=1)
-    with pytest.raises(importer.ImportFail) as e: upload.plan(big, [dict(path=f'{D}/ns/svc/a.log', size=2 * 2**20)])
+    with pytest.raises(importer.ImportFail) as e: upload_rules.plan(big, [dict(path=f'{D}/ns/svc/a.log', size=2 * 2**20)])
     assert e.value.code == 'object_too_large'
     few = dataclasses.replace(cfg, import_max_objects=1)
     with pytest.raises(importer.ImportFail) as e: rencana(few, [f'{D}/ns/svc/a.log', f'{D}/ns/svc/b.log'])
@@ -68,7 +69,7 @@ def test_rencana_batas(cfg):
 
 @pytest.fixture
 def client(cfg, auth_url, monkeypatch):
-    monkeypatch.setattr(auth, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     c = dataclasses.replace(cfg, auth_database_url=auth_url)
     con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
     with TestClient(appmod.create_app(c)) as tc:
@@ -104,14 +105,14 @@ def test_unggah_folder_lalu_ingest(client, cfg):
     r = client.post(f"/api/admin/upload/{p['upload_id']}/finish", headers=X)
     assert r.status_code == 202 and r.json() == dict(folders=[D], files=2, bytes=len(APPS) + len(gzip.compress(FE)), extracted=1)
     base = os.path.join(cfg.inbox_dir, D, 'ombudsman')
-    assert open(os.path.join(base, 'om-fe-inhouse', f'log_om-fe-inhouse_pod-f_{D}-00-00.log'), 'rb').read() == FE      # .gz diekstrak
+    assert open(os.path.join(base, 'om-fe-inhouse', f'log_om-fe-inhouse_pod-f_{D}-00-00.log'), 'rb').read() == FE      # .gz extracted
     assert not os.path.exists(os.path.join(base, 'om-fe-inhouse', f'log_om-fe-inhouse_pod-f_{D}-00-00.log.gz'))
     assert not [d for d in os.listdir(os.path.join(cfg.data_dir, 'tmp')) if d.startswith('upload-')]
     tunggu_ingest(client)
     assert D in [x['folder'] for x in client.get('/api/meta').json()['folders']]
     assert client.get('/api/admin/ingest/status').json()['last_run']['status'] == 'ok'
     assert 'upload.finish' in {x['action'] for x in client.get('/api/admin/audit').json()['rows']}
-    # unggah ulang file yang berubah: menggantikan yang lama, ingest memperbarui hanya file itu
+    # re-upload of a changed file: replaces the old one, ingest refreshes only that file
     p = unggah(client, [f(f'{D}/ombudsman/om-be-appsmanager/log_om-be-appsmanager_pod-a_{D}-00-00.log', APPS + APPS)])
     assert client.post(f"/api/admin/upload/{p['upload_id']}/finish", headers=X).status_code == 202
     tunggu_ingest(client)
@@ -125,10 +126,10 @@ def test_unggah_ditolak_dan_dibatalkan(client, cfg):
     r = client.post('/api/admin/upload', json=dict(files=[dict(path=f'{D}/ombudsman/om-be-appsmanager/a.log', size=len(data))]), headers=X)
     uid = r.json()['upload_id']
     put = lambda i, body, h=X: client.put(f'/api/admin/upload/{uid}/{i}', content=body, headers=h)
-    assert put(0, data + b'x').status_code == 413                         # lebih besar dari rencana
-    assert put(0, data[:-1]).json()['error']['code'] == 'size_mismatch'   # kurang
-    assert put(5, data).status_code == 404                                # bukan bagian rencana
-    assert put(0, data, {}).status_code == 403                            # tanpa header CSRF
+    assert put(0, data + b'x').status_code == 413                         # larger than planned
+    assert put(0, data[:-1]).json()['error']['code'] == 'size_mismatch'   # smaller
+    assert put(5, data).status_code == 404                                # not part of the plan
+    assert put(0, data, {}).status_code == 403                            # without CSRF header
     fin = client.post(f'/api/admin/upload/{uid}/finish', headers=X)
     assert (fin.status_code, fin.json()['error']['code']) == (409, 'incomplete')
     assert client.put(f'/api/admin/upload/{"0" * 32}/0', content=data, headers=X).status_code == 404

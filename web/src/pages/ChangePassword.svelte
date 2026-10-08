@@ -1,5 +1,5 @@
-<!-- Ganti sandi (DRD §3.11): aturan ditulis sebelum mengetik; galat per kolom di bawah kolomnya (aria-describedby).
-     forced = wajib (masuk pertama / setelah reset): tampil sendirian, tanpa "Batal"; satu-satunya jalan lain "Keluar". -->
+<!-- Change password (DRD §3.11): rules are stated before typing; per-field errors below the field (aria-describedby).
+     forced = required (first login / after reset): shown alone, without "Batal"; the only other way out is "Keluar". -->
 <script>
   import { srv, errText } from '../srv.js';
   import { t } from '../i18n.js';

@@ -1,26 +1,27 @@
-"""Ambil aturan OWASP Core Rule Set (CRS) versi TERKUNCI dan simpan sebagai monishield/crs_rules.json (TRD §4.6, Tahap 21).
+"""Fetch the OWASP Core Rule Set (CRS) rules of a PINNED version and save them as monishield/domain/crs_rules.json (TRD §4.6, Stage 21).
 
-    py tools/ambil_crs.py            # unduh (git clone tag), olah, tulis monishield/crs_rules.json + monishield/CRS-LICENSE.txt
-    py tools/ambil_crs.py --check    # olah ulang dan bandingkan: keluar 1 bila berkas di repo berbeda
-    py tools/ambil_crs.py --src DIR  # pakai salinan CRS yang sudah ada (tanpa jaringan)
+    py tools/ambil_crs.py            # download (git clone tag), process, write monishield/domain/crs_rules.json + CRS-LICENSE.txt
+    py tools/ambil_crs.py --check    # re-process and compare: exit 1 when the file in the repo differs
+    py tools/ambil_crs.py --src DIR  # use an existing CRS copy (no network)
 
-Yang diambil: berkas REQUEST-913, 930, 931, 932, 933, 934, 941, 942, 944; hanya aturan yang sasarannya bagian request
-yang ADA di log nginx (URI, argumen query, nama berkas, User-Agent). Aturan yang tidak bisa dipakai apa adanya
-(operator libinjection, transformasi yang tidak didukung, pola yang tidak diterima mesin regex Python, rantai aturan,
-sasaran yang tidak ada di log) DICATAT di bagian `skipped` beserta alasannya, tidak diubah diam-diam.
-Saat dashboard berjalan tidak ada unduhan: berkas JSON ikut repo.
+What is taken: files REQUEST-913, 930, 931, 932, 933, 934, 941, 942, 944; only rules whose targets are request parts
+that EXIST in the nginx log (URI, query arguments, file name, User-Agent). Rules that cannot be used as they are
+(libinjection operators, unsupported transformations, patterns the Python regex engine rejects, rule chains,
+targets not in the log) are RECORDED in the `skipped` section with their reason, not silently altered.
+(The skip reasons stay in Indonesian: they are data in the committed crs_rules.json, which --check compares byte for byte.)
+No download happens while the dashboard runs: the JSON file is part of the repo.
 """
 import argparse, json, os, re, shutil, subprocess, sys, tempfile
 
 VERSION = 'v4.30.0'
-COMMIT = 'e03a4f6dabc7a30ebd8c52c97d28a154f590a48f'   # hasil `git rev-parse` tag di atas; diperiksa tiap unduhan
+COMMIT = 'e03a4f6dabc7a30ebd8c52c97d28a154f590a48f'   # `git rev-parse` of the tag above; checked on every download
 REPO = 'https://github.com/coreruleset/coreruleset.git'
 FILES = ('913', '930', '931', '932', '933', '934', '941', '942', '944')
 V2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(V2, 'monishield', 'crs_rules.json')
-LICENSE_OUT = os.path.join(V2, 'monishield', 'CRS-LICENSE.txt')
+OUT = os.path.join(V2, 'monishield', 'domain', 'crs_rules.json')
+LICENSE_OUT = os.path.join(V2, 'monishield', 'domain', 'CRS-LICENSE.txt')
 
-# variabel ModSecurity -> bagian request yang ada di log nginx (selebihnya tidak tercatat)
+# ModSecurity variables -> request parts present in the nginx log (the rest is not logged)
 TARGETS = {'REQUEST_URI': 'uri', 'REQUEST_URI_RAW': 'uri', 'REQUEST_FILENAME': 'filename', 'REQUEST_BASENAME': 'basename',
            'QUERY_STRING': 'query', 'ARGS': 'args', 'ARGS_GET': 'args', 'ARGS_NAMES': 'arg_names', 'ARGS_GET_NAMES': 'arg_names',
            'REQUEST_HEADERS:User-Agent': 'ua', 'REQUEST_HEADERS': 'ua', 'REQUEST_LINE': 'line'}
@@ -34,11 +35,11 @@ OPERATORS = {'rx', 'pm', 'pmFromFile', 'pmf', 'contains', 'beginsWith', 'endsWit
 def fetch(dest):
     subprocess.run(['git', '-c', 'advice.detachedHead=false', 'clone', '-q', '--depth', '1', '--branch', VERSION, REPO, dest], check=True)
     head = subprocess.run(['git', '-C', dest, 'rev-parse', 'HEAD'], check=True, capture_output=True, text=True).stdout.strip()
-    if head != COMMIT: raise SystemExit(f'commit {VERSION} = {head}, bukan {COMMIT} yang dikunci: periksa sebelum memperbarui')
+    if head != COMMIT: raise SystemExit(f'commit {VERSION} = {head}, not the pinned {COMMIT}: check before updating')
 
 
 def statements(text):
-    """Pernyataan SecRule/SecAction utuh (baris lanjutan '\\' digabung), komentar dibuang."""
+    """Whole SecRule/SecAction statements (continuation lines '\\' joined), comments dropped."""
     out, cur = [], ''
     for line in text.splitlines():
         s = line.rstrip()
@@ -49,7 +50,7 @@ def statements(text):
 
 
 def split_args(st):
-    """'SecRule A "B" "C"' -> ['SecRule', 'A', 'B', 'C'] (kutip ganda dengan \\" di dalamnya)."""
+    """'SecRule A "B" "C"' -> ['SecRule', 'A', 'B', 'C'] (double quotes with \\" inside)."""
     toks, i = [], 0
     while i < len(st):
         if st[i].isspace(): i += 1; continue
@@ -67,7 +68,7 @@ def split_args(st):
 
 
 def actions(s):
-    """'id:1,t:none,msg:'a,b',tag:'x'' -> [(kunci, nilai)]."""
+    """'id:1,t:none,msg:'a,b',tag:'x'' -> [(key, value)]."""
     out = []
     for m in re.finditer(r"\s*([A-Za-z_]+)(?::('(?:[^'\\]|\\.)*'|[^,]*))?\s*(?:,|$)", s):
         if not m.group(1): continue
@@ -82,13 +83,13 @@ def load_data(src, name):
 
 
 def convert(rule_op, arg, src):
-    """-> (op, isi) atau melempar ValueError(alasan)."""
+    """-> (op, content) or raises ValueError(reason)."""
     op = rule_op
     if op in ('pmFromFile', 'pmf'): return 'pm', sorted({w.lower() for f in arg.split() for w in load_data(src, f)})
     if op == 'pm': return 'pm', sorted({w.lower() for w in arg.split()})
     if op == 'rx':
-        # ModSecurity mencocokkan BYTE: escape \x{HH} (<= 0xff) = satu byte. Detektor mencocokkan byte UTF-8 yang dibaca latin-1,
-        # jadi \x{HH} -> \xHH bermakna sama. Yang lebih dari satu byte, kelas POSIX, dan \Q..\E tidak punya padanan aman.
+        # ModSecurity matches BYTES: escape \x{HH} (<= 0xff) = one byte. The detector matches UTF-8 bytes read as latin-1,
+        # so \x{HH} -> \xHH means the same. Multi-byte escapes, POSIX classes and \Q..\E have no safe equivalent.
         if re.search(r'\\x\{[0-9a-fA-F]{3,}\}', arg): raise ValueError('escape \\x{...} lebih dari satu byte')
         arg = re.sub(r'\\x\{([0-9a-fA-F]{1,2})\}', lambda m: '\\x' + m.group(1).zfill(2), arg)
         if re.search(r'\[\[:\w+:\]\]|\\Q|\\E', arg): raise ValueError('sintaks PCRE yang tidak didukung re Python')
@@ -111,10 +112,10 @@ def rules_of(src):
             d = {}
             for k, v in acts: d.setdefault(k, []).append(v)
             rid = d.get('id', [None])[0]
-            if chained:                      # aturan lanjutan rantai: ikut dilewati bersama induknya
+            if chained:                      # chained follow-up rule: skipped together with its parent
                 chained = 'chain' in d; continue
             if rid is None: continue
-            if all(v.lstrip('!&').startswith('TX:') for v in variables.split('|')): continue   # aturan kendali (tingkat paranoia, skor)
+            if all(v.lstrip('!&').startswith('TX:') for v in variables.split('|')): continue   # control rules (paranoia level, score)
             tags = d.get('tag', [])
             pl = next((int(t.split('/')[1]) for t in tags if t.startswith('paranoia-level/')), None)
             base = dict(id=int(rid), file=os.path.basename(path), pl=pl)
@@ -133,7 +134,7 @@ def rules_of(src):
             try: op, arg = convert(op, arg, src)
             except ValueError as e: skipped.append(dict(base, reason=str(e))); continue
             capec = [t.split('/')[-1] for t in tags if t.startswith('capec/')]
-            attack = next((t[7:] for t in tags if t.startswith('attack-')), None)   # tag keluarga serangan CRS (xss, sqli, rce, ...)
+            attack = next((t[7:] for t in tags if t.startswith('attack-')), None)   # CRS attack family tag (xss, sqli, rce, ...)
             keep.append(dict(base, severity=d.get('severity', ['NOTICE'])[0], capec=capec[0] if capec else None, capec_path=next((t for t in tags if t.startswith('capec/')), None),
                              attack=attack,
                              msg=d.get('msg', [''])[0], targets=targets, transforms=tf, op=op, arg=arg))
@@ -160,17 +161,17 @@ def main():
         data = build(src)
         text = json.dumps(data, ensure_ascii=False, indent=1) + '\n'
         c = data['counts']
-        print(f"CRS {VERSION} ({COMMIT[:12]}): {c['kept']} aturan diambil (per tingkat paranoia {c['by_pl']}), {c['skipped']} dilewati")
+        print(f"CRS {VERSION} ({COMMIT[:12]}): {c['kept']} rules taken (per paranoia level {c['by_pl']}), {c['skipped']} skipped")
         reasons = {}
         for s in data['skipped']: reasons[s['reason'].split(':')[0]] = reasons.get(s['reason'].split(':')[0], 0) + 1
-        for r, n in sorted(reasons.items(), key=lambda x: -x[1]): print(f'  dilewati {n:3} × {r}')
+        for r, n in sorted(reasons.items(), key=lambda x: -x[1]): print(f'  skipped {n:3} × {r}')
         if a.check:
             same = os.path.exists(OUT) and open(OUT, encoding='utf-8').read() == text
-            print('crs_rules.json sama dengan hasil olah ulang' if same else 'crs_rules.json BERBEDA dari hasil olah ulang')
+            print('crs_rules.json matches the re-processed result' if same else 'crs_rules.json DIFFERS from the re-processed result')
             return 0 if same else 1
         with open(OUT, 'w', encoding='utf-8') as fh: fh.write(text)
         shutil.copyfile(os.path.join(src, 'LICENSE'), LICENSE_OUT)
-        print(f'ditulis: {os.path.relpath(OUT, V2)}, {os.path.relpath(LICENSE_OUT, V2)}')
+        print(f'written: {os.path.relpath(OUT, V2)}, {os.path.relpath(LICENSE_OUT, V2)}')
         return 0
     finally:
         if tmp: shutil.rmtree(tmp, ignore_errors=True)

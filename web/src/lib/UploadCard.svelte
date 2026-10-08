@@ -1,7 +1,7 @@
-<!-- Kartu "Unggah folder log" di layar Ingest & impor (permintaan pemilik 2026-10-07; API monishield/api/upload.py).
-     Pilih folder di komputer (folder tanggal YYYY-MM-DD, induknya, atau isi satu tanggal + isi tanggalnya) -> server
-     memeriksa daftar file (yang bukan log dilewati, batas ukuran sama dengan impor S3) -> ringkasan -> "Unggah": file
-     dikirim satu per satu (3 sekaligus) dengan kemajuan -> server memindah ke kotak masuk dan menjalankan ingest. -->
+<!-- "Unggah folder log" card on the Ingest & import screen (owner request 2026-10-07; API monishield/api/upload.py).
+     Choose a folder on the computer (a YYYY-MM-DD date folder, its parent, or one date's contents + its date) -> the server
+     checks the file list (non-logs skipped, same size limit as S3 import) -> summary -> "Unggah": files
+     sent one by one (3 at a time) with progress -> the server moves them to the inbox and runs ingest. -->
 <script>
   import { srv, errText } from '../srv.js';
   import { lang, t } from '../i18n.js';
@@ -31,7 +31,7 @@
   }
   async function cancel(quiet = false) {
     ctl?.abort(); ctl = null;
-    if (plan?.upload_id) { try { await api.del(`/api/admin/upload/${plan.upload_id}`); } catch { /* sudah kedaluwarsa */ } }
+    if (plan?.upload_id) { try { await api.del(`/api/admin/upload/${plan.upload_id}`); } catch { /* already expired */ } }
     plan = null; sent = 0; total = 0;
     if (!quiet) { files = []; if (input) input.value = ''; }
   }

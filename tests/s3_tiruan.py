@@ -1,7 +1,7 @@
-"""S3 tiruan lokal untuk uji impor (TRD §9.6): cukup ListObjectsV2 (berhalaman) dan GetObject, gaya alamat path.
+"""Local fake S3 for the import tests (TRD §9.6): just ListObjectsV2 (paginated) and GetObject, path-style addressing.
 
-Tidak memeriksa tanda tangan; hanya ID kunci di header Authorization (cukup untuk "kredensial ditolak S3").
-Semua permintaan dicatat di `log` agar uji bisa memastikan, mis., tautan yang ditolak tidak pernah menghubungi S3.
+Does not verify signatures; only the key ID in the Authorization header (enough for "credentials rejected by S3").
+Every request is recorded in `log` so tests can assert, e.g., that a rejected link never contacts S3.
 """
 import hashlib, http.server, re, threading, urllib.parse
 from xml.sax.saxutils import escape
@@ -39,7 +39,7 @@ class S3Tiruan:
                 if len(parts) == 1 or parts[1] == '':
                     if q.get('list-type') != '2': return self._err(400, 'InvalidRequest')
                     keys = sorted(k for k in bucket if k.startswith(q.get('prefix', '')))
-                    if q.get('delimiter'):   # awalan bersama (folder) tanpa isinya; satu halaman saja
+                    if q.get('delimiter'):   # common prefixes (folders) without their contents; a single page only
                         pre, d = q.get('prefix', ''), q['delimiter']
                         cps = sorted({pre + k[len(pre):].split(d, 1)[0] + d for k in keys if d in k[len(pre):]})
                         files = [k for k in keys if d not in k[len(pre):]]
@@ -64,7 +64,7 @@ class S3Tiruan:
                 self._send(200, data, {'ETag': f'"{hashlib.md5(data).hexdigest()}"', 'Content-Type': 'application/octet-stream',
                                        'Last-Modified': 'Wed, 07 Oct 2026 00:00:00 GMT'})
 
-            def do_PUT(self): tiruan.log.append((self.command, self.path, {})); self._err(403, 'AccessDenied')   # tidak pernah boleh dipanggil
+            def do_PUT(self): tiruan.log.append((self.command, self.path, {})); self._err(403, 'AccessDenied')   # must never be called
             do_DELETE = do_POST = do_PUT
 
         self.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H)

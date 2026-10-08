@@ -1,6 +1,6 @@
-<!-- Daftar blokir siap pakai (permintaan pemilik 2026-10-07, saran 6; API GET …/security/blocklist). Pilih format
-     (nginx `deny`, anotasi ingress-nginx, teks), rentang (folder ini / 7 / 30 hari), keparahan minimal -> pratinjau jumlah
-     IP + yang dikecualikan (privat, jaringan sendiri, daftar kecuali server) -> Unduh atau Salin. -->
+<!-- Ready-to-use blocklist (owner request 2026-10-07, suggestion 6; API GET …/security/blocklist). Choose a format
+     (nginx `deny`, ingress-nginx annotation, text), range (this folder / 7 / 30 days), minimum severity -> preview of the IP
+     count + those excluded (private, own network, server exclusion list) -> Download or Copy. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';

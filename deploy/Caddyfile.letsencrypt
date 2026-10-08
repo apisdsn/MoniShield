@@ -1,6 +1,6 @@
-# Proxy HTTPS dengan sertifikat OTOMATIS dari Let's Encrypt (profil "https"; docs/07-deploy-vps.md).
-# Syarat: DNS DOCKER_DOMAIN sudah mengarah ke IP server ini, dan port 80 + 443 terbuka dari internet
-# (port 80 dipakai Let's Encrypt untuk verifikasi dan untuk mengalihkan http -> https).
+# HTTPS proxy with AUTOMATIC certificates from Let's Encrypt ("https" profile; docs/07-deploy-vps.md).
+# Requirements: DOCKER_DOMAIN's DNS already points to this server's IP, and ports 80 + 443 are open from the internet
+# (port 80 is used by Let's Encrypt for verification and to redirect http -> https).
 {
 	email {$DOCKER_ACME_EMAIL}
 	admin off
@@ -9,5 +9,5 @@
 {$DOCKER_DOMAIN} {
 	encode zstd gzip
 	header Strict-Transport-Security "max-age=31536000"
-	reverse_proxy app:8000   # SSE /api/live/map diteruskan langsung (Caddy tidak menahan text/event-stream)
+	reverse_proxy app:8000   # SSE /api/live/map is passed straight through (Caddy does not buffer text/event-stream)
 }

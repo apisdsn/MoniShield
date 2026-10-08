@@ -1,6 +1,6 @@
-<!-- Ketersediaan (DRD §3.6, inv. §2.6): 7 KPI (4 + 3), 3 chart, 4 tabel; butuh log ingress nginx (selain itu catatan).
-     Berubah dari lama (TRD §4.4 butir 1): error koneksi pod tidak dipotong 200 lagi (KPI = semua kejadian, tabel bisa
-     dilanjutkan). Satu permintaan: GET /api/folders/{folder}/availability. -->
+<!-- Availability (DRD §3.6, inv. §2.6): 7 KPIs (4 + 3), 3 charts, 4 tables; needs nginx ingress logs (otherwise a note).
+     Changed from the old one (TRD §4.4 item 1): pod connection errors are no longer truncated at 200 (KPI = all events, the table can
+     be continued). One request: GET /api/folders/{folder}/availability. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -31,9 +31,9 @@
   $effect(() => { void [folder, reloadKey]; if (folder) load(); });
 
   const pct3 = (a, b) => (b ? `${num((a / b) * 100, $lang, 3)}%` : '-');
-  // durasi insiden dalam menit: selisih mulai–selesai + 1 (lama)
+  // incident duration in minutes: start–end difference + 1 (old)
   const mins = (a, b) => Math.round((new Date(b.replace(' ', 'T')) - new Date(a.replace(' ', 'T'))) / 60000) + 1;
-  // request di log ter-encode; "%" tunggal tidak boleh membuat decode gagal (lama)
+  // requests in the log are encoded; a lone "%" must not make decoding fail (old)
   const decode = (s) => { try { return decodeURIComponent(s.replace(/%(?![0-9a-f]{2})/gi, '%25')); } catch { return s; } };
   const n5ByHour = $derived(Object.fromEntries(data?.n5xx_by_hour || []));
 </script>

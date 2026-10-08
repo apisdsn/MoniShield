@@ -1,9 +1,9 @@
-<!-- Kartu "Impor dari S3" di layar Ingest & impor (DRD §3.11, TRD §3.8): status kredensial (hanya tersedia/tidak dan
-     sumbernya), formulir tempel kredensial sementara (memori server saja), kolom tautan dengan bentuk yang diterima,
-     "Coba dulu" (hanya mendaftar objek), "Impor" (konfirmasi, kemajuan, lalu ingest), dan riwayat impor.
-     Nilai kredensial tidak pernah dikirim balik oleh server; kolomnya dikosongkan begitu terkirim.
-     Sinkron otomatis (permintaan pemilik 2026-10-07): bila S4_S3_WATCH diisi, server memeriksa folder induk S3 berkala
-     dan mengambil folder tanggal yang baru tanpa tautan; bagian atas kartu menampilkan status + "Periksa S3 sekarang". -->
+<!-- "Impor dari S3" card on the Ingest & import screen (DRD §3.11, TRD §3.8): credential status (only available/not and
+     its source), form for pasting temporary credentials (server memory only), link field with the accepted shapes,
+     "Coba dulu" (dry run: lists objects only), "Impor" (confirmation, progress, then ingest), and import history.
+     Credential values are never sent back by the server; the fields are cleared as soon as they are sent.
+     Automatic S3 sync (owner request 2026-10-07): when S4_S3_WATCH is set, the server periodically checks the S3 parent folder
+     and fetches new date folders without a link; the top of the card shows the status + "Periksa S3 sekarang". -->
 <script>
   import { srv, errText } from '../srv.js';
   import { onMount } from 'svelte';
@@ -41,7 +41,7 @@
 
   let wUrl = $state(''), wMin = $state(60), wBusy = $state(false), wErr = $state(null), wInit = false;
   $effect(() => { if (ov?.watch && !wInit) { wInit = true; wUrl = ov.watch.url || ''; wMin = ov.watch.minutes || 60; } });
-  // nama pemicu dari server ('(sinkron S3 otomatis)', '(token mesin)') diterjemahkan; nama user apa adanya
+  // trigger names from the server ('(sinkron S3 otomatis)', '(token mesin)') are translated; user names as is
   const who = (by) => ({ '(sinkron S3 otomatis)': $t('imp.w.by_auto'), '(token mesin)': $t('imp.w.by_job') })[by] || $srv(by);
 
   async function saveWatch(enabled) {
@@ -51,7 +51,7 @@
       toast(enabled ? $t('imp.w.saved') : $t('imp.w.disabled'));
       window.dispatchEvent(new Event('monishield:watch-changed'));
       await load();
-      if (enabled) setTimeout(load, 7000);   // pemeriksaan pertama ±5 detik setelah disimpan
+      if (enabled) setTimeout(load, 7000);   // first check ±5 seconds after saving
     } catch (e) { wErr = why(e); } finally { wBusy = false; }
   }
 
@@ -61,7 +61,7 @@
     catch (e) { syncErr = why(e); }
   }
 
-  // galat: bahasa Indonesia = pesan server apa adanya (memuat rincian, mis. awalan yang diizinkan); EN = kamus per kode
+  // errors: English = the server message as is (with details, e.g. the allowed prefixes); Indonesian = dictionary per code
   const why = (e) => $errText(e);
   const whyJob = (j) => $errText(j.result?.error || j.message || '');
 
@@ -77,10 +77,10 @@
     try {
       const j = await api.get(`/api/admin/import/${id}`);
       job = j;
-      if (j.running || (j.status === 'berjalan') || (!j.result && j.status !== 'gagal')) { timer = setTimeout(() => poll(id), 1000); return; }
+      if (j.running || (j.status === 'running') || (!j.result && j.status !== 'failed')) { timer = setTimeout(() => poll(id), 1000); return; }
       busy = false; timer = null;
-      if (j.status === 'gagal') fail = whyJob(j);
-      else if (j.status === 'selesai') { toast($t('imp.toast_done', { n: num(j.result.downloaded, $lang), folder: j.folder })); onfinished?.(); }
+      if (j.status === 'failed') fail = whyJob(j);
+      else if (j.status === 'done') { toast($t('imp.toast_done', { n: num(j.result.downloaded, $lang), folder: j.folder })); onfinished?.(); }
       load();
     } catch (e) { busy = false; fail = why(e); }
   }
@@ -96,13 +96,13 @@
   }
 
   const prog = $derived(job?.progress);
-  const phase = $derived(!prog ? $t('imp.ph.daftar') : prog.phase === 'unduh' && prog.total ? $t('imp.ph.unduh', { done: num(prog.done, $lang), total: num(prog.total, $lang) })
-    : $t(`imp.ph.${['daftar', 'ingest'].includes(prog.phase) ? prog.phase : 'daftar'}`));
+  const phase = $derived(!prog ? $t('imp.ph.daftar') : prog.phase === 'download' && prog.total ? $t('imp.ph.unduh', { done: num(prog.done, $lang), total: num(prog.total, $lang) })
+    : $t(prog.phase === 'ingest' ? 'imp.ph.ingest' : 'imp.ph.daftar'));
   const res = $derived(job?.result && !job.result.error ? job.result : null);
-  const ST = { selesai: ['ok', 'imp.st.done'], coba: [1, 'imp.st.dry'], gagal: [3, 'imp.st.fail'], berjalan: [2, 'imp.st.running'] };
+  const ST = { done: ['ok', 'imp.st.done'], dry_run: [1, 'imp.st.dry'], failed: [3, 'imp.st.fail'], running: [2, 'imp.st.running'] };
   const MB = (n) => bytes(n ?? 0, $lang);
   const w = $derived(ov?.watch);
-  const syncPhase = $derived(!syncing ? '' : ov?.state?.phase === 'unduh' && ov.state.total
+  const syncPhase = $derived(!syncing ? '' : ov?.state?.phase === 'download' && ov.state.total
     ? $t('imp.w.ph_unduh', { done: num(ov.state.done + 1, $lang), total: num(ov.state.total, $lang) })
     : ov?.state?.phase === 'ingest' ? $t('imp.ph.ingest') : $t('imp.w.ph_periksa'));
 </script>
@@ -119,7 +119,7 @@
     {@const c = ov.credentials}
     <p class="cred">
       {$t('imp.cred')}
-      {#if c.available}<SeverityTag level="ok" text={$t('imp.cred_ok')} /> <span class="muted">({$t(c.source === 'tempel' ? 'imp.src.pasted' : 'imp.src.env')}{#if c.pasted_at} · {tWIB(utcToWib(c.pasted_at), $lang)}{/if})</span>
+      {#if c.available}<SeverityTag level="ok" text={$t('imp.cred_ok')} /> <span class="muted">({$t(c.source === 'pasted' ? 'imp.src.pasted' : 'imp.src.env')}{#if c.pasted_at} · {tWIB(utcToWib(c.pasted_at), $lang)}{/if})</span>
       {:else}<SeverityTag level={3} text={$t('imp.cred_none')} />{/if}
     </p>
     <div class="credacts">
@@ -164,7 +164,7 @@
         </div>
       </form>
       {#if wErr}<p class="err" role="alert">{wErr}</p>{/if}
-      {#if w?.problem}<p class="err small">{w.problem}</p>{/if}
+      {#if w?.problem}<p class="err small">{$errText({ code: w.problem_code, message: w.problem })}</p>{/if}
       {#if w?.enabled}
         <p class="small on"><span class="dot ok" aria-hidden="true"></span>{$t('imp.w.on', { m: w.minutes < 60 ? $t('imp.w.min', { n: w.minutes }) : $t('imp.w.hour', { n: w.minutes / 60 }) })}
           {#each w.sources as s}<code>{s}</code>{' '}{/each}
@@ -223,7 +223,7 @@
           <summary>{$t('imp.objects', { n: num(res.objects.length, $lang) })}</summary>
           <ul>
             {#each res.objects as o}
-              <li><span class={o.action === 'ambil' ? 'ok' : 'muted'}>{o.action === 'ambil' ? $t('imp.take') : $t('imp.skip')}</span>
+              <li><span class={o.action === 'fetch' ? 'ok' : 'muted'}>{o.action === 'fetch' ? $t('imp.take') : $t('imp.skip')}</span>
                 <code>{o.rel}</code> <span class="muted">{MB(o.size)}{#if o.reason} · {$srv(o.reason)}{/if}</span></li>
             {/each}
           </ul>
@@ -243,7 +243,7 @@
     { key: 'status', label: $t('col.status'), custom: true, sort: true },
     { key: 'requested_by', label: $t('imp.col.by'), fmt: (r) => $srv(r.requested_by) || '–' },
   ]}>
-    {#snippet cell(r)}{@const s = ST[r.status] || ST.gagal}<SeverityTag level={s[0]} text={$t(s[1])} />{#if r.message}<div class="muted small msg">{r.status === 'gagal' ? $errText(r.message) : $srv(r.message)}</div>{/if}{/snippet}
+    {#snippet cell(r)}{@const s = ST[r.status] || ST.failed}<SeverityTag level={s[0]} text={$t(s[1])} />{#if r.message}<div class="muted small msg">{r.status === 'failed' ? $errText(r.message) : $srv(r.message)}</div>{/if}{/snippet}
   </DataTable>
 {/if}
 

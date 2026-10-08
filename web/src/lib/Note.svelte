@@ -1,4 +1,4 @@
-<!-- Catatan (DRD §4.6): kartu bergaris putus, teks muted; kalimat tidak dikapitalisasi (U13). -->
+<!-- Note (DRD §4.6): dashed card, muted text; sentences are not capitalized (U13). -->
 <script>
   let { children, wide = true } = $props();
 </script>

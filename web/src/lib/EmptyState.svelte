@@ -1,4 +1,4 @@
-<!-- Kosong selalu menjelaskan sebabnya dan, bila ada, apa yang bisa dilakukan (DRD §6.6). -->
+<!-- Empty always explains why and, when possible, what can be done (DRD §6.6). -->
 <script>
   let { title, text = '', children } = $props();
 </script>

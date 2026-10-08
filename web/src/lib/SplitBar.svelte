@@ -1,5 +1,5 @@
-<!-- Batang proporsi besar (gaya referensi "Run Success Rate"): segmen berurutan tetap (mis. sukses dulu, DRD §9.2),
-     label + angka di segmen terbesar, legenda bertitik di bawah. segments: [{label, value, tone: 'ok'|'err'|'warn'|'muted'}] -->
+<!-- Large proportion bar (reference style "Run Success Rate"): segments in a fixed order (e.g. success first, DRD §9.2),
+     label + number on the largest segment, dotted legend below. segments: [{label, value, tone: 'ok'|'err'|'warn'|'muted'}] -->
 <script>
   import { lang } from '../i18n.js';
   import { num } from '../format.js';

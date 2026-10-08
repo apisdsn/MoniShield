@@ -1,6 +1,6 @@
-<!-- Bisnis (DRD §3.8, inv. §2.8): 11 KPI (perubahan vs folder sebelumnya untuk metrik simpel-loop), catatan, 5 chart,
-     2 tabel. Satu permintaan: GET /api/folders/{folder}/business. Berubah dari lama (U16): KPI yang lognya tidak ada
-     di folder ini tampil "–" dengan keterangan, bukan 0 (simpel-loop: aktivitas; report: PDF; appsmanager: login). -->
+<!-- Business (DRD §3.8, inv. §2.8): 11 KPIs (change vs the previous folder for simpel-loop metrics), notes, 5 charts,
+     2 tables. One request: GET /api/folders/{folder}/business. Changed from the old one (U16): KPIs whose log is missing
+     in this folder show "–" with an explanation, not 0 (simpel-loop: activity; report: PDF; appsmanager: login). -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -31,10 +31,10 @@
   }
   $effect(() => { void [folder, reloadKey]; if (folder) load(); });
 
-  // label metrik bisnis dari kamus (kunci biz.<slug>); metrik baru yang belum ada di kamus tampil apa adanya
+  // business metric labels from the dictionary (key biz.<slug>); new metrics not yet in the dictionary are shown as is
   const bizLabel = (k) => { const key = `biz.${k.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`; const s = $t(key); return s === key ? k : s; };
   const has = (s) => !!data?.sources?.includes(s);
-  // perubahan hanya bila log simpel-loop folder sebelumnya sebanding (≥ 50 % baris hari ini; lama: comparable)
+  // change only when the previous folder's simpel-loop log is comparable (≥ 50 % of today's lines; old: comparable)
   const slRow = $derived(summary?.folder === folder ? summary.services.find((s) => s.service === SL) : null);
   const cmp = $derived(!!(slRow?.lines && slRow.prev && slRow.prev.lines >= 0.5 * slRow.lines));
   const B = (k) => (has(SL) ? data.biz[k] || 0 : null);
