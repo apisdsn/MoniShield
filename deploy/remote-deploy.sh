@@ -22,6 +22,7 @@ if [ ! -d "$DIR/.git" ]; then
   git clone -q -b "$BRANCH" "$REPO" "$DIR"
 fi
 cd "$DIR"
+git config --global --add safe.directory "$DIR"
 git fetch -q origin "$BRANCH"
 git checkout -q "$BRANCH"
 # the server checkout has no local edits: .env, logs/ and data live outside git (ignored files are not touched)
