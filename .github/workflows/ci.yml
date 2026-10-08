@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [dev, stg, prd, master]
+    branches: [dev, stg, prd]
   pull_request:
     branches: [dev, stg, prd]
   workflow_dispatch:   # "Run workflow" button in the Actions tab (on prd it also re-deploys)

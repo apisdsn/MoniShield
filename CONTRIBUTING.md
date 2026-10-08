@@ -10,9 +10,9 @@
 
 Flow: create a branch from `dev` → pull request to `dev` → after testing on `dev`, PR `dev` → `stg` → after passing staging
 tests, PR `stg` → `prd`. Production hotfixes: a `fix/…` branch from `prd`, PR to `prd`, then merge back into
-`stg` and `dev`. (`master` = the initial copy made when the repo was created.)
+`stg` and `dev`.
 
-Recommended in GitHub → Settings → Branches: protect `stg` and `prd` (PR + green CI required), and make `dev` the default branch.
+Recommended in GitHub → Settings → Branches: protect `stg` and `prd` (PR + green CI required), and keep `prd` as the default branch (what visitors see).
 
 ## Language
 
