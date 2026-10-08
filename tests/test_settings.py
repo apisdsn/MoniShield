@@ -272,3 +272,16 @@ def test_isian_kafka_dari_layar_tersimpan_ke_env(client, envp):
     assert r.status_code == 400 and 'host:port' in r.json()['error']['message']
     r = client.put('/api/admin/config', json=dict(kafka_enabled=False), headers=X)   # switch from the UI (JSON bool)
     assert r.status_code == 200 and client.app.state.cfg.kafka_enabled is False and 'S4_KAFKA_ENABLED=false' in open(envp).read()
+
+
+def test_bad_value_elsewhere_does_not_block_other_sections(client, envp):
+    """An invalid AWS key in the running settings (for example from the process environment) only blocks saving the AWS
+    section, not unrelated sections such as the block list or the mail server."""
+    object.__setattr__(client.app.state.cfg, 'aws_access_key_id', 'placeholder-key')
+    r = client.put('/api/admin/config', json=dict(blocklist_exclude_org='KOMINFO', smtp_port='587'), headers=X)
+    assert r.status_code == 200, r.text
+    assert config.read_dotenv(envp)['S4_BLOCKLIST_EXCLUDE_ORG'] == 'KOMINFO'
+    r = client.put('/api/admin/config', json=dict(aws_secret_access_key=SECRET_UI), headers=X)   # the pair rule reads the bad key
+    assert r.status_code == 400 and r.json()['error']['code'] == 'invalid_config'
+    assert 'Access Key ID' in r.json()['error']['message']
+    bersih(r.text)

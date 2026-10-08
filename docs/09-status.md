@@ -12,7 +12,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Version | 2.0.0 + the *Unreleased* changes in `CHANGELOG.md` |
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
-| Tests | pytest: 363 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
+| Tests | pytest: 364 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
 | CI | `.github/workflows/ci.yml` green on `dev`. `stg` and `prd` still point to the commit before the deploy job. |
 | Deploy | Automatic deploy of `prd` built and tested with a stub; **not yet run against the real server** (see next steps). |
 | Server today | Still runs from the old checkout `/srv/dashboard-logging/v2` (compose project `monishield`). The first automatic deploy moves it to `/srv/MoniShield`, reusing the same containers and volumes. |
