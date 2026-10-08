@@ -1058,6 +1058,30 @@ sign-in with the temporary password → change password.
 
 ---
 
+## Stage 36 — Users change their own email, verified by code (2026-10-08)
+
+**Origin.** Owner request after stage 35, which let only admins set emails: let users change their own email, with
+verification through the old address so that a stolen session cannot point the account at a new email and then take
+it over through forgot password.
+
+- **Flow** (`application/account_service.EmailChanges`, `infrastructure/auth.email_change_*`, page `#/email`, user menu
+  → *Account email*): the user enters the new address and the current password; MoniShield emails a 6-digit code to
+  the old address (if there is one) and another to the new address (`domain/letters.email_change_code`, built on the
+  OTP letter). Both codes must be entered; then the email changes, pending temporary passwords are cancelled and the old
+  address receives a notice with the new address masked (`domain/letters.email_changed`).
+- **Limits**: codes valid 10 minutes, 5 wrong attempts end the request, one new request per minute; codes are stored
+  as keyed SHA-256 hashes in `email_change` (one row per user). Wrong password → 403 `wrong_password`; address in use →
+  409; no mail server → 503 (`mail_not_configured`); a failed send cancels the request. Audited as
+  `email.change_start`, `email.change_fail`, `email.change`, `email.change_cancel`.
+- **API**: `GET /api/me/email`, `POST /api/me/email/start`, `POST /api/me/email/confirm`, `DELETE /api/me/email/start`.
+  Admins can still set any user's email in Manage users.
+
+**Verification**: `tests/test_password_reset.py` (password and both codes required, wrong code, attempt limit, first
+email with one code, taken address, notice letter). Browser with a local SMTP sink at 390 px: first email, change with
+two codes, wrong code message, the received letters.
+
+---
+
 ## Deviation notes
 
 Filled in whenever a stage is finished: stage number, date, what differs from the plan or from the TRD/DRD, and why.

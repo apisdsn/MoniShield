@@ -193,3 +193,63 @@ def test_mail_server_settings_and_test_email(make, outbox):
     r = tc.post('/api/admin/config/test', json=dict(kind='smtp', to='ops@contoh.go.id', lang='en'), headers=X)
     assert r.status_code == 200 and outbox[-1]['Subject'] == 'MoniShield email test' and outbox[-1]['To'] == 'ops@contoh.go.id'
     assert tc.get('/api/auth/options').json() == dict(forgot_password=True)
+
+
+# ------------------------------------------------------------------ own email change with verification (owner request 2026-10-08)
+def code_from(m):
+    return re.search(r'(?:Kode verifikasi|Verification code): (\d{6})', m.get_body(('plain',)).get_content()).group(1)
+
+
+def as_rina(tc):
+    assert tc.post('/api/auth/login', json=dict(username='rina', password=RINA_PW), headers=X).status_code == 200
+    assert tc.post('/api/me/password', json=dict(old_password=RINA_PW, new_password='sandi-rina-sendiri-01'), headers=X).status_code == 200
+
+
+def test_own_email_change_needs_password_and_both_codes(make, outbox):
+    tc = make()
+    as_rina(tc)
+    assert tc.get('/api/me/email').json() == dict(email='rina@contoh.go.id', pending=None, mail_ready=True)
+    r = tc.post('/api/me/email/start', json=dict(new_email='rina.baru@contoh.go.id', password='salah'), headers=X)
+    assert r.status_code == 403 and r.json()['error']['code'] == 'wrong_password' and not outbox
+    r = tc.post('/api/me/email/start', json=dict(new_email='Rina.Baru@contoh.go.id', password='sandi-rina-sendiri-01'), headers=X)
+    assert r.status_code == 200, r.text
+    v = r.json()
+    assert v['pending'] == dict(new_email='rina.baru@contoh.go.id', needs_old=True, expires_at=v['pending']['expires_at'])
+    assert v['sent_old'] == 'ri***@contoh.go.id' and v['sent_new'] == 'rina.baru@contoh.go.id'
+    to = {m['To']: m for m in outbox}
+    assert set(to) == {'rina@contoh.go.id', 'rina.baru@contoh.go.id'} and outbox[0]['Subject'] == 'Kode verifikasi MoniShield Anda'
+    old, new = code_from(to['rina@contoh.go.id']), code_from(to['rina.baru@contoh.go.id'])
+    assert old != new and old not in r.text and new not in r.text
+    r = tc.post('/api/me/email/confirm', json=dict(old_code=old, new_code='000000'), headers=X)
+    assert r.status_code == 400 and r.json()['error']['code'] == 'wrong_code'
+    r = tc.post('/api/me/email/confirm', json=dict(old_code=old, new_code=new), headers=X)
+    assert r.status_code == 200 and r.json()['email'] == 'rina.baru@contoh.go.id'
+    notice = outbox[-1]
+    assert notice['To'] == 'rina@contoh.go.id' and notice['Subject'] == 'Email akun MoniShield Anda telah diganti'
+    assert 'ri***@contoh.go.id' in notice.get_body(('plain',)).get_content()
+    assert tc.get('/api/me').json()['email'] == 'rina.baru@contoh.go.id'
+    audit = repr(tc.app.state.auth.audit_list(50))
+    assert 'email.change_start' in audit and 'email.change_fail' in audit and "'email.change'" in audit and old not in audit and new not in audit
+
+
+def test_first_email_and_limits(make, outbox):
+    tc = make()
+    assert tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X).status_code == 200
+    r = tc.post('/api/me/email/start', json=dict(new_email='rina@contoh.go.id', password=PW2), headers=X)
+    assert r.status_code == 409 and r.json()['error']['code'] == 'email_taken'
+    r = tc.post('/api/me/email/start', json=dict(new_email='admin@contoh.go.id', password=PW2), headers=X)
+    assert r.status_code == 200 and r.json()['pending']['needs_old'] is False and len(outbox) == 1   # no old address yet
+    new = code_from(outbox[-1])
+    for i in range(5):
+        assert tc.post('/api/me/email/confirm', json=dict(new_code='999999' if new != '999999' else '111111'), headers=X).status_code == 400
+    r = tc.post('/api/me/email/confirm', json=dict(new_code=new), headers=X)
+    assert r.status_code == 429 and r.json()['error']['code'] == 'too_many_attempts'
+    assert tc.get('/api/me/email').json()['pending'] is None
+    # mail server refuses: nothing stays pending
+    outbox.fail = smtplib.SMTPRecipientsRefused({'admin@contoh.go.id': (550, b'no')})
+    r = tc.post('/api/me/email/start', json=dict(new_email='admin@contoh.go.id', password=PW2), headers=X)
+    assert r.status_code == 502 and r.json()['error']['code'] == 'mail_failed'
+    assert tc.get('/api/me/email').json()['pending'] is None
+    outbox.fail = None
+    tc.post('/api/me/email/start', json=dict(new_email='admin@contoh.go.id', password=PW2), headers=X)
+    assert tc.delete('/api/me/email/start', headers=X).json()['pending'] is None

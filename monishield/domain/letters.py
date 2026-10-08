@@ -24,7 +24,12 @@ T = dict(
         otp_ignore='Jika Anda tidak sedang melakukan permintaan ini, abaikan email ini.',
         test_subject='Uji pengiriman email MoniShield', test_title='Server email berhasil terhubung',
         test_intro='Pengaturan server email (SMTP) MoniShield sudah benar. Email berikutnya, seperti kata sandi sementara dan notifikasi, akan dikirim melalui server ini.',
-        notif_preheader='Notifikasi dari MoniShield'),
+        notif_preheader='Notifikasi dari MoniShield',
+        change_old='mengonfirmasi bahwa Anda ingin mengganti email akun MoniShield Anda ({username}) menjadi {new}',
+        change_new='memverifikasi alamat email baru akun MoniShield Anda ({username})',
+        changed_subject='Email akun MoniShield Anda telah diganti', changed_title='Email akun diganti',
+        changed_intro='Email akun MoniShield Anda ({username}) baru saja diganti menjadi {new}. Email berikutnya, termasuk kata sandi sementara, dikirim ke alamat baru tersebut.',
+        changed_note='Jika Anda tidak melakukan perubahan ini, segera hubungi admin MoniShield.'),
     en=dict(
         hello='Hello {name},', footer='This email was sent automatically by MoniShield. Please do not reply.',
         ignore='If you did not request a password reset, you can ignore this email. Your current password still works.',
@@ -40,7 +45,12 @@ T = dict(
         otp_ignore='If you are not making this request right now, you can ignore this email.',
         test_subject='MoniShield email test', test_title='Mail server connected',
         test_intro='The MoniShield mail server (SMTP) settings work. Future emails, such as temporary passwords and notifications, will be sent through this server.',
-        notif_preheader='Notification from MoniShield'),
+        notif_preheader='Notification from MoniShield',
+        change_old='confirm that you want to change the email of your MoniShield account ({username}) to {new}',
+        change_new='verify the new email address of your MoniShield account ({username})',
+        changed_subject='The email of your MoniShield account was changed', changed_title='Account email changed',
+        changed_intro='The email of your MoniShield account ({username}) was just changed to {new}. Future emails, including temporary passwords, go to that address.',
+        changed_note='If you did not make this change, contact your MoniShield admin right away.'),
 )
 
 
@@ -89,3 +99,19 @@ def notification(lang, title, text, url=''):
 def smtp_test(lang, url=''):
     t = _t(lang)
     return letter(lang, t['test_subject'], t['test_title'], paragraphs=[t['test_intro']], button=_button(t, url))
+
+
+def email_change_code(lang, name, username, value, minutes, to_old, new_email):
+    """The code for an own email change: one letter to the OLD address (proves the owner agrees), one to the NEW one
+    (proves the address works). Built on the OTP letter."""
+    t = _t(lang)
+    purpose = (t['change_old'] if to_old else t['change_new']).format(username=username, new=new_email)
+    return otp(lang, name or username, value, minutes, purpose)
+
+
+def email_changed(lang, name, username, new_masked, url=''):
+    """Security notice to the OLD address after the change."""
+    t = _t(lang)
+    return letter(lang, t['changed_subject'], t['changed_title'], t['changed_note'],
+                  paragraphs=[t['hello'].format(name=name or username), t['changed_intro'].format(username=username, new=new_masked)],
+                  button=_button(t, url), notes=[t['changed_note']])

@@ -12,7 +12,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Version | 2.0.0 + the *Unreleased* changes in `CHANGELOG.md` |
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
-| Tests | pytest: 361 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
+| Tests | pytest: 363 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
 | CI | `.github/workflows/ci.yml` green on `dev`. `stg` and `prd` still point to the commit before the deploy job. |
 | Deploy | Automatic deploy of `prd` built and tested with a stub; **not yet run against the real server** (see next steps). |
 | Server today | Still runs from the old checkout `/srv/dashboard-logging/v2` (compose project `monishield`). The first automatic deploy moves it to `/srv/MoniShield`, reusing the same containers and volumes. |
@@ -48,6 +48,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 23 | Data retention (database, inbox) | Daily cleanup, Configuration → *Data retention* | plan stage 33 |
 | 24 | Notification thresholds per service | Configuration → Notifications → *Spike thresholds* | plan stage 34 |
 | 25 | Forgot password by email (unique temporary password), user emails, MoniShield letter for every email (also OTP), mail server settings | Sign-in page → *Forgot password?*; Manage users; Configuration → *Mail server (SMTP)* | plan stage 35, [`10-user-guide.md`](10-user-guide.md) |
+| 26 | Users change their own email, verified through the old address | User menu → *Account email*; password + code to the old email + code to the new email | plan stage 36, [`10-user-guide.md`](10-user-guide.md) |
 
 Questions answered along the way, recorded so they are not asked again:
 
@@ -63,7 +64,7 @@ Questions answered along the way, recorded so they are not asked again:
 ## Next steps (in order)
 
 0. **Before relying on forgot password in production**: fill in Configuration → Mail server (SMTP), send the test email,
-   and give every user an email address in Manage users. Users without an email still need an admin to reset them.
+   and give every user an email address in Manage users (or let users set their own under *Account email*). Users without an email still need an admin to reset them.
 
 1. **First automatic deploy.**
    - In the GitHub environment `production`: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`,

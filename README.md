@@ -178,7 +178,7 @@ Command line, Kafka and S3 details, notifications and the block list are in the
 - [x] Docker Compose, automatic HTTPS, automatic deploy from `prd`
 - [x] Tested on a real phone
 - [x] Encrypted API traffic for the web UI, data retention, per-service notification thresholds
-- [x] Forgot password by email, branded email letters
+- [x] Forgot password by email, branded email letters, verified email change
 - [ ] First automatic deploy to the production server
 - [ ] ingress-nginx logs from Rancher cluster logging
 

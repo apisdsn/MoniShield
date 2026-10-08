@@ -21,6 +21,8 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   the old password keeps working until it is used; users get an email address (Manage users).
 - One MoniShield email letter with the logo for every email (password reset, OTP code, notifications, test email),
   and a Mail server (SMTP) section on the Configuration page with a test email.
+- Users change their own email (user menu → Account email) with their password and a code sent to the old and to the
+  new address; the old address gets a notice.
 - Notification thresholds per number (`S4_ALERT_SPIKE`) and per service (`S4_ALERT_SERVICE_SPIKE`), editable under
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 

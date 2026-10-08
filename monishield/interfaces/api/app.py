@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import alert_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service
+from monishield.application import account_service, alert_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service
 from monishield.domain import detect
 from monishield.infrastructure import auth as authmod, config, db, envfile, importer, inbox, kafka_client, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
@@ -64,6 +64,7 @@ def wire(state, cfg, env_path):
     state.kafka = kafka_service.KafkaFeed(state)
     state.retention = retention_service.RetentionService(state)
     state.resets = password_service.PasswordResets(state)
+    state.emails = account_service.EmailChanges(state)
     return state
 
 

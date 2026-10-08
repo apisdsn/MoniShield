@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 
-from .common import COOKIE, ApiError, _check_csrf, client_ip, public, require_user
+from .common import COOKIE, ApiError, _check_csrf, client_ip, public, require_user, require_user_ready
 
 router = APIRouter(prefix='/api')
 
@@ -15,6 +15,18 @@ class Login(BaseModel):
 class Forgot(BaseModel):
     login: str = ''   # username or email
     lang: str = 'id'  # language of the email (the sign-in page language)
+
+
+class EmailStart(BaseModel):
+    new_email: str = ''
+    password: str = ''
+    lang: str = 'id'
+
+
+class EmailConfirm(BaseModel):
+    old_code: str = ''
+    new_code: str = ''
+    lang: str = 'id'
 
 
 class ChangePassword(BaseModel):
@@ -65,3 +77,25 @@ def change_password(body: ChangePassword, request: Request, user=Depends(require
     """Change own password (needs the current password); this user's other sessions are revoked."""
     request.app.state.auth.change_password(user, body.old_password, body.new_password, keep_token=request.cookies.get(COOKIE), ip=client_ip(request))
     return dict(ok=True)
+
+
+# ------------------------------------------------------------------ own email (monishield/application/account_service.py)
+@router.get('/me/email')
+def my_email(request: Request, user=Depends(require_user_ready)):
+    return request.app.state.emails.view(user)
+
+
+@router.post('/me/email/start')
+def my_email_start(body: EmailStart, request: Request, user=Depends(require_user_ready)):
+    """Current password + new address -> codes emailed to the current and the new address."""
+    return request.app.state.emails.start(user, body.password, body.new_email[:254], client_ip(request), body.lang)
+
+
+@router.post('/me/email/confirm')
+def my_email_confirm(body: EmailConfirm, request: Request, user=Depends(require_user_ready)):
+    return request.app.state.emails.confirm(user, body.old_code[:12], body.new_code[:12], client_ip(request), body.lang)
+
+
+@router.delete('/me/email/start')
+def my_email_cancel(request: Request, user=Depends(require_user_ready)):
+    return request.app.state.emails.cancel(user, client_ip(request))

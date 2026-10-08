@@ -70,6 +70,27 @@ def temp_password(length=TEMP_LENGTH):
     return ''.join(chars)
 
 
+# own email change (owner request 2026-10-08): codes sent to the old and the new address
+CODE_DIGITS, CODE_MINUTES, CODE_ATTEMPTS = 6, 10, 5
+
+
+def code(digits=CODE_DIGITS):
+    """One-time numeric code (email OTP)."""
+    return ''.join(secrets.choice('0123456789') for _ in range(digits))
+
+
+def code_hash(salt, value):
+    """Codes are short-lived and limited to CODE_ATTEMPTS tries, so a keyed SHA-256 is enough (no scrypt)."""
+    return hmac.new(salt, str(value).strip().encode(), hashlib.sha256).digest()
+
+
+def mask_email(e):
+    """rina.wulandari@contoh.go.id -> ri***@contoh.go.id"""
+    if not e or '@' not in e: return e
+    name, _, host = e.partition('@')
+    return f'{name[:2]}***@{host}'
+
+
 def job_token_ok(configured, presented):
     """Machine token (ingest job, S3 link sender): constant-time comparison; empty = feature off."""
     return bool(configured) and isinstance(presented, str) and hmac.compare_digest(configured.encode(), presented.encode())

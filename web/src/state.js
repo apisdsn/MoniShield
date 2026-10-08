@@ -8,7 +8,7 @@ import { writable, get } from 'svelte/store';
 
 export const TABS = ['overview', 'peta', 'tren', 'keamanan', 'akar-masalah', 'ketersediaan', 'pod', 'bisnis', 'pelacakan'];
 export const ADMIN = ['admin/user', 'admin/ingest', 'admin/konfigurasi', 'admin/notifikasi'];
-const OTHER = ['sandi', ...ADMIN];
+const OTHER = ['sandi', 'email', ...ADMIN];
 
 export function parse(hash) {
   const h = (hash || '').replace(/^#\/?/, '');

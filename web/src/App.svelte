@@ -16,6 +16,7 @@
   import Toast, { toast } from './lib/Toast.svelte';
   import Login from './pages/Login.svelte';
   import ChangePassword from './pages/ChangePassword.svelte';
+  import AccountEmail from './pages/AccountEmail.svelte';
   import Pods from './pages/Pods.svelte';
   import Business from './pages/Business.svelte';
   import Tracing from './pages/Tracing.svelte';
@@ -105,7 +106,7 @@
   // folder date as shown; folders filled by the Kafka consumer are labelled "(Kafka)"
   const folderName = $derived(folder ? (folderInfo?.source === 'kafka' ? $t('folder.kafka', { date: dLabel(folder, $lang) }) : dLabel(folder, $lang)) : '');
   const isAdminTab = $derived(ADMIN.includes($route.tab));
-  const isDataTab = $derived(!isAdminTab && $route.tab !== 'sandi');
+  const isDataTab = $derived(!isAdminTab && $route.tab !== 'sandi' && $route.tab !== 'email');
 
   // folder in the address does not exist -> newest folder + notice (DRD §1.3); no folder -> newest folder in the address
   $effect(() => {
@@ -169,6 +170,7 @@
     if (r.tab === 'layanan') return sysName(r.service);
     if (r.tab === 'ip') return $t('ipp.title', { ip: r.service });
     if (r.tab === 'sandi') return $t('pw.title');
+    if (r.tab === 'email') return $t('em.title');
     if (r.tab === 'admin/user') return $t('menu.users');
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
     if (r.tab === 'admin/konfigurasi' || r.tab === 'admin/notifikasi') return $t('menu.config');
@@ -282,6 +284,8 @@
 
       {#if $route.tab === 'sandi'}
         <ChangePassword ondone={() => history.back()} oncancel={() => history.back()} />
+      {:else if $route.tab === 'email'}
+        <AccountEmail ondone={refreshMe} />
       {:else if isAdminTab && me.role !== 'admin'}
         <EmptyState title={$t('state.no_access')} text={$t('state.no_access_text')}>
           <a class="btn" href={build({ tab: 'overview', service: null, folder, module: null })}>{$t('action.to_overview')}</a>

@@ -62,6 +62,7 @@
         <button role="menuitem" onclick={() => { close(); onreload(); }}><Icon name="refresh" />{$t('action.reload')}</button>
       {/if}
       <div class="sep" role="separator"></div>
+      <a role="menuitem" href={link('email')} onclick={() => close(false)}><Icon name="mail" />{$t('menu.email')}</a>
       <a role="menuitem" href={link('sandi')} onclick={() => close(false)}><Icon name="key" />{$t('menu.password')}</a>
       {#if me.role === 'admin'}
         <a role="menuitem" href={link('admin/user')} onclick={() => close(false)}><Icon name="users" />{$t('menu.users')}</a>

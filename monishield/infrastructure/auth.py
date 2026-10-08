@@ -66,6 +66,20 @@ class PasswordReset(Base):
     ip: Mapped[str | None] = mapped_column(String(64))
 
 
+class EmailChange(Base):
+    """Pending own email change (owner request 2026-10-08): codes sent to the old address (when there is one) and to the
+    new one, stored as keyed hashes; expires after CODE_MINUTES, at most CODE_ATTEMPTS wrong tries."""
+    __tablename__ = 'email_change'
+    user_id: Mapped[int] = mapped_column(ForeignKey('app_user.user_id', ondelete='CASCADE'), primary_key=True)
+    new_email: Mapped[str] = mapped_column(String(254), nullable=False)
+    old_hash: Mapped[bytes | None] = mapped_column(LargeBinary)
+    new_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    salt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    requested_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+
+
 class Session(Base):
     __tablename__ = 'app_session'
     sid: Mapped[str] = mapped_column(String(32), primary_key=True)   # the `sid` claim in the JWT
@@ -391,6 +405,70 @@ class Auth:
             s.execute(delete(PasswordReset).where(PasswordReset.user_id == user_id))
             u = s.get(User, user_id)
             self._audit(s, 'password.forgot', u, f'email not sent: {reason}'[:300], ip)
+
+    # ---------------------------------------------------------------- own email change (owner request 2026-10-08)
+    def email_change_start(self, user, password, new_email, ip=None):
+        """Check the current password, then create the codes. -> dict(user, old_email, new_email, old_code | None, new_code).
+        The codes leave this method only to be emailed."""
+        new_email = check_email(new_email)
+        if not new_email: raise AuthError('invalid_email', 'Invalid email address.')
+        with self._tx() as s:
+            u = s.scalar(select(User).where(User.user_id == user['user_id']).with_for_update())
+            if not u or not isinstance(password, str) or not self._verify(u, password[:PASSWORD_MAX]):
+                self._audit(s, 'email.change_start', u, 'refused: wrong password', ip)
+                raise AuthError('wrong_password', 'Current password is wrong.', 403)
+            if new_email == u.email: raise AuthError('email_same', 'This is already the email of your account.')
+            if s.scalar(select(User.user_id).where(User.email == new_email, User.user_id != u.user_id)):
+                raise AuthError('email_taken', 'This email address is already used by another account.', 409)
+            r, t = s.get(EmailChange, u.user_id), now()
+            if r and r.requested_at > t - datetime.timedelta(seconds=RESET_GAP_S):
+                raise AuthError('too_soon', 'New codes can be requested once a minute.', 429)
+            salt = secrets.token_bytes(16)
+            old_code, new_code = (accounts.code() if u.email else None), accounts.code()
+            if not r: r = EmailChange(user_id=u.user_id); s.add(r)
+            r.new_email, r.salt, r.attempts, r.requested_at = new_email, salt, 0, t
+            r.expires_at = t + datetime.timedelta(minutes=accounts.CODE_MINUTES)
+            r.old_hash = accounts.code_hash(salt, old_code) if old_code else None
+            r.new_hash = accounts.code_hash(salt, new_code)
+            self._audit(s, 'email.change_start', u, 'codes sent to the ' + ('old and new addresses' if old_code else 'new address'), ip)
+            return dict(user=self._public(u), old_email=u.email, new_email=new_email, old_code=old_code, new_code=new_code)
+
+    def email_change_pending(self, user):
+        with self._tx() as s:
+            r = s.get(EmailChange, user['user_id'])
+            if not r or r.expires_at <= now(): return None
+            return dict(new_email=r.new_email, needs_old=r.old_hash is not None, expires_at=iso(r.expires_at))
+
+    def email_change_cancel(self, user, ip=None, reason=None):
+        with self._tx() as s:
+            n = s.execute(delete(EmailChange).where(EmailChange.user_id == user['user_id'])).rowcount
+            if n: self._audit(s, 'email.change_cancel', user, reason, ip)
+
+    def email_change_confirm(self, user, old_code, new_code, ip=None):
+        """Both codes right -> the email is changed. -> (user, previous email)."""
+        with self._tx() as s:
+            u = s.scalar(select(User).where(User.user_id == user['user_id']).with_for_update())
+            r = s.get(EmailChange, user['user_id'])
+            if not u or not r or r.expires_at <= now():
+                if r: s.delete(r)
+                raise AuthError('email_change_missing', 'No email change is waiting, or its codes expired. Start again.', 400)
+            if r.attempts >= accounts.CODE_ATTEMPTS:
+                s.delete(r); raise AuthError('too_many_attempts', 'Too many wrong codes. Start again.', 429)
+            ok_new = hmac.compare_digest(accounts.code_hash(r.salt, new_code or ''), r.new_hash)
+            ok_old = r.old_hash is None or hmac.compare_digest(accounts.code_hash(r.salt, old_code or ''), r.old_hash)
+            if not (ok_new and ok_old):
+                r.attempts += 1
+                self._audit(s, 'email.change_fail', u, f'wrong code ({r.attempts}/{accounts.CODE_ATTEMPTS})', ip)
+                raise AuthError('wrong_code', 'A code is wrong.' if r.old_hash else 'The code is wrong.', 400)
+            if s.scalar(select(User.user_id).where(User.email == r.new_email, User.user_id != u.user_id)):
+                s.delete(r); raise AuthError('email_taken', 'This email address is already used by another account.', 409)
+            old = u.email
+            u.email = r.new_email
+            s.delete(r)
+            s.execute(delete(PasswordReset).where(PasswordReset.user_id == u.user_id))   # a pending reset went to the old address
+            self._audit(s, 'email.change', u, 'own email changed (verified)', ip)
+            s.flush()
+            return self._public(u), old
 
     # ---------------------------------------------------------------- JWT
     def _encode(self, user_id, sid, issued, expires):

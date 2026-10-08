@@ -68,6 +68,18 @@ a new password straight away.
 - Users need an email address: admin → Manage users → add or edit a user. One address per account.
 - The audit log records each request (`password.forgot`) and its use (`password.reset_used`), never the password.
 
+### Account email
+
+Every user can change their own email under user menu (⋯) → *Account email*. It needs the mail server.
+
+1. Enter the new email and your current password, then *Send verification codes*.
+2. A 6-digit code goes to the old email (skipped when the account has none yet) and another to the new email.
+3. Enter both codes. The email changes and the old address gets a notice.
+
+Codes are valid 10 minutes; after 5 wrong codes the request ends and you start again. Changing the email also cancels a
+pending temporary password. A hijacked session alone cannot change the email: it needs the password and access to the
+old mailbox. Admins can still set any user's email in Manage users.
+
 ### Spike thresholds
 
 Configuration → Notifications → *Spike thresholds*. A number is a spike when it is at least *factor × the average of
