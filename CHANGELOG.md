@@ -27,7 +27,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   the password.
 - *Change password* and *Account email* open as pop-ups over the current page instead of separate pages.
 - Verification codes are entered in six digit boxes (`lib/OtpInput.svelte`; paste and the phone's code suggestion work),
-  each with the address it was sent to.
+  centred, each with the address it was sent to.
 - Notification thresholds per number (`S4_ALERT_SPIKE`) and per service (`S4_ALERT_SERVICE_SPIKE`), editable under
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 

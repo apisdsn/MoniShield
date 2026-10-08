@@ -1,6 +1,7 @@
 <!-- One-time code field (owner request 2026-10-08): six boxes, one digit each. It is ONE real input lying over the boxes,
      so typing, pasting a whole code, the phone's "code from Messages/Mail" suggestion (autocomplete="one-time-code")
-     and screen readers all work as with a normal field; the boxes only draw the digits. oncomplete runs at 6 digits. -->
+     and screen readers all work as with a normal field; the boxes only draw the digits. oncomplete runs at 6 digits.
+     Use it for EVERY one-time code field, so they all look alike: boxes centred, filling the width up to ~400 px. -->
 <script>
   let { id, value = $bindable(''), length = 6, invalid = false, describedby = undefined, oncomplete = null, ref = $bindable() } = $props();
   let focused = $state(false);
@@ -28,7 +29,8 @@
 </div>
 
 <style>
-  .otp { position: relative; width: 100%; max-width: calc(var(--n) * 58px); }
+  /* same look everywhere (owner, 2026-10-08): the boxes fill the width up to ~400 px and sit in the middle */
+  .otp { position: relative; width: 100%; max-width: calc(var(--n) * 68px); margin-inline: auto; }
   .cells { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 8px; pointer-events: none; }
   .cell {
     height: 56px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 12px;

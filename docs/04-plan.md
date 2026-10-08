@@ -1092,7 +1092,8 @@ sign-in stays a full screen.
 
 Follow-up (owner request): the code step uses six digit boxes per code (`lib/OtpInput.svelte`: one real input over
 the boxes, so paste, `autocomplete="one-time-code"` and screen readers keep working), a card per code naming the address
-it was sent to, auto-advance to the second code, red boxes and focus back on a wrong code, cleared when typing again.
+it was sent to, auto-advance to the second code, red boxes and focus back on a wrong code, cleared when typing again. The boxes are centred and keep the phone
+proportions on every screen; every future one-time code field uses the same component.
 
 ---
 
