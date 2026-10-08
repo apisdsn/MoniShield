@@ -5,9 +5,15 @@ on:
     branches: [dev, stg, prd, master]
   pull_request:
     branches: [dev, stg, prd]
+  workflow_dispatch:   # "Run workflow" button in the Actions tab
 
 permissions:
   contents: read
+
+# a newer push to the same branch cancels the run that is still going
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   commits:
@@ -49,3 +55,4 @@ jobs:
       - run: npm run build
         working-directory: web
       - run: node tools/cek_i18n.mjs
+      - run: node --test tests/test_format.mjs
