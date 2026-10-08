@@ -17,6 +17,7 @@ Read [`09-status.md`](09-status.md) first: it says where the project stands and 
 | [`07-deploy-vps.md`](07-deploy-vps.md) | New VPS with a domain and automatic HTTPS; §13 automatic deployment and the release steps |
 | [`08-architecture.md`](08-architecture.md) | Code architecture (clean architecture layers) and where new code goes |
 | [`09-status.md`](09-status.md) | Current state, owner requests and where they live, next steps, known issues |
+| [`10-user-guide.md`](10-user-guide.md) | Using MoniShield: loading logs, admin screens, command line, Kafka, S3 import, tests |
 
 Repository rules (branches, commit messages, checks) are in `../CONTRIBUTING.md`; release
 history is in `../CHANGELOG.md`.

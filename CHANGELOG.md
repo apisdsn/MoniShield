@@ -12,6 +12,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 - Kafka folders are labelled "(Kafka)" in the folder picker, page title and folder management.
 - `docs/09-status.md` (state, owner requests, next steps), `docs/README.md` (document index) and `CLAUDE.md`
   (working rules for Claude Code) for continuing the work on another machine.
+- `docs/10-user-guide.md`: the detailed usage, command line, Kafka and S3 sections formerly in the README.
 
 ### Changed
 - The repo stands alone: the contents of the `v2/` folder of the `apisdsn/dashboard-logging` repo were moved to `apisdsn/MoniShield` together with
@@ -21,6 +22,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   API status values are English (old values in existing databases are migrated on start). The web UI remains bilingual.
 - Document file names are English: `00-reference.json`, `00-inventory.md`, `04-plan.md`, `04a-measurements.md`,
   `04b-page-checklist.md`, `04c-crs-detection.md`; the plan gained stages 26–31 and the TRD shows the current folder layout.
+- `README.md` rewritten in the layout of Best-README-Template.
 - Deploy settings `DEPLOY_DIR`, `DEPLOY_PROFILES`, `DEPLOY_MIGRATE_FROM` may be GitHub environment variables or secrets.
 
 ## [2.0.0] — 2026-10-07

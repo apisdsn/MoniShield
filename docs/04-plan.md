@@ -963,6 +963,8 @@ continue with Claude Code on a local machine.
   `04c-deteksi-crs.md` → `04c-crs-detection.md`; every reference updated.
 - New: [`README.md`](README.md) (index of the documents), [`09-status.md`](09-status.md) (state, open items, next
   steps) and `CLAUDE.md` in the repository root (instructions Claude Code loads automatically).
+- The repository `README.md` follows Best-README-Template (owner request); its long how-to sections moved to
+  [`10-user-guide.md`](10-user-guide.md).
 - TRD §6.1 shows the current folder layout; old paths (`v2/`, `simpel4`) replaced where they described the current state.
 
 ---

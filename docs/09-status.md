@@ -32,7 +32,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 7 | Notifications (Telegram/Discord/email), 7-folder baseline, ready-made block list | | plan deviation 25 (n) |
 | 8 | One Configuration page for all credentials, and all settings in `.env` | Configuration page writes `.env` | plan deviations 25 (o), (p) |
 | 9 | Map flow animation towards the destination IP | `web/src/lib/mapFlow.js` | plan deviation 25 (q) |
-| 10 | Logs from Rancher through Kafka, checkable like the existing logs | Consumer writes S3-style folders; LIVE map | plan deviation 25 (r), README "Logs from Kafka" |
+| 10 | Logs from Rancher through Kafka, checkable like the existing logs | Consumer writes S3-style folders; LIVE map | plan deviation 25 (r), [`10-user-guide.md`](10-user-guide.md) |
 | 11 | Docker Compose with pgAdmin and DbGate; a guide for a new VPS with a domain and automatic HTTPS | | [`06-docker.md`](06-docker.md), [`07-deploy-vps.md`](07-deploy-vps.md) |
 | 12 | Own repository with dev/stg/prd branches and Conventional Commits | | plan stage 26, `CONTRIBUTING.md` |
 | 13 | Clean architecture | | plan stage 27, [`08-architecture.md`](08-architecture.md) |
@@ -42,6 +42,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 17 | GitHub Actions, then automatic deploy to the server without typing commands; remove `master` from the workflow | | plan stage 30, [`07-deploy-vps.md`](07-deploy-vps.md) §13 |
 | 18 | A step-by-step release guide (which merge deploys, which merge button) | | [`07-deploy-vps.md`](07-deploy-vps.md) §13 |
 | 19 | English documents including their titles, updated for local hand-over | This file, [`README.md`](README.md), `CLAUDE.md` | plan stage 31 |
+| 20 | A README in the style of Best-README-Template | `README.md`; the detailed how-to moved to [`10-user-guide.md`](10-user-guide.md) | plan stage 31 |
 
 Questions answered along the way, recorded so they are not asked again:
 
