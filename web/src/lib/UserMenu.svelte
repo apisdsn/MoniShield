@@ -6,6 +6,7 @@
   import { lang, t } from '../i18n.js';
   import { theme } from '../theme.js';
   import { build } from '../state.js';
+  import Icon from './Icon.svelte';
   let { me, route, extended = false, onlogout, onreload } = $props();
 
   let open = $state(false);
@@ -52,24 +53,24 @@
       </div>
       {#if extended}
         <div class="sep" role="separator"></div>
-        <button role="menuitemradio" aria-checked={$lang === 'id'} onclick={() => lang.set('id')}>Bahasa Indonesia</button>
-        <button role="menuitemradio" aria-checked={$lang === 'en'} onclick={() => lang.set('en')}>English</button>
+        <button role="menuitemradio" aria-checked={$lang === 'id'} onclick={() => lang.set('id')}><span class="code" aria-hidden="true">ID</span>Bahasa Indonesia</button>
+        <button role="menuitemradio" aria-checked={$lang === 'en'} onclick={() => lang.set('en')}><span class="code" aria-hidden="true">EN</span>English</button>
         <div class="sep" role="separator"></div>
-        <button role="menuitemradio" aria-checked={$theme === 'light'} onclick={() => theme.set('light')}>☀ {$t('theme.light')}</button>
-        <button role="menuitemradio" aria-checked={$theme === 'dark'} onclick={() => theme.set('dark')}>☾ {$t('theme.dark')}</button>
+        <button role="menuitemradio" aria-checked={$theme === 'light'} onclick={() => theme.set('light')}><Icon name="sun" />{$t('theme.light')}</button>
+        <button role="menuitemradio" aria-checked={$theme === 'dark'} onclick={() => theme.set('dark')}><Icon name="moon" />{$t('theme.dark')}</button>
         <div class="sep" role="separator"></div>
-        <button role="menuitem" onclick={() => { close(); onreload(); }}>↻ {$t('action.reload')}</button>
+        <button role="menuitem" onclick={() => { close(); onreload(); }}><Icon name="refresh" />{$t('action.reload')}</button>
       {/if}
       <div class="sep" role="separator"></div>
-      <a role="menuitem" href={link('sandi')} onclick={() => close(false)}>{$t('menu.password')}</a>
+      <a role="menuitem" href={link('sandi')} onclick={() => close(false)}><Icon name="key" />{$t('menu.password')}</a>
       {#if me.role === 'admin'}
-        <a role="menuitem" href={link('admin/user')} onclick={() => close(false)}>{$t('menu.users')}</a>
-        <a role="menuitem" href={link('admin/ingest')} onclick={() => close(false)}>{$t('menu.ingest')}</a>
-        <a role="menuitem" href={link('admin/konfigurasi')} onclick={() => close(false)}>{$t('menu.config')}</a>
+        <a role="menuitem" href={link('admin/user')} onclick={() => close(false)}><Icon name="users" />{$t('menu.users')}</a>
+        <a role="menuitem" href={link('admin/ingest')} onclick={() => close(false)}><Icon name="database" />{$t('menu.ingest')}</a>
+        <a role="menuitem" href={link('admin/konfigurasi')} onclick={() => close(false)}><Icon name="settings" />{$t('menu.config')}</a>
       {/if}
-      <a role="menuitem" href="/api/docs" target="_blank" rel="noopener" onclick={() => close(false)}>{$t('menu.api_docs')}</a>
+      <a role="menuitem" href="/api/docs" target="_blank" rel="noopener" onclick={() => close(false)}><Icon name="code" />{$t('menu.api_docs')}</a>
       <div class="sep" role="separator"></div>
-      <button role="menuitem" onclick={() => { close(false); onlogout(); }}>{$t('menu.logout')}</button>
+      <button role="menuitem" class="out" onclick={() => { close(false); onlogout(); }}><Icon name="logout" />{$t('menu.logout')}</button>
     </div>
   {/if}
 </div>
@@ -93,8 +94,13 @@
   .sep { height: 1px; background: var(--line); margin: 4px 6px; }
   .menu button, .menu a {
     all: unset; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; cursor: pointer; min-height: var(--touch);
-    display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 0.875rem;
+    display: flex; align-items: center; gap: 12px; color: var(--fg); font-size: 0.875rem;
   }
+  .menu :global(svg) { color: var(--muted); }   /* icons support the text; colour follows the row when it is selected */
+  .menu [aria-checked='true'] :global(svg), .menu [aria-checked='true'] .code { color: var(--accent-text); border-color: var(--accent); }
+  .code { width: 18px; flex: none; font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.02em; text-align: center; line-height: 16px;
+    border: 1.5px solid var(--line-strong); border-radius: 5px; color: var(--muted); }
+  .menu .out, .menu .out :global(svg) { color: var(--err); }
   .menu button:hover, .menu a:hover, .menu button:focus-visible, .menu a:focus-visible { background: var(--nav-hover); }
   .menu :focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   .menu [aria-checked='true'] { color: var(--accent-text); font-weight: 600; }
