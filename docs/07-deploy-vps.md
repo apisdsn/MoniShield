@@ -270,20 +270,26 @@ The first run can also migrate an older checkout (e.g. `/srv/dashboard-logging/v
 old `.env`. Both checkouts use the compose project name `monishield`, so the same containers and volumes (data,
 accounts, inbox, Kafka, certificates) are reused — nothing is lost and no `down` is needed.
 
-### Once on the server (as root)
+### Once on the server (as your sudo user, e.g. `ubuntu`)
 
 ```sh
-adduser --disabled-password --gecos "" deploy        # dedicated user for deployments
-usermod -aG docker deploy                            # note: the docker group is root-equivalent; keep this key safe
-install -d -o deploy -g deploy /srv/MoniShield       # where the repo is cloned
-install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+sudo adduser --disabled-password --gecos "" deploy        # dedicated user for deployments
+sudo usermod -aG docker deploy                            # note: the docker group is root-equivalent; keep this key safe
+sudo install -d -o deploy -g deploy /srv/MoniShield       # where the repo is cloned
+sudo install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 ```
 
-On your own computer, create a key pair for GitHub only and put the public half on the server:
+On your own computer, create a key pair for GitHub only and put the public half on the server. `/home/deploy/.ssh`
+belongs to `deploy` (mode 700), so the key is copied to `/tmp` first and appended with `sudo tee`; a plain
+`cat >> …` as your own user fails with *Permission denied*:
 
 ```sh
 ssh-keygen -t ed25519 -C monishield-deploy -N "" -f monishield-deploy
-ssh root@SERVER_IP 'cat >> /home/deploy/.ssh/authorized_keys && chown deploy: /home/deploy/.ssh/authorized_keys && chmod 600 /home/deploy/.ssh/authorized_keys' < monishield-deploy.pub
+scp monishield-deploy.pub ubuntu@SERVER_IP:/tmp/
+ssh -t ubuntu@SERVER_IP 'sudo tee -a /home/deploy/.ssh/authorized_keys < /tmp/monishield-deploy.pub > /dev/null \
+  && sudo chown deploy:deploy /home/deploy/.ssh/authorized_keys && sudo chmod 600 /home/deploy/.ssh/authorized_keys \
+  && rm /tmp/monishield-deploy.pub'
+ssh -i monishield-deploy deploy@SERVER_IP 'id && docker ps --format "{{.Names}}"'   # no password prompt; groups include docker
 ssh-keyscan -p 22 SERVER_IP                         # copy the output for DEPLOY_KNOWN_HOSTS
 ```
 
