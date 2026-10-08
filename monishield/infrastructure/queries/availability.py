@@ -1,4 +1,4 @@
-"""Halaman Ketersediaan (TRD §5.3)."""
+"""Availability page (TRD §5.3)."""
 
 from monishield.infrastructure.queries.sql import H, _all, _one, _no, _has
 from .tables import NG, first, services
@@ -8,8 +8,8 @@ def availability(cur, folder):
     if not _has(services(cur, folder), NG): return _no('no_nginx')
     req, n5 = cur.execute('SELECT requests, n5xx FROM agg_service WHERE folder = ? AND service = ?', [folder, NG]).fetchone()
     uk = _all(cur, f"SELECT {H.format('hour_wib')}, n, fail FROM agg_uk_hour WHERE folder = ? ORDER BY hour_wib", folder)
-    # ponytail: 5xx per jam dibaca dari tabel mentah (agg_hour.err memuat juga baris error log, butir 2); satu folder = satu rentang
-    # berurutan, jadi hanya blok folder itu yang dibaca. Tambah kolom n5xx di agg_hour bila query ini terukur lambat.
+    # ponytail: 5xx per hour is read from the raw table (agg_hour.err also includes error-log lines, item 2); one folder = one contiguous
+    # range, so only that folder's block is read. Add an n5xx column to agg_hour if this query measures slow.
     return dict(
         available=True,
         kpi=dict(requests=req, n5xx=n5, incidents=_one(cur, 'SELECT count(*) FROM agg_incident WHERE folder = ?', folder),

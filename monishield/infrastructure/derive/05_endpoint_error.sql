@@ -1,5 +1,5 @@
--- agg_endpoint_error (perr lama). nginx: semua 4xx/5xx, kunci 'METODE path_key'. frontend: semua 4xx/5xx, kunci
--- path_key TANPA metode (begitu di sistem lama). simpel-loop: hanya event gagal, status apa pun.
+-- agg_endpoint_error (old perr). nginx: all 4xx/5xx, key 'METHOD path_key'. frontend: all 4xx/5xx, key
+-- path_key WITHOUT method (as in the old system). simpel-loop: only failed events, any status.
 DELETE FROM agg_endpoint_error WHERE folder = $f;
 INSERT INTO agg_endpoint_error
 SELECT $f, service, status, key, count(*)

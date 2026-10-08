@@ -1,5 +1,5 @@
-"""Gudang data DuckDB (adapter port Warehouse untuk lapisan application). SATU koneksi milik proses server (TRD K1);
-tiap operasi membuka kursornya sendiri. Kueri halaman (sisi baca) ada di monishield/infrastructure/queries/."""
+"""DuckDB data warehouse (Warehouse port adapter for the application layer). ONE connection owned by the server process (TRD K1);
+each operation opens its own cursor. Page queries (read side) live in monishield/infrastructure/queries/."""
 import contextlib, datetime, json
 
 from monishield.domain.errors import Busy
@@ -9,7 +9,7 @@ from monishield.infrastructure.queries import command
 
 class DuckWarehouse:
     def __init__(self, ctx):
-        self.ctx = ctx   # koneksi (ctx.con) baru dibuka saat server mulai
+        self.ctx = ctx   # the connection (ctx.con) is only opened when the server starts
 
     @contextlib.contextmanager
     def _cur(self):
@@ -19,10 +19,10 @@ class DuckWarehouse:
 
     # -------------------------------------------------------------- ingest
     def ingest(self, folder=None, force=False, progress=None):
-        """-> ringkasan ingest. Ingest lain berjalan -> Busy."""
+        """-> ingest summary. Another ingest running -> Busy."""
         with self._cur() as cur:
             try: return ingest.run(self.ctx.cfg, cur, folder=folder, force=force, progress=progress)
-            except ingest.Busy: raise Busy('Ingest lain sedang berjalan.') from None
+            except ingest.Busy: raise Busy('Another ingest is running.') from None
 
     def snapshot_wanted(self, missing_only=False):
         cfg = self.ctx.cfg
@@ -33,13 +33,13 @@ class DuckWarehouse:
         return True
 
     def snapshot(self):
-        """Salinan baca untuk DbGate (S4_DUCKDB_SNAPSHOT). Galat dilempar ke pemanggil."""
+        """Read-only copy for DbGate (S4_DUCKDB_SNAPSHOT). Errors are raised to the caller."""
         with self._cur() as cur: db.snapshot(cur, self.ctx.cfg)
 
     @contextlib.contextmanager
     def exclusive(self):
-        """Kunci ingest untuk derive/hapus folder: tidak boleh bersamaan dengan ingest."""
-        if not ingest._lock.acquire(blocking=False): raise Busy('Ingest sedang berjalan; coba lagi setelah selesai.')
+        """Ingest lock for derive/folder deletion: must not run concurrently with an ingest."""
+        if not ingest._lock.acquire(blocking=False): raise Busy('An ingest is running; try again after it finishes.')
         try: yield self
         finally: ingest._lock.release()
 
@@ -68,7 +68,7 @@ class DuckWarehouse:
         return None if r is None else str(r)
 
     def folder_table(self):
-        """-> ({folder: dict(lines, files, files_corrupt)}, {folder diabaikan: dict(by, at)})."""
+        """-> ({folder: dict(lines, files, files_corrupt)}, {ignored folder: dict(by, at)})."""
         with self._cur() as cur:
             rows = {str(f): dict(lines=l, files=n, files_corrupt=c) for f, l, n, c in cur.execute('SELECT folder, lines, files, files_corrupt FROM folder_state').fetchall()}
             ign = {f: dict(by=b, at=str(a.replace(microsecond=0)) if a else None) for f, b, a in cur.execute('SELECT ignored_folder, by_user, at_utc FROM folder_ignored').fetchall()}
@@ -79,15 +79,15 @@ class DuckWarehouse:
             cur.execute('INSERT OR REPLACE INTO folder_ignored VALUES (?, ?, ?)', [folder, by, datetime.datetime.now(datetime.UTC).replace(tzinfo=None)])
 
     def unignore(self, folder):
-        """-> False bila folder tidak sedang diabaikan."""
+        """-> False when the folder is not currently ignored."""
         with self._cur() as cur:
             if not cur.execute('SELECT 1 FROM folder_ignored WHERE ignored_folder = ?', [folder]).fetchone(): return False
             cur.execute('DELETE FROM folder_ignored WHERE ignored_folder = ?', [folder])
         return True
 
-    # -------------------------------------------------------------- notifikasi dan peta realtime (tanpa IP)
+    # -------------------------------------------------------------- notifications and realtime map (no IPs)
     def folder_facts(self, folder, crs):
-        """Angka agregat satu folder untuk penilaian notifikasi (monishield/domain/alerts.py)."""
+        """One folder's aggregate numbers for notification evaluation (monishield/domain/alerts.py)."""
         with self._cur() as cur:
             a = command._kpi(cur, folder, crs)
             b = command.baseline(cur, folder, crs, a)
@@ -96,7 +96,7 @@ class DuckWarehouse:
         return dict(kpi=a, base=b, ngx_keys=command.NGX_KEYS, crit_cats=cats)
 
     def ip_locations(self):
-        """{ip publik: (lat, lon)} dari basis data lokasi offline (ip_info). Dipakai di memori saja, tidak dikirim."""
+        """{public ip: (lat, lon)} from the offline location database (ip_info). Used in memory only, never sent."""
         with self._cur() as cur:
             return {ip: (round(la, 3), round(lo, 3)) for ip, la, lo in
                     cur.execute('SELECT ip, lat, lon FROM ip_info WHERE lat IS NOT NULL AND NOT coalesce(is_private, false)').fetchall()}

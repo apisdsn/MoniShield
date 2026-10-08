@@ -1,10 +1,10 @@
-# MoniShield (v2, dashboard log & keamanan): image dua tahap (TRD §7.4, docs/06-docker.md).
-# Tahap 1 (Node) membangun tampilan; tahap 2 (Python) hanya membawa paket Python, kode server, dan hasil build.
-# Tidak ada Node, node_modules, alat build, .env, maupun log di image akhir.
-# Di balik proxy pemeriksa TLS: sertifikat CA tambahan bisa diberikan sebagai build secret "ca_bundle"
-# (docker-compose.yml: DOCKER_BUILD_CA). Hanya dipakai saat RUN mengunduh paket; tidak tersimpan di image.
+# MoniShield (v2, log & security dashboard): two-stage image (TRD §7.4, docs/06-docker.md).
+# Stage 1 (Node) builds the UI; stage 2 (Python) only carries the Python packages, the server code and the build output.
+# No Node, node_modules, build tools, .env or logs in the final image.
+# Behind a TLS-inspecting proxy: an extra CA certificate can be given as the build secret "ca_bundle"
+# (docker-compose.yml: DOCKER_BUILD_CA). Only used while RUN downloads packages; not stored in the image.
 
-# ---------------------------------------------------------------- tahap 1: tampilan (Svelte + Vite)
+# ---------------------------------------------------------------- stage 1: UI (Svelte + Vite)
 FROM node:22.22.0-bookworm-slim AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
@@ -14,11 +14,11 @@ RUN --mount=type=secret,id=ca_bundle,required=false \
 COPY web/ ./
 RUN npm run build
 
-# ---------------------------------------------------------------- tahap 2: server (FastAPI + DuckDB)
+# ---------------------------------------------------------------- stage 2: server (FastAPI + DuckDB)
 FROM python:3.13.9-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
-# dependensi dulu (lapisan cache): daftar diambil dari pyproject.toml, termasuk boto3 (impor S3) dan kafka-python (log dari Kafka)
+# dependencies first (cache layer): the list comes from pyproject.toml, including boto3 (S3 import) and kafka-python (logs from Kafka)
 COPY pyproject.toml ./
 RUN --mount=type=secret,id=ca_bundle,required=false \
     if [ -s /run/secrets/ca_bundle ]; then export PIP_CERT=/run/secrets/ca_bundle; fi; \
@@ -27,7 +27,7 @@ print('\n'.join(p['dependencies'] + p['optional-dependencies']['s3'] + p['option
  && pip install -r /tmp/req.txt && rm /tmp/req.txt
 COPY monishield/ monishield/
 COPY --from=web /src/web/dist web/dist
-# pengguna bukan root; folder volume dibuat di sini agar volume bernama mewarisi pemiliknya
+# non-root user; volume folders are created here so named volumes inherit their owner
 RUN groupadd --system --gid 10001 monishield \
  && useradd --system --uid 10001 --gid monishield --home-dir /app --shell /usr/sbin/nologin monishield \
  && mkdir -p /data /cache /inbox /logs && chown monishield:monishield /data /cache /inbox

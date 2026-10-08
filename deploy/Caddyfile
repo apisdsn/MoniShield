@@ -1,5 +1,5 @@
-# Proxy HTTPS opsional (profil "proxy", TRD §7.1 ASUMSI T5). Sertifikat disediakan pemilik server di
-# DOCKER_CERT_DIR (cert.pem + key.pem). Lewati layanan ini bila server sudah punya reverse proxy.
+# Optional HTTPS proxy ("proxy" profile, TRD §7.1 ASSUMPTION T5). Certificates are provided by the server owner in
+# DOCKER_CERT_DIR (cert.pem + key.pem). Skip this service when the server already has a reverse proxy.
 {
 	auto_https off
 	admin off

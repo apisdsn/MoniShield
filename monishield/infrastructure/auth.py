@@ -1,16 +1,16 @@
-"""Akun, sesi, peran, dan audit (TRD §2.6, §8.2–§8.3).
+"""Accounts, sessions, roles, and audit (TRD §2.6, §8.2–§8.3).
 
-Keputusan pemilik 2026-10-06: basis data akun = **PostgreSQL** lewat **ORM** (SQLAlchemy), token sesi = **JWT**.
-DuckDB tetap hanya untuk analitik log dan harus bisa dibangun ulang tanpa kehilangan akun (TRD K11).
+Owner decision 2026-10-06: account database = **PostgreSQL** via an **ORM** (SQLAlchemy), session token = **JWT**.
+DuckDB stays for log analytics only and must be rebuildable without losing accounts (TRD K11).
 
-- ORM: model di bawah; URL basis data dari `S4_AUTH_DATABASE_URL`. Kosong = berkas SQLite lewat ORM yang sama
-  (hanya untuk uji dan jalan lokal tanpa server basis data).
-- JWT (HS256, `S4_JWT_SECRET`) memuat `sub` (id user) dan `sid` (id sesi). Tanda tangan dan masa berlaku
-  diperiksa dulu, **lalu baris sesinya diperiksa di basis data**: karena itu keluar, reset sandi, penonaktifan,
-  dan perubahan peran berlaku seketika, yang tidak bisa dilakukan JWT murni tanpa status di server.
-- Sandi: scrypt bergaram per akun (pustaka standar). Sandi dan token tidak pernah disimpan atau dicatat.
+- ORM: models below; database URL from `S4_AUTH_DATABASE_URL`. Empty = a SQLite file via the same ORM
+  (only for tests and local runs without a database server).
+- JWT (HS256, `S4_JWT_SECRET`) carries `sub` (user id) and `sid` (session id). Signature and expiry are
+  checked first, **then the session row is checked in the database**: so logout, password reset, deactivation,
+  and role changes take effect immediately, which pure JWT without server-side state cannot do.
+- Passwords: per-account salted scrypt (standard library). Passwords and tokens are never stored or logged.
 
-Dua peran: 'admin' dan 'user'. Pembatasan per modul ditunda (TRD §8.3).
+Two roles: 'admin' and 'user'. Per-module restrictions are deferred (TRD §8.3).
 """
 import contextlib, datetime, hmac, re, secrets, threading, time
 
@@ -24,7 +24,7 @@ from monishield.domain.accounts import PASSWORD_MAX, ROLES, AuthError, check_pas
 
 MAX_FAILED, LOCK_MINUTES = 5, 15
 JOB_STATUS = {'berjalan': 'running', 'selesai': 'done', 'gagal': 'failed', 'coba': 'dry_run'}   # old -> current
-IP_MAX_FAILED, IP_WINDOW_S = 20, 15 * 60   # pembatas per IP, di memori
+IP_MAX_FAILED, IP_WINDOW_S = 20, 15 * 60   # per-IP limiter, in memory
 JWT_ALG, JWT_ISS, JWT_SECRET_MIN = 'HS256', 'monishield', 32
 
 
@@ -34,7 +34,7 @@ class Base(DeclarativeBase):
 
 
 class User(Base):
-    __tablename__ = 'app_user'   # 'user' adalah kata kunci di PostgreSQL
+    __tablename__ = 'app_user'   # 'user' is a keyword in PostgreSQL
     user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -53,7 +53,7 @@ class User(Base):
 
 class Session(Base):
     __tablename__ = 'app_session'
-    sid: Mapped[str] = mapped_column(String(32), primary_key=True)   # klaim `sid` di JWT
+    sid: Mapped[str] = mapped_column(String(32), primary_key=True)   # the `sid` claim in the JWT
     user_id: Mapped[int] = mapped_column(ForeignKey('app_user.user_id', ondelete='CASCADE'), nullable=False, index=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
     last_seen_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
@@ -74,7 +74,7 @@ class AuditLog(Base):
 
 
 class ImportJob(Base):
-    __tablename__ = 'import_job'   # diisi Tahap 19 (impor S3)
+    __tablename__ = 'import_job'   # filled by Stage 19 (S3 import)
     job_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     requested_by: Mapped[str | None] = mapped_column(String(40))
     bucket: Mapped[str | None] = mapped_column(String(80))
@@ -90,7 +90,7 @@ class ImportJob(Base):
 
 
 class AppSetting(Base):
-    """Setelan yang diubah admin dari layar (mis. sinkron S3 otomatis). Nilai JSON; bukan rahasia."""
+    """Settings an admin changes from the UI (e.g. automatic S3 sync). JSON values; not secrets."""
     __tablename__ = 'app_setting'
     key: Mapped[str] = mapped_column(String(40), primary_key=True)
     value: Mapped[str] = mapped_column(Text, nullable=False)
@@ -99,7 +99,7 @@ class AppSetting(Base):
 
 
 class AlertLog(Base):
-    """Notifikasi yang dikirim / gagal (monishield/alerts.py). `key` mencegah kiriman ganda untuk kejadian yang sama."""
+    """Notifications sent / failed (monishield/alerts.py). `key` prevents duplicate sends for the same event."""
     __tablename__ = 'alert_log'
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, index=True)
@@ -111,34 +111,34 @@ class AlertLog(Base):
     error: Mapped[str | None] = mapped_column(Text)
 
 
-def now(): return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)   # semua waktu UTC
+def now(): return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)   # all times UTC
 def iso(dt): return dt.isoformat(sep=' ') if dt else None
 
 
 def redact_url(url):
-    """URL basis data tanpa sandi, untuk dicetak."""
+    """Database URL without the password, for printing."""
     return re.sub(r'(://[^:/@]+):[^@]*@', r'\1:***@', url or '')
 
 
 class Auth:
     def __init__(self, url, jwt_secret=None, idle_minutes=60, max_hours=12):
-        """url = URL SQLAlchemy (postgresql+psycopg://… atau sqlite:///…). jwt_secret wajib untuk masuk/verifikasi sesi."""
+        """url = SQLAlchemy URL (postgresql+psycopg://… or sqlite:///…). jwt_secret is required for login/session verification."""
         if jwt_secret is not None and len(jwt_secret) < JWT_SECRET_MIN:
-            raise ValueError(f'S4_JWT_SECRET minimal {JWT_SECRET_MIN} karakter')
+            raise ValueError(f'S4_JWT_SECRET must be at least {JWT_SECRET_MIN} characters')
         self.url, self.secret, self.idle, self.max_hours = url, jwt_secret, idle_minutes, max_hours
         sqlite = url.startswith('sqlite')
         self.engine = create_engine(url, pool_pre_ping=True, **(dict(connect_args={'check_same_thread': False}) if sqlite else dict(pool_size=5, max_overflow=5)))
         self._Session = sessionmaker(self.engine, expire_on_commit=False)
         self._ip_fail, self._lock = {}, threading.Lock()
-        # garam tiruan: verifikasi tetap dihitung untuk user yang tidak ada, agar waktu jawab tidak membocorkan keberadaan user
+        # dummy salt: verification is still computed for nonexistent users, so response time does not leak whether a user exists
         self._dummy_salt = secrets.token_bytes(16)
-        Base.metadata.create_all(self.engine)   # ponytail: tanpa alat migrasi; tambahkan Alembic saat skema akun pertama kali berubah
+        Base.metadata.create_all(self.engine)   # ponytail: no migration tool; add Alembic when the account schema first changes
         with self.engine.begin() as c:   # import job status was Indonesian before 2026-10-08
             for a, b in JOB_STATUS.items(): c.execute(update(ImportJob).where(ImportJob.status == a).values(status=b))
 
     @contextlib.contextmanager
     def _tx(self):
-        """Satu transaksi ORM. AuthError = penolakan yang disengaja: pencatatan gagal dan audit TETAP disimpan."""
+        """One ORM transaction. AuthError = deliberate rejection: failure counters and audit are STILL saved."""
         s = self._Session()
         try:
             yield s
@@ -154,7 +154,7 @@ class Auth:
 
     # ---------------------------------------------------------------- audit
     def _audit(self, s, action, user=None, detail=None, ip=None):
-        """Jejak tindakan yang mengubah akses atau data. Tidak pernah memuat sandi atau token."""
+        """Trail of actions that change access or data. Never contains passwords or tokens."""
         uid = user.get('user_id') if isinstance(user, dict) else getattr(user, 'user_id', None)
         name = user.get('username') if isinstance(user, dict) else getattr(user, 'username', None)
         s.add(AuditLog(at=now(), user_id=uid, username=name, action=action, detail=detail, ip=ip))
@@ -169,7 +169,7 @@ class Auth:
                     for r in s.scalars(select(AuditLog).order_by(AuditLog.id.desc()).limit(limit).offset(offset))]
         return total, rows
 
-    # ---------------------------------------------------------------- import_job (Tahap 19)
+    # ---------------------------------------------------------------- import_job (Stage 19)
     @staticmethod
     def _job(j):
         return dict(job_id=j.job_id, requested_by=j.requested_by, bucket=j.bucket, prefix=j.prefix, folder=j.folder, status=j.status,
@@ -194,9 +194,9 @@ class Auth:
     def job_list(self, limit=20):
         with self._tx() as s: return [self._job(j) for j in s.scalars(select(ImportJob).order_by(ImportJob.job_id.desc()).limit(limit))]
 
-    # ---------------------------------------------------------------- setelan dari layar
+    # ---------------------------------------------------------------- settings from the UI
     def setting_get(self, key):
-        """-> nilai (hasil json.loads) atau None bila belum pernah disimpan."""
+        """-> value (json.loads result) or None if never saved."""
         import json
         with self._tx() as s:
             r = s.get(AppSetting, key)
@@ -210,14 +210,14 @@ class Auth:
             r.value, r.updated_at, r.updated_by = json.dumps(value, ensure_ascii=False), now(), (by or '')[:40] or None
 
     def setting_delete(self, key):
-        """Hapus setelan lama (dipindah ke .env; settings.migrate)."""
+        """Delete an old setting (moved to .env; settings.migrate)."""
         with self._tx() as s:
             r = s.get(AppSetting, key)
             if r is not None: s.delete(r)
 
-    # ---------------------------------------------------------------- riwayat notifikasi
+    # ---------------------------------------------------------------- notification history
     def alert_seen(self, key):
-        """Sudah ada kiriman BERHASIL untuk kunci ini (ke saluran mana pun)?"""
+        """Is there already a SUCCESSFUL send for this key (to any channel)?"""
         with self._tx() as s:
             return s.scalar(select(func.count()).select_from(AlertLog).where(AlertLog.key == key, AlertLog.ok.is_(True))) > 0
 
@@ -241,7 +241,7 @@ class Auth:
     def _get(self, s, user_id, lock=False):
         q = select(User).where(User.user_id == user_id)
         u = s.scalar(q.with_for_update() if lock else q)
-        if not u: raise AuthError('not_found', 'User tidak ditemukan.', 404)
+        if not u: raise AuthError('not_found', 'User not found.', 404)
         return u
 
     def count_users(self):
@@ -255,7 +255,7 @@ class Auth:
 
     def create_user(self, username, display_name, role, password, by=None, ip=None, must_change=True):
         username = check_username(username.strip().lower() if isinstance(username, str) else username)
-        if role not in ROLES: raise AuthError('invalid_role', "Peran harus 'admin' atau 'user'.")
+        if role not in ROLES: raise AuthError('invalid_role', "Role must be 'admin' or 'user'.")
         display_name = (display_name or username).strip()[:80] or username
         h, salt = hash_password(check_password(password, username))
         with self._tx() as s:
@@ -264,7 +264,7 @@ class Auth:
             s.add(u)
             try: s.flush()
             except IntegrityError:
-                s.rollback(); raise AuthError('username_taken', 'Nama user sudah dipakai.', 409) from None
+                s.rollback(); raise AuthError('username_taken', 'Username already taken.', 409) from None
             self._audit(s, 'user.create', by, f'{username} ({role})', ip)
             return self._public(u)
 
@@ -275,18 +275,18 @@ class Auth:
     def update_user(self, user_id, by, ip=None, display_name=None, role=None, active=None):
         with self._tx() as s:
             u = self._get(s, user_id, lock=True)
-            if role is not None and role not in ROLES: raise AuthError('invalid_role', "Peran harus 'admin' atau 'user'.")
+            if role is not None and role not in ROLES: raise AuthError('invalid_role', "Role must be 'admin' or 'user'.")
             loses_admin = u.role == 'admin' and u.active and ((role is not None and role != 'admin') or active is False)
             if loses_admin and not self._admins_left(s, user_id):
-                raise AuthError('last_admin', 'Admin terakhir tidak bisa diturunkan atau dinonaktifkan.', 409)
+                raise AuthError('last_admin', 'The last admin cannot be demoted or deactivated.', 409)
             changes = []
             if display_name is not None:
-                u.display_name = display_name.strip()[:80] or u.username; changes.append('nama')
+                u.display_name = display_name.strip()[:80] or u.username; changes.append('name')
             if role is not None and role != u.role:
-                changes.append(f'peran {u.role} -> {role}'); u.role = role
+                changes.append(f'role {u.role} -> {role}'); u.role = role
             if active is not None and bool(active) != bool(u.active):
                 u.active, u.failed_logins, u.locked_until = bool(active), 0, None
-                changes.append('diaktifkan' if active else 'dinonaktifkan')
+                changes.append('activated' if active else 'deactivated')
                 if not active: s.execute(delete(Session).where(Session.user_id == user_id))
             if changes: self._audit(s, 'user.update', by, f"{u.username}: {', '.join(changes)}", ip)
             s.flush()
@@ -295,10 +295,10 @@ class Auth:
     def delete_user(self, user_id, by, ip=None):
         with self._tx() as s:
             u = self._get(s, user_id, lock=True)
-            if by and by['user_id'] == user_id: raise AuthError('self_delete', 'Tidak bisa menghapus akun sendiri.', 409)
+            if by and by['user_id'] == user_id: raise AuthError('self_delete', 'You cannot delete your own account.', 409)
             if u.role == 'admin' and u.active and not self._admins_left(s, user_id):
-                raise AuthError('last_admin', 'Admin terakhir tidak bisa dihapus.', 409)
-            s.execute(delete(Session).where(Session.user_id == user_id))   # eksplisit: SQLite tidak selalu menjalankan ON DELETE CASCADE
+                raise AuthError('last_admin', 'The last admin cannot be deleted.', 409)
+            s.execute(delete(Session).where(Session.user_id == user_id))   # explicit: SQLite does not always run ON DELETE CASCADE
             self._audit(s, 'user.delete', by, u.username, ip)
             s.delete(u)
 
@@ -308,7 +308,7 @@ class Auth:
         u.hash_params, u.must_change_password, u.failed_logins, u.locked_until = ':'.join(map(str, accounts.SCRYPT)), must_change, 0, None
 
     def reset_password(self, user_id, by, ip=None):
-        """Sandi sementara baru (dikembalikan SEKALI); semua sesi user dicabut; wajib diganti saat masuk."""
+        """New temporary password (returned ONCE); all the user's sessions are revoked; must be changed at login."""
         temp = secrets.token_urlsafe(12)
         with self._tx() as s:
             u = self._get(s, user_id, lock=True)
@@ -321,21 +321,21 @@ class Auth:
         keep = (self._claims(keep_token, verify_exp=False) or {}).get('sid') if keep_token else None
         with self._tx() as s:
             u = s.scalar(select(User).where(User.user_id == user['user_id']).with_for_update())
-            if not u or not isinstance(old, str) or not self._verify(u, old): raise AuthError('wrong_password', 'Sandi sekarang salah.', 403)
+            if not u or not isinstance(old, str) or not self._verify(u, old): raise AuthError('wrong_password', 'Current password is wrong.', 403)
             check_password(new, u.username)
-            if hmac.compare_digest(old, new): raise AuthError('invalid_password', 'Sandi baru harus berbeda dari sandi sekarang.')
+            if hmac.compare_digest(old, new): raise AuthError('invalid_password', 'The new password must differ from the current password.')
             self._set_password(u, new, False)
-            s.execute(delete(Session).where(Session.user_id == u.user_id, Session.sid != (keep or '')))   # sesi lain dicabut
+            s.execute(delete(Session).where(Session.user_id == u.user_id, Session.sid != (keep or '')))   # other sessions revoked
             self._audit(s, 'user.change_password', user, None, ip)
 
     # ---------------------------------------------------------------- JWT
     def _encode(self, user_id, sid, issued, expires):
-        if not self.secret: raise RuntimeError('S4_JWT_SECRET belum diisi')
+        if not self.secret: raise RuntimeError('S4_JWT_SECRET not set')
         aware = lambda d: d.replace(tzinfo=datetime.timezone.utc)
         return jwt.encode(dict(iss=JWT_ISS, sub=str(user_id), sid=sid, iat=aware(issued), exp=aware(expires)), self.secret, algorithm=JWT_ALG)
 
     def _claims(self, token, verify_exp=True):
-        """Klaim JWT yang sah, atau None. Hanya HS256 dengan rahasia server yang diterima (alg 'none' dan lainnya ditolak)."""
+        """Valid JWT claims, or None. Only HS256 with the server secret is accepted (alg 'none' and others are rejected)."""
         if not token or not self.secret or not isinstance(token, str): return None
         try:
             return jwt.decode(token, self.secret, algorithms=[JWT_ALG], issuer=JWT_ISS,
@@ -343,7 +343,7 @@ class Auth:
         except jwt.InvalidTokenError:
             return None
 
-    # ---------------------------------------------------------------- masuk & sesi
+    # ---------------------------------------------------------------- login & session
     @staticmethod
     def _verify(u, password):
         n, r, p = map(int, u.hash_params.split(':'))
@@ -359,37 +359,37 @@ class Auth:
         with self._lock: self._ip_fail.setdefault(ip, []).append(time.time())
 
     def login(self, username, password, ip=None, user_agent=None):
-        """Mengembalikan (JWT, user). Pesan galat sama untuk 'user tidak ada' dan 'sandi salah'."""
-        salah = AuthError('invalid_credentials', 'Nama user atau sandi salah.', 401)
-        if self._ip_blocked(ip): raise AuthError('too_many_attempts', 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.', 429)
+        """Returns (JWT, user). Same error message for 'no such user' and 'wrong password'."""
+        salah = AuthError('invalid_credentials', 'Wrong username or password.', 401)
+        if self._ip_blocked(ip): raise AuthError('too_many_attempts', 'Too many attempts. Try again in a few minutes.', 429)
         username = username.strip().lower() if isinstance(username, str) else ''
         if not isinstance(password, str) or len(password) > PASSWORD_MAX: password = ''
         with self._tx() as s:
             u = s.scalar(select(User).where(User.username == username).with_for_update())
             if not u:
-                hash_password(password, self._dummy_salt)          # biaya yang sama dengan user sungguhan
+                hash_password(password, self._dummy_salt)          # same cost as for a real user
                 self._ip_failed(ip); self._audit(s, 'login.fail', None, username[:40], ip)
                 raise salah
             if u.locked_until and u.locked_until > now():
                 self._audit(s, 'login.locked', u, None, ip)
-                raise AuthError('too_many_attempts', f'Terlalu banyak percobaan. Coba lagi dalam {LOCK_MINUTES} menit.', 429)
+                raise AuthError('too_many_attempts', f'Too many attempts. Try again in {LOCK_MINUTES} minutes.', 429)
             if not self._verify(u, password) or not u.active:
                 gagal = u.failed_logins + 1
                 kunci = gagal >= MAX_FAILED
                 u.failed_logins, u.locked_until = (0, now() + datetime.timedelta(minutes=LOCK_MINUTES)) if kunci else (gagal, None)
-                self._ip_failed(ip); self._audit(s, 'login.fail', u, 'akun dikunci' if kunci else None, ip)
+                self._ip_failed(ip); self._audit(s, 'login.fail', u, 'account locked' if kunci else None, ip)
                 raise salah
             t = now(); habis = t + datetime.timedelta(hours=self.max_hours)
             sid = secrets.token_urlsafe(16)
             s.add(Session(sid=sid, user_id=u.user_id, created_at=t, last_seen_at=t, expires_at=habis, ip=ip, user_agent=(user_agent or '')[:200]))
             u.failed_logins, u.locked_until, u.last_login_at = 0, None, t
-            s.execute(delete(Session).where(Session.expires_at < t))   # buang sesi kedaluwarsa
+            s.execute(delete(Session).where(Session.expires_at < t))   # drop expired sessions
             self._audit(s, 'login.ok', u, None, ip)
             s.flush()
             return self._encode(u.user_id, sid, t, habis), self._public(u)
 
     def session_user(self, token):
-        """User pemilik sesi, atau None. Tanda tangan + masa berlaku JWT, LALU baris sesi di basis data (tanpa cache)."""
+        """The session's user, or None. JWT signature + expiry, THEN the session row in the database (no cache)."""
         c = self._claims(token)
         if not c: return None
         t = now()
@@ -399,7 +399,7 @@ class Auth:
             ses, u = row
             if ses.expires_at <= t or ses.last_seen_at + datetime.timedelta(minutes=self.idle) <= t or not u.active:
                 s.delete(ses); return None
-            if (t - ses.last_seen_at).total_seconds() >= 60: ses.last_seen_at = t   # catat aktivitas paling sering semenit sekali
+            if (t - ses.last_seen_at).total_seconds() >= 60: ses.last_seen_at = t   # record activity at most once a minute
             return self._public(u)
 
     def logout(self, token, user=None, ip=None):
@@ -409,6 +409,6 @@ class Auth:
             if user: self._audit(s, 'logout', user, None, ip)
 
     def bootstrap_admin(self, username, password):
-        """Buat admin pertama HANYA bila belum ada user. Sandi wajib diganti saat masuk pertama."""
+        """Create the first admin ONLY when there are no users yet. The password must be changed at first login."""
         if not username or not password or self.count_users(): return None
         return self.create_user(username, 'Administrator', 'admin', password)

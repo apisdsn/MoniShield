@@ -1,4 +1,4 @@
-"""Kelola user dan catatan audit: hanya admin (TRD §5.6, §8.3)."""
+"""User management and audit log: admin only (TRD §5.6, §8.3)."""
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -38,7 +38,7 @@ def edit_user(user_id: int, body: EditUser, request: Request, admin=Depends(requ
 
 @router.post('/users/{user_id}/reset-password')
 def reset_password(user_id: int, request: Request, admin=Depends(require_admin)):
-    """Sandi sementara ditampilkan SEKALI di jawaban ini; tidak disimpan dan tidak dicatat."""
+    """The temporary password is shown ONCE in this response; it is not stored and not logged."""
     return dict(temporary_password=request.app.state.auth.reset_password(user_id, admin, client_ip(request)))
 
 

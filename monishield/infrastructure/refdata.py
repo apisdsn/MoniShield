@@ -1,43 +1,43 @@
-"""Data acuan offline: pemilik IP, lokasi IP, dan berkas peta (TRD §3.6, §5.7).
+"""Offline reference data: IP owner, IP location, and map files (TRD §3.6, §5.7).
 
-Semua pencocokan dilakukan di server sendiri atas berkas yang diunduh utuh; **tidak ada alamat IP pengguna
-yang dikirim ke pihak mana pun** (PRD §5.4). Yang keluar hanya permintaan unduh ke lima alamat tetap.
+All matching happens on our own server against fully downloaded files; **no user IP address is
+sent to anyone** (PRD §5.4). The only outbound traffic is download requests to five fixed addresses.
 
-- Pemilik jaringan (ASN, organisasi, negara): ip2asn (public domain), lewat `rules.ip_owner()` apa adanya.
-- Lokasi (kota, provinsi, negara, koordinat): **MaxMind GeoLite2 City** varian CSV, butuh akun gratis
-  (`MAXMIND_ACCOUNT_ID` + `MAXMIND_LICENSE_KEY` di .env). Keputusan pemilik 2026-10-06, menggantikan DB-IP.
-- Berkas peta: daratan + batas negara + batas provinsi Indonesia (Natural Earth, public domain) dan label
-  wilayah (Natural Earth + GeoNames, CC BY 4.0) lewat `map_labels()`.
+- Network owner (ASN, organization, country): ip2asn (public domain), via `rules.ip_owner()` as is.
+- Location (city, province, country, coordinates): **MaxMind GeoLite2 City** CSV variant, needs a free account
+  (`MAXMIND_ACCOUNT_ID` + `MAXMIND_LICENSE_KEY` in .env). Owner decision 2026-10-06, replacing DB-IP.
+- Map files: land + country borders + Indonesian province borders (Natural Earth, public domain) and region
+  labels (Natural Earth + GeoNames, CC BY 4.0) via `map_labels()`.
 
-Tanpa kunci atau tanpa internet: semuanya dilewati dengan keterangan; ingest tetap selesai dan dicoba lagi
-pada ingest berikutnya. Tidak pernah diam-diam jatuh ke sumber lain.
+Without a key or without internet: everything is skipped with a note; the ingest still finishes and it is retried
+on the next ingest. Never silently falls back to another source.
 """
 import base64, csv, datetime, gzip, io, ipaddress, json, os, sys, time, urllib.error, urllib.request, zipfile
 
 from monishield.domain import rules
 from monishield.domain.errors import Fail
 
-# Atribusi yang wajib tampil di setiap peta (lisensi GeoLite2 dan CC BY 4.0).
-ATTRIBUTION = ['Produk ini memuat data GeoLite2 buatan MaxMind, tersedia dari https://www.maxmind.com',
-               'IP ownership data from iptoasn.com', 'Nama wilayah: GeoNames (CC BY 4.0)', 'Peta dasar: Natural Earth']
-# Alamat sumber unduhan dan umur maksimal berkas diatur di konfigurasi (.env: S4_URL_*, S4_GEO_MAX_AGE_DAYS,
-# S4_ASN_MAX_AGE_DAYS, S4_MAP_MAX_AGE_DAYS); bawaannya alamat resmi. Lisensi GeoLite2 melarang memakai basis data usang.
+# Attribution that must appear on every map (GeoLite2 and CC BY 4.0 licenses).
+ATTRIBUTION = ['This product includes GeoLite2 data created by MaxMind, available from https://www.maxmind.com',
+               'IP ownership data from iptoasn.com', 'Region names: GeoNames (CC BY 4.0)', 'Base map: Natural Earth']
+# Download source addresses and maximum file ages are set in the configuration (.env: S4_URL_*, S4_GEO_MAX_AGE_DAYS,
+# S4_ASN_MAX_AGE_DAYS, S4_MAP_MAX_AGE_DAYS); defaults are the official addresses. The GeoLite2 license forbids using stale databases.
 
 
-# ------------------------------------------------------------------ unduhan + pembacaan data referensi (dari sistem lama, lama:353-466)
-def load_ip2asn(path, max_age_days=7, url=rules.IP2ASN_URL):  # beda dari lama: path berkas dan alamat jadi parameter
+# ------------------------------------------------------------------ download + reading of reference data (from the old system, old:353-466)
+def load_ip2asn(path, max_age_days=7, url=rules.IP2ASN_URL):  # differs from old: file path and address became parameters
     if not fetch([url], path, max_age_days): return None
     starts, rows = [], []
     with gzip.open(path, 'rt', errors='replace') as fh:
         for line in fh:
             a, b, asn, cc, org = line.rstrip('\n').split('\t')
-            if asn == '0': continue  # blok tidak ter-routing
+            if asn == '0': continue  # unrouted block
             starts.append(int(ipaddress.IPv4Address(a))); rows.append((int(ipaddress.IPv4Address(b)), int(asn), cc, org))
     return starts, rows
 
 
 def fetch(urls, path, max_age_days):
-    """Unduh ke .cache bila belum ada / sudah lama. Gagal unduh -> pakai file lama jika ada."""
+    """Download to .cache if missing / stale. Download failure -> use the old file if any."""
     if os.path.exists(path) and time.time() - os.path.getmtime(path) < max_age_days * 86400: return True
     os.makedirs(os.path.dirname(path), exist_ok=True)
     for url in urls:
@@ -47,12 +47,12 @@ def fetch(urls, path, max_age_days):
                 while chunk := r.read(1 << 20): fh.write(chunk)
             os.replace(path + '.tmp', path); return True
         except OSError as e:
-            print(f'Gagal unduh {url} ({e})', file=sys.stderr)
+            print(f'Download failed: {url} ({e})', file=sys.stderr)
     return os.path.exists(path)
 
 
-def map_labels(countries_file, geonames_file, countries_url=rules.COUNTRIES_URL, geonames_url=rules.GEONAMES_URL):  # beda dari lama: path & alamat jadi parameter
-    """c = [nama ID, nama EN, bujur, lintang, peringkat]; p / k = [nama, bujur, lintang] provinsi / kabupaten-kota."""
+def map_labels(countries_file, geonames_file, countries_url=rules.COUNTRIES_URL, geonames_url=rules.GEONAMES_URL):  # differs from old: path & address became parameters
+    """c = [ID name, EN name, longitude, latitude, rank]; p / k = [name, longitude, latitude] of province / regency-city."""
     out = dict(c=[], p=[], k=[])
     if fetch([countries_url], countries_file, 3650):
         for f in json.load(open(countries_file))['features']:
@@ -69,7 +69,7 @@ def map_labels(countries_file, geonames_file, countries_url=rules.COUNTRIES_URL,
 
 
 class _StripAuth(urllib.request.HTTPRedirectHandler):
-    """Unduhan MaxMind mengalihkan ke URL bertanda tangan yang MENOLAK header Authorization (400)."""
+    """The MaxMind download redirects to a signed URL that REJECTS the Authorization header (400)."""
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         new = super().redirect_request(req, fp, code, msg, headers, newurl)
@@ -78,12 +78,12 @@ class _StripAuth(urllib.request.HTTPRedirectHandler):
 
 
 def fetch_maxmind(cfg, edition, path, max_age_days=None, log=print):
-    """Unduh satu edisi GeoLite2 (zip) bila belum ada / sudah lama. False = tidak tersedia."""
+    """Download one GeoLite2 edition (zip) if missing / stale. False = not available."""
     max_age_days = cfg.geo_max_age_days if max_age_days is None else max_age_days
     fresh = os.path.exists(path) and os.path.getmtime(path) > (datetime.datetime.now() - datetime.timedelta(days=max_age_days)).timestamp()
     if fresh: return True
     if not (cfg.maxmind_account_id and cfg.maxmind_license_key):
-        log(f'{edition}: kunci MaxMind belum diisi (layar Konfigurasi atau MAXMIND_ACCOUNT_ID/MAXMIND_LICENSE_KEY di .env); lokasi IP dilewati')
+        log(f'{edition}: MaxMind key not set (Configuration page or MAXMIND_ACCOUNT_ID/MAXMIND_LICENSE_KEY in .env); IP location skipped')
         return os.path.exists(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     auth = base64.b64encode(f'{cfg.maxmind_account_id}:{cfg.maxmind_license_key}'.encode()).decode()
@@ -91,10 +91,10 @@ def fetch_maxmind(cfg, edition, path, max_age_days=None, log=print):
     try:
         with urllib.request.build_opener(_StripAuth).open(req, timeout=600) as r, open(path + '.tmp', 'wb') as fh:
             while chunk := r.read(1 << 20): fh.write(chunk)
-        os.replace(path + '.tmp', path)  # berkas lama diganti, bukan ditumpuk
+        os.replace(path + '.tmp', path)  # the old file is replaced, not piled up
         return True
     except OSError as e:
-        log(f'{edition}: gagal diunduh ({e}); memakai berkas lama bila ada')
+        log(f'{edition}: download failed ({e}); using the old file if any')
         if os.path.exists(path + '.tmp'): os.remove(path + '.tmp')
     return os.path.exists(path)
 
@@ -102,11 +102,11 @@ def fetch_maxmind(cfg, edition, path, max_age_days=None, log=print):
 def _zip_member(zf, suffix):
     for n in zf.namelist():
         if n.endswith(suffix): return n
-    raise ValueError(f'{suffix} tidak ada di dalam arsip')
+    raise ValueError(f'{suffix} not found in the archive')
 
 
 def geolite_locations(zip_path):
-    """{geoname_id: [kota, provinsi, kode negara]} dari Locations-en (bahasa Inggris, seperti DB-IP lama)."""
+    """{geoname_id: [city, province, country code]} from Locations-en (English, like the old DB-IP)."""
     out = {}
     with zipfile.ZipFile(zip_path) as zf, zf.open(_zip_member(zf, 'Locations-en.csv')) as fh:
         rd = csv.reader(io.TextIOWrapper(fh, 'utf-8'))
@@ -116,10 +116,10 @@ def geolite_locations(zip_path):
 
 
 def geolite_ranges(zip_path, locations):
-    """Blok CIDR -> (awal, akhir, [kota, provinsi, negara, lintang, bujur]) terurut naik.
+    """CIDR blocks -> (start, end, [city, province, country, latitude, longitude]) in ascending order.
 
-    Blok tanpa geoname_id memakai negara terdaftar (nama kota kosong); blok tanpa koordinat tetap
-    menghasilkan negara, tetapi tidak digambar di peta.
+    Blocks without geoname_id use the registered country (empty city name); blocks without coordinates still
+    yield a country, but are not drawn on the map.
     """
     with zipfile.ZipFile(zip_path) as zf, zf.open(_zip_member(zf, 'Blocks-IPv4.csv')) as fh:
         rd = csv.reader(io.TextIOWrapper(fh, 'utf-8'))
@@ -134,9 +134,9 @@ def geolite_ranges(zip_path, locations):
 
 
 def sweep(need, ranges):
-    """need = [(int ip, ip)] terurut; ranges = (awal, akhir, lokasi) terurut -> {ip: lokasi | None}.
+    """need = [(int ip, ip)] sorted; ranges = (start, end, location) sorted -> {ip: location | None}.
 
-    Sapuan yang sama dengan rules.geo_scan() lama (diuji di test_refdata), hanya rentangnya sudah berupa int.
+    The same sweep as the old rules.geo_scan() (tested in test_refdata), only the ranges are already ints.
     """
     found, i = {}, 0
     for start, end, loc in ranges:
@@ -159,16 +159,16 @@ IP_SOURCES = """SELECT ip FROM nginx_access WHERE ip IS NOT NULL
 
 
 def fill_ip_info(cfg, con, offline=False, log=print):
-    """Lengkapi ip_info untuk IP yang belum punya data. Mengembalikan ringkasan.
+    """Fill ip_info for IPs that have no data yet. Returns a summary.
 
-    IP yang sudah ada tidak dihitung ulang walau basis data diperbarui (ASUMSI T3); kolom tanggal basis
-    data dicatat supaya pembaruan massal bisa ditambahkan kelak.
+    Existing IPs are not recomputed even when the database is updated (ASSUMPTION T3); the database date
+    columns are recorded so a bulk update can be added later.
     """
-    res = dict(ip_baru=0, pemilik=0, lokasi=0, lewat=[])
+    res = dict(new_ips=0, owners=0, locations=0, skipped=[])
     baru = [r[0] for r in con.execute(f'SELECT ip FROM ({IP_SOURCES}) EXCEPT SELECT ip FROM ip_info', ).fetchall()]
     if cfg.server_ip and not con.execute('SELECT count(*) FROM ip_info WHERE ip = ?', [cfg.server_ip]).fetchone()[0]:
-        baru.append(cfg.server_ip)  # titik tujuan peta
-    res['ip_baru'] = len(baru)
+        baru.append(cfg.server_ip)  # map destination point
+    res['new_ips'] = len(baru)
     if not baru: return res
 
     rows = {ip: dict(asn=None, cc=None, org=None, is_private=None, city=None, region=None, country=None, lat=None, lon=None,
@@ -176,18 +176,18 @@ def fill_ip_info(cfg, con, offline=False, log=print):
 
     asn_path = os.path.join(cfg.cache_dir, 'ip2asn-v4.tsv.gz')
     if offline and not os.path.exists(asn_path):
-        res['lewat'].append('pemilik: ip2asn belum diunduh dan mode luring')
+        res['skipped'].append('IP owner: ip2asn not downloaded and offline mode')
     else:
         db = load_ip2asn(asn_path, max_age_days=10**6 if offline else cfg.asn_max_age_days, url=cfg.url_ip2asn)
         if db is None:
-            res['lewat'].append('pemilik: ip2asn tidak tersedia')
+            res['skipped'].append('IP owner: ip2asn not available')
         else:
             date = _db_date(asn_path)
             for ip in baru:
                 o = rules.ip_owner(ip, db)
                 if o:
                     rows[ip].update(asn=o['asn'], cc=o['cc'], org=o['org'], is_private=o['cc'] == '-', asn_db_date=date)
-                    res['pemilik'] += 1
+                    res['owners'] += 1
 
     need = []
     for ip in baru:
@@ -198,9 +198,9 @@ def fill_ip_info(cfg, con, offline=False, log=print):
     if not need:
         pass
     elif offline and not os.path.exists(geo_path):
-        res['lewat'].append('lokasi: GeoLite2 belum diunduh dan mode luring')
+        res['skipped'].append('IP location: GeoLite2 not downloaded and offline mode')
     elif not (offline or fetch_maxmind(cfg, 'GeoLite2-City-CSV', geo_path, log=log)):
-        res['lewat'].append('lokasi: GeoLite2 tidak tersedia (kunci MaxMind kosong atau unduhan gagal)')
+        res['skipped'].append('IP location: GeoLite2 not available (MaxMind key empty or download failed)')
     else:
         date = _db_date(geo_path)
         locs = geolite_locations(geo_path)
@@ -209,7 +209,7 @@ def fill_ip_info(cfg, con, offline=False, log=print):
             rows[ip]['geo_db_date'] = date
             if loc:
                 rows[ip].update(city=loc[0] or None, region=loc[1] or None, country=loc[2] or None, lat=loc[3], lon=loc[4])
-                res['lokasi'] += 1
+                res['locations'] += 1
 
     cols = ['asn', 'cc', 'org', 'is_private', 'city', 'region', 'country', 'lat', 'lon', 'geo_checked', 'asn_db_date', 'geo_db_date']
     con.executemany(f"INSERT INTO ip_info VALUES ({', '.join('?' * (len(cols) + 1))})", [[ip, *(rows[ip][c] for c in cols)] for ip in baru])
@@ -217,13 +217,13 @@ def fill_ip_info(cfg, con, offline=False, log=print):
 
 
 def _have(urls, path, age, offline, nama, log):
-    """True bila berkas sumber siap dipakai. Dalam mode luring tidak pernah mengunduh."""
+    """True when the source file is ready to use. Never downloads in offline mode."""
     if offline:
         if os.path.exists(path): return True
-        log(f'{nama}: belum diunduh dan mode luring; dilewati')
+        log(f'{nama}: not downloaded and offline mode; skipped')
         return False
     if fetch(urls, path, age): return True
-    log(f'{nama}: tidak tersedia')
+    log(f'{nama}: not available')
     return False
 
 
@@ -234,34 +234,34 @@ def _write_json(path, obj):
 
 
 def _round_geom(g, nd=2):
-    """Bulatkan koordinat ke 2 desimal (≈ 1 km, sama dengan peta lama) agar berkasnya kecil."""
+    """Round coordinates to 2 decimals (≈ 1 km, same as the old map) to keep the files small."""
     if isinstance(g, (int, float)): return round(g, nd)
     return [_round_geom(x, nd) for x in g]
 
 
 def build_map_files(cfg, offline=False, log=print):
-    """Buat berkas statis peta di <data_dir>/map. Mengembalikan ringkasan per berkas."""
+    """Build the static map files in <data_dir>/map. Returns a summary per file."""
     out_dir = os.path.join(cfg.data_dir, 'map')
     os.makedirs(out_dir, exist_ok=True)
     res, cache = {}, cfg.cache_dir
     age = 10**6 if offline else cfg.map_max_age_days
 
     land_src = os.path.join(cache, 'ne_50m_land.geojson')
-    if _have([cfg.url_land], land_src, age, offline, 'daratan', log):
+    if _have([cfg.url_land], land_src, age, offline, 'land', log):
         g = json.load(open(land_src, encoding='utf-8'))
         g['features'] = [dict(type='Feature', properties={}, geometry=_round_geom_feature(f['geometry'])) for f in g['features']]
         _write_json(os.path.join(out_dir, 'land.geojson'), g)
         res['land.geojson'] = len(g['features'])
 
     b_src = os.path.join(cache, 'ne_50m_boundary_lines.geojson')
-    if _have([cfg.url_borders], b_src, age, offline, 'batas negara', log):
+    if _have([cfg.url_borders], b_src, age, offline, 'country borders', log):
         g = json.load(open(b_src, encoding='utf-8'))
         g['features'] = [dict(type='Feature', properties={}, geometry=_round_geom_feature(f['geometry'])) for f in g['features']]
         _write_json(os.path.join(out_dir, 'borders-country.geojson'), g)
         res['borders-country.geojson'] = len(g['features'])
 
     p_src = os.path.join(cache, 'ne_10m_admin_1_states_provinces.geojson')
-    if _have([cfg.url_provinces], p_src, age, offline, 'batas provinsi', log):
+    if _have([cfg.url_provinces], p_src, age, offline, 'province borders', log):
         g = json.load(open(p_src, encoding='utf-8'))
         feats = [f for f in g['features'] if (f['properties'].get('adm0_a3') or f['properties'].get('iso_a2')) in ('IDN', 'ID')]
         _write_json(os.path.join(out_dir, 'borders-province-id.geojson'),
@@ -271,8 +271,8 @@ def build_map_files(cfg, offline=False, log=print):
 
     countries = os.path.join(cache, 'ne_110m_countries.geojson')
     geonames = os.path.join(cache, 'geonames-ID.zip')
-    if _have([cfg.url_countries], countries, age, offline, 'label negara', log) & _have([cfg.url_geonames], geonames, age, offline, 'label wilayah Indonesia', log):
-        labels = map_labels(countries, geonames, cfg.url_countries, cfg.url_geonames)   # dipakai apa adanya dari sistem lama
+    if _have([cfg.url_countries], countries, age, offline, 'country labels', log) & _have([cfg.url_geonames], geonames, age, offline, 'Indonesian region labels', log):
+        labels = map_labels(countries, geonames, cfg.url_countries, cfg.url_geonames)   # used as is from the old system
         if any(labels.values()):
             _write_json(os.path.join(out_dir, 'labels.json'), labels)
             res['labels.json'] = {k: len(v) for k, v in labels.items()}
@@ -283,13 +283,13 @@ def _round_geom_feature(geom): return dict(type=geom['type'], coordinates=_round
 
 
 def run(cfg, con, offline=False, force_map=False, log=print):
-    """Dipanggil di akhir ingest (force_map=False: berkas peta yang sudah ada tidak dibuat ulang)."""
+    """Called at the end of an ingest (force_map=False: existing map files are not rebuilt)."""
     ip = fill_ip_info(cfg, con, offline=offline, log=log)
     peta = {}
     if force_map or not map_ready(cfg):
         try: peta = build_map_files(cfg, offline=offline, log=log)
-        except Exception as e:  # noqa: BLE001  berkas peta gagal tidak boleh membuang hasil ip_info
-            log(f'berkas peta gagal dibuat: {type(e).__name__}: {e}')
+        except Exception as e:  # noqa: BLE001  failed map files must not discard the ip_info result
+            log(f'map files could not be built: {type(e).__name__}: {e}')
     return dict(ip=ip, peta=peta)
 
 
@@ -300,19 +300,19 @@ def map_ready(cfg):
     return all(os.path.exists(os.path.join(cfg.data_dir, 'map', f)) for f in MAP_FILES)
 
 
-# ------------------------------------------------------------------ uji kunci MaxMind (layar Konfigurasi)
+# ------------------------------------------------------------------ MaxMind key test (Configuration page)
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *a, **k): return None   # 302 = kunci diterima; tautan unduhan tidak diikuti
+    def redirect_request(self, *a, **k): return None   # 302 = key accepted; the download link is not followed
 
 
 def probe_maxmind(cfg):
-    """HEAD tautan unduhan GeoLite2 dengan kunci tersimpan: hanya otorisasi, tidak mengunduh. Gagal -> Fail (502)."""
+    """HEAD the GeoLite2 download link with the stored key: authorization only, no download. Failure -> Fail (502)."""
     auth = base64.b64encode(f'{cfg.maxmind_account_id}:{cfg.maxmind_license_key}'.encode()).decode()
     req = urllib.request.Request(cfg.url_maxmind.format('GeoLite2-City-CSV'), method='HEAD',
                                  headers={'Authorization': 'Basic ' + auth, 'User-Agent': 'monishield/2.0'})
     try:
         with urllib.request.build_opener(_NoRedirect).open(req, timeout=20) as r: code = r.status
     except urllib.error.HTTPError as e: code = e.code
-    except OSError as e: raise Fail('maxmind_unreachable', f'MaxMind tidak terjangkau dari server ({type(e).__name__}).', 502) from None
-    if code in (401, 403): raise Fail('maxmind_denied', f'MaxMind menolak kunci ({code}): periksa Account ID dan License key.', 502)
-    if code not in (200, 302, 303, 307): raise Fail('maxmind_error', f'MaxMind menjawab {code}.', 502)
+    except OSError as e: raise Fail('maxmind_unreachable', f'MaxMind is unreachable from the server ({type(e).__name__}).', 502) from None
+    if code in (401, 403): raise Fail('maxmind_denied', f'MaxMind rejected the key ({code}): check the Account ID and License key.', 502)
+    if code not in (200, 302, 303, 307): raise Fail('maxmind_error', f'MaxMind answered {code}.', 502)

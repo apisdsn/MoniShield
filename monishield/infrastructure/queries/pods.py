@@ -1,4 +1,4 @@
-"""Halaman Pod (TRD §5.3)."""
+"""Pods page (TRD §5.3)."""
 
 from monishield.infrastructure.queries.sql import _one
 from .tables import first

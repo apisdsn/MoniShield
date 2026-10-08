@@ -1,5 +1,5 @@
-<!-- Batang horizontal top-N (DRD §4.2): label dipotong 48 karakter (28 di layar sempit), teks lengkap di tooltip;
-     untuk IP, tooltip menampilkan pemilik di baris kedua (lama). onpick(i): klik batang (mis. gulir ke baris IP). -->
+<!-- Top-N horizontal bars (DRD §4.2): labels truncated to 48 characters (28 on narrow screens), full text in the tooltip;
+     for IPs, the tooltip shows the owner on the second line (old). onpick(i): bar click (e.g. scroll to the IP row). -->
 <script>
   import ChartCard from './ChartCard.svelte';
   import { cut } from '../format.js';

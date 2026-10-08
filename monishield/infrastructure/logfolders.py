@@ -1,5 +1,5 @@
-"""Folder log di disk (adapter port LogFolders): folder log utama (S4_LOG_DIR, hanya dibaca) dan kotak masuk
-(S4_INBOX_DIR: hasil impor S3, unggahan, Kafka). Hanya daftar isi direktori; isi file dibaca ingest."""
+"""Log folders on disk (LogFolders port adapter): the main log folder (S4_LOG_DIR, read-only) and the inbox
+(S4_INBOX_DIR: S3 imports, uploads, Kafka). Directory listings only; file contents are read by ingest."""
 import os, shutil
 
 from monishield.domain import rules
@@ -22,17 +22,17 @@ class LogFolders:
         return os.path.isdir(p) and any(n.endswith(('.log', '.log.gz')) for _, _, names in os.walk(p) for n in names)
 
     def dates(self):
-        """-> (folder tanggal di folder log, folder tanggal di kotak masuk)."""
+        """-> (date folders in the log folder, date folders in the inbox)."""
         return self._dates(self.cfg.log_dir), self._dates(self.cfg.inbox_dir)
 
     def on_disk(self, folder):
-        """-> (ada file log di folder log utama, ada file log di kotak masuk)."""
+        """-> (has log files in the main log folder, has log files in the inbox)."""
         return self._has_logs(self.cfg.log_dir, folder), self._has_logs(self.cfg.inbox_dir, folder)
 
     def in_log_dir(self, folder): return os.path.isdir(os.path.join(self.cfg.log_dir, folder))
 
     def new_folders(self, known):
-        """Folder tanggal berisi file log yang belum `known`. Murah: hanya daftar isi direktori teratas + folder calon."""
+        """Date folders with log files that are not yet `known`. Cheap: only the top directory listing + candidate folders."""
         baru = set()
         for root in self._roots():
             for d in sorted(self._dates(root) - set(known) - baru):
@@ -40,7 +40,7 @@ class LogFolders:
         return sorted(baru)
 
     def from_s3(self, folders):
-        """Folder kotak masuk yang berisi hasil impor S3 (ada manifest)."""
+        """Inbox folders holding S3 import results (manifest present)."""
         return {d for d in folders if os.path.exists(os.path.join(self.cfg.inbox_dir, d, MANIFEST))}
 
     def inbox_ok(self, folder):
@@ -48,7 +48,7 @@ class LogFolders:
         return os.path.dirname(p) == os.path.realpath(self.cfg.inbox_dir)
 
     def remove_inbox(self, folder):
-        """Hapus folder di kotak masuk (folder log utama tidak pernah dihapus). -> True bila ada yang dihapus."""
+        """Delete a folder in the inbox (the main log folder is never deleted). -> True when something was deleted."""
         p = os.path.realpath(os.path.join(self.cfg.inbox_dir, folder))
         if not self.inbox_ok(folder) or not os.path.isdir(p): return False
         shutil.rmtree(p)

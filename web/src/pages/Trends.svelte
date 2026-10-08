@@ -1,8 +1,8 @@
-<!-- Tren (DRD §3.3, inv. §2.3): perbandingan antar folder, tidak bergantung pemilih folder (dinonaktifkan di header).
-     Pemilih rentang 14 / 30 / 90 / semua folder terakhir (U4; bawaan 30, ASUMSI Q4), diingat per browser.
-     6 chart + 2 tabel; tabel selalu menggulir mendatar dengan kolom Layanan terkunci dan folder terbaru di kanan.
-     Satu permintaan: GET /api/trends?last=… Tahap 24: kartu kelengkapan data (tanggal tanpa folder log, folder dengan file
-     rusak/kosong, ingest terakhir) di atas chart, dan heatmap jam × tanggal (request ingress / error semua layanan). -->
+<!-- Trends (DRD §3.3, inv. §2.3): comparison across folders, independent of the folder picker (disabled in the header).
+     Range picker 14 / 30 / 90 / all latest folders (U4; default 30, ASSUMPTION Q4), remembered per browser.
+     6 charts + 2 tables; tables always scroll horizontally with the Service column locked and the newest folder on the right.
+     One request: GET /api/trends?last=… Stage 24: data completeness card (dates without a log folder, folders with corrupt/empty
+     files, last ingest) above the charts, and an hour × date heatmap (ingress requests / errors of all services). -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -17,10 +17,10 @@
 
   let { reloadKey = 0, onready = null } = $props();
   const RANGES = ['14', '30', '90', 'all'];
-  const BIZ = ['Laporan Dibuat', 'Registrasi Laporan', 'File Diunggah', 'Email Terkirim', 'OTP Diminta'];   // kunci dari API (data lama)
+  const BIZ = ['Laporan Dibuat', 'Registrasi Laporan', 'File Diunggah', 'Email Terkirim', 'OTP Diminta'];   // keys from the API (old data)
 
   let range = $state(RANGES.includes(loadPref('trendRange', '30')) ? loadPref('trendRange', '30') : '30');
-  // $state.raw: data dibaca saja; array-nya diserahkan ke Chart.js, yang menambah properti internal ke array (proksi $state menolaknya)
+  // $state.raw: data is read only; its arrays are handed to Chart.js, which adds internal properties to the arrays (the $state proxy rejects that)
   let data = $state.raw(null), busy = $state(false), error = $state(null);
   let seq = 0;
 
@@ -40,21 +40,21 @@
 
   const labels = $derived((data?.folders || []).map((f) => dLabel(f, $lang)));
   const bySvc = (k) => (data?.services || []).map((s, i) => ({ label: sysName(s), data: data[k][s].map((v) => v ?? 0), color: `--c${(i % 10) + 1}` }));
-  const slug = (k) => k.toLowerCase().replace(/ /g, '_');   // kunci kamus metrik bisnis (label, diterjemahkan; DRD §6.3)
+  const slug = (k) => k.toLowerCase().replace(/ /g, '_');   // business metric dictionary keys (labels, translated; DRD §6.3)
   const stack = { scales: { x: { stacked: true }, y: { stacked: true } } };
 
   let heatKind = $state('requests');
   const cmp = $derived(data?.completeness);
   const problemFolders = $derived(cmp ? data.folders.map((f, i) => ({ f, c: cmp.corrupt[i], e: cmp.empty[i] })).filter((x) => x.c) : []);
 
-  // tabel mulai dari ujung kanan: folder terbaru terlihat (DRD §3.3); diulang tiap data berganti
+  // tables start at the right end: the newest folder is visible (DRD §3.3); repeated every time the data changes
   function scrollEnd(node, _key) {
     const go = () => requestAnimationFrame(() => (node.scrollLeft = node.scrollWidth));
     go();
     return { update: go };
   }
 
-  // perubahan error vs folder sebelumnya: hanya bila error kemarin > 0 dan baris kemarin ≥ 50 % hari ini (lama)
+  // error change vs the previous folder: only when yesterday's errors > 0 and yesterday's lines ≥ 50 % of today's (old)
   function change(s, i) {
     if (i === 0) return null;
     const c = data.err[s][i], p = data.err[s][i - 1], cl = data.lines[s][i], pl = data.lines[s][i - 1];

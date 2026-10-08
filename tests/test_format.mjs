@@ -1,5 +1,5 @@
-// node --test tests/test_format.mjs  (dari folder v2/)
-// Pemformat v2 vs contoh di inventaris §2.0 dan keluaran fungsi lama di dashboard_template.html.
+// node --test tests/test_format.mjs  (from the v2/ folder)
+// v2 formatters vs the examples in inventory §2.0 and the output of the old functions in dashboard_template.html.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { tWIB, dur, durMs, tRange, dLabel, num, logRange, delta, bytes, pct, sysName, cut, utcToWib } from '../web/src/format.js';
@@ -62,8 +62,8 @@ test('angka', () => {
 test('perubahan vs folder sebelumnya (dlt lama: empat bentuk)', () => {
   assert.deepEqual(delta(64, 100, '2026-10-05', 'id'),
     { kind: 'down', tone: 'good', text: '▼ 36% vs 5 Okt 2026', short: '▼ 36%', rest: 'vs 5 Okt 2026', spoken: 'turun 36% dibanding 5 Okt 2026' });
-  assert.equal(delta(150, 100, '2026-10-05', 'id').tone, 'bad');                       // error naik = buruk
-  assert.equal(delta(150, 100, '2026-10-05', 'id', { good: true }).tone, 'good');       // request naik = baik
+  assert.equal(delta(150, 100, '2026-10-05', 'id').tone, 'bad');                       // errors up = bad
+  assert.equal(delta(150, 100, '2026-10-05', 'id', { good: true }).tone, 'good');       // requests up = good
   assert.equal(delta(100.2, 100, '2026-10-05', 'id').text, '≈ Sama dengan 5 Okt 2026');
   assert.equal(delta(100.2, 100, '2026-10-05', 'en').text, '≈ Same as 5 Oct 2026');
   assert.equal(delta(5, 0, '2026-10-05', 'id').text, 'Baru (5 Okt 2026: 0)');
@@ -73,7 +73,7 @@ test('perubahan vs folder sebelumnya (dlt lama: empat bentuk)', () => {
 });
 
 test('label', () => {
-  assert.equal(sysName('nginx-ingress-controller'), 'nginx-ingress-controller');   // nama sistem huruf kecil apa adanya
+  assert.equal(sysName('nginx-ingress-controller'), 'nginx-ingress-controller');   // system names lowercase, as-is
   assert.equal(sysName('Om-Be-Simpel-Loop'), 'om-be-simpel-loop');
   assert.equal(sysName(null), '');
   assert.equal(cut('a'.repeat(60), 48).length, 48);

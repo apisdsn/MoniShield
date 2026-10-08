@@ -1,6 +1,6 @@
-// Dua bahasa dari kamus berkunci (DRD §6.3, U15): teks antarmuka diambil lewat t('kunci'), bukan diganti di DOM
-// setelah render, jadi data log tidak pernah ikut "diterjemahkan". Kunci kedua kamus diperiksa sama oleh
-// tools/cek_i18n.mjs. Parameter ditulis {nama}.
+// Two languages from keyed dictionaries (DRD §6.3, U15): UI text is fetched via t('key'), not replaced in the DOM
+// after render, so log data is never "translated". Both dictionaries' keys are checked to match by
+// tools/cek_i18n.mjs. Parameters are written {name}.
 import { derived, writable } from 'svelte/store';
 import id from './i18n/id.json';
 import en from './i18n/en.json';
@@ -8,7 +8,7 @@ import { load, save } from './store.js';
 
 const KAMUS = { id, en };
 
-export const lang = writable(load('lang', 'id') === 'en' ? 'en' : 'id');   // bawaan ID (lama)
+export const lang = writable(load('lang', 'id') === 'en' ? 'en' : 'id');   // default ID (old)
 lang.subscribe((l) => {
   save('lang', l);
   if (typeof document !== 'undefined') document.documentElement.lang = l;
@@ -24,10 +24,10 @@ export function translate(l, key, params) {
   return s;
 }
 
-/** Di komponen: $t(kunci, {param}). */
+/** In components: $t(key, {param}). */
 export const t = derived(lang, (l) => (key, params) => translate(l, key, params));
 
-/** Nama negara dari kode ISO (lama: Intl.DisplayNames). */
+/** Country name from the ISO code (old: Intl.DisplayNames). */
 export const countryName = derived(lang, (l) => {
   let dn;
   try { dn = new Intl.DisplayNames([l === 'en' ? 'en' : 'id'], { type: 'region' }); } catch { dn = null; }

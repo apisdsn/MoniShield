@@ -1,4 +1,4 @@
-"""Halaman Pelacakan Request (TRD §5.3)."""
+"""Request Tracing page (TRD §5.3)."""
 
 from monishield.infrastructure.queries.sql import SL, _all, _one, _no
 from .tables import cells, first, services
@@ -13,7 +13,7 @@ def tracing(cur, folder):
         available=True, corr=dict(matched=corr[0], total=corr[1]),
         kpi=dict(failed_requests=_one(cur, f'SELECT coalesce(sum(n), 0) FROM agg_trace WHERE {gagal}', folder),
                  failed_ips=_one(cur, f'SELECT count(DISTINCT ip) FROM agg_trace WHERE {gagal}', folder),
-                 # TRD §4.4 butir 9: semua jejak lambat yang tidak gagal, apa pun statusnya
+                 # TRD §4.4 item 9: all slow traces that did not fail, whatever their status
                  slow_requests=_one(cur, "SELECT coalesce(sum(n), 0) FROM agg_trace WHERE folder = ? AND error LIKE 'Lambat%'", folder)),
         by_ip=[dict(**r['ip'], n=r['n']) for r in by_ip],
         by_error=_all(cur, f"SELECT status || ' ' || error, sum(n)::BIGINT FROM agg_trace WHERE {gagal} GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 10", folder),

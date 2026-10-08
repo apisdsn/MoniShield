@@ -1,5 +1,5 @@
--- Login (inv. §4.2). Hanya om-be-appsmanager: di sistem lama statistik login per layanan dan tampilan membaca
--- milik appsmanager saja. accounts = akun yang dicoba, hanya dari password salah / reset (bukan dari login sukses).
+-- Login (inv. §4.2). Only om-be-appsmanager: in the old system login stats were per service and the view read
+-- appsmanager's only. accounts = accounts attempted, only from wrong password / reset (not from successful logins).
 DELETE FROM agg_login_ip WHERE folder = $f;
 INSERT INTO agg_login_ip
 SELECT $f, login_ip, count(*) FILTER (WHERE login_kind = 'fail'), count(*) FILTER (WHERE login_kind = 'lock'), count(*) FILTER (WHERE login_kind = 'ok'),

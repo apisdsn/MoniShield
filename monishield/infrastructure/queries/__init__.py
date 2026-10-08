@@ -1,1 +1,1 @@
-"""Sisi baca (laporan per halaman): kueri DuckDB atas tabel agregat. Dipanggil router di interfaces/api."""
+"""Read side (per-page reports): DuckDB queries over the aggregate tables. Called by the routers in interfaces/api."""

@@ -1,6 +1,6 @@
--- agg_level (extra lama) dari penghitung per file.
--- TRD §4.4 butir 4: simpel-loop memakai tingkat EFEKTIF: event gagal 5xx -> ERROR, event gagal lainnya -> WARN
--- (sama dengan aturan KPI Error/Warning); baris lain memakai tag aslinya.
+-- agg_level (old extra) from per-file counters.
+-- TRD §4.4 item 4: simpel-loop uses the EFFECTIVE level: failed 5xx event -> ERROR, other failed events -> WARN
+-- (same as the Error/Warning KPI rule); other lines use their original tag.
 DELETE FROM agg_level WHERE folder = $f;
 INSERT INTO agg_level
 SELECT $f, service, level, sum(n)::BIGINT AS n

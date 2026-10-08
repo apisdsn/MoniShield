@@ -1,8 +1,8 @@
-<!-- Tabel dengan filter (DRD §4.3, §8.2, §9.4).
-     Dua sumber: `rows` (statis, filter/urut di browser) atau `table` (endpoint tabel TRD §5.4: filter, urut, dan
-     lanjutan dicari di SELURUH data di server). Jumlah awal = batas lama; "Menampilkan N dari M" + "Tampilkan
-     100 berikutnya" (B04). Header lekat; angka rata kanan; urut per kolom (U11, aria-sort); sel panjang terbuka
-     saat diklik/fokus. > 4 kolom: kartu baris di ≤ 560 px, gulir mendatar dengan kolom pertama terkunci di 561–900 px. -->
+<!-- Table with filter (DRD §4.3, §8.2, §9.4).
+     Two sources: `rows` (static, filter/sort in the browser) or `table` (TRD §5.4 table endpoint: filter, sort, and
+     more are searched across ALL data on the server). Initial count = old limit; "Menampilkan N dari M" + "Tampilkan
+     100 berikutnya" (B04). Sticky header; numbers right-aligned; per-column sort (U11, aria-sort); long cells expand
+     on click/focus. > 4 columns: row cards at ≤ 560 px, horizontal scroll with the first column locked at 561–900 px. -->
 <script>
   import { tick, untrack } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -14,13 +14,13 @@
   import ErrorState from './ErrorState.svelte';
 
   /**
-   * columns: [{key, label, type?, sort?, fmt?(row, lang), clip?, cls?(row), sev?(row) -> {level, text}, detail?(row) -> teks}]
-   *   minw?: lebar minimum kolom (px) agar teks panjang tidak dipecah per huruf di kolom sempit (tidak berlaku di kartu baris).
-   *   custom?: true -> sel digambar snippet `cell(row, col)` milik pemanggil (komponen, bukan HTML dalam string).
-   *   status?: kunci kode status yang ditampilkan berwarna di depan teks sel (mis. '401 /path').
-   *   type: 'text' (bawaan) | 'num' | 'ip' | 'ips' | 'status' | 'statuses' | 'sev' | 'time' | 'range' | 'dur' | 'pct' | 'bytes' | 'code' | 'tags'
-   * Sumber statis: rows. Sumber server: folder + table (+ params), initial = {total, rows} dari respons halaman.
-   * search = {text, seq, scroll?}: isi filter dari luar (peta "Lihat di tabel"; pencarian global: scroll = gulir ke tabel).
+   * columns: [{key, label, type?, sort?, fmt?(row, lang), clip?, cls?(row), sev?(row) -> {level, text}, detail?(row) -> text}]
+   *   minw?: minimum column width (px) so long text is not broken per letter in narrow columns (does not apply to row cards).
+   *   custom?: true -> the cell is drawn by the caller's `cell(row, col)` snippet (a component, not HTML in a string).
+   *   status?: key of the status code shown colored in front of the cell text (e.g. '401 /path').
+   *   type: 'text' (default) | 'num' | 'ip' | 'ips' | 'status' | 'statuses' | 'sev' | 'time' | 'range' | 'dur' | 'pct' | 'bytes' | 'code' | 'tags'
+   * Static source: rows. Server source: folder + table (+ params), initial = {total, rows} from the page response.
+   * search = {text, seq, scroll?}: filter content from outside (map "Lihat di tabel"; global search: scroll = scroll to the table).
    */
   let { title, columns, rows = null, folder = null, table = null, params = {}, initial = null, limit = null,
         bar = null, wide = true, maxHeight = 440, rowId = null, highlight = null, chip = null, cell = null, search = null } = $props();
@@ -31,12 +31,12 @@
 
   let q = $state(''), qSent = $state('');
   let sort = $state(null), dir = $state('desc');
-  let shown = $state(0);                       // statis: jumlah baris yang ditampilkan
+  let shown = $state(0);                       // static: number of rows shown
   let data = $state(null);                     // server: {total, matched, rows}
   let busy = $state(false), error = $state(null);
   let timer;
 
-  // ---------------------------------------------------------------- statis
+  // ---------------------------------------------------------------- static
   const filtered = $derived.by(() => {
     if (remote) return [];
     let r = rows || [];
@@ -49,7 +49,7 @@
     return r;
   });
 
-  // filter diisi dari luar (mis. peta "Lihat di tabel"): search = {text, seq}; seq berganti agar teks sama bisa dikirim ulang
+  // filter filled from outside (e.g. map "Lihat di tabel"): search = {text, seq}; seq changes so the same text can be sent again
   let lastSearch = null, rootEl = $state();
   $effect(() => {
     const s = search;
@@ -73,12 +73,12 @@
     }
   }
 
-  // awal / ganti folder: pakai halaman pertama dari respons halaman bila ada, tanpa permintaan tambahan
+  // initial / folder change: use the first page from the page response when present, without an extra request
   let lastKey = '', lastInit = null;
   $effect(() => {
     const key = JSON.stringify([folder, table, params, rows === null ? null : rows.length]);
     const init = initial;
-    if (key === lastKey && init === lastInit) return;   // data halaman baru (muat ulang) juga mengatur ulang tabel
+    if (key === lastKey && init === lastInit) return;   // new page data (reload) also resets the table
     lastKey = key; lastInit = init;
     untrack(() => {
       q = ''; qSent = ''; sort = null; dir = 'desc'; error = null;
@@ -92,7 +92,7 @@
 
   function onInput() {
     clearTimeout(timer);
-    timer = setTimeout(() => apply(), 250);   // jeda ketik 250 ms
+    timer = setTimeout(() => apply(), 250);   // 250 ms typing debounce
   }
   function apply() {
     qSent = q.trim();
@@ -119,7 +119,7 @@
   const max = $derived(bar ? Math.max(0, ...view.map((r) => +r[bar] || 0)) : 0);
   const cards = $derived(columns.length > 4);
 
-  // ---------------------------------------------------------------- sel
+  // ---------------------------------------------------------------- cells
   const ipOf = (v) => (v && typeof v === 'object' ? v.ip : v);
   function cellText(row, c) {
     const v = row[c.key];
@@ -146,10 +146,10 @@
       default: return String(v);
     }
   }
-  // salin baris log asli (DRD §4.3, U12)
+  // copy the original log line (DRD §4.3, U12)
   async function copy(e, text) {
     const b = e.currentTarget;
-    try { await navigator.clipboard.writeText(text); b.textContent = '✓'; setTimeout(() => (b.textContent = $t('table.copy')), 1500); } catch { /* izin ditolak */ }
+    try { await navigator.clipboard.writeText(text); b.textContent = '✓'; setTimeout(() => (b.textContent = $t('table.copy')), 1500); } catch { /* permission denied */ }
   }
   const numeric = (c) => ['num', 'dur', 'pct', 'bytes'].includes(c.type);
   const ariaSort = (c) => (sort === c.key ? (dir === 'asc' ? 'ascending' : 'descending') : c.sort ? 'none' : undefined);
@@ -275,7 +275,7 @@
   }
   .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: 0.8125rem; }
 
-  /* 561–900 px: tabel lebar gulir mendatar, kolom pertama terkunci, bayangan tepi kanan (DRD §8.2) */
+  /* 561–900 px: wide table scrolls horizontally, first column locked, right-edge shadow (DRD §8.2) */
   @media (max-width: 900px) {
     .filter, .filter input { width: 100%; min-width: 0; }
     .card.dt > header { align-items: stretch; flex-direction: column; }
@@ -288,7 +288,7 @@
     .cards td.k { min-width: 140px; }
     .x { width: var(--touch); height: var(--touch); }
   }
-  /* ≤ 560 px: tiap baris jadi kartu; kolom pertama judul, lainnya "label: nilai" */
+  /* ≤ 560 px: each row becomes a card; first column is the title, the others "label: value" */
   @media (max-width: 560px) {
     .cards { max-height: none !important; background: none; }
     .cards table, .cards tbody, .cards tr, .cards td { display: block; width: auto; }
@@ -296,7 +296,7 @@
     .cards tr { border: 1px solid var(--line); border-radius: var(--r-box); padding: 8px 12px; margin-bottom: 10px; }
     .cards td { border: 0; padding: 4px 0; text-align: left !important; white-space: normal !important; position: static !important; background: none !important; min-width: 0 !important; }
     .cards td.k { font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid var(--row-line); margin-bottom: 4px; }
-    .cards td:not(.k) { display: grid; grid-template-columns: minmax(90px, 40%) 1fr; gap: 10px; justify-items: start; }   /* tag/tombol selebar isinya, bukan selebar kolom */
+    .cards td:not(.k) { display: grid; grid-template-columns: minmax(90px, 40%) 1fr; gap: 10px; justify-items: start; }   /* tag/button as wide as its content, not as wide as the column */
     .cards td:not(.k)::before { content: attr(data-label); color: var(--th-fg); font-size: 0.75rem; text-transform: capitalize; }
     .cards td.none { display: block; }
     .cards td.none::before { content: none; }

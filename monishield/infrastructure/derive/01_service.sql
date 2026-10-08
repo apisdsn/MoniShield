@@ -1,5 +1,5 @@
--- agg_service: satu baris per layanan yang punya file di folder ini (termasuk yang 0 baris), seperti D.days lama.
--- err/warn = penghitung parser per file (definisi lama + TRD §4.4 butir 3). err_http = respons/event 5xx; err_log = sisanya.
+-- agg_service: one row per service that has files in this folder (including those with 0 lines), like the old D.days.
+-- err/warn = parser counters per file (old definition + TRD §4.4 item 3). err_http = 5xx responses/events; err_log = the rest.
 DELETE FROM agg_service WHERE folder = $f;
 INSERT INTO agg_service
 WITH f AS (

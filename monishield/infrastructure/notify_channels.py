@@ -1,6 +1,6 @@
-"""Saluran notifikasi (adapter): Telegram Bot API, webhook Discord, email SMTP. Hanya mengirim judul + teks yang sudah
-disusun dan dibersihkan dari alamat IP oleh lapisan di atasnya (monishield/domain/alerts.py `scrub`).
-Galat dikembalikan sebagai AlertFail tanpa kredensial."""
+"""Notification channels (adapter): Telegram Bot API, Discord webhook, SMTP email. Only sends a title + text already
+composed and scrubbed of IP addresses by the layer above (monishield/domain/alerts.py `scrub`).
+Errors are returned as AlertFail without credentials."""
 import json, smtplib, ssl, urllib.error, urllib.request
 from email.message import EmailMessage
 
@@ -14,9 +14,9 @@ def _post_json(url, payload):
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r: return r.status
     except urllib.error.HTTPError as x:
-        raise AlertFail(f'ditolak HTTP {x.code}') from None
+        raise AlertFail(f'rejected HTTP {x.code}') from None
     except (urllib.error.URLError, OSError) as x:
-        raise AlertFail(f'tidak terjangkau ({type(getattr(x, "reason", x)).__name__})') from None
+        raise AlertFail(f'unreachable ({type(getattr(x, "reason", x)).__name__})') from None
 
 
 def send_telegram(ch, title, text):
@@ -41,9 +41,9 @@ def send_email(ch, title, text):
             if ch['username']: s.login(ch['username'], ch['password'])
             s.send_message(m)
     except smtplib.SMTPAuthenticationError:
-        raise AlertFail('SMTP menolak nama pengguna / sandi') from None
+        raise AlertFail('SMTP rejected the username / password') from None
     except (smtplib.SMTPException, OSError) as x:
-        raise AlertFail(f'SMTP gagal ({type(x).__name__})') from None
+        raise AlertFail(f'SMTP failed ({type(x).__name__})') from None
 
 
 SENDERS = dict(telegram=send_telegram, discord=send_discord, email=send_email)
@@ -52,8 +52,8 @@ SENDERS = dict(telegram=send_telegram, discord=send_discord, email=send_email)
 
 
 class Channels:
-    """Port NotificationChannels: send(nama saluran, setelan saluran, judul, teks). Fungsi modul dicari saat dipanggil
-    (bisa diganti di uji)."""
+    """NotificationChannels port: send(channel name, channel settings, title, text). Module functions are looked up at call time
+    (tests can replace them)."""
     names = tuple(SENDERS)
 
     def send(self, name, ch, title, text): return globals()['SENDERS'][name](ch, title, text)

@@ -1,4 +1,4 @@
-"""Halaman Overview (TRD §5.3)."""
+"""Overview page (TRD §5.3)."""
 
 from monishield.infrastructure.queries.sql import H, _all
 from .tables import first

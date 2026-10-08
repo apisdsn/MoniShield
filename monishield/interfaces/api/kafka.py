@@ -1,9 +1,9 @@
-"""Log dari Kafka (monishield/application/kafka_service.py).
-  GET  /api/admin/kafka          status konsumen: tersambung?, pesan diterima/ditulis/dilewati per layanan, 50 pesan terakhir
-  POST /api/admin/kafka/peek     "Cek pesan": n pesan TERAKHIR dari topic (tanpa grup konsumen; tidak menggeser posisi baca)
-  POST /api/admin/kafka/ingest   ingest sekarang (tanpa menunggu jeda S4_KAFKA_INGEST_MINUTES)
-  GET  /api/live/map             Server-Sent Events untuk animasi peta realtime: {p: [[lat, lon, jumlah, modul], …]} per
-                                 detik. Hanya koordinat lokasi (dari basis data IP lokal), tanpa alamat IP. 204 bila Kafka mati.
+"""Logs from Kafka (monishield/application/kafka_service.py).
+  GET  /api/admin/kafka          consumer status: connected?, messages received/written/skipped per service, last 50 messages
+  POST /api/admin/kafka/peek     "Check messages": the LAST n messages of the topic (no consumer group; does not move the read position)
+  POST /api/admin/kafka/ingest   ingest now (without waiting for the S4_KAFKA_INGEST_MINUTES interval)
+  GET  /api/live/map             Server-Sent Events for the realtime map animation: {p: [[lat, lon, count, module], …]} per
+                                 second. Location coordinates only (from the local IP database), no IP addresses. 204 when Kafka is off.
 """
 import asyncio, json
 
@@ -31,25 +31,25 @@ class PeekBody(BaseModel):
 def kafka_peek(request: Request, body: PeekBody = PeekBody(), admin=Depends(require_admin)):
     try: r = request.app.state.kafka.peek(max(1, min(50, body.n)))
     except Fail as e:
-        _audit(request, admin, 'kafka.peek', f'gagal ({e.code})'); raise
-    _audit(request, admin, 'kafka.peek', f"{r['topic']}: {len(r['messages'])} pesan")
+        _audit(request, admin, 'kafka.peek', f'failed ({e.code})'); raise
+    _audit(request, admin, 'kafka.peek', f"{r['topic']}: {len(r['messages'])} messages")
     return r
 
 
 @router.post('/api/admin/kafka/ingest')
 def kafka_ingest(request: Request, admin=Depends(require_admin)):
     request.app.state.kafka.ingest_now()
-    _audit(request, admin, 'kafka.ingest', 'ingest folder dari Kafka')
+    _audit(request, admin, 'kafka.ingest', 'ingest folder from Kafka')
     return dict(started=True)
 
 
 @router.get('/api/live/map')
 async def live_map(request: Request, user=Depends(require_user_ready)):
     feed = request.app.state.kafka
-    if not feed.running(): return Response(status_code=204)   # EventSource tidak menyambung ulang
+    if not feed.running(): return Response(status_code=204)   # EventSource does not reconnect
 
     async def events():
-        seq, _ = feed.live.since(10 ** 12)          # mulai dari sekarang
+        seq, _ = feed.live.since(10 ** 12)          # start from now
         folder, idle = None, 0
         while not await request.is_disconnected():
             if folder != (f := feed.live_folder()):

@@ -1,10 +1,10 @@
-"""Profil IP dan daftar IP penyerang (Tahap 24 butir 4).
+"""IP profile and attacker IP list (Stage 24 item 4).
 
-GET /api/folders/{folder}/ips/{ip}          satu IP: pemilik & lokasi (database offline), angka di folder ini, jejaknya di
-                                            semua folder, dan request-nya di folder ini (ingress nginx, paling banyak 1.000).
-GET /api/folders/{folder}/security/attack-ips.csv   IP sumber serangan folder ini sebagai CSV (untuk daftar blokir WAF).
-GET /api/folders/{folder}/security/blocklist        daftar blokir siap pakai: nginx / ingress-nginx / teks / json (2026-10-07).
-Tidak ada yang dikirim ke layanan pihak ketiga: lokasi dan pemilik dari tabel ip_info.
+GET /api/folders/{folder}/ips/{ip}          one IP: owner & location (offline database), numbers in this folder, its trail in
+                                            all folders, and its requests in this folder (nginx ingress, at most 1,000).
+GET /api/folders/{folder}/security/attack-ips.csv   this folder's attack source IPs as CSV (for a WAF block list).
+GET /api/folders/{folder}/security/blocklist        ready-to-use block list: nginx / ingress-nginx / text / json (2026-10-07).
+Nothing is sent to third-party services: location and owner come from the ip_info table.
 """
 import csv, io, ipaddress, re
 from urllib.parse import unquote_plus
@@ -18,7 +18,7 @@ MAX_REQ = 1000
 
 
 def _ip(ip):
-    if not re.fullmatch(r'[0-9A-Fa-f.:]{2,45}', ip or ''): raise reject(400, 'invalid_parameter', 'Parameter tidak sah: ip.')
+    if not re.fullmatch(r'[0-9A-Fa-f.:]{2,45}', ip or ''): raise reject(400, 'invalid_parameter', 'Invalid parameter: ip.')
     return ip
 
 
@@ -30,13 +30,13 @@ def ip_profile(cur, folder, cfg, ip):
     ip, crs = _ip(ip), _schema(cfg)
     I = 'agg_crs_ip' if crs else 'agg_attack_ip'
     info = cur.execute('SELECT asn, cc, org, is_private, city, region, country FROM ip_info WHERE ip = ?', [ip]).fetchone()
-    # jejak di semua folder: request ingress, request serangan, login gagal/sukses
+    # trail in all folders: ingress requests, attack requests, failed/successful logins
     days = {}
     for f, n in _all(cur, 'SELECT folder::VARCHAR, requests FROM agg_ip WHERE ip = ? AND service = ?', ip, NG): days.setdefault(f, {})['requests'] = n
     for f, n in _all(cur, f'SELECT folder::VARCHAR, hits FROM {I} WHERE ip = ?', ip): days.setdefault(f, {})['attacks'] = n
     for f, a, b in _all(cur, 'SELECT folder::VARCHAR, fail, ok FROM agg_login_ip WHERE ip = ?', ip): days.setdefault(f, {}).update(login_fail=a, login_ok=b)
     for f, n in _all(cur, 'SELECT folder::VARCHAR, sum(n) FROM agg_trace WHERE ip = ? GROUP BY 1', ip): days.setdefault(f, {})['traced'] = int(n)
-    if not days and not info: raise reject(404, 'not_found', 'IP tidak ditemukan di data mana pun.')
+    if not days and not info: raise reject(404, 'not_found', 'IP not found in any data.')
     folders = [dict(folder=f, requests=d.get('requests', 0), attacks=d.get('attacks', 0), login_fail=d.get('login_fail', 0),
                     login_ok=d.get('login_ok', 0), traced=d.get('traced', 0)) for f, d in sorted(days.items(), reverse=True)]
 
@@ -64,7 +64,7 @@ def ip_profile(cur, folder, cfg, ip):
 
 
 def _safe(v):
-    """Sel CSV aman dibuka di spreadsheet: teks yang diawali = + - @ diberi petik (cegah injeksi rumus)."""
+    """CSV cell safe to open in a spreadsheet: text starting with = + - @ gets a quote prefix (prevents formula injection)."""
     s = '' if v is None else str(v)
     return "'" + s if s[:1] in ('=', '+', '-', '@', '\t', '\r') else s
 
@@ -73,7 +73,7 @@ BLOCK_FORMATS = ('nginx', 'ingress', 'txt', 'json')
 
 
 def _excluded(cfg, ip, private, org):
-    """Alasan IP ini tidak boleh masuk daftar blokir, atau None. Mencegah memblokir jaringan sendiri."""
+    """Reason this IP must not go into the block list, or None. Prevents blocking our own network."""
     try: a = ipaddress.ip_address(ip)
     except ValueError: return 'invalid'
     if private or a.is_private or a.is_loopback or a.is_link_local or a.is_reserved or a.is_multicast: return 'private'
@@ -86,10 +86,10 @@ def _excluded(cfg, ip, private, org):
 
 
 def blocklist(cur, folder, cfg, format='nginx', days=1, min_severity=1, min_hits=1, lang='id'):
-    """Daftar blokir siap pakai (permintaan pemilik 2026-10-07, saran 6) dari IP sumber serangan `days` folder sampai
-    folder ini: nginx (`deny`), anotasi ingress-nginx (`denylist-source-range`), teks satu IP per baris, atau JSON
-    (pratinjau). IP privat, pemilik jaringan S4_BLOCKLIST_EXCLUDE_ORG, dan S4_BLOCKLIST_EXCLUDE dikecualikan."""
-    if format not in BLOCK_FORMATS: raise reject(400, 'invalid_parameter', f'format harus salah satu dari {", ".join(BLOCK_FORMATS)}.')
+    """Ready-to-use block list (owner request 2026-10-07, suggestion 6) from the attack source IPs of `days` folders up to
+    this folder: nginx (`deny`), ingress-nginx annotation (`denylist-source-range`), text with one IP per line, or JSON
+    (preview). Private IPs, network owners matching S4_BLOCKLIST_EXCLUDE_ORG, and S4_BLOCKLIST_EXCLUDE are excluded."""
+    if format not in BLOCK_FORMATS: raise reject(400, 'invalid_parameter', f'format must be one of {", ".join(BLOCK_FORMATS)}.')
     crs = _schema(cfg)
     I = 'agg_crs_ip' if crs else 'agg_attack_ip'
     msev = 'a.max_severity' if crs else f"list_max(list_transform(map_keys(a.cats), category -> {SEV_SQL}))"

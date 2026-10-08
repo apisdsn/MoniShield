@@ -1,35 +1,35 @@
-"""Impor folder log dari awalan S3 (TRD §3.8): tautan -> daftar objek -> pilih -> unduh ke direktori sementara ->
-pindah atomik ke kotak masuk -> ingest biasa (oleh pemanggil).
+"""Import a log folder from an S3 prefix (TRD §3.8): link -> list objects -> pick -> download to a temp directory ->
+atomic move into the inbox -> regular ingest (by the caller).
 
-Pembatas satu-satunya antara layar impor dan bucket lain adalah daftar izin `import_buckets` di konfigurasi
-server: tautan diperiksa SEBELUM ada koneksi ke AWS. Hanya dua operasi S3 yang dipakai: ListObjectsV2 dan
-GetObject. Kredensial: yang ditempel admin (memori proses saja) lalu variabel lingkungan; tidak pernah
-dicetak, dicatat, atau dikembalikan.
+The only barrier between the import page and other buckets is the `import_buckets` allow list in the server
+configuration: the link is checked BEFORE any connection to AWS. Only two S3 operations are used: ListObjectsV2 and
+GetObject. Credentials: those pasted by an admin (process memory only), then environment variables; never
+printed, logged, or returned.
 """
 import datetime, gzip, json, os, re, shutil, threading, time, uuid, zlib
 
 from monishield.domain import rules, s3_import
 from monishield.domain.s3_import import CONTROL, NO_CREDENTIALS, ImportFail, allowed_examples, parse_url, parse_watch, pick   # noqa: F401
 
-ENDPOINT = None   # hanya uji (S3 tiruan lokal); server selalu memakai titik akhir resmi wilayah `import_region`
-MANIFEST = '.s3-import.json'   # di folder kotak masuk: {relpath objek: {key, size, etag[, stored, stored_size]}} unduhan sebelumnya
-EXTRACT_RATIO = 20             # hasil ekstrak satu .gz maks. 20× batas ukuran objek (cegah "gzip bomb")
+ENDPOINT = None   # tests only (local fake S3); the server always uses the official endpoint of region `import_region`
+MANIFEST = '.s3-import.json'   # in the inbox folder: {object relpath: {key, size, etag[, stored, stored_size]}} of previous downloads
+EXTRACT_RATIO = 20             # extracted size of one .gz max. 20× the object size limit (prevents a "gzip bomb")
 
 
-# ------------------------------------------------------------------ kredensial
+# ------------------------------------------------------------------ credentials
 class Credentials:
-    """Urutan: yang ditempel admin (memori proses, hilang saat server mulai ulang), lalu konfigurasi server (.env, yang
-    juga diisi layar Konfigurasi; atau variabel lingkungan)."""
+    """Order: pasted by an admin (process memory, lost on server restart), then the server configuration (.env, which
+    the Configuration page also fills; or environment variables)."""
 
     def __init__(self, cfg):
         self.cfg, self._mem, self._set_at, self._lock = cfg, None, None, threading.Lock()
 
-    def __repr__(self): return f'<Credentials sumber={self.status()["source"]}>'   # nilai tidak pernah ikut tercetak
+    def __repr__(self): return f'<Credentials source={self.status()["source"]}>'   # values are never printed
 
     def set(self, access_key_id, secret_access_key, session_token=''):
         ak, sk, st = (str(x or '').strip() for x in (access_key_id, secret_access_key, session_token))
         if not re.fullmatch(r'[A-Z0-9]{16,128}', ak) or not 16 <= len(sk) <= 128 or CONTROL.search(sk) or len(st) > 4096 or CONTROL.search(st):
-            raise ImportFail('invalid_credentials', 'Kredensial tidak berbentuk kunci akses AWS (ID kunci huruf besar/angka, kunci rahasia 16–128 karakter).')
+            raise ImportFail('invalid_credentials', 'The credentials do not look like an AWS access key (key ID upper-case letters/digits, secret key 16–128 characters).')
         with self._lock:
             self._mem = dict(aws_access_key_id=ak, aws_secret_access_key=sk, **({'aws_session_token': st} if st else {}))
             self._set_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)
@@ -38,7 +38,7 @@ class Credentials:
         with self._lock: self._mem, self._set_at = None, None
 
     def get(self):
-        """-> (kwargs boto3, sumber) atau (None, None)."""
+        """-> (boto3 kwargs, source) or (None, None)."""
         with self._lock:
             if self._mem: return dict(self._mem), 'pasted'
         c = self.cfg
@@ -54,12 +54,12 @@ class Credentials:
                     pasted=mem, pasted_at=str(at) if at else None, environment=env)
 
 
-NO_LIBRARY = ('Impor S3 butuh paket boto3 yang belum terpasang di server. Jalankan: .venv/bin/pip install -e ".[s3]" '
-              '(atau ./run.sh, yang kini memasangnya), lalu mulai ulang server.')
+NO_LIBRARY = ('S3 import needs the boto3 package, which is not installed on the server. Run: .venv/bin/pip install -e ".[s3]" '
+              '(or ./run.sh, which now installs it), then restart the server.')
 
 
 def library_ok():
-    """boto3 + botocore terpasang? (paket opsional "s3"; diperiksa sebelum job dibuat agar tidak gagal di tengah)"""
+    """boto3 + botocore installed? (optional "s3" package; checked before a job is created so it does not fail midway)"""
     import importlib.util
     return all(importlib.util.find_spec(m) is not None for m in ('boto3', 'botocore'))
 
@@ -78,17 +78,17 @@ def _s3_error(e):
     if isinstance(e, ClientError):
         code = e.response.get('Error', {}).get('Code', '?')
         if code in ('AccessDenied', 'InvalidAccessKeyId', 'SignatureDoesNotMatch', 'ExpiredToken', 'InvalidToken', '403'):
-            return ImportFail('s3_denied', f'S3 menolak akses ({code}): periksa kredensial dan hak baca pada bucket/awalan ini.', 502)
+            return ImportFail('s3_denied', f'S3 denied access ({code}): check the credentials and read permission on this bucket/prefix.', 502)
         if code in ('NoSuchBucket', 'NoSuchKey', '404'):
-            return ImportFail('s3_not_found', f'S3: {code} (bucket atau objek tidak ada).', 502)
-        return ImportFail('s3_error', f'S3 menjawab galat {code}.', 502)
+            return ImportFail('s3_not_found', f'S3: {code} (bucket or object does not exist).', 502)
+        return ImportFail('s3_error', f'S3 answered with error {code}.', 502)
     if isinstance(e, (EndpointConnectionError, BotoCoreError, OSError)):
-        return ImportFail('s3_unreachable', f'S3 tidak terjangkau dari server ({type(e).__name__}). Periksa akses keluar server ke titik akhir S3 wilayah impor.', 502)
+        return ImportFail('s3_unreachable', f'S3 is unreachable from the server ({type(e).__name__}). Check the server\'s outbound access to the S3 endpoint of the import region.', 502)
     return ImportFail('s3_error', f'{type(e).__name__}', 502)
 
 
 def list_objects(s3, bucket, prefix, cap):
-    """[{key, size, etag}] di bawah awalan (ListObjectsV2, berhalaman). Berhenti di `cap` objek."""
+    """[{key, size, etag}] under the prefix (ListObjectsV2, paginated). Stops at `cap` objects."""
     out = []
     for page in s3.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix=prefix):
         for o in page.get('Contents', []):
@@ -98,8 +98,8 @@ def list_objects(s3, bucket, prefix, cap):
 
 
 def list_folders(s3, bucket, base):
-    """Nama folder tanggal (YYYY-MM-DD sah) tepat di bawah awalan: ListObjectsV2 dengan Delimiter '/', jadi isi folder
-    tidak ikut didaftar (murah walau riwayat bertahun-tahun)."""
+    """Names of date folders (valid YYYY-MM-DD) directly under the prefix: ListObjectsV2 with Delimiter '/', so folder
+    contents are not listed (cheap even with years of history)."""
     out = set()
     for page in s3.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix=base, Delimiter='/'):
         for cp in page.get('CommonPrefixes', []):
@@ -111,7 +111,7 @@ def list_folders(s3, bucket, base):
 
 
 def plan(cfg, objects, prefix, folder):
-    """Rencana objek (aturan di domain.s3_import.plan) dengan manifest unduhan sebelumnya dari kotak masuk."""
+    """Object plan (rules in domain.s3_import.plan) with the previous-download manifest from the inbox."""
     inbox = os.path.join(cfg.inbox_dir, folder)
     try:
         with open(os.path.join(inbox, MANIFEST), encoding='utf-8') as fh: before = json.load(fh)
@@ -123,9 +123,9 @@ def plan(cfg, objects, prefix, folder):
     return s3_import.plan(cfg, objects, prefix, folder, before, have)
 
 
-# ------------------------------------------------------------------ jalankan
+# ------------------------------------------------------------------ run
 def run(cfg, url, creds_store, dry_run=False, progress=None):
-    """Seluruh impor. dry_run = hanya daftar + rencana, tanpa menulis apa pun. Ingest dijalankan PEMANGGIL (punya DuckDB)."""
+    """The whole import. dry_run = list + plan only, writes nothing. Ingest is run by the CALLER (owns DuckDB)."""
     progress = progress or (lambda **k: None)
     bucket, prefix, folder = parse_url(cfg, url)
     creds, source = creds_store.get()
@@ -137,24 +137,24 @@ def run(cfg, url, creds_store, dry_run=False, progress=None):
         s3 = _client(cfg, creds)
         objects = list_objects(s3, bucket, prefix, cap=cfg.import_max_objects * 4)
     except ImportFail: raise
-    except Exception as e: raise _s3_error(e) from None   # noqa: BLE001  pesan tanpa rahasia
+    except Exception as e: raise _s3_error(e) from None   # noqa: BLE001  message without secrets
     if len(objects) > cfg.import_max_objects * 4:
-        raise ImportFail('too_many_objects', f'Awalan ini berisi lebih dari {cfg.import_max_objects * 4} objek; batas {cfg.import_max_objects} file log.')
-    if not objects: raise ImportFail('empty_prefix', f'Tidak ada objek di s3://{bucket}/{prefix}.', 404)
+        raise ImportFail('too_many_objects', f'This prefix contains more than {cfg.import_max_objects * 4} objects; the limit is {cfg.import_max_objects} log files.')
+    if not objects: raise ImportFail('empty_prefix', f'No objects in s3://{bucket}/{prefix}.', 404)
     rows = plan(cfg, objects, prefix, folder)
-    take = [r for r in rows if r['action'] == 'ambil']
+    take = [r for r in rows if r['action'] == 'fetch']
     res = dict(bucket=bucket, prefix=prefix, folder=folder, dry_run=dry_run, credentials=source, objects=rows,
                take=len(take), skipped=len(rows) - len(take), bytes=sum(r['size'] for r in take), downloaded=0, downloaded_bytes=0, extracted=0, warnings=[])
     local = [r for r in rows if r.get('extract_local')]
     if os.path.isdir(os.path.join(cfg.log_dir, folder)):
-        res['warnings'].append(f'folder {folder} juga ada di folder log lokal; saat ingest versi lokal yang dipakai')
+        res['warnings'].append(f'folder {folder} also exists in the local log folder; the local version is used when ingesting')
     if not dry_run and local: res['extracted'] += _extract_in_inbox(cfg, folder, local)
     if dry_run or not take:
         res['seconds'] = round(time.time() - t0, 2); return res
     tmp = os.path.join(cfg.data_dir, 'tmp', f'import-{uuid.uuid4().hex[:12]}')
     try:
         for i, r in enumerate(take):
-            if time.time() > deadline: raise ImportFail('timeout', f'Impor melewati batas waktu {cfg.import_timeout_minutes} menit.', 504)
+            if time.time() > deadline: raise ImportFail('timeout', f'The import exceeded the time limit of {cfg.import_timeout_minutes} minutes.', 504)
             dst = os.path.join(tmp, folder, *r['rel'].split('/'))
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             n = 0
@@ -164,13 +164,13 @@ def run(cfg, url, creds_store, dry_run=False, progress=None):
                     for chunk in body.iter_chunks(2**20):
                         n += len(chunk)
                         if n > r['size'] or n > cfg.import_max_object_mb * 2**20:
-                            raise ImportFail('size_mismatch', f'Objek {r["rel"]} lebih besar dari yang terdaftar; impor dibatalkan.', 502)
+                            raise ImportFail('size_mismatch', f'Object {r["rel"]} is larger than listed; import cancelled.', 502)
                         fh.write(chunk)
             except ImportFail: raise
             except Exception as e: raise _s3_error(e) from None   # noqa: BLE001
-            if n != r['size']: raise ImportFail('size_mismatch', f'Objek {r["rel"]} terunduh {n} byte, terdaftar {r["size"]}; impor dibatalkan.', 502)
+            if n != r['size']: raise ImportFail('size_mismatch', f'Object {r["rel"]} downloaded {n} bytes, listed {r["size"]}; import cancelled.', 502)
             res['downloaded'] += 1; res['downloaded_bytes'] += n
-            if cfg.import_extract and r['rel'].endswith('.gz'):   # .log.gz -> .log (di folder sementara; yang dipindah hanya .log)
+            if cfg.import_extract and r['rel'].endswith('.gz'):   # .log.gz -> .log (in the temp folder; only the .log is moved)
                 r['stored'], r['stored_size'] = r['rel'][:-3], _gunzip(dst, dst[:-3], r['rel'], cfg.import_max_object_mb * 2**20 * EXTRACT_RATIO)
                 res['extracted'] += 1
             progress(phase='download', done=i + 1, total=len(take))
@@ -182,12 +182,12 @@ def run(cfg, url, creds_store, dry_run=False, progress=None):
 
 
 def _move_into_inbox(cfg, src, folder, take):
-    """Folder baru: satu rename (atomik). Folder yang sudah ada: tiap berkas diganti dengan rename (atomik per berkas). Lalu manifest."""
+    """New folder: one rename (atomic). Existing folder: each file is replaced by a rename (atomic per file). Then the manifest."""
     dst = os.path.join(cfg.inbox_dir, folder)
     os.makedirs(cfg.inbox_dir, exist_ok=True)
     if not os.path.exists(dst):
         try: os.replace(src, dst)
-        except OSError: shutil.copytree(src, dst + '.part'); os.replace(dst + '.part', dst)   # beda sistem berkas
+        except OSError: shutil.copytree(src, dst + '.part'); os.replace(dst + '.part', dst)   # different file system
     else:
         for r in take:
             kept = r.get('stored', r['rel'])
@@ -195,7 +195,7 @@ def _move_into_inbox(cfg, src, folder, take):
             os.makedirs(os.path.dirname(d), exist_ok=True)
             try: os.replace(s, d)
             except OSError: shutil.copy2(s, d + '.part'); os.replace(d + '.part', d)
-            if kept != r['rel']:   # versi .gz lama dari impor sebelumnya tidak dibutuhkan lagi
+            if kept != r['rel']:   # the old .gz version from a previous import is no longer needed
                 try: os.remove(os.path.join(dst, *r['rel'].split('/')))
                 except FileNotFoundError: pass
     _manifest_update(dst, take)
@@ -213,7 +213,7 @@ def _manifest_update(folder_dir, rows):
 
 
 def _gunzip(src, dst, rel, limit):
-    """Ekstrak src (.gz) ke dst, hapus src. Isi gzip diperiksa utuh; hasil > limit -> impor dibatalkan. -> ukuran hasil."""
+    """Extract src (.gz) to dst, delete src. The gzip content is checked in full; result > limit -> import cancelled. -> result size."""
     n = 0
     try:
         with gzip.open(src, 'rb') as g, open(dst + '.part', 'wb') as out:
@@ -223,10 +223,10 @@ def _gunzip(src, dst, rel, limit):
                 out.write(chunk)
     except (OSError, EOFError, zlib.error):
         _rm(dst + '.part')
-        raise ImportFail('bad_gzip', f'Objek {rel} bukan gzip yang utuh (rusak atau terpotong); impor dibatalkan.', 502) from None
+        raise ImportFail('bad_gzip', f'Object {rel} is not a complete gzip (corrupt or truncated); import cancelled.', 502) from None
     if n > limit:
         _rm(dst + '.part')
-        raise ImportFail('extract_too_large', f'Hasil ekstrak {rel} melebihi {limit / 2**20:.0f} MB; impor dibatalkan.', 413)
+        raise ImportFail('extract_too_large', f'Extracted {rel} exceeds {limit / 2**20:.0f} MB; import cancelled.', 413)
     os.replace(dst + '.part', dst); os.remove(src)
     return n
 
@@ -237,7 +237,7 @@ def _rm(path):
 
 
 def _extract_in_inbox(cfg, folder, rows):
-    """.gz dari impor sebelumnya (sebelum ekstrak otomatis ada) diekstrak di tempat, tanpa unduh ulang; manifest diperbarui."""
+    """.gz files from earlier imports (before automatic extraction existed) are extracted in place, without re-download; manifest updated."""
     base = os.path.join(cfg.inbox_dir, folder)
     for r in rows:
         src = os.path.join(base, *r['rel'].split('/'))
@@ -246,10 +246,10 @@ def _extract_in_inbox(cfg, folder, rows):
     return len(rows)
 
 
-# ------------------------------------------------------------------ port S3Gateway (dipakai monishield/application/import_service.py)
+# ------------------------------------------------------------------ S3Gateway port (used by monishield/application/import_service.py)
 class S3Gateway:
-    """Akses S3 untuk lapisan application: kredensial (memori proses + .env), unduh awalan, daftar folder tanggal, uji
-    koneksi. Fungsi modul dicari saat dipanggil (uji bisa mengganti `library_ok`, `ENDPOINT`)."""
+    """S3 access for the application layer: credentials (process memory + .env), prefix download, date folder list, connection
+    test. Module functions are looked up at call time (tests can replace `library_ok`, `ENDPOINT`)."""
 
     def __init__(self, cfg):
         self.cfg, self.creds = cfg, Credentials(cfg)
@@ -257,7 +257,7 @@ class S3Gateway:
     def library_ok(self): return library_ok()
 
     def ready(self):
-        """Pustaka + kredensial ada; bila tidak -> ImportFail (400) dengan petunjuknya."""
+        """Library + credentials present; otherwise -> ImportFail (400) with the hint."""
         if not library_ok(): raise ImportFail('no_s3_library', NO_LIBRARY, 400)
         if not self.creds.get()[0]: raise ImportFail('no_credentials', NO_CREDENTIALS, 400)
 
@@ -266,7 +266,7 @@ class S3Gateway:
     def list_folders(self, bucket, base): return list_folders(_client(self.cfg, self.creds.get()[0]), bucket, base)
 
     def probe(self, bucket, prefix):
-        """Daftar satu objek (uji koneksi). Galat -> ImportFail."""
+        """List one object (connection test). Error -> ImportFail."""
         try: _client(self.cfg, self.creds.get()[0]).list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=1)
         except Exception as e: raise _s3_error(e) from None   # noqa: BLE001
 

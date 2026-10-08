@@ -1,4 +1,4 @@
--- agg_retry: pod pertama gagal lalu request dilempar ke pod lain.
+-- agg_retry: first pod failed and the request was passed on to another pod.
 DELETE FROM agg_retry WHERE folder = $f;
 INSERT INTO agg_retry
 SELECT $f, upstream, up_addrs[1], up_statuses[1], count(*)

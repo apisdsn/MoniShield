@@ -1,13 +1,14 @@
-"""Menulis nilai ke file .env (layar Konfigurasi; permintaan pemilik 2026-10-07: "semua configuration … ke dalam .env").
+"""Writes values to the .env file (Configuration page; owner request 2026-10-07: "semua configuration … ke dalam .env"
+(all configuration … into .env)).
 
-Hanya baris kunci yang diubah yang disentuh; komentar, urutan, dan baris lain tetap. Kunci yang belum aktif dicari dulu
-sebagai baris contoh berkomentar (`# KUNCI=…`, seperti di .env.example) dan diaktifkan di tempatnya; bila tidak ada,
-ditambahkan di bagian akhir. Menghapus (nilai None) = baris dinonaktifkan menjadi `# KUNCI=` tanpa nilai lama (agar
-rahasia tidak tertinggal di komentar), sehingga nilai bawaan berlaku lagi.
+Only the lines of changed keys are touched; comments, order, and other lines stay. A key that is not active yet is first
+looked up as a commented example line (`# KEY=…`, as in .env.example) and activated in place; if there is none, it is
+appended at the end. Removing (value None) = the line is deactivated to `# KEY=` without the old value (so secrets
+are not left behind in a comment), so the default applies again.
 
-File ditulis DI TEMPAT (bukan ganti-nama), karena di Docker .env dipasang sebagai satu file (bind mount): ganti-nama
-akan memutus pasangannya. Hasilnya dibaca ulang dengan pembaca yang sama dengan server (config.read_dotenv); bila tidak
-sama, isi lama dikembalikan.
+The file is written IN PLACE (not renamed), because in Docker .env is mounted as a single file (bind mount): a rename
+would break the mount. The result is read back with the same reader the server uses (config.read_dotenv); if it does
+not match, the old content is restored.
 """
 import os, re, threading
 
@@ -28,7 +29,7 @@ def writable(path):
 
 
 def fmt(value):
-    """Nilai Python -> teks .env (tanpa kutip bila aman)."""
+    """Python value -> .env text (unquoted when safe)."""
     if isinstance(value, bool): return 'true' if value else 'false'
     if isinstance(value, (list, dict)):
         import json
@@ -37,11 +38,11 @@ def fmt(value):
 
 
 def _quote(v):
-    if re.search(r'[\x00-\x1f\x7f]', v): raise EnvFileFail('Nilai tidak boleh memuat baris baru atau karakter kendali.')
+    if re.search(r'[\x00-\x1f\x7f]', v): raise EnvFileFail('The value must not contain newlines or control characters.')
     if v == '' or (not re.search(r'[\s#]', v) and v[:1] not in ('"', "'")): return v
     if '"' not in v: return f'"{v}"'
     if "'" not in v: return f"'{v}'"
-    raise EnvFileFail('Nilai tidak boleh memuat tanda kutip tunggal dan ganda sekaligus.')
+    raise EnvFileFail('The value must not contain both single and double quotes.')
 
 
 def _key_re(name, active):
@@ -49,7 +50,7 @@ def _key_re(name, active):
 
 
 def update(path, changes):
-    """changes: {NAMA_VARIABEL: teks | None}. -> daftar nama yang berubah."""
+    """changes: {VARIABLE_NAME: text | None}. -> list of changed names."""
     lines_new = {k: (None if v is None else f'{k}={_quote(v)}') for k, v in changes.items()}
     with _LOCK:
         old = open(path, encoding='utf-8').read() if os.path.exists(path) else ''
@@ -62,7 +63,7 @@ def update(path, changes):
                 continue
             if act:
                 lines[act[0]] = line
-                for i in act[1:]: lines[i] = f'# {name}='   # duplikat: yang pertama yang dipakai
+                for i in act[1:]: lines[i] = f'# {name}='   # duplicate: the first one is used
                 continue
             com = [i for i, l in enumerate(lines) if _key_re(name, False).match(l)]
             if com: lines[com[0]] = line
@@ -81,13 +82,13 @@ def update(path, changes):
         except SystemExit: ok = False
         if not ok:
             with open(path, 'r+', encoding='utf-8') as fh: fh.seek(0); fh.write(old); fh.truncate()
-            raise EnvFileFail('Isi .env hasil tulis tidak terbaca sama; perubahan dibatalkan.')
+            raise EnvFileFail('The written .env does not read back the same; change reverted.')
         return sorted(changes)
 
 
 class EnvStore:
-    """Port EnvStore untuk layar Konfigurasi: membaca/menulis satu file .env + melihat variabel lingkungan proses.
-    Nilai ditulis dengan nama variabelnya (S4_…, AWS_…); pemanggil tidak tahu format file."""
+    """EnvStore port for the Configuration page: reads/writes one .env file + sees the process environment variables.
+    Values are written by their variable names (S4_…, AWS_…); the caller does not know the file format."""
 
     def __init__(self, path): self.path = path
 
@@ -99,9 +100,9 @@ class EnvStore:
 
     def exists(self): return os.path.exists(self.path)
 
-    def writable(self): return writable(self.path)   # dicari saat dipanggil (bisa diganti di uji)
+    def writable(self): return writable(self.path)   # looked up at call time (tests can replace it)
 
     def write(self, changes):
-        """{NAMA: nilai Python | None (baris dinonaktifkan)} -> daftar nama yang berubah. Gagal -> SettingsFail."""
+        """{NAME: Python value | None (line deactivated)} -> list of changed names. Failure -> SettingsFail."""
         try: return update(self.path, {k: None if v is None else fmt(v) for k, v in changes.items()})
         except EnvFileFail as e: raise SettingsFail(str(e)) from None

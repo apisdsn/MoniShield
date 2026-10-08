@@ -1,25 +1,25 @@
-"""Deteksi serangan dengan aturan OWASP Core Rule Set (CRS), kategori CAPEC (TRD §4.6, Tahap 21).
+"""Attack detection with OWASP Core Rule Set (CRS) rules, CAPEC categories (TRD §4.6, Stage 21).
 
-Cara "di skrip": aturan CRS (monishield/crs_rules.json, diolah tools/ambil_crs.py dari rilis yang dikunci) dicocokkan ke
-bagian request yang ADA di log nginx: URI, argumen query, nama berkas, User-Agent. Body POST, header lain, dan cookie
-tidak tercatat, jadi tidak diperiksa; ini bukan pengganti WAF.
+The "in-script" approach: CRS rules (monishield/crs_rules.json, built by tools/ambil_crs.py from a pinned release) are matched
+against the request parts that ARE in the nginx log: URI, query arguments, file name, User-Agent. POST body, other headers and
+cookies are not logged, so they are not checked; this is no substitute for a WAF.
 
-Seperti ModSecurity: nilai dicocokkan sebagai BYTE (UTF-8 dibaca latin-1, sehingga \\xHH di pola = satu byte), regex
-memakai DOTALL, transformasi `t:` diterapkan berurutan, skor anomali = jumlah skor keparahan aturan yang kena
-(CRITICAL 5, ERROR 4, WARNING 3, NOTICE 2), dan sebuah request dianggap serangan bila skornya mencapai ambang anomali
-masuk bawaan CRS (5). Tingkat paranoia bawaan 1 (ASUMSI S1); aturan dengan tingkat lebih tinggi tidak dipakai.
-Hasil per request: daftar ID aturan yang kena, CAPEC (yang jumlah skornya terbesar; seri -> ID aturan terkecil), keluarga
-serangan CRS, keparahan tampilan 1–3, skor. Keterbatasan: aturan libinjection (942100 SQLi, 941100 XSS) tidak bisa dijalankan
-di Python, jadi tautologi SQL klasik (' OR 1=1) baru tertangkap di tingkat paranoia 2.
+Like ModSecurity: values are matched as BYTES (UTF-8 read as latin-1, so \\xHH in a pattern = one byte), regexes use
+DOTALL, `t:` transformations are applied in order, the anomaly score = the sum of severity scores of the matched rules
+(CRITICAL 5, ERROR 4, WARNING 3, NOTICE 2), and a request counts as an attack when its score reaches the default CRS
+inbound anomaly threshold (5). Default paranoia level 1 (ASSUMPTION S1); rules of a higher level are not used.
+Result per request: list of matched rule IDs, CAPEC (the one with the largest score sum; tie -> smallest rule ID), CRS attack
+family, display severity 1–3, score. Limitation: libinjection rules (942100 SQLi, 941100 XSS) cannot run in Python,
+so the classic SQL tautology (' OR 1=1) is only caught at paranoia level 2.
 """
 import base64, functools, html, json, os, posixpath, re
 from urllib.parse import unquote_to_bytes
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCORE = {'CRITICAL': 5, 'ERROR': 4, 'WARNING': 3, 'NOTICE': 2}
-LEVEL = {'CRITICAL': 3, 'ERROR': 2, 'WARNING': 2, 'NOTICE': 1}   # tag tampilan 3 tingkat (TRD §4.6)
+LEVEL = {'CRITICAL': 3, 'ERROR': 2, 'WARNING': 2, 'NOTICE': 1}   # 3-level display tag (TRD §4.6)
 THRESHOLD = 5
-PARANOIA = 1   # diatur dari konfigurasi (attack_paranoia) lewat use(cfg); ASUMSI S1: 1
+PARANOIA = 1   # set from the configuration (attack_paranoia) via use(cfg); ASSUMPTION S1: 1
 
 
 def _load():
@@ -32,15 +32,15 @@ VERSION = f"crs-{DATA['version']}"
 
 
 def use(cfg):
-    """Pakai tingkat paranoia dari konfigurasi untuk proses ini."""
+    """Use the paranoia level from the configuration for this process."""
     global PARANOIA
     PARANOIA = max(1, min(4, int(cfg.attack_paranoia)))
 
 
-def version_key(): return f'{VERSION}-pl{PARANOIA}'   # disimpan per folder; berubah -> agregat CRS diturunkan ulang
+def version_key(): return f'{VERSION}-pl{PARANOIA}'   # stored per folder; changed -> CRS aggregates are re-derived
 
 
-# ---------------------------------------------------------------- transformasi (semua bekerja pada "byte" latin-1)
+# ---------------------------------------------------------------- transformations (all work on latin-1 "bytes")
 def _b(s): return s.encode('utf-8', 'surrogateescape').decode('latin-1')
 def _pct(m): return chr(int(m.group(1), 16))
 
@@ -81,7 +81,7 @@ def normalize_path(s, win=False):
 
 def _b64(s):
     try: return base64.b64decode(s + '=' * (-len(s) % 4), validate=False).decode('latin-1')
-    except Exception: return s   # noqa: BLE001  bukan base64: nilai apa adanya, seperti ModSecurity
+    except Exception: return s   # noqa: BLE001  not base64: value as is, like ModSecurity
 
 
 T = {
@@ -108,9 +108,9 @@ def transform(value, tfs):
     return value
 
 
-# ---------------------------------------------------------------- aturan
+# ---------------------------------------------------------------- rules
 def _trie_regex(words):
-    """Kata-kata -> satu regex berbentuk trie (awalan bersama digabung): jauh lebih cepat daripada alternasi datar."""
+    """Words -> one trie-shaped regex (shared prefixes merged): much faster than a flat alternation."""
     trie = {}
     for w in words:
         node = trie
@@ -129,7 +129,7 @@ def _trie_regex(words):
 def _matcher(r):
     op, arg = r['op'], r['arg']
     if op == 'rx': return re.compile(arg, re.S).search
-    if op == 'pm':   # @pm: tanpa beda huruf besar/kecil; kata sudah huruf kecil di crs_rules.json
+    if op == 'pm':   # @pm: case-insensitive; words are already lowercase in crs_rules.json
         rx = re.compile(_trie_regex(arg), re.S).search
         return lambda v: rx(v.lower())
     a = arg.lower() if isinstance(arg, str) else arg
@@ -139,7 +139,7 @@ def _matcher(r):
 
 @functools.lru_cache(maxsize=8)
 def rules(pl=1):
-    """Aturan aktif untuk tingkat paranoia pl: [(id, keparahan, capec, keluarga, sasaran, transformasi, pencocok)]."""
+    """Active rules for paranoia level pl: [(id, severity, capec, family, targets, transforms, matcher)]."""
     out = []
     for r in DATA['rules']:
         if r['pl'] is None or r['pl'] > pl: continue
@@ -148,7 +148,7 @@ def rules(pl=1):
     return out
 
 
-# ---------------------------------------------------------------- bagian request yang ada di log
+# ---------------------------------------------------------------- request parts present in the log
 def _args(query):
     names, values = [], []
     for part in query.split('&'):
@@ -185,12 +185,12 @@ def _ua_hits(ua, pl):
 
 
 def classify(method, path, ua, pl=1):
-    """-> dict(rules, capec, attack, severity, score) bila skor >= ambang, selain itu None. Hasil per bagian di-cache."""
+    """-> dict(rules, capec, attack, severity, score) when score >= threshold, otherwise None. Per-part results are cached."""
     hits = {h[0]: h for h in _path_hits(method, path, pl) + _ua_hits(ua, pl)}
     if not hits: return None
     score = sum(SCORE.get(h[1], 0) for h in hits.values())
     if score < THRESHOLD: return None
-    # kategori = CAPEC dengan jumlah skor terbesar di antara aturan yang kena (seri -> ID aturan terkecil); keluarga ikut aturan itu
+    # category = CAPEC with the largest score sum among matched rules (tie -> smallest rule ID); family follows that rule
     per = {}
     for rid, sev, capec, attack in hits.values():
         t = per.setdefault(capec, [0, rid, attack]); t[0] += SCORE.get(sev, 0)
@@ -203,7 +203,7 @@ MSG = {r['id']: r['msg'] for r in DATA['rules']}
 
 
 def rule_msgs(ids):
-    """{id: pesan aturan CRS (bahasa Inggris, apa adanya dari rilis)} untuk ID yang diberikan."""
+    """{id: CRS rule message (English, as is from the release)} for the given IDs."""
     return {str(i): MSG[i] for i in sorted(set(ids)) if i in MSG}
 
 

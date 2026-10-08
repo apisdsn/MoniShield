@@ -1,5 +1,5 @@
-<!-- Keterangan "(i)" (DRD §4.1 U8): muncul saat hover DAN fokus, ditutup Esc, tidak hilang saat kursor pindah ke
-     atasnya (§9.5). -->
+<!-- "(i)" tooltip (DRD §4.1 U8): appears on hover AND focus, closed by Esc, does not disappear when the pointer moves onto
+     it (§9.5). -->
 <script>
   import { t } from '../i18n.js';
   let { text } = $props();
@@ -21,7 +21,7 @@
     width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line-strong); display: grid; place-items: center;
     color: var(--muted); font-size: 0.6875rem; font-weight: 700; font-style: italic; line-height: 1;
   }
-  /* layar sentuh: area ketuk 44 px (DRD §8.2) tanpa mengubah tata letak; lingkaran tetap 18 px */
+  /* touch screens: 44 px tap area (DRD §8.2) without changing the layout; the circle stays 18 px */
   @media (max-width: 900px) { .i { width: 44px; height: 44px; margin: -13px; } }
   .box {
     position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); z-index: 30;

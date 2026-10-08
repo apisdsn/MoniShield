@@ -1,5 +1,5 @@
--- agg_hour (hour/herr lama). simpel-loop diisi dari korelasi (Tahap 6): lognya tidak bercap waktu.
--- TRD §4.4 butir 2: err nginx/frontend = 5xx + baris error log ber-level error, sehingga jumlah per jam = KPI Error.
+-- agg_hour (old hour/herr). simpel-loop is filled from correlation (Stage 6): its log has no timestamps.
+-- TRD §4.4 item 2: nginx/frontend err = 5xx + error-log lines with level error, so the per-hour sum = the Error KPI.
 DELETE FROM agg_hour WHERE folder = $f AND service <> 'om-be-simpel-loop';
 INSERT INTO agg_hour
 SELECT $f, service, date_trunc('hour', ts_utc + INTERVAL 7 HOUR) AS hour_wib, sum(total), sum(err)

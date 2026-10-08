@@ -1,8 +1,8 @@
-"""Agregat yang diturunkan dengan Python karena memakai fungsi sistem lama apa adanya (rules.py), atau
-bergantung pada urutan kemunculan dan unquote_plus() yang tidak punya padanan persis di SQL.
+"""Aggregates derived in Python because they use the old system's functions as they are (rules.py), or
+depend on order of appearance and unquote_plus(), which have no exact SQL equivalent.
 
-Masukannya hasil query kecil (baris serangan, event login, menit ber-5xx, event terkorelasi), bukan seluruh log.
-Tiap fungsi: hapus baris folder ini, sisipkan yang baru. Dipanggil di dalam transaksi pemanggil.
+Input is small query results (attack lines, login events, minutes with 5xx, correlated events), not the whole log.
+Each function: delete this folder's rows, insert the new ones. Called inside the caller's transaction.
 """
 import collections
 from urllib.parse import unquote_plus
@@ -10,14 +10,14 @@ from urllib.parse import unquote_plus
 from monishield.domain import detect, rules
 
 C = collections.Counter
-WIB = "date_trunc('minute', {} + INTERVAL 7 HOUR)::VARCHAR"  # 'YYYY-MM-DD HH:MM:SS' -> dipotong [:16] = menit WIB
+WIB = "date_trunc('minute', {} + INTERVAL 7 HOUR)::VARCHAR"  # 'YYYY-MM-DD HH:MM:SS' -> cut to [:16] = WIB minute
 MAP = 'CAST(map(?, ?) AS MAP(VARCHAR, INTEGER))'
 
 
 def _map(d): return [[str(k) for k in d], [int(v) for v in d.values()]]
 
 
-def attack(con, folder):  # lama:71 add_attack + bagian atk/atk_ip/atk_h summarize()
+def attack(con, folder):  # old:71 add_attack + the atk/atk_ip/atk_h part of summarize()
     rows = con.execute(f"""SELECT a.attack_cat, {WIB.format('a.ts_utc')}, a.ip, a.method, a.path, a.status::VARCHAR, a.bytes, a.ua, a.upstream
                            FROM nginx_access a JOIN ingest_file f USING (file_id)
                            WHERE a.folder = ? AND a.attack_cat IS NOT NULL ORDER BY f.relpath, a.line_no""", [folder]).fetchall()
@@ -41,8 +41,8 @@ def attack(con, folder):  # lama:71 add_attack + bagian atk/atk_ip/atk_h summari
     if atk_h: con.executemany('INSERT INTO agg_attack_hour VALUES (?, ?, ?)', [[folder, h + ':00:00', n] for h, n in atk_h.items()])
 
 
-def crs(con, folder):  # Tahap 21, TRD §4.6: klasifikasi OWASP CRS per pasangan unik (metode, path, UA), lalu agregat ber-CAPEC
-    """Isi kolom crs_* di nginx_access folder ini dan agg_crs_url/ip/hour. Aturan lama (attack_cat, agg_attack_*) tidak disentuh."""
+def crs(con, folder):  # Stage 21, TRD §4.6: OWASP CRS classification per unique (method, path, UA), then CAPEC aggregates
+    """Fill the crs_* columns of this folder's nginx_access and agg_crs_url/ip/hour. Old rules (attack_cat, agg_attack_*) are untouched."""
     con.execute('UPDATE nginx_access SET crs_rules = NULL, capec = NULL, crs_attack = NULL, crs_severity = NULL, crs_score = NULL '
                 'WHERE folder = ? AND crs_score IS NOT NULL', [folder])
     found = []
@@ -60,8 +60,8 @@ def crs(con, folder):  # Tahap 21, TRD §4.6: klasifikasi OWASP CRS per pasangan
                            FROM nginx_access a JOIN ingest_file f USING (file_id)
                            WHERE a.folder = ? AND a.crs_score IS NOT NULL ORDER BY f.relpath, a.line_no""", [folder]).fetchall()
     url, ipa, hour = {}, {}, C()
-    for capec, fam, sev, rids, h, ip, meth, path, st, size, ua, up in rows:   # bentuk sama dengan attack() di atas
-        h, cat = h[:16], f'{capec}/{fam}'   # kategori = CAPEC/keluarga CRS: XSS dan injeksi PHP sama-sama CAPEC-242, tetap terpisah
+    for capec, fam, sev, rids, h, ip, meth, path, st, size, ua, up in rows:   # same shape as attack() above
+        h, cat = h[:16], f'{capec}/{fam}'   # category = CAPEC/CRS family: XSS and PHP injection are both CAPEC-242, kept apart
         a = url.setdefault((cat, f'{meth} {unquote_plus(path)[:200]}'),
                            dict(n=0, ips=C(), st=C(), size=set(), up=set(), ua=ua[:100], first=h, last=h, fam=C(), sev=0, rules=set()))
         a['n'] += 1; a['ips'][ip] += 1; a['st'][st] += 1; a['size'].add(int(size)); a['up'].add(up); a['fam'][fam] += 1
@@ -80,20 +80,20 @@ def crs(con, folder):  # Tahap 21, TRD §4.6: klasifikasi OWASP CRS per pasangan
     if hour: con.executemany('INSERT INTO agg_crs_hour VALUES (?, ?, ?)', [[folder, h + ':00:00', n] for h, n in hour.items()])
 
 
-def accounts(con, folder):  # lama:251 accounts(); event login appsmanager dalam urutan baca
+def accounts(con, folder):  # old:251 accounts(); appsmanager login events in read order
     lev = con.execute(f"""SELECT {WIB.format('s.ts_utc')}, lower(split_part(s.login_account, '@', 1)), s.login_ip, s.login_kind
                           FROM spring_line s JOIN ingest_file f USING (file_id)
                           WHERE s.folder = ? AND s.service = 'om-be-appsmanager' AND s.login_kind IS NOT NULL ORDER BY f.relpath, s.line_no""", [folder]).fetchall()
     per = collections.defaultdict(list)
     for ts, user, ip, kind in lev: per[user].append((ts[:16], user, ip, kind))
-    # rules.accounts() memotong hasilnya 150 baris; dipanggil per akun agar agregat tidak terpotong (TRD K4).
+    # rules.accounts() truncates its result to 150 rows; called per account so the aggregate is not truncated (TRD K4).
     rows = [r for ev in per.values() for r in rules.accounts(ev)]
     con.execute('DELETE FROM agg_account WHERE folder = ?', [folder])
     if rows: con.executemany('INSERT INTO agg_account VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [[folder, *r] for r in rows])
 
 
-def incidents(con, folder):  # lama:271 incidents(); menit ber-5xx per (upstream, status)
-    # urut kemunculan pertama, seperti Counter lama: menentukan urutan upstream/status di dalam tiap insiden
+def incidents(con, folder):  # old:271 incidents(); minutes with 5xx per (upstream, status)
+    # order of first appearance, like the old Counter: sets the upstream/status order within each incident
     inc = {(ts[:16], up, st): n for ts, up, st, n in con.execute(
         f"""SELECT {WIB.format('a.ts_utc')} AS ts, a.upstream, a.status::VARCHAR, count(*) FROM nginx_access a JOIN ingest_file f USING (file_id)
             WHERE a.folder = ? AND a.status BETWEEN 500 AND 599 GROUP BY ALL ORDER BY min((f.relpath, a.line_no))""", [folder]).fetchall()}
@@ -102,11 +102,11 @@ def incidents(con, folder):  # lama:271 incidents(); menit ber-5xx per (upstream
     if rows: con.executemany(f'INSERT INTO agg_incident VALUES (?, ?, ?, ?, ?, {MAP}, {MAP})', [[folder, i, a, b, n, *_map(u), *_map(st)] for i, (a, b, n, u, st) in enumerate(rows, 1)])
 
 
-def correlation(con, folder):  # lama:481 correlate(); TRD §3.5
-    """Gabungkan event simpel-loop folder ini dengan request nginx (SEMUA folder) lewat request id.
+def correlation(con, folder):  # old:481 correlate(); TRD §3.5
+    """Join this folder's simpel-loop events with nginx requests (ALL folders) by request id.
 
-    Request id yang muncul lebih dari sekali: yang terakhir menurut urutan baca (relpath, line_no) yang dipakai,
-    seperti kamus REQ sistem lama. Mengisi agg_corr, agg_trace, dan agg_hour simpel-loop.
+    A request id that appears more than once: the last one in read order (relpath, line_no) is used,
+    like the old system's REQ dict. Fills agg_corr, agg_trace, and the simpel-loop agg_hour.
     """
     for t in ('agg_corr', 'agg_trace'): con.execute(f'DELETE FROM {t} WHERE folder = ?', [folder])
     con.execute("DELETE FROM agg_hour WHERE folder = ? AND service = 'om-be-simpel-loop'", [folder])
@@ -127,7 +127,7 @@ def correlation(con, folder):  # lama:481 correlate(); TRD §3.5
     for pk, st, d, failed, name, msg, ts, ip, meth, path, up, ua in con.execute(
             """SELECT pk, status, duration_ms, failed, err_name, err_message, ts::VARCHAR, ip, method, path, upstream, ua
                FROM _corr WHERE failed OR duration_ms >= 5000 ORDER BY relpath, line_no""").fetchall():
-        ts = ts[:16]; err = f'{name}: {msg}' if failed else ''  # None -> teks 'None', seperti f-string lama
+        ts = ts[:16]; err = f'{name}: {msg}' if failed else ''  # None -> the text 'None', like the old f-string; 'Lambat … dtk' stays: SQL matches LIKE 'Lambat%'
         key = (ip, st, err or f'Lambat {d / 1000:.1f} dtk', pk)
         t = tr.setdefault(key, dict(n=0, first=ts, last=ts, url=f'{meth} ' + unquote_plus(path)[:300], up=up, ua=ua[:120], d=0))
         t['n'] += 1; t['first'] = min(t['first'], ts); t['last'] = max(t['last'], ts); t['d'] = max(t['d'], d)
@@ -136,7 +136,7 @@ def correlation(con, folder):  # lama:481 correlate(); TRD §3.5
     con.execute('DROP TABLE _corr')
 
 
-def business(con, folder):  # lama:190-194 + baris teks (penghitung per file)
+def business(con, folder):  # old:190-194 + text lines (per-file counters)
     biz, act = C(), C()
     for pk, st, name, n in con.execute("SELECT method || ' ' || path_key, status::VARCHAR, err_name, count(*) FROM sl_event WHERE folder = ? GROUP BY ALL", [folder]).fetchall():
         if st[0] == '2' and pk in rules.BIZ_EP: biz[rules.BIZ_EP[pk]] += n
@@ -151,7 +151,7 @@ def business(con, folder):  # lama:190-194 + baris teks (penghitung per file)
     if act: con.executemany('INSERT INTO agg_activity VALUES (?, ?, ?)', [[folder, k, n] for k, n in act.items()])
 
 
-def jwt(con, folder):  # lama:223-224; kelompok umur lewat rules.jwt_bucket()
+def jwt(con, folder):  # old:223-224; age buckets via rules.jwt_bucket()
     out = C()
     for svc, ms, n in con.execute('SELECT service, jwt_expired_ms, count(*) FROM spring_line WHERE folder = ? AND jwt_expired_ms IS NOT NULL GROUP BY ALL', [folder]).fetchall():
         out[svc, rules.jwt_bucket(ms)] += n
@@ -165,10 +165,10 @@ STEPS = (attack, crs, accounts, incidents, correlation, business, jwt)
 
 
 def affected_by(con, changed):
-    """Folder LAIN yang event simpel-loop-nya ber-request-id sama dengan nginx di folder yang baru berubah (TRD §3.5).
+    """OTHER folders whose simpel-loop events share a request id with nginx in the folders that just changed (TRD §3.5).
 
-    ponytail: hanya menangkap kecocokan yang BERTAMBAH. Bila file nginx dihapus dari folder F, folder lain yang
-    tadinya cocok dengannya tidak disegarkan (kecocokan lintas folder = 0 pada data nyata); `derive --all` membetulkannya.
+    ponytail: only catches matches that are ADDED. When an nginx file is deleted from folder F, other folders that
+    matched it are not refreshed (cross-folder matches = 0 on real data); `derive --all` fixes it.
     """
     if not changed: return []
     marks = ', '.join('?' * len(changed))

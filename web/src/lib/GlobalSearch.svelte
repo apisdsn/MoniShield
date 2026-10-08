@@ -1,6 +1,6 @@
-<!-- Pencarian global (Tahap 24 butir 6): tombol 🔍 di kepala (juga Ctrl+K / ⌘K; "/" sudah dipakai untuk filter tabel) membuka dialog; ketik IP,
-     akun, requestId, atau potongan URL -> GET /api/search?q=…&folder=… (folder yang sedang dipilih). Hasil dikelompokkan
-     per jenis; Enter / klik membuka halaman tujuan dengan filter tabelnya terisi (?cari=…). Semua teks hasil = teks biasa. -->
+<!-- Global search (Stage 24 item 6): the 🔍 button in the header (also Ctrl+K / ⌘K; "/" is already used for the table filter) opens a dialog; type an IP,
+     account, requestId, or a URL fragment -> GET /api/search?q=…&folder=… (the currently selected folder). Results grouped
+     by kind; Enter / click opens the target page with its table filter filled in (?cari=…). All result text = plain text. -->
 <script>
   import { srv, errText } from '../srv.js';
   import { lang, t } from '../i18n.js';
@@ -15,7 +15,7 @@
   let timer, seq = 0, btn = $state();
 
   function show() { open = true; q = ''; res = null; error = null; active = 0; }
-  function onKey(e) {   // Ctrl+K / ⌘K di mana saja membuka pencarian
+  function onKey(e) {   // Ctrl+K / ⌘K anywhere opens search
     if (open || e.altKey || e.shiftKey || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'k') return;
     e.preventDefault(); show();
   }

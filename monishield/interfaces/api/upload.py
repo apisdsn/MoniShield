@@ -1,9 +1,9 @@
-"""Unggah folder log dari browser (monishield/application/upload_service.py). Admin saja (bukan token mesin), CSRF
-seperti rute ubah lain.
-  POST   /api/admin/upload                rencana: daftar {path, size} -> file yang diterima / dilewati + upload_id
-  PUT    /api/admin/upload/{id}/{i}       isi satu file (badan mentah, dialirkan ke disk, ukuran harus sama dengan rencana)
-  POST   /api/admin/upload/{id}/finish    pindah ke kotak masuk, lalu ingest folder-folder itu di latar
-  DELETE /api/admin/upload/{id}           batalkan
+"""Upload log folders from the browser (monishield/application/upload_service.py). Admin only (not the machine token), CSRF
+like the other changing routes.
+  POST   /api/admin/upload                plan: list of {path, size} -> files accepted / skipped + upload_id
+  PUT    /api/admin/upload/{id}/{i}       content of one file (raw body, streamed to disk, size must match the plan)
+  POST   /api/admin/upload/{id}/finish    move to the inbox, then ingest those folders in the background
+  DELETE /api/admin/upload/{id}           cancel
 """
 import os
 
@@ -30,7 +30,7 @@ def create(body: PlanBody, request: Request, admin=Depends(require_admin)):
 
 @router.put('/{uid}/{i}')
 async def put_file(uid: str, i: int, request: Request, admin=Depends(require_admin)):
-    """Badan permintaan dialirkan langsung ke disk (bagian HTTP, bukan aturan): ukuran harus sama dengan rencana."""
+    """The request body is streamed straight to disk (the HTTP part, not rules): the size must match the plan."""
     m = request.app.state.uploads
     e, path = m.target(uid, admin['username'], i)
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -38,13 +38,13 @@ async def put_file(uid: str, i: int, request: Request, admin=Depends(require_adm
     try:
         async for chunk in request.stream():
             n += len(chunk)
-            if n > e['size']: raise ApiError(413, 'size_mismatch', f'{e["rel"]} lebih besar dari yang direncanakan.')
+            if n > e['size']: raise ApiError(413, 'size_mismatch', f'{e["rel"]} is larger than planned.')
             await run_in_threadpool(fh.write, chunk)
     finally:
         fh.close()
     if n != e['size']:
         os.remove(path + '.part')
-        raise ApiError(400, 'size_mismatch', f'{e["rel"]}: diterima {n} byte, direncanakan {e["size"]}.')
+        raise ApiError(400, 'size_mismatch', f'{e["rel"]}: received {n} bytes, planned {e["size"]}.')
     os.replace(path + '.part', path)
     m.received(uid, i)
     return dict(i=i, bytes=n)
@@ -53,7 +53,7 @@ async def put_file(uid: str, i: int, request: Request, admin=Depends(require_adm
 @router.post('/{uid}/finish', status_code=202)
 def finish(uid: str, request: Request, admin=Depends(require_admin)):
     r = upload_service.finish(request.app.state, uid, admin['username'])
-    _audit(request, admin, 'upload.finish', f"{r['files']} file, {r['bytes']} byte ke kotak masuk: {', '.join(r['folders'])}")
+    _audit(request, admin, 'upload.finish', f"{r['files']} files, {r['bytes']} bytes to the inbox: {', '.join(r['folders'])}")
     return r
 
 

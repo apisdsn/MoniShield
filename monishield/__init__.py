@@ -1,2 +1,2 @@
-"""MoniShield v2: dashboard log dan keamanan."""
+"""MoniShield v2: log and security dashboard."""
 __version__ = '2.0.0'

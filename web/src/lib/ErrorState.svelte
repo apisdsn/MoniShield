@@ -1,4 +1,4 @@
-<!-- Gagal (DRD §6.7): kalimat untuk pengguna + "Coba lagi"; rincian teknis di bawah "Detail". role="alert". -->
+<!-- Failure (DRD §6.7): a sentence for the user + "Coba lagi"; technical details under "Detail". role="alert". -->
 <script>
   import { srv, errText } from '../srv.js';
   import { t } from '../i18n.js';

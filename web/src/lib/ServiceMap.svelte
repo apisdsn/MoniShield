@@ -1,6 +1,6 @@
-<!-- Peta di halaman layanan (DRD §3.10, ASUMSI Q5: terlipat): ingress nginx = semua alur; modul di belakang ingress =
-     alur modul itu saja. Ada alur atau tidak dibaca dari respons halaman layanan (`has_flows`); bila ada, data peta
-     diminta saat halaman dibuka dan peta (MapLibre) baru dibuat saat bagian ini dibuka. Tanpa alur: tidak tampil. -->
+<!-- Map on the service page (DRD §3.10, ASSUMPTION Q5: collapsed): nginx ingress = all flows; module behind the ingress =
+     that module's flows only. Whether there are flows is read from the service page response (`has_flows`); if there are, map data
+     is requested when the page opens and the map (MapLibre) is only created when this section is expanded. No flows: not shown. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -13,7 +13,7 @@
   $effect(() => {
     const f = folder, s = service;
     data = null; open = false;
-    if (!hasFlows) return;   // dari respons halaman layanan: tanpa alur -> tidak meminta peta (yang menjawab 404)
+    if (!hasFlows) return;   // from the service page response: no flows -> do not request the map (which answers 404)
     const q = s === NG ? '' : `?module=${encodeURIComponent(s)}`;
     api.get(`/api/folders/${encodeURIComponent(f)}/map${q}`).then((j) => { if (f === folder && s === service) data = j; }, () => {});
   });

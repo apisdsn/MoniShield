@@ -1,5 +1,5 @@
-<!-- Logo MoniShield (perisai + huruf M), satu sumber untuk halaman login, navigasi kiri, dan kepala layar sempit
-     (permintaan pemilik 2026-10-07: "logo navbar samakan seperti logo di halaman login"). Sama dengan favicon.svg. -->
+<!-- MoniShield logo (shield + letter M), a single source for the login page, left navigation, and narrow-screen header
+     (owner request 2026-10-07: "logo navbar samakan seperti logo di halaman login" — make the navbar logo match the login logo). Same as favicon.svg. -->
 <script>
   let { size = 32, glow = false } = $props();
 </script>

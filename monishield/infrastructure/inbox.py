@@ -1,14 +1,14 @@
-"""Kotak masuk untuk log dari Kafka (adapter port Inbox): baris log ditambahkan ke file dengan susunan yang SAMA dengan
-ekspor S3, <kotak masuk>/<tanggal>/<namespace>/<layanan>/log_<layanan>_<pod>_<tanggal>-00-00.log (monishield/domain/kafka_message.py)."""
+"""Inbox for logs from Kafka (Inbox port adapter): log lines are appended to files laid out the SAME as the
+S3 export, <inbox>/<date>/<namespace>/<service>/log_<service>_<pod>_<date>-00-00.log (monishield/domain/kafka_message.py)."""
 import collections, datetime, json, os
 
 from monishield.domain.kafka_message import folder_of, relpath
 
-MARK = '.kafka-feed.json'          # penanda folder kotak masuk yang diisi Kafka
+MARK = '.kafka-feed.json'          # marks an inbox folder filled by Kafka
 
 
 class Spool:
-    """Penampung baris per file; flush() menambahkannya ke file di kotak masuk."""
+    """Line buffer per file; flush() appends them to the files in the inbox."""
 
     def __init__(self, inbox):
         self.inbox, self.buf, self.n = inbox, collections.defaultdict(list), 0
@@ -19,7 +19,7 @@ class Spool:
         return f
 
     def flush(self):
-        """-> {folder: baris ditulis}."""
+        """-> {folder: lines written}."""
         out = collections.Counter()
         for rel, lines in self.buf.items():
             path = os.path.join(self.inbox, rel)

@@ -1,8 +1,8 @@
-<!-- Kelola folder log (permintaan pemilik 2026-10-07; admin, halaman Ingest & impor). GET /api/admin/folders: folder di
-     dashboard, di disk, dan yang diabaikan. "Hapus" -> dialog konfirmasi -> POST /api/admin/folders/{f}/delete:
-     data folder dihapus dari dashboard; file di kotak masuk (hasil impor S3) ikut dihapus bila dicentang; file di folder
-     log utama TIDAK pernah dihapus (hanya dibaca) — folder itu ditandai "diabaikan" agar sinkronisasi tidak
-     memasukkannya lagi. "Pulihkan" -> POST …/restore, lalu sinkronisasi memasukkannya kembali. -->
+<!-- Manage log folders (owner request 2026-10-07; admin, Ingest & import page). GET /api/admin/folders: folders in the
+     dashboard, on disk, and ignored ones. "Hapus" -> confirmation dialog -> POST /api/admin/folders/{f}/delete:
+     the folder's data is removed from the dashboard; files in the inbox (S3 import results) are deleted too when checked; files in the main
+     log folder are NEVER deleted (read-only) — that folder is marked "ignored" so sync does not
+     ingest it again. "Pulihkan" -> POST …/restore, then sync ingests it again. -->
 <script>
   import { srv, errText } from '../srv.js';
   import { onMount } from 'svelte';

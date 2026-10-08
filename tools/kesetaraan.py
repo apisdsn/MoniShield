@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Perbandingan angka v2 dengan sistem lama (TRD §9.3). Dipakai tests/test_equivalence.py dan laporan.
+"""Comparison of v2 numbers with the old system (TRD §9.3). Used by tests/test_equivalence.py and the report.
 
-E1  setiap angka di docs/00-acuan.json (statistik MENTAH sistem lama, sebelum dipotong top-N) vs query agregat v2.
-E3  pemilik jaringan tiap IP di dashboard.html lama vs tabel ip_info.
-E4  daftar TERTUTUP selisih yang diharapkan (perbaikan definisi TRD §4.4 butir 1, 2, 3, 4, 9).
+E1  every number in docs/00-acuan.json (RAW statistics of the old system, before the top-N cut) vs v2 aggregate queries.
+E3  network owner of each IP in the old dashboard.html vs the ip_info table.
+E4  CLOSED list of expected differences (definition fixes of TRD §4.4 items 1, 2, 3, 4, 9).
 
-E2  isi tiap DAFTAR di dashboard.html lama vs respons API v2 (aplikasi sungguhan, di dalam proses).
+E2  contents of each LIST in the old dashboard.html vs the v2 API responses (the real app, in process).
+The E4 measure names and statuses ('GAGAL', 'ok', …) stay in Indonesian: tests and docs look them up by these values.
 """
 import collections, json, os, sys
 
@@ -18,8 +19,8 @@ ONE = lambda con, sql, *p: con.execute(sql, list(p)).fetchone()[0]
 MAP = lambda con, sql, *p: dict(con.execute(sql, list(p)).fetchall())
 
 # --------------------------------------------------------------------------- E1
-# key -> (fungsi(con, folder, service) -> nilai). Metrik yang hanya ada di nginx bernilai 0 di layanan lain,
-# karena memang hanya nginx yang menghasilkannya (alur, serangan, pod, Uptime-Kuma, …).
+# key -> (function(con, folder, service) -> value). Metrics that only exist for nginx are 0 for other services,
+# because only nginx produces them (flows, attacks, pods, Uptime-Kuma, …).
 SVC = {}
 
 
@@ -45,7 +46,7 @@ SVC['level'] = lambda con, f, s: MAP(con, 'SELECT level, n FROM agg_level WHERE 
 SVC['jwt'] = lambda con, f, s: MAP(con, 'SELECT bucket, n FROM agg_jwt WHERE folder = ? AND service = ?', f, s)
 SVC['restart'] = lambda con, f, s: ONE(con, 'SELECT count(*) FROM v_restart WHERE folder = ? AND service = ?', f, s)
 
-# --- hanya nginx ---
+# --- nginx only ---
 NGINX_ONLY = {
     'alur_ip': 'SELECT count(*) FROM (SELECT DISTINCT ip, upstream FROM agg_flow WHERE folder = ?)',
     'alur_ip_asal': 'SELECT count(DISTINCT ip) FROM agg_flow WHERE folder = ?',
@@ -67,7 +68,7 @@ for _k, _q in NGINX_ONLY.items():
 
 SVC['serangan_kategori'] = lambda con, f, s: MAP(con, 'SELECT category, n::INT FROM v_attack_cat WHERE folder = ?', f) if s == NG else {}
 
-# --- hanya simpel-loop ---
+# --- simpel-loop only ---
 SL_ONLY = {
     'event_simpel_loop': 'SELECT count(*) FROM sl_event WHERE folder = ?',
     'lambat_1dtk': 'SELECT count(*) FROM agg_slow WHERE folder = ?',
@@ -80,9 +81,9 @@ for _k, _q in SL_ONLY.items():
 SVC['bisnis'] = lambda con, f, s: MAP(con, 'SELECT metric, n FROM agg_biz WHERE folder = ?', f) if s == SL else {}
 SVC['korelasi'] = lambda con, f, s: (list(con.execute('SELECT matched, total FROM agg_corr WHERE folder = ?', [f]).fetchone() or []) or None) if s == SL else None
 
-# --- hanya appsmanager / report ---
-# login_ip di acuan = SEMUA IP yang punya event login (gagal, reset, atau sukses); KPI 'IP dengan login gagal'
-# yang hanya menghitung fail/lock ada di tampilan, diuji di Tahap 11.
+# --- appsmanager / report only ---
+# login_ip in the reference = ALL IPs with a login event (failed, reset, or success); the 'IPs with failed logins' KPI,
+# which only counts fail/lock, is in the UI and tested in Stage 11.
 for _k, _q in {'login_ip': 'SELECT count(*) FROM agg_login_ip WHERE folder = ?',
                'login_gagal': 'SELECT coalesce(sum(fail), 0) FROM agg_login_ip WHERE folder = ?',
                'login_reset': 'SELECT coalesce(sum(lock), 0) FROM agg_login_ip WHERE folder = ?',
@@ -92,12 +93,12 @@ for _k, _q in {'login_ip': 'SELECT count(*) FROM agg_login_ip WHERE folder = ?',
 for _k, _c in (('pdf_sukses', 'ok'), ('pdf_gagal', 'fail')):
     SVC[_k] = (lambda c: lambda con, f, s: (ONE(con, f'SELECT coalesce(sum({c}), 0) FROM agg_report WHERE folder = ?', f) if s == RP else 0))(_c)
 
-# Dikecualikan dari E1 karena memang sengaja berbeda (E4) atau bukan angka tunggal.
+# Excluded from E1 because they differ on purpose (E4) or are not a single number.
 E1_LEWATI = {'jejak', 'seharusnya', 'lama'}
 
 
 def e1(con, acuan):
-    """[(folder, layanan, kunci, lama, baru)] untuk SEMUA angka acuan; hanya yang berbeda yang perlu dilihat."""
+    """[(folder, service, key, old, new)] for ALL reference numbers; only the differing ones need a look."""
     out = []
     for folder, v in acuan['days'].items():
         for svc, a in v.items():
@@ -107,22 +108,22 @@ def e1(con, acuan):
                 continue
             for k, lama in a.items():
                 if k in E1_LEWATI or k not in SVC: continue
-                if k == 'level' and svc == SL: continue      # E4 butir 4
+                if k == 'level' and svc == SL: continue      # E4 item 4
                 out.append((folder, svc, k, lama, SVC[k](con, folder, svc)))
     return out
 
 
 # --------------------------------------------------------------------------- E2
 def klien_api():
-    """Aplikasi v2 di dalam proses (TestClient) atas database nyata, sudah masuk sebagai admin. Akun di SQLite sementara."""
+    """The v2 app in process (TestClient) on the real database, signed in as admin. Accounts in a temporary SQLite."""
     import dataclasses, tempfile
     from fastapi.testclient import TestClient
     from monishield.domain import accounts
     from monishield.infrastructure import config
     from monishield.interfaces.api import app as appmod
-    accounts.SCRYPT = (10, 8, 1)   # hash murah: ini alat banding, bukan server
+    accounts.SCRYPT = (10, 8, 1)   # cheap hash: this is a comparison tool, not a server
     pw, x = 'sandi-pembanding-pertama', {'X-Requested-With': 'kesetaraan'}
-    # attack_rules='lama': kesetaraan dibuktikan dengan aturan serangan sistem lama (Tahap 21: tampilan memakai CRS)
+    # attack_rules='lama': equivalence is proven with the old system's attack rules (Stage 21: the UI uses CRS)
     c = dataclasses.replace(config.load(), auth_database_url='sqlite:///' + os.path.join(tempfile.mkdtemp(), 'auth.db'), ingest_on_start=False, attack_rules='lama',
                             cookie_secure=False, admin_user='admin', admin_password=pw, jwt_secret='rahasia-sementara-alat-pembanding-kesetaraan')
     tc = TestClient(appmod.create_app(c)); tc.__enter__()
@@ -132,22 +133,22 @@ def klien_api():
 
 
 def _beku(x):
-    """Bentuk yang bisa dibandingkan dan dihitung: angka pecahan dibulatkan, dict diurutkan."""
+    """A comparable, countable form: floats rounded, dicts sorted."""
     if isinstance(x, float): return round(x, 6)
     if isinstance(x, dict): return tuple(sorted((str(k), _beku(v)) for k, v in x.items()))
     if isinstance(x, (list, tuple)): return tuple(_beku(v) for v in x)
     return x
 
 
-def _status(d): return ' '.join(f'{c}×{n}' for c, n in sorted(d.items()))   # bentuk teks lama: '200×3 401×1'
+def _status(d): return ' '.join(f'{c}×{n}' for c, n in sorted(d.items()))   # old text form: '200×3 401×1'
 
 
 def e2(get, D):
-    """[(folder, layanan, daftar, jumlah baris lama, masalah | None)] untuk setiap daftar di D['days'].
+    """[(folder, service, list, old row count, problem | None)] for every list in D['days'].
 
-    Aturan: (1) setiap baris lama ada di daftar LENGKAP v2 dengan isi yang sama persis; (2) urutan nilai pengurut
-    N baris pertama v2 sama dengan urutan lama. Jadi urutan boleh berbeda hanya di antara baris bernilai sama,
-    dan daftar v2 boleh lebih panjang (tidak dipotong lagi, TRD K4).
+    Rules: (1) every old row is in the FULL v2 list with exactly the same content; (2) the sort-key values of the
+    first N v2 rows are in the old order. So order may differ only among rows with equal values,
+    and v2 lists may be longer (no longer truncated, TRD K4).
     """
     out = []
 
@@ -165,12 +166,12 @@ def e2(get, D):
             if sisa[r] <= 0: hilang.append(r)
             sisa[r] -= 1
         masalah = None
-        if hilang: masalah = f'{len(hilang)} baris lama tidak ada di v2, mis. {hilang[0]!r:.300}'
-        elif urut and [kunci(r) for r in lama] != [kunci(r) for r in baru[:len(lama)]]: masalah = 'urutan nilai berbeda'
+        if hilang: masalah = f'{len(hilang)} old rows missing in v2, e.g. {hilang[0]!r:.300}'
+        elif urut and [kunci(r) for r in lama] != [kunci(r) for r in baru[:len(lama)]]: masalah = 'value order differs'
         out.append((folder, svc, nama, len(lama), masalah))
 
     def sama(folder, svc, nama, lama, baru):
-        out.append((folder, svc, nama, len(lama) if hasattr(lama, '__len__') else 1, None if _beku(lama) == _beku(baru) else f'lama {lama!r:.200} vs baru {baru!r:.200}'))
+        out.append((folder, svc, nama, len(lama) if hasattr(lama, '__len__') else 1, None if _beku(lama) == _beku(baru) else f'old {lama!r:.200} vs new {baru!r:.200}'))
 
     for folder, v in D['days'].items():
         F = f'/api/folders/{folder}'
@@ -184,8 +185,8 @@ def e2(get, D):
                 sama(folder, svc, 'kosong', False, hal['available']); continue
             sama(folder, svc, 'status', s['status'], hal['status'])
             sama(folder, svc, 'hour', s['hour'], [[h, n] for h, n, _ in hal['hour'] if n])
-            if svc not in (NG, FE): sama(folder, svc, 'herr', s['herr'], {h: e for h, _, e in hal['hour'] if e})      # nginx/FE: E4 butir 2
-            if svc != SL: sama(folder, svc, 'extra', dict(s['extra']), dict(hal['levels']))                           # simpel-loop: E4 butir 4
+            if svc not in (NG, FE): sama(folder, svc, 'herr', s['herr'], {h: e for h, _, e in hal['hour'] if e})      # nginx/FE: E4 item 2
+            if svc != SL: sama(folder, svc, 'extra', dict(s['extra']), dict(hal['levels']))                           # simpel-loop: E4 item 4
             daftar(folder, svc, 'msgs', s['msgs'], [(r['msg_key'], r['n'], r['sample']) for r in tab('messages', q)])
             if s['paths']: daftar(folder, svc, 'paths', s['paths'], [(r['key'], r['n']) for r in tab('endpoints', q)])
             if s['perr']: daftar(folder, svc, 'perr', s['perr'], [(f"{r['status']} {r['key']}", r['n']) for r in tab('endpoint-errors', q)])
@@ -216,12 +217,12 @@ def e2(get, D):
                 daftar(folder, svc, 'uk_t', s['uk_t'], [(r['target'], r['n']) for r in tab('uptime-targets')])
                 pod = tab('backend-pods')
                 sama(folder, svc, 'pod', s['pod'], [[r['upstream'], r['pod'], r['requests'], r['n5xx']] for r in pod])
-                if len(s['retry']) < 30:     # daftar lama dipotong 30 (E4 butir 1): jumlah per pod hanya sebanding bila tidak terpotong
+                if len(s['retry']) < 30:     # old list cut at 30 (E4 item 1): per-pod counts are only comparable when not cut
                     lama_retry = collections.Counter()
                     for up, a, _, n in s['retry']: lama_retry[f'{up} {a}'] += n
                     sama(folder, svc, 'retry per pod', dict(lama_retry), {f"{r['upstream']} {r['pod']}": r['retries'] for r in pod if r['retries']})
                 daftar(folder, svc, 'uperr', s['uperr'], [(r['time'], r['kind'], r['pod'], r['request']) for r in tab('upstream-errors')], urut=False)
-                # 3 pod teratas: yang bernilai sama boleh berbeda urutan, jadi yang dibandingkan jumlahnya
+                # top 3 pods: equal values may be in a different order, so the counts are compared
                 daftar(folder, svc, 'flow', [(r[0], r[1], r[2], [n for _, n in r[3]]) for r in s['flow']],
                        [(r['src']['ip'], r['upstream'], r['requests'], [n for _, n in r['pods']]) for r in tab('flows')], kunci=lambda r: r[2])
             if svc == AM:
@@ -250,20 +251,20 @@ def e2(get, D):
 def cetak_e2(r2, keluar=None):
     p = lambda *a: print(*a, file=keluar or sys.stdout)
     beda = [r for r in r2 if r[4]]
-    p(f'E2 isi daftar vs API: {len(r2)} daftar ({sum(r[3] for r in r2)} baris lama) dibandingkan, berbeda: {len(beda)}')
-    for r in beda[:60]: p(f'   BEDA {r[0]} {r[1]} {r[2]}: {r[4]}')
+    p(f'E2 list contents vs API: {len(r2)} lists ({sum(r[3] for r in r2)} old rows) compared, differing: {len(beda)}')
+    for r in beda[:60]: p(f'   DIFF {r[0]} {r[1]} {r[2]}: {r[4]}')
     return not beda
 
 
 # --------------------------------------------------------------------------- E3
 def e3(con, D):
-    """[(ip, lama, baru)] pemilik jaringan. Lokasi tidak dibandingkan: sumbernya kini GeoLite2 (TRD §3.6)."""
+    """[(ip, old, new)] network owner. Location is not compared: its source is now GeoLite2 (TRD §3.6)."""
     baru = {r[0]: (r[1], r[2], r[3]) for r in con.execute('SELECT ip, asn, cc, org FROM ip_info').fetchall()}
     return [(ip, (v['asn'], v['cc'], v['org']), baru.get(ip)) for ip, v in D['ipinfo'].items()]
 
 
 def e3_lokasi(con, D):
-    """Ringkasan perbedaan lokasi DB-IP (lama) vs GeoLite2 (baru): bukan kegagalan, hanya dicatat."""
+    """Summary of location differences DB-IP (old) vs GeoLite2 (new): not a failure, only recorded."""
     baru = {r[0]: (r[1], r[2]) for r in con.execute('SELECT ip, city, country FROM ip_info WHERE lat IS NOT NULL').fetchall()}
     sama_negara = sama_kota = 0
     contoh = []
@@ -284,7 +285,7 @@ def _trace_lama(D, folder, kunci):
 
 
 def e4(con, acuan, D):
-    """[(folder, butir, ukuran, lama, baru, seharusnya, status)] — daftar TERTUTUP selisih yang diharapkan."""
+    """[(folder, item, measure, old, new, expected, status)] — CLOSED list of expected differences."""
     out = []
 
     def tambah(folder, butir, ukuran, lama, baru, seharusnya):
@@ -297,43 +298,43 @@ def e4(con, acuan, D):
         n, sl = d.get(NG) or {}, d.get(SL) or {}
         a_ng, a_sl, a_am = v.get(NG) or {}, v.get(SL) or {}, v.get(AM) or {}
         if n:
-            # butir 1: KPI yang di sistem lama dihitung dari daftar yang sudah dipotong
+            # item 1: KPIs that the old system counted from an already truncated list
             tambah(folder, 1, 'error koneksi pod', len(n.get('uperr', [])), ONE(con, 'SELECT count(*) FROM v_upstream_error WHERE folder = ?', folder), a_ng.get('error_koneksi_pod'))
             tambah(folder, 1, 'retry ke pod lain', sum(r[3] for r in n.get('retry', [])), ONE(con, 'SELECT coalesce(sum(n), 0) FROM agg_retry WHERE folder = ?', folder), a_ng.get('retry'))
             tambah(folder, 1, 'IP sumber serangan', len(n.get('atk_ip', [])), ONE(con, 'SELECT count(*) FROM agg_attack_ip WHERE folder = ?', folder), a_ng.get('serangan_ip'))
             tambah(folder, 1, 'klien 401 berulang', len(n.get('c401', [])), ONE(con, 'SELECT count(*) FROM agg_c401 WHERE folder = ?', folder), a_ng.get('klien_401'))
             tambah(folder, 1, 'alur IP (peta)', len(n.get('flow', [])), ONE(con, 'SELECT count(*) FROM (SELECT DISTINCT ip, upstream FROM agg_flow WHERE folder = ?)', folder), a_ng.get('alur_ip'))
         if d.get(AM):
-            # 'IP dengan login gagal' (batas 100) dan 'akun dianalisis' (batas 150) tidak pernah mencapai batas
-            # pada data ini, jadi nilainya memang tidak berubah; tetap diperiksa agar ketahuan bila kelak tercapai.
+            # 'IP dengan login gagal' (limit 100) and 'akun dianalisis' (limit 150) never reach their limit
+            # on this data, so their values do not change; still checked so we notice if the limit is ever reached.
             tambah(folder, 1, 'IP dengan login gagal', len(d[AM].get('login', [])), ONE(con, 'SELECT count(*) FROM agg_login_ip WHERE folder = ? AND (fail > 0 OR lock > 0)', folder), len(d[AM].get('login', [])) if len(d[AM].get('login', [])) < 100 else None)
             tambah(folder, 1, 'akun dianalisis', len(d[AM].get('acct', [])), ONE(con, 'SELECT count(*) FROM agg_account WHERE folder = ?', folder), a_am.get('akun_dianalisis'))
         if sl:
             tambah(folder, 1, 'baris jejak request', len(sl.get('trace', [])), ONE(con, 'SELECT count(*) FROM agg_trace WHERE folder = ?', folder), None)
-        # butir 2: error per jam memuat baris error log, sehingga jumlahnya = KPI Error
+        # item 2: errors per hour include error log lines, so the sum = Error KPI
         for svc in (NG, FE, AM, 'om-be-referensi', RP, 'coredns'):
             a = v.get(svc) or {}
             if not a or a.get('seharusnya', {}).get('herr_total') is None: continue
             tambah(folder, 2, f'Σ error per jam ({svc})', a['lama']['herr_total'],
                    ONE(con, 'SELECT coalesce(sum(err), 0) FROM agg_hour WHERE folder = ? AND service = ?', folder, svc), a['seharusnya']['herr_total'])
-        # butir 4: distribusi level simpel-loop memakai tingkat efektif
+        # item 4: the simpel-loop level distribution uses the effective level
         if a_sl.get('seharusnya', {}).get('level_error') is not None:
             lv = MAP(con, 'SELECT level, n FROM agg_level WHERE folder = ? AND service = ?', folder, SL)
             lama_lv = dict(sl.get('extra', []))
             for key, kolom in (('ERROR', 'level_error'), ('WARN', 'level_warn')):
                 tambah(folder, 4, f'level simpel-loop {key}', lama_lv.get(key, 0), lv.get(key, 0), a_sl['seharusnya'][kolom])
             tambah(folder, 4, 'level simpel-loop (total)', sum(lama_lv.values()), sum(lv.values()), sum(lama_lv.values()))
-        # butir 9: 'lambat >= 5 dtk' memuat jejak lambat berstatus apa pun yang tidak gagal
+        # item 9: 'slow >= 5 s' includes slow traces of any status that did not fail
         if sl and a_sl.get('seharusnya'):
             tambah(folder, 9, 'request lambat ≥ 5 dtk', a_sl['lama']['lambat_5dtk'],
                    ONE(con, "SELECT coalesce(sum(n), 0) FROM agg_trace WHERE folder = ? AND error LIKE 'Lambat%'", folder), a_sl['seharusnya']['lambat_5dtk'])
-    # butir 3: crit di frontend dihitung error (lama: warning). Tidak ada baris crit pada data ini.
+    # item 3: crit in the frontend counts as error (old: warning). There are no crit lines in this data.
     crit = ONE(con, "SELECT count(*) FROM nginx_error WHERE service = 'om-fe-inhouse' AND level IN ('crit', 'alert', 'emerg')")
     out.append(('(semua)', 3, 'baris crit/alert/emerg di frontend', 0, crit, 0, 'ok' if crit == 0 else 'ADA SELISIH: periksa'))
     return out
 
 
-# --------------------------------------------------------------------------- laporan
+# --------------------------------------------------------------------------- report
 def jalankan(db_path=None, acuan_path=None):
     import duckdb
     import ekstrak_dashboard
@@ -344,32 +345,32 @@ def jalankan(db_path=None, acuan_path=None):
 
 
 def cetak(acuan, con, D, r1, r3, r4, keluar=None):
-    p = lambda *a: print(*a, file=keluar or sys.stdout)  # dibaca saat dipanggil, bukan saat impor
+    p = lambda *a: print(*a, file=keluar or sys.stdout)  # read at call time, not at import time
     beda1 = [r for r in r1 if r[3] != r[4]]
-    p(f"E1 angka acuan: {len(r1)} angka dibandingkan ({len(acuan['days'])} folder), berbeda: {len(beda1)}")
-    for r in beda1[:40]: p(f'   BEDA {r[0]} {r[1]} {r[2]}: lama {r[3]} vs baru {r[4]}')
+    p(f"E1 reference numbers: {len(r1)} numbers compared ({len(acuan['days'])} folders), differing: {len(beda1)}")
+    for r in beda1[:40]: p(f'   DIFF {r[0]} {r[1]} {r[2]}: old {r[3]} vs new {r[4]}')
     beda3 = [r for r in r3 if r[1] != r[2]]
-    p(f'E3 pemilik jaringan IP: {len(r3)} IP dibandingkan, berbeda: {len(beda3)}')
-    for r in beda3[:10]: p(f'   BEDA {r[0]}: lama {r[1]} vs baru {r[2]}')
+    p(f'E3 IP network owner: {len(r3)} IPs compared, differing: {len(beda3)}')
+    for r in beda3[:10]: p(f'   DIFF {r[0]}: old {r[1]} vs new {r[2]}')
     lok = e3_lokasi(con, D)
-    p(f"   lokasi (sumber berganti DB-IP -> GeoLite2, bukan kegagalan): {lok['dibandingkan']} IP, negara sama "
-      f"{lok['negara_sama']} ({round(100 * lok['negara_sama'] / max(lok['dibandingkan'], 1))}%), kota sama {lok['kota_sama']}")
+    p(f"   location (source changed DB-IP -> GeoLite2, not a failure): {lok['dibandingkan']} IPs, same country "
+      f"{lok['negara_sama']} ({round(100 * lok['negara_sama'] / max(lok['dibandingkan'], 1))}%), same city {lok['kota_sama']}")
     for ip, a, b in lok['contoh'][:5]: p(f'      {ip}: DB-IP {a} -> GeoLite2 {b}')
     gagal4 = [r for r in r4 if 'GAGAL' in r[6] or 'periksa' in r[6]]
-    p(f'E4 selisih yang diharapkan: {len(r4)} pemeriksaan, tidak sesuai: {len(gagal4)}')
+    p(f'E4 expected differences: {len(r4)} checks, not matching: {len(gagal4)}')
     for butir in (1, 2, 3, 4, 9):
         rows = [r for r in r4 if r[1] == butir and r[3] != r[4]]
         if rows:
-            p(f'   butir {butir}: {len(rows)} ukuran berubah; contoh:')
-            for r in rows[:4]: p(f'      {r[0]} {r[2]}: lama {r[3]} -> baru {r[4]} (seharusnya {r[5]}) [{r[6]}]')
-    for r in gagal4: p(f'   TIDAK SESUAI {r[0]} butir {r[1]} {r[2]}: lama {r[3]} baru {r[4]} seharusnya {r[5]}')
+            p(f'   item {butir}: {len(rows)} measures changed; examples:')
+            for r in rows[:4]: p(f'      {r[0]} {r[2]}: old {r[3]} -> new {r[4]} (expected {r[5]}) [{r[6]}]')
+    for r in gagal4: p(f'   NOT MATCHING {r[0]} item {r[1]} {r[2]}: old {r[3]} new {r[4]} expected {r[5]}')
     return not beda1 and not beda3 and not gagal4
 
 
 if __name__ == '__main__':
     hasil = jalankan()
     ok = cetak(*hasil)
-    hasil[1].close()                      # E2 membuka database lewat aplikasi: lepaskan dulu koneksi baca
+    hasil[1].close()                      # E2 opens the database through the app: release the read connection first
     tc = klien_api()
     ok2 = cetak_e2(e2(lambda path: tc.get(path).json(), hasil[2]))
     tc.__exit__(None, None, None)

@@ -1,32 +1,32 @@
-"""Aturan notifikasi (murni): setelan, pemeriksaan isian, teks dua bahasa, dan penilaian kejadian per folder.
-Pengiriman: monishield/infrastructure/notify_channels.py; penjadwalan: monishield/application/alert_service.py.
+"""Notification rules (pure): settings, input validation, bilingual texts, and per-folder event evaluation.
+Delivery: monishield/infrastructure/notify_channels.py; scheduling: monishield/application/alert_service.py.
 
-Notifikasi ke Telegram, Discord, dan email (permintaan pemilik 2026-10-07: "cukup isi kredensialnya").
+Notifications to Telegram, Discord, and email (owner request 2026-10-07: "cukup isi kredensialnya" (just fill in the credentials)).
 
-Setelan (saluran + kredensialnya, kejadian yang dikirim, bahasa, alamat dashboard) ada di .env (S4_ALERT_*, S4_SMTP_*,
-TELEGRAM_BOT_TOKEN, DISCORD_WEBHOOK_URL, SMTP_PASSWORD, S4_DASHBOARD_URL); layar Konfigurasi -> Notifikasi menulis ke sana
-(monishield/application/settings_service.py). Kredensial (token bot, URL webhook, sandi SMTP) TIDAK pernah dikirim balik ke browser; hanya
-"sudah diisi".
+Settings (channels + their credentials, events sent, language, dashboard address) live in .env (S4_ALERT_*, S4_SMTP_*,
+TELEGRAM_BOT_TOKEN, DISCORD_WEBHOOK_URL, SMTP_PASSWORD, S4_DASHBOARD_URL); the Configuration page -> Notifications writes there
+(monishield/application/settings_service.py). Credentials (bot token, webhook URL, SMTP password) are NEVER sent back to the browser; only
+"set".
 
-ATURAN PROYEK: alamat IP pengguna tidak boleh dikirim ke layanan pihak ketiga. Pesan disusun dari angka agregat (jumlah
-request, jumlah IP, kategori), tanpa alamat IP; sebagai pengaman terakhir setiap pola alamat IPv4/IPv6 diganti "[IP]"
-sebelum dikirim (`scrub`).
+PROJECT RULE: user IP addresses must not be sent to third-party services. Messages are built from aggregate numbers (request
+count, IP count, categories), without IP addresses; as a last safeguard every IPv4/IPv6 address pattern is replaced by "[IP]"
+before sending (`scrub`).
 
-Kejadian:
-  spike           angka folder baru ≥ 2× rata-rata folder sebanding (Command Center `baseline`) dan bertambah minimal N
-  critical        ada request serangan berkeparahan kritis di folder baru
-  ingest_failed   ingest gagal atau ada file yang gagal di-parse
-  sync_failed     pemeriksaan sinkron S3 berakhir dengan galat / folder gagal
-  folder_missing  folder log hari ini belum ada setelah jam tertentu (WIB)
-  summary         ringkasan tiap folder baru (bawaan mati)
-Satu kejadian dikirim sekali per kunci (mis. 'spike:2026-10-06'); dicatat di tabel alert_log (riwayat di layar).
+Events:
+  spike           a number in the new folder ≥ 2× the average of comparable folders (Command Center `baseline`) and up by at least N
+  critical        critical-severity attack requests in the new folder
+  ingest_failed   ingest failed or some file failed to parse
+  sync_failed     the S3 sync check ended with an error / failed folder
+  folder_missing  today's log folder is still missing after a given hour (WIB)
+  summary         summary of each new folder (off by default)
+An event is sent once per key (e.g. 'spike:2026-10-06'); recorded in the alert_log table (history on the page).
 """
 import json, re, urllib.parse
 
 from monishield.domain.config_model import ALERT_EVENTS
 from monishield.domain.errors import Fail
 
-TELEGRAM_API = 'https://api.telegram.org'   # bawaan; alamat yang dipakai = S4_TELEGRAM_API (cfg.telegram_api)
+TELEGRAM_API = 'https://api.telegram.org'   # default; the address used = S4_TELEGRAM_API (cfg.telegram_api)
 DISCORD_HOSTS = ('discord.com', 'discordapp.com', 'ptb.discord.com', 'canary.discord.com')
 EVENTS = ALERT_EVENTS
 DEFAULT = dict(
@@ -36,15 +36,15 @@ DEFAULT = dict(
     events=dict(spike=True, critical=True, ingest_failed=True, sync_failed=True, folder_missing=True, summary=False),
     lang='id', dashboard_url='', missing_hour=10)
 SECRETS = {'telegram': ('bot_token',), 'discord': ('webhook_url',), 'email': ('password',)}
-# ambang lonjakan per angka: (kali rata-rata, tambahan minimal)
+# spike threshold per number: (times the average, minimum increase)
 SPIKE = dict(n5xx=(2, 20), errors=(2, 100), upstream_errors=(2, 20), atk_req=(2, 20), attack_ips=(2, 3), login_fail_ips=(2, 5))
 
-# IPv4; IPv6 lengkap (8 kelompok) atau ringkas (memuat '::'). Jam seperti 10:00:59 tidak cocok.
+# IPv4; IPv6 full (8 groups) or compressed (contains '::'). Times like 10:00:59 do not match.
 _IP = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b|\b(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}\b|(?:[0-9a-f]{1,4}:){1,7}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})?|::(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})', re.I)
 
 
 def scrub(text):
-    """Pengaman terakhir aturan "IP tidak ke pihak ketiga": semua pola alamat IP diganti [IP]."""
+    """Last safeguard of the "no IPs to third parties" rule: every IP address pattern is replaced by [IP]."""
     return _IP.sub('[IP]', text)
 
 
@@ -53,9 +53,9 @@ class AlertFail(Fail):
 
     def __str__(self): return self.message
 
-# ------------------------------------------------------------------ setelan
+# ------------------------------------------------------------------ settings
 def load(cfg):
-    """Setelan notifikasi dari konfigurasi server (.env) -> bentuk kamus yang dipakai modul ini dan layar."""
+    """Notification settings from the server configuration (.env) -> the dict shape used by this module and the page."""
     on = {x.strip() for x in (cfg.alert_events or '').split(',')}
     return dict(
         channels=dict(telegram=dict(enabled=cfg.alert_telegram, bot_token=cfg.telegram_bot_token, chat_id=cfg.alert_telegram_chat_id, api=cfg.telegram_api),
@@ -66,7 +66,7 @@ def load(cfg):
 
 
 def to_fields(d):
-    """Kebalikan load: kamus setelan -> {kolom konfigurasi: nilai} (untuk ditulis ke .env)."""
+    """Inverse of load: settings dict -> {config field: value} (to be written to .env)."""
     c = d['channels']
     t, dc, e = c['telegram'], c['discord'], c['email']
     return dict(alert_telegram=bool(t['enabled']), telegram_bot_token=t['bot_token'], alert_telegram_chat_id=t['chat_id'],
@@ -78,7 +78,7 @@ def to_fields(d):
 
 
 def from_db(cfg, v):
-    """Setelan lama dari basis data akun (app_setting 'alerts', sebelum dipindah ke .env) digabung ke setelan sekarang."""
+    """Old settings from the account database (app_setting 'alerts', before the move to .env) merged into the current settings."""
     out = load(cfg)
     for ch, d in (v.get('channels') or {}).items():
         if ch in out['channels']: out['channels'][ch].update({k: d[k] for k in d if k in out['channels'][ch]})
@@ -89,23 +89,23 @@ def from_db(cfg, v):
 
 
 def public(cfg):
-    """Untuk browser: kredensial hanya 'sudah diisi' (True/False), nilainya tidak pernah dikembalikan."""
+    """For the browser: credentials only as 'set' (True/False), their values are never returned."""
     out = json.loads(json.dumps(cfg))
-    out['channels']['telegram'].pop('api', None)   # alamat API dari .env, bukan isian layar
+    out['channels']['telegram'].pop('api', None)   # API address from .env, not a page field
     for ch, keys in SECRETS.items():
         for k in keys: out['channels'][ch][k] = bool(cfg['channels'][ch][k])
     return out
 
 
 def merge(cfg, body):
-    """Gabungkan isian layar ke setelan. Kolom kredensial kosong = tetap (tidak terhapus); `clear: [saluran.kolom]`
-    untuk menghapus. -> setelan baru (sudah diperiksa)."""
+    """Merge page input into the settings. Empty credential field = unchanged (not erased); `clear: [channel.field]`
+    to erase. -> new settings (validated)."""
     new = json.loads(json.dumps(cfg))
     for ch, d in (body.get('channels') or {}).items():
         if ch not in new['channels'] or not isinstance(d, dict): continue
         for k, v in d.items():
             if k not in new['channels'][ch] or k == 'api': continue
-            if k in SECRETS.get(ch, ()) and (v is None or v == '' or v is True): continue   # kosong / "sudah diisi" = tidak diubah
+            if k in SECRETS.get(ch, ()) and (v is None or v == '' or v is True): continue   # empty / "set" = unchanged
             new['channels'][ch][k] = v
     for item in body.get('clear') or []:
         ch, _, k = str(item).partition('.')
@@ -121,34 +121,34 @@ def merge(cfg, body):
 def validate(cfg):
     c = cfg['channels']
     if cfg['dashboard_url'] and not re.fullmatch(r'https?://[^\s"<>]+', cfg['dashboard_url']):
-        raise AlertFail('Alamat dashboard harus diawali http:// atau https://.')
-    if not 0 <= int(cfg['missing_hour']) <= 23: raise AlertFail('Jam pemeriksaan folder harus 0–23.')
+        raise AlertFail('Dashboard address must start with http:// or https://.')
+    if not 0 <= int(cfg['missing_hour']) <= 23: raise AlertFail('Folder check hour must be 0–23.')
     t = c['telegram']
     t['bot_token'], t['chat_id'] = str(t['bot_token']).strip(), str(t['chat_id']).strip()
     if t['bot_token'] and not re.fullmatch(r'\d{5,15}:[A-Za-z0-9_-]{20,80}', t['bot_token']):
-        raise AlertFail('Token bot Telegram tidak berbentuk 123456789:ABC… (dari @BotFather).')
+        raise AlertFail('Telegram bot token is not of the form 123456789:ABC… (from @BotFather).')
     if t['chat_id'] and not re.fullmatch(r'-?\d{3,20}|@[A-Za-z][A-Za-z0-9_]{4,31}', t['chat_id']):
-        raise AlertFail('Chat ID Telegram harus angka (mis. -1001234567890) atau @nama_kanal.')
-    if t['enabled'] and not (t['bot_token'] and t['chat_id']): raise AlertFail('Telegram aktif tetapi token bot / chat ID belum diisi.')
+        raise AlertFail('Telegram chat ID must be a number (e.g. -1001234567890) or @channel_name.')
+    if t['enabled'] and not (t['bot_token'] and t['chat_id']): raise AlertFail('Telegram is on but the bot token / chat ID is not set.')
     d = c['discord']
     d['webhook_url'] = str(d['webhook_url']).strip()
     if d['webhook_url']:
         u = urllib.parse.urlsplit(d['webhook_url'])
         if u.scheme != 'https' or u.hostname not in DISCORD_HOSTS or not u.path.startswith('/api/webhooks/'):
-            raise AlertFail('URL webhook Discord harus https://discord.com/api/webhooks/… (Pengaturan kanal → Integrasi → Webhook).')
-    if d['enabled'] and not d['webhook_url']: raise AlertFail('Discord aktif tetapi URL webhook belum diisi.')
+            raise AlertFail('Discord webhook URL must be https://discord.com/api/webhooks/… (Channel settings → Integrations → Webhooks).')
+    if d['enabled'] and not d['webhook_url']: raise AlertFail('Discord is on but the webhook URL is not set.')
     e = c['email']
     for k in ('host', 'username', 'sender', 'to'): e[k] = str(e[k] or '').strip()
     e['port'] = int(e['port'] or 0)
-    if e['security'] not in ('starttls', 'ssl', 'none'): raise AlertFail('Keamanan SMTP harus starttls, ssl, atau none.')
-    if e['host'] and not re.fullmatch(r'[A-Za-z0-9.-]{1,253}', e['host']): raise AlertFail('Server SMTP tidak sah.')
+    if e['security'] not in ('starttls', 'ssl', 'none'): raise AlertFail('SMTP security must be starttls, ssl, or none.')
+    if e['host'] and not re.fullmatch(r'[A-Za-z0-9.-]{1,253}', e['host']): raise AlertFail('Invalid SMTP server.')
     if e['to'] and not all(re.fullmatch(r'[^@\s,]+@[^@\s,]+\.[^@\s,]+', x.strip()) for x in e['to'].split(',') if x.strip()):
-        raise AlertFail('Penerima email harus alamat email, dipisah koma.')
+        raise AlertFail('Email recipients must be email addresses, comma-separated.')
     if e['enabled'] and not (e['host'] and 1 <= e['port'] <= 65535 and e['sender'] and e['to']):
-        raise AlertFail('Email aktif tetapi server SMTP / port / pengirim / penerima belum lengkap.')
+        raise AlertFail('Email is on but the SMTP server / port / sender / recipient is incomplete.')
 
 
-# ------------------------------------------------------------------ teks (dua bahasa; nama metrik dari kamus kecil ini)
+# ------------------------------------------------------------------ texts (bilingual; metric names from this small dictionary)
 T = dict(
     id=dict(spike='Lonjakan di folder {d}', critical='Serangan kritis di folder {d}', ingest_failed='Ingest gagal',
             sync_failed='Sinkron S3 bermasalah', folder_missing='Folder log {d} belum datang', summary='Ringkasan folder {d}',
@@ -176,10 +176,10 @@ def _link(cfg, folder, tab='peta'):
     return f"\n{_t(cfg, 'open')}: {cfg['dashboard_url'].rstrip('/')}/#/{tab}?folder={folder}" if cfg['dashboard_url'] else ''
 
 
-# ------------------------------------------------------------------ penilaian
+# ------------------------------------------------------------------ evaluation
 def folder_events(cfg, folder, facts):
-    """Kejadian untuk satu folder: [(event, key, judul, teks)]. facts = angka agregat folder (tanpa IP), dari gudang data:
-    dict(kpi=<KPI Command Center>, base=<pembanding rata-rata>, ngx_keys=<kunci KPI ingress>, crit_cats=[kategori teratas])."""
+    """Events for one folder: [(event, key, title, text)]. facts = the folder's aggregate numbers (no IPs), from the warehouse:
+    dict(kpi=<Command Center KPI>, base=<average baseline>, ngx_keys=<ingress KPI keys>, crit_cats=[top categories])."""
     a, b, ngx_keys = facts['kpi'], facts['base'], facts['ngx_keys']
     lang, out = cfg['lang'], []
     vals = dict(a['kpi'], atk_req=a['atk_req'])
@@ -204,7 +204,7 @@ def folder_events(cfg, folder, facts):
 
 
 def ingest_failed(cfg, result, error):
-    """Kejadian ingest gagal -> (key, judul, teks) atau None."""
+    """Ingest-failed event -> (key, title, text) or None."""
     if not ((error or (result and result.get('files_failed'))) and cfg['events']['ingest_failed']): return None
     rid = (result or {}).get('run_id', '?')
     text = '\n'.join(x for x in [_t(cfg, 'run', id=rid), error or '', _t(cfg, 'failed_files', n=result['files_failed']) if result and result.get('files_failed') else ''] if x)
@@ -212,7 +212,7 @@ def ingest_failed(cfg, result, error):
 
 
 def sync_failed(cfg, res):
-    """Kejadian sinkron S3 bermasalah -> (key, judul, teks) atau None."""
+    """S3 sync problem event -> (key, title, text) or None."""
     if not cfg['events']['sync_failed'] or not (res.get('errors') or res.get('failed')): return None
     lines = [f"• {e.get('where') + ': ' if e.get('where') else ''}{e.get('message', '')}" for e in res.get('errors', [])]
     if res.get('failed'): lines.append(_t(cfg, 'folders', list=', '.join(res['failed'])))
@@ -220,7 +220,7 @@ def sync_failed(cfg, res):
 
 
 def folder_missing(cfg, now_wib, newest):
-    """Folder bertanggal hari ini (WIB) belum ada setelah `missing_hour` -> (key, judul, teks) atau None."""
+    """Folder dated today (WIB) still missing after `missing_hour` -> (key, title, text) or None."""
     if not cfg['events']['folder_missing'] or now_wib.hour < int(cfg['missing_hour']): return None
     today = now_wib.date().isoformat()
     if newest is None or str(newest) >= today: return None

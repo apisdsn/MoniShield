@@ -1,7 +1,7 @@
-<!-- Kelola user (DRD §3.11, TRD §8.4), hanya admin: tabel user + menu aksi per baris (Ubah, Reset sandi,
-     Nonaktifkan/Aktifkan, Hapus) dan dialog. Di atas API Tahap 10 (/api/admin/users). Yang tidak ditawarkan (nonaktif
-     dengan sebabnya): menghapus atau menonaktifkan diri sendiri, menghapus/menurunkan/menonaktifkan admin aktif
-     terakhir. Sandi sementara hasil reset ditampilkan SEKALI dan tidak disimpan di mana pun. -->
+<!-- Manage users (DRD §3.11, TRD §8.4), admin only: user table + per-row action menu (Edit, Reset password,
+     Deactivate/Activate, Delete) and dialogs. On top of the Stage 10 API (/api/admin/users). Not offered (disabled
+     with the reason): deleting or deactivating yourself, deleting/demoting/deactivating the last active
+     admin. The temporary password from a reset is shown ONCE and not stored anywhere. -->
 <script>
   import { errText as srvErr } from '../srv.js';
   import { onMount } from 'svelte';
@@ -29,7 +29,7 @@
   const activeAdmins = $derived((users || []).filter((u) => u.role === 'admin' && u.active).length);
   const lastAdmin = (u) => u.role === 'admin' && u.active && activeAdmins <= 1;
   const isMe = (u) => u.username === me.username;
-  // galat server per kode -> kamus (pesan server berbahasa Indonesia); kode lain: pesan server apa adanya
+  // server errors per code -> dictionary (server messages in Indonesian); other codes: the server message as is
   const errText = (e) => (e.status === 0 ? $t('state.error_network') : ['invalid_username', 'invalid_password', 'username_taken', 'last_admin', 'self_delete', 'not_found', 'invalid_role'].includes(e.code)
     ? $t(`adm.err.${e.code}`, { n: PW_MIN }) : $srvErr(e));
 
@@ -81,9 +81,9 @@
     () => { open = false; toast($t(active ? 'adm.done.activate' : 'adm.done.deactivate', { user: u.username })); });
   const remove = (u) => act(() => api.del(`/api/admin/users/${u.user_id}`), () => { open = false; toast($t('adm.done.delete', { user: u.username })); });
   async function copy() {
-    try { await navigator.clipboard.writeText(temp); toast($t('adm.copied')); } catch { /* izin papan klip ditolak: sandi tetap terlihat untuk disalin manual */ }
+    try { await navigator.clipboard.writeText(temp); toast($t('adm.copied')); } catch { /* clipboard permission denied: the password stays visible to copy manually */ }
   }
-  function closed() { temp = ''; dlg = null; }   // sandi sementara dibuang dari memori halaman begitu dialog ditutup
+  function closed() { temp = ''; dlg = null; }   // the temporary password is dropped from page memory as soon as the dialog closes
 
   function items(u) {
     const no = (cond, why) => (cond ? why : null);

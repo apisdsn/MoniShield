@@ -1,4 +1,4 @@
--- agg_c401: klien dengan 401 berulang per (IP, endpoint); puncak = jumlah terbanyak dalam satu menit WIB.
+-- agg_c401: clients with repeated 401 per (IP, endpoint); peak = highest count within one WIB minute.
 DELETE FROM agg_c401 WHERE folder = $f;
 INSERT INTO agg_c401
 SELECT $f, ip, key, sum(n)::BIGINT, max(n), min(minute_wib), max(minute_wib)

@@ -1,15 +1,15 @@
-"""Penyimpanan sesi unggah folder log dari browser: tiap file ke direktori sementara, lalu "selesai": ekstrak .gz dan
-pindah ke kotak masuk (ingest oleh pemanggil). Aturan jalur dan batas: monishield/domain/uploads.py."""
+"""Storage for browser log-folder upload sessions: each file to a temp directory, then "finish": extract .gz and
+move into the inbox (ingest by the caller). Path rules and limits: monishield/domain/uploads.py."""
 import os, shutil, threading, time, uuid
 
 from monishield.domain.s3_import import ImportFail
 from monishield.infrastructure import importer
 
-# sesi unggah yang ditinggalkan (tab ditutup) dibersihkan setelah cfg.upload_session_hours (S4_UPLOAD_SESSION_HOURS)
+# abandoned upload sessions (tab closed) are cleaned up after cfg.upload_session_hours (S4_UPLOAD_SESSION_HOURS)
 
 
 class Uploads:
-    """Sesi unggah di memori proses: id -> rencana + file yang sudah diterima. Satu sesi = satu pilihan folder."""
+    """Upload sessions in process memory: id -> plan + files received so far. One session = one folder selection."""
 
     def __init__(self, cfg):
         self.cfg, self._lock, self.sessions = cfg, threading.Lock(), {}
@@ -25,24 +25,24 @@ class Uploads:
 
     def get(self, uid, by):
         s = self.sessions.get(uid) if isinstance(uid, str) else None
-        if not s or s['by'] != by: raise ImportFail('not_found', 'Sesi unggah tidak ditemukan (kedaluwarsa atau milik admin lain).', 404)
+        if not s or s['by'] != by: raise ImportFail('not_found', 'Upload session not found (expired or owned by another admin).', 404)
         return s
 
     def target(self, uid, by, i):
-        """-> (entri rencana, path tujuan sementara) untuk file ke-i (indeks pilihan browser)."""
+        """-> (plan entry, temporary target path) for file i (browser selection index)."""
         s = self.get(uid, by)
         e = next((f for f in s['files'] if f['i'] == i), None)
-        if e is None: raise ImportFail('not_found', 'File ini tidak termasuk rencana unggahan.', 404)
+        if e is None: raise ImportFail('not_found', 'This file is not part of the upload plan.', 404)
         return e, os.path.join(self._dir(uid), *e['rel'].split('/'))
 
     def received(self, uid, i):
         with self._lock: self.sessions[uid]['got'].add(i)
 
     def finish(self, uid, by):
-        """Semua file sudah diterima -> ekstrak .gz (bila S4_IMPORT_EXTRACT) -> pindah ke kotak masuk. -> ringkasan."""
+        """All files received -> extract .gz (if S4_IMPORT_EXTRACT) -> move into the inbox. -> summary."""
         s = self.get(uid, by)
         missing = [f['rel'] for f in s['files'] if f['i'] not in s['got']]
-        if missing: raise ImportFail('incomplete', f'{len(missing)} file belum terunggah (mis. {missing[0]}).', 409)
+        if missing: raise ImportFail('incomplete', f'{len(missing)} files not uploaded yet (e.g. {missing[0]}).', 409)
         base, cfg, extracted = self._dir(uid), self.cfg, 0
         try:
             for f in s['files']:
@@ -53,13 +53,13 @@ class Uploads:
             folders = sorted({f['folder'] for f in s['files']})
             os.makedirs(cfg.inbox_dir, exist_ok=True)
             for d in folders:
-                for f in (x for x in s['files'] if x['folder'] == d):   # per file (atomik per file): folder yang sudah ada ikut diperbarui
+                for f in (x for x in s['files'] if x['folder'] == d):   # per file (atomic per file): existing folders get updated too
                     kept = f.get('stored', f['rel'])
                     a, b = os.path.join(base, *kept.split('/')), os.path.join(cfg.inbox_dir, *kept.split('/'))
                     os.makedirs(os.path.dirname(b), exist_ok=True)
                     os.replace(a, b)
-                    if kept != f['rel']: importer._rm(os.path.join(cfg.inbox_dir, *f['rel'].split('/')))   # .gz lama tidak dipakai lagi
-                    elif kept.endswith('.gz'): importer._rm(b[:-3])   # .log lama bernama sama akan menang saat ingest: buang
+                    if kept != f['rel']: importer._rm(os.path.join(cfg.inbox_dir, *f['rel'].split('/')))   # the old .gz is no longer used
+                    elif kept.endswith('.gz'): importer._rm(b[:-3])   # an old .log with the same name would win at ingest: remove it
         finally:
             self.drop(uid)
         return dict(folders=folders, files=len(s['files']), bytes=sum(f['size'] for f in s['files']), extracted=extracted)
@@ -71,6 +71,6 @@ class Uploads:
     def _expire(self):
         old = [u for u, s in list(self.sessions.items()) if time.time() - s['at'] > self.cfg.upload_session_hours * 3600]
         for u in old: self.drop(u)
-        tmp = os.path.join(self.cfg.data_dir, 'tmp')   # sisa sesi dari proses sebelumnya (server dimulai ulang)
+        tmp = os.path.join(self.cfg.data_dir, 'tmp')   # leftover sessions from a previous process (server restarted)
         for d in os.listdir(tmp) if os.path.isdir(tmp) else []:
             if d.startswith('upload-') and d[7:] not in self.sessions: shutil.rmtree(os.path.join(tmp, d), ignore_errors=True)

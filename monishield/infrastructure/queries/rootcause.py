@@ -1,4 +1,4 @@
-"""Halaman Akar Masalah (TRD §5.3)."""
+"""Root Cause page (TRD §5.3)."""
 
 from monishield.infrastructure.queries.sql import _all, _one
 from .tables import first, services
@@ -9,7 +9,7 @@ JWT_OLD = ('1–24 Jam', '1–7 Hari', '> 7 Hari')
 def rootcause(cur, folder):
     jwt, refresh = {}, {}
     for s, b, n in _all(cur, 'SELECT service, bucket, n FROM agg_jwt WHERE folder = ? ORDER BY service', folder):
-        if b == 'Refresh Token Kedaluwarsa': refresh[s] = n     # TRD §4.4 butir 10: kini ditampilkan
+        if b == 'Refresh Token Kedaluwarsa': refresh[s] = n     # TRD §4.4 item 10: now shown
         else: jwt.setdefault(s, {})[b] = n
     pdf = cur.execute('SELECT coalesce(sum(ok), 0), coalesce(sum(fail), 0), count(*) FILTER (WHERE fail > 0) FROM agg_report WHERE folder = ?', [folder]).fetchone()
     return dict(

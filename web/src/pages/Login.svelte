@@ -1,5 +1,5 @@
-<!-- Layar Masuk (DRD §3.11, §6.9): satu kartu di tengah, tanpa sidebar; bahasa dan tema bisa diganti di sini.
-     Pesan gagal satu kalimat yang sama untuk nama maupun sandi salah; role="alert" dan fokus kembali ke sandi. -->
+<!-- Login screen (DRD §3.11, §6.9): one centered card, no sidebar; language and theme can be changed here.
+     The failure message is the same single sentence for a wrong name or password; role="alert" and focus returns to the password. -->
 <script>
   import Logo from '../lib/Logo.svelte';
   import { tick } from 'svelte';
@@ -20,7 +20,7 @@
       password = '';
       onlogin(me);
     } catch (err) {
-      const menit = /(\d+)\s*menit/.exec(err.message || '')?.[1];
+      const menit = /(\d+)\s*(?:minutes?|menit)/.exec(err.message || '')?.[1];
       error = err.code === 'too_many_attempts' ? (menit ? $t('login.too_many', { n: menit }) : $t('login.too_many_soon'))
         : err.code === 'invalid_credentials' ? $t('login.invalid')
         : err.status === 0 ? $t('state.error_network') : $t('state.error_text');
@@ -34,7 +34,7 @@
 </script>
 
 <div class="screen">
-  <!-- perisai besar di belakang form (desain pemilik 2026-10-07): garis tepi teal tebal, isi gelap bernuansa teal -->
+  <!-- large shield behind the form (owner design 2026-10-07): thick teal outline, dark teal-tinted fill -->
   <svg class="bgshield" viewBox="0 0 100 120" aria-hidden="true" focusable="false">
     <path d="M50 4C61 12 78 16.5 95 17.5V54C95 85 75 104 50 116C25 104 5 85 5 54V17.5C22 16.5 39 12 50 4Z" />
   </svg>
@@ -70,7 +70,7 @@
 <style>
   .screen { min-height: 100vh; display: grid; place-items: center; padding: 72px 16px 32px; position: relative; overflow: hidden; }
   .prefs { position: absolute; top: 16px; left: 16px; display: flex; gap: 8px; z-index: 2; }
-  /* perisai latar: tidak transparan; ukurannya mengikuti layar, kartu login di tengahnya */
+  /* background shield: not transparent; its size follows the screen, the login card in its center */
   .bgshield {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 0; pointer-events: none;
     width: clamp(340px, 46vw, 620px); height: auto; overflow: visible;
@@ -80,7 +80,7 @@
     fill: color-mix(in srgb, var(--accent) 7%, var(--bg)); stroke: color-mix(in srgb, var(--accent) 40%, var(--bg));
     stroke-width: 4.2; stroke-linejoin: round;
   }
-  @media (max-width: 600px) { .bgshield { width: 150vw; } }   /* ponsel: perisai lebih lebar dari kartu agar puncak/ujungnya terlihat */
+  @media (max-width: 600px) { .bgshield { width: 150vw; } }   /* phone: shield wider than the card so its top/tip are visible */
   .login { position: relative; z-index: 1; width: 100%; max-width: 380px; padding: 28px 26px; }
   .brand { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; margin-bottom: 14px; }
   h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: 0.01em; color: var(--heading); }

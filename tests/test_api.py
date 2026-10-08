@@ -1,4 +1,4 @@
-"""Kerangka API (TRD §5.1–§5.2, §5.5–§5.6, §8, §9.5–§9.6): masuk, sesi, peran, CSRF, header, validasi, ingest dalam proses."""
+"""API skeleton (TRD §5.1–§5.2, §5.5–§5.6, §8, §9.5–§9.6): login, session, role, CSRF, headers, validation, in-process ingest."""
 import dataclasses, os, time, urllib.parse
 
 import duckdb, pytest
@@ -30,8 +30,8 @@ def cfg(tmp_path_factory):
 
 @pytest.fixture
 def client(cfg, auth_url, monkeypatch):
-    """Aplikasi baru dengan basis data akun kosong tiap uji (data log dipakai bersama, hanya dibaca)."""
-    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))   # hash murah agar uji cepat; biaya asli diukur di docs/04a
+    """New app with an empty account database for each test (log data is shared, read-only)."""
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))   # cheap hash so tests are fast; the real cost is measured in docs/04a
     c = dataclasses.replace(cfg, auth_database_url=auth_url)
     with TestClient(appmod.create_app(c)) as tc:
         yield tc
@@ -44,7 +44,7 @@ def masuk(tc, username='admin', password=PW):
 
 
 def admin(tc):
-    """Admin pertama wajib mengganti sandi dulu."""
+    """The first admin must change the password first."""
     masuk(tc)
     assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
     return tc
@@ -57,7 +57,7 @@ def buat_user(tc, username='rina', role='user', password='sandi-awal-rina-123'):
 
 
 def sebagai(cfg_client, username, password, baru='sandi-baru-milik-user'):
-    """Klien terpisah yang masuk sebagai user lain dan sudah mengganti sandi awalnya."""
+    """Separate client logged in as another user who has already changed their initial password."""
     tc = TestClient(cfg_client.app)
     masuk(tc, username, password)
     assert tc.post('/api/me/password', json=dict(old_password=password, new_password=baru), headers=X).status_code == 200
@@ -67,7 +67,7 @@ def sebagai(cfg_client, username, password, baru='sandi-baru-milik-user'):
 def kode(r): return r.json().get('error', {}).get('code')
 
 
-# ------------------------------------------------------------------ dasar
+# ------------------------------------------------------------------ basics
 def test_health_tanpa_sesi_tanpa_data(client):
     r = client.get('/api/health')
     assert r.status_code == 200 and r.json() == {'ok': True}
@@ -91,16 +91,16 @@ def test_format_galat(client):
     assert r.status_code == 404 and set(r.json()) == {'error'} and set(r.json()['error']) == {'code', 'message'}
 
 
-# ------------------------------------------------------------------ masuk dan sesi
+# ------------------------------------------------------------------ login and session
 def test_masuk_cookie_dan_wajib_ganti_sandi(client):
     r = masuk(client)
     assert r.json() == dict(username='admin', display_name='Administrator', role='admin', must_change_password=True, session_idle_minutes=60)
     ck = r.headers['set-cookie'].lower()
-    assert 's4_session=' in ck and 'httponly' in ck and 'samesite=strict' in ck and 'path=/' in ck and 'secure' not in ck  # cookie_secure=False di uji
+    assert 's4_session=' in ck and 'httponly' in ck and 'samesite=strict' in ck and 'path=/' in ck and 'secure' not in ck  # cookie_secure=False in tests
     assert PW not in r.text and client.get('/api/me').json()['must_change_password'] is True
-    assert client.get('/api/me').json()['session_idle_minutes'] == 60                  # dasar peringatan sesi di tampilan (DRD §6.9)
+    assert client.get('/api/me').json()['session_idle_minutes'] == 60                  # basis for the session warning in the UI (DRD §6.9)
     r = client.get('/api/meta')
-    assert (r.status_code, kode(r)) == (403, 'must_change_password')            # hanya /api/me dan ganti sandi yang boleh
+    assert (r.status_code, kode(r)) == (403, 'must_change_password')            # only /api/me and change password are allowed
     assert client.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
     assert client.get('/api/meta').status_code == 200 and client.get('/api/me').json()['must_change_password'] is False
 
@@ -132,22 +132,22 @@ def test_keluar_mencabut_sesi(client):
 
 
 def test_csrf_header_dan_origin(client):
-    assert kode(client.post('/api/auth/login', json=dict(username='admin', password=PW))) == 'csrf'          # tanpa X-Requested-With
+    assert kode(client.post('/api/auth/login', json=dict(username='admin', password=PW))) == 'csrf'          # without X-Requested-With
     admin(client)
     assert kode(client.post('/api/admin/users', json=dict(username='x1x', password='sandi-awal-12345'))) == 'csrf'
     r = client.post('/api/admin/users', json=dict(username='x1x', password='sandi-awal-12345'), headers={**X, 'Origin': 'https://jahat.example'})
     assert (r.status_code, kode(r)) == (403, 'csrf')
     assert client.post('/api/admin/users', json=dict(username='x1x', password='sandi-awal-12345'), headers={**X, 'Origin': 'http://testserver'}).status_code == 201
-    assert client.get('/api/admin/users').status_code == 200                                                  # GET tidak butuh header
+    assert client.get('/api/admin/users').status_code == 200                                                  # GET needs no header
 
 
-# ------------------------------------------------------------------ peran
+# ------------------------------------------------------------------ roles
 def test_user_melihat_dashboard_tetapi_bukan_admin(client):
     admin(client); u = buat_user(client)
     assert u['role'] == 'user' and u['must_change_password'] is True
     tc = sebagai(client, 'rina', 'sandi-awal-rina-123')
     a, b = client.get(f'/api/folders/{B}').json(), tc.get(f'/api/folders/{B}').json()
-    assert a == b and len(b['services']) == 7                                    # user melihat hal yang sama dengan admin
+    assert a == b and len(b['services']) == 7                                    # user sees the same as admin
     assert tc.get('/api/meta').status_code == 200
     for method, path in (('get', '/api/admin/users'), ('get', '/api/admin/audit'), ('get', '/api/admin/ingest/status'), ('post', '/api/admin/ingest'),
                          ('post', '/api/admin/derive'), ('post', '/api/admin/forget'), ('post', '/api/admin/users')):
@@ -156,7 +156,7 @@ def test_user_melihat_dashboard_tetapi_bukan_admin(client):
 
 
 def test_matriks_peran_mencakup_semua_rute(client):
-    """Untuk SETIAP rute: tanpa sesi / user / admin / token mesin -> diterima atau ditolak sesuai TRD §8.3."""
+    """For EVERY route: no session / user / admin / machine token -> accepted or rejected per TRD §8.3."""
     admin(client); buat_user(client)
     user = sebagai(client, 'rina', 'sandi-awal-rina-123')
     anon, mesin = TestClient(client.app), TestClient(client.app)
@@ -165,10 +165,10 @@ def test_matriks_peran_mencakup_semua_rute(client):
     ditolak = {'unauthenticated', 'forbidden', 'must_change_password'}
     rute = appmod.check_roles(appmod.ROUTERS)
     assert len(rute) >= 28 and {'/api/trends', '/api/folders/{folder}/tables/{table}', '/api/folders/{folder}/services/{service}'} <= {r.path for r in rute}
-    for r in sorted(rute, key=lambda r: r.path == '/api/auth/logout'):            # keluar diuji paling akhir
+    for r in sorted(rute, key=lambda r: r.path == '/api/auth/logout'):            # logout is tested last
         dep = next(d for d in (common.require_admin_or_job, common.require_admin, common.require_user_ready, common.require_user, common.public)
                    if d in set(appmod._deps(r.dependant)))
-        f = '2030-01-01' if r.path.startswith('/api/admin/folders/') else B   # rute hapus/pulihkan folder: tanggal yang tidak ada (jangan hapus data uji)
+        f = '2030-01-01' if r.path.startswith('/api/admin/folders/') else B   # folder delete/restore routes: a date that does not exist (do not delete test data)
         path = r.path.replace('{folder}', f).replace('{user_id}', '999999').replace('{job_id}', '999999').replace('{table}', 'c401').replace('{service}', NG)
         method = sorted(r.methods)[0].lower()
         for i, (tc, hdr) in enumerate(((anon, X), (user, X), (client, X), (mesin, {**X, 'Authorization': f'Bearer {TOKEN}'}))):
@@ -193,10 +193,10 @@ def test_rute_tanpa_deklarasi_peran_menolak_mulai():
     from fastapi import APIRouter
     r = APIRouter(prefix='/api')
     r.add_api_route('/bocor', lambda: {'data': 'rahasia'}, methods=['GET'])
-    with pytest.raises(RuntimeError, match='tanpa deklarasi peran'): appmod.check_roles((*appmod.ROUTERS, r))
+    with pytest.raises(RuntimeError, match='without a role declaration'): appmod.check_roles((*appmod.ROUTERS, r))
 
 
-# ------------------------------------------------------------------ kelola user
+# ------------------------------------------------------------------ user management
 def test_kelola_user(client):
     admin(client); u = buat_user(client, 'budi')
     assert [x['username'] for x in client.get('/api/admin/users').json()['users']] == ['admin', 'budi']
@@ -207,7 +207,7 @@ def test_kelola_user(client):
     tc = TestClient(client.app); masuk(tc, 'budi', 'sandi-awal-rina-123')
     r = client.post(f"/api/admin/users/{u['user_id']}/reset-password", headers=X)
     temp = r.json()['temporary_password']
-    assert len(temp) >= 12 and tc.get('/api/me').status_code == 401                # sesi budi langsung berakhir
+    assert len(temp) >= 12 and tc.get('/api/me').status_code == 401                # budi's session ends immediately
     masuk(tc, 'budi', temp)
     assert client.patch(f"/api/admin/users/{u['user_id']}", json=dict(active=False), headers=X).json()['active'] is False
     assert tc.get('/api/me').status_code == 401
@@ -223,33 +223,33 @@ def test_kelola_user(client):
     assert temp not in str(audit) and PW2 not in str(audit)
 
 
-# ------------------------------------------------------------------ meta dan folder
+# ------------------------------------------------------------------ meta and folders
 def test_meta(client):
     admin(client)
     m = client.get('/api/meta').json()
-    assert [f['folder'] for f in m['folders']] == [B, A]                           # terbaru dulu
+    assert [f['folder'] for f in m['folders']] == [B, A]                           # newest first
     b = m['folders'][0]
     assert (b['lines'], b['services'], b['files'], b['files_empty'], b['files_corrupt']) == (38, 7, 7, 1, 1)
-    assert (b['range_start'], b['range_end']) == ('2026-09-25 23:04', '2026-09-28 23:15')   # WIB; dari baris akses dan Spring (bukan error log)
+    assert (b['range_start'], b['range_end']) == ('2026-09-25 23:04', '2026-09-28 23:15')   # WIB; from access and Spring lines (not error logs)
     assert len(b['derived_at']) == 16 and b['derived_at'][:2] == '20'                     # WIB 'YYYY-MM-DD HH:MM'
-    assert m['server'] == dict(ip='103.170.104.228', city='Jakarta', region='Jakarta', cc='ID', lat=-6.2, lon=106.82)   # tanpa data IP: nilai cadangan
+    assert m['server'] == dict(ip='103.170.104.228', city='Jakarta', region='Jakarta', cc='ID', lat=-6.2, lon=106.82)   # no IP data: fallback value
     assert m['hosts']['om-fe-inhouse-3000'] == 'https://simpel4.ombudsman.go.id' and m['dns_upstream'] == '10.88.1.100'
     assert m['ip_data'] == dict(owner=False, location=False, map=False) and any('MaxMind' in s for s in m['attribution'])
     assert m['ingest']['running'] is False and m['version']
     teks = str(m)
-    for rahasia in (TOKEN, PW, PW2, JWT_SECRET, 'cache', 'sqlite', 'postgresql'): assert rahasia not in teks       # tanpa rahasia, path, atau URL basis data
+    for rahasia in (TOKEN, PW, PW2, JWT_SECRET, 'cache', 'sqlite', 'postgresql'): assert rahasia not in teks       # no secrets, paths or database URLs
 
 
 def test_folder(client):
     admin(client)
     f = client.get(f'/api/folders/{B}').json()
-    # IP sumber serangan mengikuti aturan deteksi yang dipakai (Tahap 21: OWASP CRS; aturan lama menandai 2 IP di data ini)
+    # attack source IPs follow the detection rules in use (Stage 21: OWASP CRS; the old rules flag 2 IPs in this data)
     assert (f['folder'], f['prev_folder']) == (B, A) and f['attack_ip_count'] == client.get(f'/api/folders/{B}/security').json()['kpi']['attack_ips'] == 1
     assert [s['service'] for s in f['services']] == ['nginx-ingress-controller', 'coredns', 'layanan-baru', 'om-be-appsmanager', 'om-be-referensi', 'om-be-report', 'om-be-simpel-loop']
     ng = f['services'][0]
     assert (ng['lines'], ng['err'], ng['warn'], ng['err_http'], ng['err_log'], ng['requests'], ng['n4xx'], ng['files'], ng['prev']) == (11, 2, 1, 0, 2, 7, 2, 1, None)
     am = next(s for s in f['services'] if s['service'] == 'om-be-appsmanager')
-    assert am['lines'] == 0 and am['files_empty'] == 1 and am['prev'] == dict(lines=10, err=1, warn=4)   # folder sebelumnya, untuk ▲/▼
+    assert am['lines'] == 0 and am['files_empty'] == 1 and am['prev'] == dict(lines=10, err=1, warn=4)   # previous folder, for ▲/▼
     assert len(f['files']) == 7 and {x['status'] for x in f['files']} == {'ok', 'empty', 'corrupt'}
     assert client.get(f'/api/folders/{A}').json()['prev_folder'] is None
 
@@ -259,7 +259,7 @@ def test_folder_tidak_sah_404_tanpa_bocor(client, folder):
     admin(client)
     r = client.get(f'/api/folders/{folder}')
     assert r.status_code == 404 and folder not in r.text
-    assert client.get(f'/api/folders/{B}').status_code == 200                      # tabel masih utuh
+    assert client.get(f'/api/folders/{B}').status_code == 200                      # table still intact
 
 
 def test_parameter_salah_400_tanpa_memantulkan_nilai(client):
@@ -272,7 +272,7 @@ def test_parameter_salah_400_tanpa_memantulkan_nilai(client):
     assert kode(client.post('/api/admin/forget', json=dict(folder='2030-01-01'), headers=X)) == 'not_found'
 
 
-# ------------------------------------------------------------------ ingest di dalam proses
+# ------------------------------------------------------------------ in-process ingest
 def test_ingest_lewat_api_dan_dashboard_tetap_terbuka(client):
     admin(client)
     r = client.post('/api/admin/ingest', json=dict(force=True), headers=X)
@@ -280,12 +280,12 @@ def test_ingest_lewat_api_dan_dashboard_tetap_terbuka(client):
     selama = []
     for _ in range(200):
         st = client.get('/api/admin/ingest/status').json()
-        selama.append(client.get(f'/api/folders/{B}').status_code)                # dibaca selama ingest berjalan
+        selama.append(client.get(f'/api/folders/{B}').status_code)                # read while ingest is running
         if not st['running']: break
         time.sleep(0.02)
     assert set(selama) == {200} and st['error'] is None
     assert (st['last']['status'], st['last']['files_parsed'], st['last']['files_failed']) == ('ok', 9, 0)
-    lr = st['last_run']                                                         # dari ingest_run: bertahan setelah server mulai ulang
+    lr = st['last_run']                                                         # from ingest_run: survives a server restart
     assert (lr['status'], lr['files_changed'], lr['warnings']) == ('ok', st['last']['files_changed'], st['last']['warnings'])
     assert lr['finished_at'] >= lr['started_at']
     assert client.get(f'/api/folders/{B}').json()['services'][0]['lines'] == 11
@@ -293,8 +293,8 @@ def test_ingest_lewat_api_dan_dashboard_tetap_terbuka(client):
 
 
 def test_salinan_duckdb_untuk_dbgate(cfg, auth_url, monkeypatch):
-    """S4_DUCKDB_SNAPSHOT (docker compose + DbGate): salinan dibuat saat server mulai bila belum ada, lalu diperbarui tiap
-    ingest selesai. Tanpa setelan itu tidak ada salinan sama sekali."""
+    """S4_DUCKDB_SNAPSHOT (docker compose + DbGate): the copy is created at server start if missing, then refreshed after every
+    ingest. Without that setting there is no copy at all."""
     monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     c = dataclasses.replace(cfg, auth_database_url=auth_url, duckdb_snapshot=True)
     path = db.snapshot_path(c)
@@ -316,11 +316,11 @@ def test_salinan_duckdb_untuk_dbgate(cfg, auth_url, monkeypatch):
 
 
 def test_sinkronisasi_mendeteksi_folder_baru(client, cfg):
-    """Tombol Sinkronkan: status ingest menyebut folder log baru yang belum di-ingest; setelah ingest, daftarnya kosong."""
+    """Sync button: ingest status names new log folders not yet ingested; after ingest, the list is empty."""
     import shutil
     admin(client)
     assert client.get('/api/admin/ingest/status').json()['new_folders'] == []
-    os.makedirs(os.path.join(cfg.log_dir, '2026-03-03', 'kosong'))                     # folder tanpa file log: tidak dihitung
+    os.makedirs(os.path.join(cfg.log_dir, '2026-03-03', 'kosong'))                     # folder without log files: not counted
     src = os.path.join(cfg.log_dir, B)
     shutil.copytree(src, os.path.join(cfg.log_dir, '2026-03-04'))
     assert client.get('/api/admin/ingest/status').json()['new_folders'] == ['2026-03-04']
@@ -332,7 +332,7 @@ def test_sinkronisasi_mendeteksi_folder_baru(client, cfg):
     try:
         assert st['error'] is None and '2026-03-04' in st['last']['folders_changed'] and st['new_folders'] == []
         assert '2026-03-04' in [f['folder'] for f in client.get('/api/meta').json()['folders']]
-    finally:   # fixture log dipakai bersama uji lain: kembalikan seperti semula
+    finally:   # log fixture is shared with other tests: restore it as it was
         for d in ('2026-03-03', '2026-03-04'): shutil.rmtree(os.path.join(cfg.log_dir, d), ignore_errors=True)
         client.post('/api/admin/forget', json=dict(folder='2026-03-04'), headers=X)
 
@@ -347,24 +347,24 @@ def _ingest_tunggu(client):
 
 
 def test_hapus_folder_dari_dashboard_dan_pulihkan(client, cfg):
-    """Permintaan pemilik 2026-10-07: folder bisa dihapus dari daftar. Folder log utama hanya-baca: datanya dihapus dan folder
-    diabaikan ingest sampai dipulihkan; folder kotak masuk (impor S3) bisa dihapus beserta filenya."""
+    """Owner request 2026-10-07: folders can be deleted from the list. Main log folder is read-only: its data is deleted and the
+    folder is ignored by ingest until restored; inbox folders (S3 import) can be deleted along with their files."""
     import shutil
     admin(client)
     rows = {r['folder']: r for r in client.get('/api/admin/folders').json()['rows']}
     assert rows[B]['in_db'] and rows[B]['log'] and not rows[B]['ignored']
     r = client.post(f'/api/admin/folders/{B}/delete', json={}, headers=X).json()
-    assert r['files'] > 0 and r['ignored'] and not r['inbox_deleted'] and os.path.isdir(os.path.join(cfg.log_dir, B))   # file log utama tidak disentuh
+    assert r['files'] > 0 and r['ignored'] and not r['inbox_deleted'] and os.path.isdir(os.path.join(cfg.log_dir, B))   # main log file is not touched
     assert B not in [f['folder'] for f in client.get('/api/meta').json()['folders']]
     st = _ingest_tunggu(client)
-    assert st['error'] is None and B not in st['last']['folders_changed'] and st['new_folders'] == []                   # tidak masuk lagi
+    assert st['error'] is None and B not in st['last']['folders_changed'] and st['new_folders'] == []                   # not ingested again
     assert B not in [f['folder'] for f in client.get('/api/meta').json()['folders']]
     assert {r['folder']: r for r in client.get('/api/admin/folders').json()['rows']}[B]['ignored']
     assert client.post(f'/api/admin/folders/{B}/restore', headers=X).status_code == 200
     assert client.get('/api/admin/ingest/status').json()['new_folders'] == [B]
     _ingest_tunggu(client)
     assert B in [f['folder'] for f in client.get('/api/meta').json()['folders']]
-    # kotak masuk: data + file dihapus, tidak diabaikan (tidak ada sisa di disk)
+    # inbox: data + files deleted, not ignored (nothing left on disk)
     shutil.copytree(os.path.join(cfg.log_dir, B), os.path.join(cfg.inbox_dir, '2026-03-05'))
     try:
         _ingest_tunggu(client)
@@ -397,7 +397,7 @@ def test_ingest_dengan_token_mesin(client):
     assert tc.post('/api/admin/ingest', headers={**X, 'Authorization': f'Bearer {TOKEN}'}).status_code == 202
     client.app.state.ingest.wait(30)
     st = tc.get('/api/admin/ingest/status', headers={'Authorization': f'Bearer {TOKEN}'}).json()
-    assert st['running'] is False and st['last']['files_changed'] == 0 and st['started_by'] == '(token mesin)'
+    assert st['running'] is False and st['last']['files_changed'] == 0 and st['started_by'] == '(machine token)'
 
 
 def test_forget_lalu_ingest_memulihkan(client):
@@ -429,13 +429,13 @@ def test_cookie_berisi_jwt_dan_jwt_palsu_ditolak(client):
     assert tc.get('/api/me').status_code == 401
     tc.cookies.set('s4_session', jwt.encode(c, None, algorithm='none'))
     assert tc.get('/api/me').status_code == 401
-    assert tc.get('/api/me', headers={'Authorization': f'Bearer {token}'}).status_code == 401   # JWT hanya diterima dari cookie HttpOnly
+    assert tc.get('/api/me', headers={'Authorization': f'Bearer {token}'}).status_code == 401   # JWT is only accepted from the HttpOnly cookie
 
 
-# ------------------------------------------------------------------ Tahap 11: endpoint halaman dan tabel (TRD §5.3–§5.4)
+# ------------------------------------------------------------------ Stage 11: page and table endpoints (TRD §5.3–§5.4)
 @pytest.fixture
 def user(client):
-    """User biasa: semua endpoint data terbuka untuknya (TRD §8.3)."""
+    """Regular user: every data endpoint is open to them (TRD §8.3)."""
     admin(client); buat_user(client)
     return sebagai(client, 'rina', 'sandi-awal-rina-123')
 
@@ -455,13 +455,13 @@ def test_semua_halaman_terbuka_untuk_user_dan_kecil(user):
 
 
 def test_halaman_tanpa_log_yang_dibutuhkan_available_false(user):
-    """Folder A tidak punya nginx maupun simpel-loop: 200 dengan alasan, bukan galat dan bukan angka 0 (U16)."""
+    """Folder A has neither nginx nor simpel-loop: 200 with a reason, not an error and not the number 0 (U16)."""
     j = lambda h, f=A: user.get(f'/api/folders/{f}/{h}').json()
     assert j('map') == {'available': False, 'reason': 'no_nginx'}
     assert j('availability') == {'available': False, 'reason': 'no_nginx'}
     assert j('tracing') == {'available': False, 'reason': 'no_simpel_loop'}
     assert j('security')['nginx'] is False and j('security')['kpi']['attack_requests'] == 0
-    kosong = user.get(f'/api/folders/{B}/services/om-be-appsmanager').json()       # file kosong
+    kosong = user.get(f'/api/folders/{B}/services/om-be-appsmanager').json()       # empty file
     assert (kosong['available'], kosong['reason'], kosong['kpi']['lines']) == (False, 'empty', 0)
     assert j('map', B)['available'] is True and j('availability', B)['available'] is True
 
@@ -482,9 +482,9 @@ def test_bentuk_respons_halaman(user):
     assert {'jwt', 'jwt_total', 'refresh_expired', 'pdf', 'upstream_error_kinds', 'tables'} <= set(j('rootcause'))
     n = user.get(f'/api/folders/{B}/services/{NG}').json()
     assert n['available'] and n['kpi']['requests'] == sum(x for _, x in n['status']) and 'endpoints' in n['tables']
-    assert n['kpi']['err'] == n['kpi']['err_http'] + n['kpi']['err_log'] == sum(e for _, _, e in n['hour'])   # TRD §4.4 butir 2
+    assert n['kpi']['err'] == n['kpi']['err_http'] + n['kpi']['err_log'] == sum(e for _, _, e in n['hour'])   # TRD §4.4 item 2
     for h, total, err in n['hour']: assert len(h) == 13                           # 'YYYY-MM-DD HH' WIB
-    # peta di halaman layanan: hanya ingress dan modul yang punya alur (selain itu tidak meminta /map, yang menjawab 404)
+    # map on the service page: only ingress and modules that have flows (others do not request /map, which answers 404)
     mods = user.get(f'/api/folders/{B}/map').json()['modules']
     assert n['has_flows'] is True
     for svc in [x['service'] for x in user.get(f'/api/folders/{B}').json()['services'] if x['lines']]:
@@ -498,11 +498,11 @@ def test_ip_selalu_disertai_bentuk_sel(user):
 
 def test_tren(user):
     j = user.get('/api/trends').json()
-    assert j['folders'] == [A, B] and set(j) == {'folders', 'services', 'lines', 'err', 'warn', 'file_status', 'http', 'security', 'business', 'completeness', 'heat'}   # Tahap 24: +2
-    assert j['lines'][NG] == [None, user.get(f'/api/folders/{B}/services/{NG}').json()['kpi']['lines']]     # null = layanan tidak ada di folder itu
+    assert j['folders'] == [A, B] and set(j) == {'folders', 'services', 'lines', 'err', 'warn', 'file_status', 'http', 'security', 'business', 'completeness', 'heat'}   # Stage 24: +2
+    assert j['lines'][NG] == [None, user.get(f'/api/folders/{B}/services/{NG}').json()['kpi']['lines']]     # null = service not present in that folder
     assert j['file_status']['om-be-referensi'] == [None, 'corrupt'] and j['file_status']['om-be-appsmanager'][1] == 'empty'
     assert user.get('/api/trends?last=14').json()['folders'] == [A, B]
-    # urutan layanan = kemunculan pertama: layanan folder A (urutan file), lalu yang baru muncul di B
+    # service order = first appearance: folder A services (file order), then those new in B
     sa = [s['service'] for s in user.get(f'/api/folders/{A}').json()['services']]
     sb = [s['service'] for s in user.get(f'/api/folders/{B}').json()['services']]
     assert j['services'] == sa + [s for s in sb if s not in sa]
@@ -511,23 +511,23 @@ def test_tren(user):
 
 
 def test_tabel_halaman_filter_urut(user):
-    P = f'/api/folders/{B}/tables/endpoints'; u = f'{P}?service={NG}'      # httpx: params= menggantikan query di URL
+    P = f'/api/folders/{B}/tables/endpoints'; u = f'{P}?service={NG}'      # httpx: params= replaces the query in the URL
     semua = user.get(u + '&limit=500').json()
     assert semua['total'] == semua['matched'] == len(semua['rows']) > 3 and semua['limit'] == 500
-    assert [r['n'] for r in semua['rows']] == sorted((r['n'] for r in semua['rows']), reverse=True)        # urutan lama: terbanyak dulu
+    assert [r['n'] for r in semua['rows']] == sorted((r['n'] for r in semua['rows']), reverse=True)        # old order: most first
     dua = user.get(u + '&limit=2&offset=1').json()
     assert dua['rows'] == semua['rows'][1:3] and (dua['limit'], dua['offset'], dua['total']) == (2, 1, semua['total'])
     kata = semua['rows'][0]['key'].split('/')[1][:4]
-    f = user.get(P, params=dict(service=NG, q=kata.upper(), limit=500)).json()                                           # tanpa beda huruf besar/kecil
+    f = user.get(P, params=dict(service=NG, q=kata.upper(), limit=500)).json()                                           # case-insensitive
     assert 0 < f['matched'] <= f['total'] == semua['total'] and all(kata.lower() in r['key'].lower() for r in f['rows'])
     naik = user.get(u + '&sort=key&dir=asc&limit=500').json()['rows']
     assert [r['key'] for r in naik] == sorted(r['key'] for r in semua['rows'])
     assert user.get(P, params=dict(service=NG, q='tidak-ada-yang-cocok-zzz')).json()['matched'] == 0
-    assert user.get(P, params=dict(service=NG, q='%')).json()['matched'] < semua['total'] or all('%' in r['key'] for r in user.get(P, params=dict(service=NG, q='%')).json()['rows'])  # % bukan wildcard
+    assert user.get(P, params=dict(service=NG, q='%')).json()['matched'] < semua['total'] or all('%' in r['key'] for r in user.get(P, params=dict(service=NG, q='%')).json()['rows'])  # % is not a wildcard
 
 
 def test_tabel_filter_mencari_pemilik_ip(client, user):
-    """Filter tabel ber-IP ikut mencari nama pemilik jaringan, seperti filter teks di dashboard lama."""
+    """IP tables filter also searches the network owner name, like the text filter in the old dashboard."""
     cur = client.app.state.con.cursor()
     ip = user.get(f'/api/folders/{B}/tables/ips?service={NG}').json()['rows'][0]['ip']['ip']
     cur.execute("INSERT OR REPLACE INTO ip_info (ip, asn, cc, org, is_private) VALUES (?, 64500, 'ID', 'CONTOH-NET-UJI PT Contoh', false)", [ip])
@@ -544,7 +544,7 @@ def test_tabel_filter_mencari_pemilik_ip(client, user):
 def test_tabel_parameter_salah_400(user, query):
     r = user.get(f'/api/folders/{B}/tables/endpoints?service={NG}&{query}')
     assert (r.status_code, kode(r)) == (400, 'invalid_parameter'), r.text
-    assert 'drop' not in r.text and 'OR 1=1' not in r.text                         # nilai masukan tidak dipantulkan
+    assert 'drop' not in r.text and 'OR 1=1' not in r.text                         # input value is not reflected
 
 
 @pytest.mark.parametrize('nilai', ["' OR '1'='1", "'; DROP TABLE agg_endpoint; --", '") UNION SELECT password_hash FROM app_user --', '$f', '%%', '\\', "x' AND sleep(5) --", '\x00'])
@@ -563,8 +563,8 @@ def test_tabel_upaya_penyisipan_diperlakukan_sebagai_teks(client, user, nilai):
 
 def test_tabel_dan_layanan_tidak_dikenal(user):
     assert (user.get(f'/api/folders/{B}/tables/users').status_code, kode(user.get(f'/api/folders/{B}/tables/users'))) == (404, 'not_found')
-    assert user.get(f'/api/folders/{B}/tables/ingest_file').status_code == 404                                 # nama tabel basis data bukan nama tabel API
-    assert kode(user.get(f'/api/folders/{B}/tables/endpoints')) == 'invalid_parameter'                         # service wajib
+    assert user.get(f'/api/folders/{B}/tables/ingest_file').status_code == 404                                 # database table name is not an API table name
+    assert kode(user.get(f'/api/folders/{B}/tables/endpoints')) == 'invalid_parameter'                         # service is required
     assert user.get(f'/api/folders/{B}/tables/endpoints?service=tidak-ada').status_code == 404
     assert user.get(f'/api/folders/{B}/services/tidak-ada').status_code == 404
     assert user.get(f'/api/folders/2026-01-09/overview').status_code == 404
@@ -580,7 +580,7 @@ def test_modul_peta_menyaring_alur(user):
 
 
 def test_command_center_menyusun_angka_halaman_lain(user):
-    """Tahap 22: Command Center tidak menghitung sendiri; tiap angka sama dengan halaman asalnya."""
+    """Stage 22: the Command Center computes nothing itself; every number equals its source page."""
     c = user.get(f'/api/folders/{B}/command').json()
     sec, av = user.get(f'/api/folders/{B}/security').json(), user.get(f'/api/folders/{B}/availability').json()
     rc, peta = user.get(f'/api/folders/{B}/rootcause').json(), user.get(f'/api/folders/{B}/map').json()
@@ -589,17 +589,17 @@ def test_command_center_menyusun_angka_halaman_lain(user):
     assert (k['requests'], k['n5xx'], k['upstream_errors']) == (av['kpi']['requests'], av['kpi']['n5xx'], rc['upstream_errors_total'])
     assert (k['attack_ips'], k['login_fail_ips']) == (sec['kpi']['attack_ips'], sec['kpi']['login_fail_ips'])
     per = {a['key']: a for a in c['attention']}
-    assert [a['tone'] for a in c['attention']] == sorted((a['tone'] for a in c['attention']), key=lambda x: x != 'err')   # merah dulu
+    assert [a['tone'] for a in c['attention']] == sorted((a['tone'] for a in c['attention']), key=lambda x: x != 'err')   # red first
     if sec['kpi']['critical_hits']: assert per['attack_critical']['n'] == sec['kpi']['critical_hits'] and per['attack_critical']['tab'] == 'keamanan'
     if k['n5xx']: assert per['n5xx']['n'] == k['n5xx'] and per['n5xx']['tab'] == 'ketersediaan'
     if k['login_fail_ips']: assert per['login']['resets'] == sec['kpi']['resets']
     assert all(set(a) >= {'key', 'tone', 'tab', 'n'} and a['n'] > 0 for a in c['attention'])
     satu = user.get(f'/api/folders/{B}/command', params=dict(module=peta['modules'][0])).json()
-    assert satu['map']['module'] == peta['modules'][0] and satu['kpi'] == k                                       # modul hanya menyaring peta
+    assert satu['map']['module'] == peta['modules'][0] and satu['kpi'] == k                                       # module only filters the map
     assert user.get(f'/api/folders/{B}/command?module=tidak-ada').status_code == 404
 
 
-# ------------------------------------------------------------------ Tahap 24
+# ------------------------------------------------------------------ Stage 24
 def test_command_center_kemarin_per_jam_dan_butir_baru(user):
     c = user.get(f'/api/folders/{B}/command').json()
     h = c['by_hour']
@@ -650,7 +650,7 @@ def test_pencarian_global(user):
     ep = next(r['key'] for r in eps if len(r['key'].split(' ', 1)[1]) >= 6)
     u = user.get('/api/search', params=dict(q=ep.split(' ', 1)[1][:12], folder=B)).json()['results']
     assert any(x['type'] == 'url' and x['target']['tab'] == 'layanan' for x in u)
-    assert user.get('/api/search', params=dict(q='%_%', folder=B)).status_code == 200      # wildcard LIKE di-escape
+    assert user.get('/api/search', params=dict(q='%_%', folder=B)).status_code == 200      # LIKE wildcards are escaped
 
 
 def test_tren_kelengkapan_dan_heatmap(user):
@@ -658,7 +658,7 @@ def test_tren_kelengkapan_dan_heatmap(user):
     c, h = t['completeness'], t['heat']
     assert len(c['corrupt']) == len(c['empty']) == len(t['folders']) and all(m not in t['folders'] for m in c['missing'])
     assert h['days'] == sorted(h['days']) and all(len(r) == 24 for r in h['requests'] + h['errors'])
-    assert sum(map(sum, h['errors'])) == sum(v or 0 for s in t['err'].values() for v in s) or True   # error per jam bisa memuat baris di luar rentang
+    assert sum(map(sum, h['errors'])) == sum(v or 0 for s in t['err'].values() for v in s) or True   # hourly errors may include lines outside the range
 
 
 def test_keterangan_aturan_crs(user):
@@ -673,19 +673,19 @@ def test_endpoint_data_hanya_get(user):
         assert user.post(u, json={}, headers=X).status_code == 405
 
 
-# ------------------------------------------------------------------ dokumentasi API (Swagger, permintaan pemilik 2026-10-07)
+# ------------------------------------------------------------------ API documentation (Swagger, owner request 2026-10-07)
 def test_swagger_hanya_setelah_masuk(client):
     r = client.get('/api/docs', follow_redirects=False)
-    assert (r.status_code, r.headers['location']) == (303, '/?next=/api/docs')          # belum masuk -> halaman login
+    assert (r.status_code, r.headers['location']) == (303, '/?next=/api/docs')          # not logged in -> login page
     assert client.get('/api/openapi.json').status_code == 401
-    masuk(client)                                                                         # admin baru: wajib ganti sandi dulu
+    masuk(client)                                                                         # new admin: must change password first
     assert client.get('/api/docs', follow_redirects=False).status_code == 303
     assert kode(client.get('/api/openapi.json')) == 'must_change_password'
     admin(client)
     r = client.get('/api/docs')
     assert r.status_code == 200 and '/swagger/swagger-ui-bundle.js' in r.text and '/swagger/init.js' in r.text
-    assert "script-src" not in r.headers['content-security-policy'] and "default-src 'self'" in r.headers['content-security-policy']   # tanpa CDN
-    assert '<script>' not in r.text                                                       # tanpa skrip sebaris (CSP)
+    assert "script-src" not in r.headers['content-security-policy'] and "default-src 'self'" in r.headers['content-security-policy']   # no CDN
+    assert '<script>' not in r.text                                                       # no inline scripts (CSP)
     s = client.get('/api/openapi.json').json()
     assert s['info']['title'] == 'MoniShield API' and {'session', 'jobToken'} <= set(s['components']['securitySchemes'])
     assert {'/api/admin/ingest', '/api/folders/{folder}', '/api/admin/import/watch', '/api/admin/upload'} <= set(s['paths'])
@@ -700,9 +700,9 @@ def test_swagger_untuk_user_biasa_tetapi_rute_admin_tetap_403(client):
     assert u.get('/api/admin/users').status_code == 403
 
 
-# ------------------------------------------------------------------ pembanding rata-rata (permintaan pemilik 2026-10-07, saran 5)
+# ------------------------------------------------------------------ average comparison (owner request 2026-10-07, suggestion 5)
 def test_command_rata_rata_folder_sebanding(tmp_path, auth_url, monkeypatch):
-    """Empat salinan folder B (01-03..01-06) + B: rata-rata sebelum 01-06 = nilai B (folder A, baris < 50 %, tidak ikut)."""
+    """Four copies of folder B (01-03..01-06) + B: the average before 01-06 = B values (folder A, lines < 50 %, not included)."""
     import shutil
     monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     root = logs_mini.build(tmp_path / 'logs')
@@ -718,10 +718,10 @@ def test_command_rata_rata_folder_sebanding(tmp_path, auth_url, monkeypatch):
         assert (b['window'], b['n_all'], b['folders'][:2]) == (7, 4, ['2026-01-05', '2026-01-04'])
         assert all(b['kpi'][x] == k[x] for x in ('errors', 'login_fail_ips')) and b['kpi']['requests'] == k['requests']
         b2 = tc.get(f'/api/folders/{B}/command').json()['baseline']
-        assert b2['n_all'] == 0 and b2['kpi']['errors'] is None          # kurang dari 3 folder sebanding: tidak ada rata-rata
+        assert b2['n_all'] == 0 and b2['kpi']['errors'] is None          # fewer than 3 comparable folders: no average
 
 
-# ------------------------------------------------------------------ daftar blokir (permintaan pemilik 2026-10-07, saran 6)
+# ------------------------------------------------------------------ blocklist (owner request 2026-10-07, suggestion 6)
 def test_daftar_blokir_format_dan_pengecualian(client, monkeypatch):
     admin(client)
     g = lambda **q: client.get(f'/api/folders/{B}/security/blocklist', params=q)
@@ -734,7 +734,7 @@ def test_daftar_blokir_format_dan_pengecualian(client, monkeypatch):
     assert '# MoniShield — block list' in g(format='nginx', lang='en').text
     assert g(format='json', min_severity=3).json()['count'] == 1 and g(format='json', min_hits=10**5).json()['count'] == 0
     assert g(format='json', days=7).json()['criteria']['folder_from'] == '2025-12-27'
-    # pengecualian: daftar IP/CIDR, pemilik jaringan, IP privat
+    # exclusions: IP/CIDR list, network owner, private IPs
     cfg = client.app.state.cfg
     monkeypatch.setattr(cfg, 'blocklist_exclude', '10.0.0.0/8, 34.19.127.0/24')
     j = g(format='json').json()

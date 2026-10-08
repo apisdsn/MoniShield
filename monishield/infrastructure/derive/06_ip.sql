@@ -1,5 +1,5 @@
--- agg_ip (ips, ip4, ip4ua lama). ua_first_4xx = UA (100 karakter) dari respons 4xx PERTAMA IP itu, hanya ingress.
--- simpel-loop: hanya event yang punya ipAddress.
+-- agg_ip (old ips, ip4, ip4ua). ua_first_4xx = UA (100 chars) of that IP's FIRST 4xx response, ingress only.
+-- simpel-loop: only events that have an ipAddress.
 DELETE FROM agg_ip WHERE folder = $f;
 INSERT INTO agg_ip
 SELECT $f, service, ip, count(*), count(*) FILTER (WHERE status BETWEEN 400 AND 499),

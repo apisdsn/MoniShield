@@ -1,7 +1,7 @@
-"""Setelan notifikasi (monishield/application/alert_service.py), admin saja. Disimpan di file .env.
-  GET  /api/admin/alerts        setelan (kredensial hanya "sudah diisi") + riwayat kiriman terakhir
-  PUT  /api/admin/alerts        tulis ke .env; kolom kredensial kosong = tidak diubah, `clear` = hapus
-  POST /api/admin/alerts/test   kirim pesan uji ke satu saluran (memakai setelan TERSIMPAN)
+"""Notification settings (monishield/application/alert_service.py), admin only. Stored in the .env file.
+  GET  /api/admin/alerts        settings (credentials only "set") + history of the latest sends
+  PUT  /api/admin/alerts        write to .env; empty credential field = unchanged, `clear` = remove
+  POST /api/admin/alerts/test   send a test message to one channel (using the SAVED settings)
 """
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
@@ -32,7 +32,7 @@ class AlertsBody(BaseModel):
 def put_alerts(body: AlertsBody, request: Request, admin=Depends(require_admin)):
     cfg = alert_service.update(request.app.state, {k: v for k, v in body.model_dump().items() if v is not None})
     on = [n for n, c in cfg['channels'].items() if c['enabled']]
-    _audit(request, admin, 'alerts.update', f"saluran aktif: {', '.join(on) or 'tidak ada'}")   # tanpa kredensial
+    _audit(request, admin, 'alerts.update', f"active channels: {', '.join(on) or 'none'}")   # no credentials
     return alert_service.view(request.app.state)
 
 
@@ -44,7 +44,7 @@ class TestBody(BaseModel):
 def test_alert(body: TestBody, request: Request, admin=Depends(require_admin)):
     try: r = alert_service.send_test(request.app.state, body.channel)
     except Fail as e:
-        if e.code == 'alert_send_failed': _audit(request, admin, 'alerts.test', f'{body.channel}: gagal')
+        if e.code == 'alert_send_failed': _audit(request, admin, 'alerts.test', f'{body.channel}: failed')
         raise
-    _audit(request, admin, 'alerts.test', f'{body.channel}: berhasil')
+    _audit(request, admin, 'alerts.test', f'{body.channel}: succeeded')
     return r

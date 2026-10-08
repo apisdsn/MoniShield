@@ -1,4 +1,4 @@
-"""Halaman Bisnis (TRD §5.3)."""
+"""Business page (TRD §5.3)."""
 
 from monishield.infrastructure.queries.sql import SL, AM, H, _all, _one
 from .tables import first, services
@@ -12,7 +12,7 @@ def business(cur, folder):
     pdf = cur.execute('SELECT coalesce(sum(ok), 0), coalesce(sum(fail), 0) FROM agg_report WHERE folder = ?', [folder]).fetchone()
     return dict(
         available=True, sources=sorted(s for s, n in svc.items() if n), prev_folder=str(prev) if prev else None,
-        biz=biz(folder), biz_prev=biz(prev) if ada_lama else None,     # None = simpel-loop tidak ada di folder sebelumnya
+        biz=biz(folder), biz_prev=biz(prev) if ada_lama else None,     # None = simpel-loop absent in the previous folder
         pdf=dict(ok=pdf[0], fail=pdf[1]),
         login=dict(ok=_one(cur, 'SELECT coalesce(sum(ok), 0) FROM agg_login_ip WHERE folder = ?', folder),
                    users=_one(cur, 'SELECT coalesce(sum(users_ok), 0) FROM agg_service WHERE folder = ? AND service = ?', folder, AM)),

@@ -16,19 +16,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - name: Periksa pesan commit baru
+      - name: Check new commit messages
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
-          # push pertama sebuah branch (before = 000…) atau sejarah yang ditulis ulang: tidak ada rentang untuk diperiksa
+          # first push of a branch (before = 000…) or rewritten history: no range to check
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            echo "tidak ada rentang commit baru untuk diperiksa"; exit 0
+            echo "no range of new commits to check"; exit 0
           fi
           tools/cek_commit.sh "$BASE..$HEAD"
 
   python:
-    name: Uji Python
+    name: Python tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
       - run: python -m pytest -q
 
   web:
-    name: Build tampilan
+    name: Web UI build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

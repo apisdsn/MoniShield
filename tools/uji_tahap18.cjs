@@ -1,8 +1,8 @@
-// Verifikasi Tahap 18 (layar admin: Kelola user, Ingest & impor, catatan audit) di Chromium, dua jendela (admin + user).
-//   node tools/uji_tahap18.cjs http://127.0.0.1:8000 <sandi-admin>      (admin sudah mengganti sandi awal; user 'rina' belum ada)
-// Skenario = tabel verifikasi rencana Tahap 18: tambah user -> wajib ganti sandi -> dashboard tanpa menu admin; naik/turun
-// peran berlaku pada permintaan berikutnya; reset sandi / nonaktifkan mengakhiri sesi; admin terakhir dilindungi; user biasa
-// di layar admin -> "tidak punya akses" + 403; "Ingest sekarang" sementara dashboard tetap terbuka; audit tanpa sandi/token.
+// Stage 18 verification (admin pages: Manage users, Ingest & import, audit log) in Chromium, two windows (admin + user).
+//   node tools/uji_tahap18.cjs http://127.0.0.1:8000 <admin-password>      (admin has already changed the initial password; user 'rina' does not exist yet)
+// Scenario = Stage 18 plan verification table: add user -> forced password change -> dashboard without admin menu; role
+// promotion/demotion applies on the next request; password reset / deactivate ends the session; last admin protected; regular user
+// on an admin page -> "tidak punya akses" + 403; "Ingest sekarang" while the dashboard stays open; audit without passwords/tokens.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const path = require('path');
 const fs = require('fs');
@@ -10,7 +10,7 @@ const [, , BASE = 'http://127.0.0.1:8000', PW] = process.argv;
 const OUT = process.env.SHOTS_DIR || path.join(require('os').tmpdir(), 's4-shots');
 fs.mkdirSync(OUT, { recursive: true });
 const hasil = [];
-const cek = (n, ok, info = '') => { hasil.push(!!ok); console.log(`${ok ? 'LULUS' : 'GAGAL'}  ${n}${info ? '  — ' + info : ''}`); };
+const cek = (n, ok, info = '') => { hasil.push(!!ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${info ? '  — ' + info : ''}`); };
 const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026', PW_U3 = 'sandi-rina-ketiga-2026';
 
 (async () => {
@@ -45,25 +45,25 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   await masuk(pa, 'admin', PW);
   await pa.waitForSelector('main tbody tr');
   const id0 = await pa.evaluate(() => fetch('/api/me').then((r) => r.json()));
-  // tambah user: aturan ditulis sebelum mengetik, galat per kolom, lalu berhasil
+  // add user: rules shown before typing, per-field errors, then success
   await pa.click('button:has-text("Tambah user")');
   await pa.waitForSelector('dialog[open] #u-name');
   const fokus = await pa.evaluate(() => document.activeElement.id);
   await pa.fill('#u-name', 'Ri'); await pa.fill('#u-pw', 'pendek'); await dialog(pa).locator('button[type=submit]').click();
   const g1 = await pa.evaluate(() => [document.querySelector('#u-name-e')?.textContent, document.querySelector('#u-pw-e')?.textContent, document.querySelector('#u-name').getAttribute('aria-describedby')]);
-  cek('tambah user: dialog terbuka dengan fokus di kolom pertama; galat per kolom (aria-describedby) sebelum dikirim', fokus === 'u-name' && /3–32/.test(g1[0] || '') && /12/.test(g1[1] || '') && /u-name-e/.test(g1[2] || ''), JSON.stringify(g1));
+  cek('add user: dialog opens with focus on the first field; per-field errors (aria-describedby) before submit', fokus === 'u-name' && /3–32/.test(g1[0] || '') && /12/.test(g1[1] || '') && /u-name-e/.test(g1[2] || ''), JSON.stringify(g1));
   await pa.fill('#u-name', U); await pa.fill('#u-disp', 'Rina'); await pa.fill('#u-pw', PW_U0);
   await dialog(pa).locator('button[type=submit]').click();
   const okTambah = await toast(pa, /User rina ditambahkan/);
   await pa.waitForFunction(() => !document.querySelector('dialog[open]'));
   const r1 = await baris(pa, U);
-  cek('tambah user "rina" (peran user): pemberitahuan, baris baru "User · Aktif · Wajib ganti sandi"', okTambah && r1 && r1[2] === 'User' && /Aktif/i.test(r1[3]) && /Wajib ganti sandi/.test(r1[3]), JSON.stringify(r1));
-  // Esc menutup dialog, fokus kembali ke pemicu
+  cek('add user "rina" (user role): notification, new row "User · Aktif · Wajib ganti sandi"', okTambah && r1 && r1[2] === 'User' && /Aktif/i.test(r1[3]) && /Wajib ganti sandi/.test(r1[3]), JSON.stringify(r1));
+  // Esc closes the dialog, focus back on the trigger
   await pa.click('button:has-text("Tambah user")'); await pa.waitForSelector('dialog[open]'); await pa.keyboard.press('Escape');
   await pa.waitForFunction(() => !document.querySelector('dialog[open]'));
-  cek('Esc menutup dialog; fokus kembali ke "+ Tambah user"', /Tambah user/.test(await pa.evaluate(() => document.activeElement.textContent)));
+  cek('Esc closes the dialog; focus back on "+ Tambah user"', /Tambah user/.test(await pa.evaluate(() => document.activeElement.textContent)));
 
-  // ------------------------------------------------------------------ user: wajib ganti sandi, lalu dashboard tanpa menu admin
+  // ------------------------------------------------------------------ user: forced password change, then dashboard without admin menu
   const pr = await buka();
   await pr.goto(BASE + '/#/overview');
   await masuk(pr, U, PW_U0);
@@ -71,10 +71,10 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   const wajib = /Anda harus mengganti sandi/.test(await teks(pr)) && !(await pr.$('aside nav'));
   await pr.fill('#pw-old', PW_U0); await pr.fill('#pw-new', PW_U1); await pr.fill('#pw-again', PW_U1); await pr.click('button[type=submit]');
   await pr.waitForSelector('main .kpi'); await pr.waitForLoadState('networkidle');
-  cek('user baru masuk: wajib ganti sandi (tanpa sidebar), lalu melihat dashboard', wajib && (await pr.$$('main .kpi')).length >= 6);
-  cek('user biasa: menu user tanpa "Kelola user" / "Ingest & impor"', !(await menuAdmin(pr)));
+  cek('new user signs in: forced password change (no sidebar), then sees the dashboard', wajib && (await pr.$$('main .kpi')).length >= 6);
+  cek('regular user: user menu without "Kelola user" / "Ingest & impor"', !(await menuAdmin(pr)));
 
-  // ------------------------------------------------------------------ naik/turun peran: berlaku pada permintaan berikutnya
+  // ------------------------------------------------------------------ role promotion/demotion: applies on the next request
   const ubahPeran = async (role) => {
     await aksi(pa, U, 'Ubah'); await pa.waitForSelector('dialog[open] input[value=user]');
     await pa.check(`dialog[open] input[value=${role}]`); await dialog(pa).locator('button[type=submit]').click();
@@ -86,23 +86,23 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   await ubahPeran('user');
   await pindah(pr, 'Overview');
   const turun = await menuAdmin(pr);
-  cek('admin menaikkan rina -> menu admin muncul; menurunkan -> hilang (pada pindah tab berikutnya)', naik && !turun, `naik ${naik}, turun ${turun}`);
+  cek('admin promotes rina -> admin menu appears; demotes -> gone (on the next tab change)', naik && !turun, `promoted ${naik}, demoted ${turun}`);
   await pr.goto(BASE + '/#/admin/user'); await pr.waitForSelector('main'); await pr.waitForTimeout(600);
   const s403 = await pr.evaluate(() => fetch('/api/admin/users').then((r) => r.status));
-  cek('user biasa membuka alamat layar admin: "Tidak punya akses"; GET /api/admin/users -> 403', /Tidak punya akses/.test(await pr.textContent('main')) && s403 === 403, `status ${s403}`);
+  cek('regular user opens an admin page address: "Tidak punya akses"; GET /api/admin/users -> 403', /Tidak punya akses/.test(await pr.textContent('main')) && s403 === 403, `status ${s403}`);
   await pr.goto(BASE + '/#/overview'); await pr.waitForSelector('main .kpi');
 
-  // ------------------------------------------------------------------ admin terakhir dilindungi
+  // ------------------------------------------------------------------ last admin protected
   const sebabNon = await aksi(pa, 'admin', 'Nonaktifkan'), sebabHapus = await aksi(pa, 'admin', 'Hapus');
   await aksi(pa, 'admin', 'Ubah'); await pa.waitForSelector('dialog[open] fieldset');
   const kunci = await pa.evaluate(() => [document.querySelector('dialog[open] fieldset').disabled, document.querySelector('dialog[open]').textContent]);
   await pa.keyboard.press('Escape'); await pa.waitForFunction(() => !document.querySelector('dialog[open]'));
   const api409 = await pa.evaluate((id) => fetch(`/api/admin/users/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'uji' }, body: JSON.stringify({ role: 'user' }) })
     .then(async (r) => [r.status, (await r.json()).error?.message]), (await pa.evaluate(() => fetch('/api/admin/users').then((r) => r.json()))).users.find((u) => u.username === 'admin').user_id);
-  cek('admin satu-satunya: Nonaktifkan/Hapus tidak ditawarkan (dengan sebab), peran terkunci; API PATCH -> 409 dengan pesan',
-    /akun sendiri/.test(sebabNon || '') && /akun sendiri/.test(sebabHapus || '') && kunci[0] && /Admin aktif terakhir/.test(kunci[1]) && api409[0] === 409 && /Admin terakhir/.test(api409[1] || ''),
+  cek('only admin: Deactivate/Delete not offered (with reason), role locked; API PATCH -> 409 with message',
+    /akun sendiri/.test(sebabNon || '') && /akun sendiri/.test(sebabHapus || '') && kunci[0] && /Admin aktif terakhir/.test(kunci[1]) && api409[0] === 409 && /last admin/.test(api409[1] || ''),
     `${sebabNon} | ${sebabHapus} | ${JSON.stringify(api409)}`);
-  // daftar di layar basi (2 admin), lalu admin lain diturunkan di tempat lain: simpan ditolak server dengan pesan di dialog
+  // stale on-screen list (2 admins), then the other admin is demoted elsewhere: save rejected by the server with a message in the dialog
   await ubahPeran('admin');
   const rid = (await pa.evaluate(() => fetch('/api/admin/users').then((r) => r.json()))).users.find((u) => u.username === U).user_id;
   await aksi(pa, 'admin', 'Ubah'); await pa.waitForSelector('dialog[open] input[value=user]:not([disabled])');
@@ -112,9 +112,9 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   const tolak = await pa.textContent('dialog[open] [role=alert]');
   await pa.keyboard.press('Escape'); await pa.waitForFunction(() => !document.querySelector('dialog[open]'));
   const me1 = await pa.evaluate(() => fetch('/api/me').then((r) => r.json()));
-  cek('menurunkan admin terakhir (daftar basi): ditolak dengan pesan di dialog; tetap admin', /Admin aktif terakhir tidak bisa/.test(tolak) && me1.role === 'admin', tolak);
+  cek('demoting the last admin (stale list): rejected with a message in the dialog; stays admin', /Admin aktif terakhir tidak bisa/.test(tolak) && me1.role === 'admin', tolak);
 
-  // ------------------------------------------------------------------ reset sandi: sesi user langsung berakhir; sandi sementara sekali
+  // ------------------------------------------------------------------ password reset: user session ends at once; temporary password shown once
   await aksi(pa, U, 'Reset sandi'); await pa.waitForSelector('dialog[open]');
   const konf = await pa.textContent('dialog[open]');
   await dialog(pa).locator('button.primary', { hasText: 'Reset sandi' }).click();
@@ -130,11 +130,11 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   await masuk(pr, U, temp); await pr.waitForSelector('#pw-old');
   await pr.fill('#pw-old', temp); await pr.fill('#pw-new', PW_U3); await pr.fill('#pw-again', PW_U3); await pr.click('button[type=submit]');
   await pr.waitForSelector('main section.card');
-  const kembali = /#\/tren/.test(pr.url());                     // kembali ke alamat sebelum sesi berakhir
-  cek('reset sandi: konfirmasi menyebut rina; sandi sementara tampil sekali (+ Salin), hilang setelah ditutup; sesi rina langsung berakhir; masuk dengan sandi sementara -> wajib ganti -> alamat semula',
+  const kembali = /#\/tren/.test(pr.url());                     // back to the address from before the session ended
+  cek('password reset: confirmation names rina; temporary password shown once (+ Copy), gone after closing; rina session ends at once; sign-in with temporary password -> forced change -> original address',
     /rina/.test(konf) && temp.length >= 12 && sekali && hilang && habis && kembali, pr.url());
 
-  // ------------------------------------------------------------------ nonaktifkan: sesi berakhir, tidak bisa masuk; aktifkan lagi
+  // ------------------------------------------------------------------ deactivate: session ends, cannot sign in; reactivate
   await aksi(pa, U, 'Nonaktifkan'); await pa.waitForSelector('dialog[open]');
   const konfN = await pa.textContent('dialog[open]');
   await dialog(pa).locator('button.danger').click(); await toast(pa, /rina dinonaktifkan/);
@@ -144,16 +144,16 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   const habis2 = /Sesi Anda berakhir/.test(await teks(pr));
   await masuk(pr, U, PW_U3); await pr.waitForSelector('.err, [role=alert]');
   const ditolak = /Nama user atau sandi salah/.test(await teks(pr));
-  cek('nonaktifkan rina (konfirmasi menyebut nama): status "Nonaktif"; sesinya langsung berakhir; masuk ditolak dengan pesan umum',
+  cek('deactivate rina (confirmation names her): status "Nonaktif"; her session ends at once; sign-in rejected with a generic message',
     /rina/.test(konfN) && /Nonaktif/.test(r2?.[3] || '') && habis2 && ditolak, JSON.stringify(r2));
   await aksi(pa, U, 'Aktifkan'); await toast(pa, /rina diaktifkan/);
-  cek('aktifkan lagi -> "Aktif"', /^Aktif/.test((await baris(pa, U))?.[3] || ''));
+  cek('reactivate -> "Aktif"', /^Aktif/.test((await baris(pa, U))?.[3] || ''));
   await pa.screenshot({ path: `${OUT}/t18-users-1440.png`, fullPage: true });
 
   // ------------------------------------------------------------------ Ingest sekarang
   await pa.goto(BASE + '/#/admin/ingest'); await pa.waitForSelector('main .ing'); await pa.waitForLoadState('networkidle');
   const sebelum = await pa.textContent('main .lastline');
-  // ingest tanpa perubahan bisa selesai < 0,5 dtk, di antara dua pembacaan status: bukti selesai = run_id baru di status
+  // an ingest without changes can finish in < 0.5 s, between two status reads: proof of completion = new run_id in the status
   const runAwal = await pa.evaluate(() => fetch('/api/admin/ingest/status').then((r) => r.json()).then((s) => s.last?.run_id ?? null));
   const pantau = pa.evaluate(async (awal) => {
     const seen = [], data = [];
@@ -172,31 +172,35 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   const selesai = await toast(pa, /Ingest selesai: 0 file berubah/);
   await pa.waitForTimeout(500);
   const sesudah = await pa.textContent('main .lastline');
-  cek('"Ingest sekarang": status berjalan -> selesai, "0 file berubah"; dashboard tetap terbuka selama berjalan (semua 200)',
+  cek('"Ingest sekarang": status running -> done, "0 file berubah"; dashboard stays open while running (all 200)',
     (m.seen.includes(true) || tombolNon) && m.s && !m.s.running && m.s.last_run.files_changed === 0 && selesai && /0 file berubah/.test(sesudah) && m.data.every((x) => x === 200),
-    `run ${runAwal ?? '–'} -> ${m.s?.last?.run_id}, berjalan terbaca ${m.seen.filter(Boolean).length}×, data ${[...new Set(m.data)]}, tombol nonaktif ${tombolNon}; "${sesudah.replace(/\s+/g, ' ').trim()}"`);
+    `run ${runAwal ?? '–'} -> ${m.s?.last?.run_id}, running seen ${m.seen.filter(Boolean).length}×, data ${[...new Set(m.data)]}, button disabled ${tombolNon}; "${sesudah.replace(/\s+/g, ' ').trim()}"`);
 
-  // ------------------------------------------------------------------ hapus rina, lalu catatan audit
+  // ------------------------------------------------------------------ delete rina, then the audit log
   await pa.goto(BASE + '/#/admin/user'); await pa.waitForSelector('main tbody tr');
   await aksi(pa, U, 'Hapus'); await pa.waitForSelector('dialog[open]');
   const konfH = await pa.textContent('dialog[open]');
   await dialog(pa).locator('button.danger').click(); await toast(pa, /rina dihapus/);
-  cek('hapus rina: konfirmasi menyebut nama; baris hilang', /rina/.test(konfH) && !(await baris(pa, U)));
+  cek('delete rina: confirmation names her; row gone', /rina/.test(konfH) && !(await baris(pa, U)));
   await pa.goto(BASE + '/#/admin/ingest'); await pa.waitForSelector('main tbody tr'); await pa.waitForLoadState('networkidle');
-  const audit = await pa.$$eval('main section.card tbody tr', (rows) => rows.map((r) => [...r.cells].map((c) => c.innerText.trim())));
-  const semua = (await pa.evaluate(() => fetch('/api/admin/audit?limit=500').then((r) => r.json()))).rows;   // layar: 50 pertama + lanjutan
+  // the audit table specifically (the page also has the folder-management table)
+  const audit = await pa.$$eval('main section.card', (cards) => {
+    const c = cards.find((x) => /Catatan audit|Audit log/.test(x.querySelector('h2,h3')?.textContent || ''));
+    return c ? [...c.querySelectorAll('tbody tr')].map((r) => [...r.cells].map((x) => x.innerText.trim())) : [];
+  });
+  const semua = (await pa.evaluate(() => fetch('/api/admin/audit?limit=500').then((r) => r.json()))).rows;   // page: first 50 + more
   const ada = (act, re = null) => semua.some((r) => r.action === act && (!re || re.test(r.detail || '')) && r.at && r.username && r.ip);
-  const perlu = [['user.create', /rina \(user\)/], ['user.update', /peran user -> admin/], ['user.update', /peran admin -> user/], ['user.reset_password', /rina/],
-    ['user.update', /rina: dinonaktifkan/], ['user.update', /rina: diaktifkan/], ['user.delete', /rina/], ['ingest.start', /folder=semua/], ['login.ok'], ['login.fail'], ['user.change_password']];
+  const perlu = [['user.create', /rina \(user\)/], ['user.update', /role user -> admin/], ['user.update', /role admin -> user/], ['user.reset_password', /rina/],
+    ['user.update', /rina: deactivated/], ['user.update', /rina: activated/], ['user.delete', /rina/], ['ingest.start', /folder=all/], ['login.ok'], ['login.fail'], ['user.change_password']];
   const kurang = perlu.filter(([a, re]) => !ada(a, re)).map(([a, re]) => `${a} ${re || ''}`);
   const lengkap = audit.slice(0, 12).every((r) => /\d{4} \d\d\.\d\d WIB/.test(r[0]) && r[4] !== '');
   const json = JSON.stringify(await pa.evaluate(() => fetch('/api/admin/audit?limit=500').then((r) => r.json())));
   const bocor = [PW, PW_U0, PW_U1, PW_U3, temp].filter((s) => json.includes(s) || audit.some((r) => r.join(' ').includes(s)));
-  cek(`catatan audit: ${perlu.length} tindakan tercatat dengan waktu (WIB), pelaku, IP; tanpa sandi atau token`,
-    !kurang.length && lengkap && !bocor.length && !/eyJ[A-Za-z0-9_-]{10,}/.test(json), (kurang.length ? 'kurang: ' + kurang.join(', ') : `${audit.length} baris`) + (bocor.length ? ' | BOCOR' : ''));
+  cek(`audit log: ${perlu.length} actions recorded with time (WIB), actor, IP; no passwords or tokens`,
+    !kurang.length && lengkap && !bocor.length && !/eyJ[A-Za-z0-9_-]{10,}/.test(json), (kurang.length ? 'missing: ' + kurang.join(', ') : `${audit.length} rows`) + (bocor.length ? ' | LEAKED' : ''));
   await pa.screenshot({ path: `${OUT}/t18-ingest-1440.png`, fullPage: true });
 
-  // ------------------------------------------------------------------ 2 bahasa × 2 tema × 2 lebar
+  // ------------------------------------------------------------------ 2 languages × 2 themes × 2 widths
   for (const lang of ['id', 'en']) for (const theme of ['dark', 'light']) for (const w of [1440, 390]) {
     await pa.setViewportSize({ width: w, height: 860 });
     await pa.evaluate(([l, th]) => { localStorage.setItem('lang', l); localStorage.setItem('theme', th); }, [lang, theme]);
@@ -206,23 +210,23 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
         [...document.querySelectorAll('main h2, main th, main button, main .note, main .lastline, main .bar')].map((h) => h.textContent.trim()).join(' | '),
         (() => { const b = document.querySelector('main .add'); return b ? getComputedStyle(b).position : null; })()]);
       const sisa = lang === 'en' ? (st[4].match(/\b(Tambah|Nama|Peran|Aktif|Terakhir|Sekarang|berhasil|berubah|Catatan|Tindakan|Rincian|Impor dari|dibangun)\b/g) || []) : [];
-      cek(`admin/${nama} ${lang}/${theme}/${w}px: tanpa gulir mendatar, teks sesuai bahasa${nama === 'user' && w === 390 ? ', "+ Tambah user" menempel di bawah' : ''}`,
+      cek(`admin/${nama} ${lang}/${theme}/${w}px: no horizontal scroll, text in the right language${nama === 'user' && w === 390 ? ', "+ Tambah user" pinned at the bottom' : ''}`,
         st[0] <= st[1] && st[2] === lang && st[3] === theme && !sisa.length && (nama !== 'user' || w !== 390 || st[5] === 'fixed'),
-        `lebar ${st[0]}/${st[1]}${sisa.length ? ', masih ID: ' + sisa.slice(0, 4).join(', ') : ''}`);
+        `width ${st[0]}/${st[1]}${sisa.length ? ', still ID: ' + sisa.slice(0, 4).join(', ') : ''}`);
       await pa.screenshot({ path: `${OUT}/t18-${nama}-${lang}-${theme}-${w}.png`, fullPage: w === 1440 });
     }
   }
-  // dialog di ponsel: layar penuh
+  // dialog on phones: full screen
   await pa.goto(BASE + '/#/admin/user'); await pa.waitForSelector('main tbody tr');
   await pa.click('main .add'); await pa.waitForSelector('dialog[open]');
   const dl = await pa.evaluate(() => { const r = document.querySelector('dialog[open]').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), innerWidth, innerHeight]; });
   await pa.screenshot({ path: `${OUT}/t18-dialog-390.png` });
-  cek('dialog di 390 px: layar penuh', dl[0] === dl[2] && dl[1] === dl[3], dl.join('×'));
+  cek('dialog at 390 px: full screen', dl[0] === dl[2] && dl[1] === dl[3], dl.join('×'));
   await pa.keyboard.press('Escape');
   await pa.evaluate(() => { localStorage.setItem('lang', 'id'); localStorage.setItem('theme', 'dark'); });
-  cek('tidak ada galat halaman/konsol', errs.length === 0, errs.slice(0, 3).join(' | '));
+  cek('no page/console errors', errs.length === 0, errs.slice(0, 3).join(' | '));
   await browser.close();
   const gagal = hasil.filter((x) => !x).length;
-  console.log(`\n${hasil.length - gagal} lulus, ${gagal} gagal`);
+  console.log(`\n${hasil.length - gagal} passed, ${gagal} failed`);
   process.exit(gagal ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });

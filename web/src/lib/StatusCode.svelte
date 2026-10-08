@@ -1,5 +1,5 @@
-<!-- Kode status HTTP berwarna (2xx hijau, 3xx netral, 4xx kuning, 5xx merah); kodenya selalu tertulis (DRD §9.2).
-     `code`: satu kode, atau `counts`: {kode: jumlah} -> '200×3 401×1' (bentuk lama). -->
+<!-- Colored HTTP status code (2xx green, 3xx neutral, 4xx yellow, 5xx red); the code is always written (DRD §9.2).
+     `code`: one code, or `counts`: {code: count} -> '200×3 401×1' (old form). -->
 <script>
   import { lang } from '../i18n.js';
   import { num } from '../format.js';

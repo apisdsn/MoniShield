@@ -1,4 +1,4 @@
-"""Halaman Keamanan (TRD §5.3)."""
+"""Security page (TRD §5.3)."""
 import re
 
 
@@ -6,16 +6,16 @@ from monishield.domain import detect
 from monishield.infrastructure.queries.sql import AM, H, _all, _has
 from .tables import NG, SEV, SEV_SQL, cells, first, services
 
-CLOUD = re.compile(r'CLOUD|OCEAN|AMAZON|AWS|AZURE|MICROSOFT|HETZNER|OVH|LINODE|VULTR|ALIBABA|TENCENT|HOSTING|DATACENTER', re.I)  # lama: temuan 5
+CLOUD = re.compile(r'CLOUD|OCEAN|AMAZON|AWS|AZURE|MICROSOFT|HETZNER|OVH|LINODE|VULTR|ALIBABA|TENCENT|HOSTING|DATACENTER', re.I)  # old: finding 5
 
 
-# aturan CRS untuk Log4Shell (JNDI lookup, berkas 944): temuan khusus seperti temuan "Log4Shell / RCE" aturan lama
+# CRS rules for Log4Shell (JNDI lookup, file 944): a dedicated finding like the old rules' "Log4Shell / RCE" finding
 LOG4J = {r['id'] for r in detect.DATA['rules'] if 'log4' in r['msg'].lower()}
 LAMA_KRITIS = ('SQL Injection', 'XSS', 'Path Traversal / LFI')
 
 
 def security(cur, folder, cfg):
-    """Keamanan. cfg.attack_rules = 'crs' (bawaan, Tahap 21): kategori CAPEC/keluarga dari aturan OWASP CRS; 'lama': aturan sistem lama."""
+    """Security. cfg.attack_rules = 'crs' (default, Stage 21): CAPEC/family categories from OWASP CRS rules; 'lama': the old system's rules."""
     crs = cfg.attack_rules == 'crs'
     U, I, HR = ('agg_crs_url', 'agg_crs_ip', 'agg_crs_hour') if crs else ('agg_attack_url', 'agg_attack_ip', 'agg_attack_hour')
     svc = services(cur, folder)
@@ -37,7 +37,7 @@ def security(cur, folder, cfg):
     urut = lambda d, n=None: [list(x) for x in sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))[:n]]
     top = cells(cur, [dict(ip=ip, hits=hits, max_severity=max(sev_of(c) for c in cats)) for ip, hits, cats, org in aip[:10]], ('ip',))
     top_login = cells(cur, [dict(ip=r[0], fail=r[1]) for r in sorted(login, key=lambda r: (-r[1], r[0]))[:10] if r[1]], ('ip',))
-    if crs:   # temuan: Log4Shell = URL yang kena aturan Log4j CRS; kategori kritis = 3 kategori berkeparahan 3 terbanyak (selain Log4Shell)
+    if crs:   # findings: Log4Shell = URLs matching CRS Log4j rules; critical categories = the 3 largest severity-3 categories (besides Log4Shell)
         log4 = [r for r in atk if LOG4J & set(r[6])]
         kritis = [c for c, n in urut({c: n for c, n in per_cat.items() if sev_of(c) == 3}) if any(r not in log4 for r in kategori(c))][:3]
         by_crit = [dict(category=c, **ringkas([r for r in kategori(c) if r not in log4])) for c in kritis]
@@ -47,7 +47,7 @@ def security(cur, folder, cfg):
     return dict(
         available=True, nginx=_has(svc, NG), appsmanager=_has(svc, AM),
         scheme='crs' if crs else 'lama',
-        rule_msgs=detect.rule_msgs(rid for r in atk for rid in r[6]) if crs else {},   # Tahap 24: keterangan kolom Aturan CRS
+        rule_msgs=detect.rule_msgs(rid for r in atk for rid in r[6]) if crs else {},   # Stage 24: descriptions for the CRS Rules column
         crs=dict(version=detect.DATA['version'], paranoia=detect.PARANOIA, rules=len(detect.rules(detect.PARANOIA)), threshold=detect.THRESHOLD) if crs else None,
         kpi=dict(attack_requests=sum(r[2] for r in atk), attack_ips=len(aip), critical_hits=sum(r[2] for r in atk if r[1] == 3),
                  attack_urls_2xx=sum(1 for r in atk if r[1] >= 2 and ok2(r[4])), login_fail_ips=len(login),

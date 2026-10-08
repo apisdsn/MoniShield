@@ -1,14 +1,14 @@
-"""Menurunkan agregat satu folder dari tabel mentah (TRD §3.4, §4.3).
+"""Derives one folder's aggregates from the raw tables (TRD §3.4, §4.3).
 
-Tiap berkas NN_<nama>.sql berisi pernyataan "hapus baris folder ini; sisipkan hasil SELECT folder ini" dengan
-parameter $f = folder. Dijalankan berurutan di dalam transaksi ingest. Mengubah definisi agregat tidak butuh
-parse ulang: cukup jalankan ulang (perintah `derive`).
+Each NN_<name>.sql file holds "delete this folder's rows; insert the SELECT result for this folder" statements with
+parameter $f = folder. Run in order inside the ingest transaction. Changing an aggregate definition needs no
+re-parse: just run it again (the `derive` command).
 
-Aturan kesetaraan dengan sistem lama yang dijaga di SQL ini:
-- WIB = UTC + 7 jam; menit/jam = pemotongan (date_trunc), seperti wib() lama yang membuang detik.
-- "yang pertama" = terkecil menurut (relpath file, line_no) = urutan baca sistem lama.
-- kunci endpoint = 'METODE path_key'; pengecualian frontend di agg_endpoint_error (tanpa metode), seperti lama.
-- persentil = elemen ke-min(n-1, floor(q*n)) dari durasi terurut (pct() lama), bukan kuantil bawaan DuckDB.
+Equivalence rules with the old system kept in this SQL:
+- WIB = UTC + 7 h; minute/hour = truncation (date_trunc), like the old wib() which dropped seconds.
+- "the first" = smallest by (file relpath, line_no) = the old system's read order.
+- endpoint key = 'METHOD path_key'; frontend exception in agg_endpoint_error (no method), as before.
+- percentile = element min(n-1, floor(q*n)) of the sorted durations (old pct()), not DuckDB's built-in quantile.
 """
 import glob, os
 
@@ -19,7 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def statements():
-    """[(nama berkas, pernyataan SQL)] berurutan."""
+    """[(file name, SQL statement)] in order."""
     out = []
     for path in sorted(glob.glob(os.path.join(HERE, '[0-9][0-9]_*.sql'))):
         sql = '\n'.join(l for l in open(path, encoding='utf-8').read().splitlines() if not l.lstrip().startswith('--'))
@@ -28,7 +28,7 @@ def statements():
 
 
 def run(con, folder, now, rules_version):
-    """Turunkan semua agregat satu folder. Dipanggil di dalam transaksi pemanggil."""
+    """Derive all aggregates of one folder. Called inside the caller's transaction."""
     for name, sql in statements():
         try: con.execute(sql.rstrip(';'), {'f': folder})
         except Exception as e: raise RuntimeError(f'derive/{name}: {e}') from e

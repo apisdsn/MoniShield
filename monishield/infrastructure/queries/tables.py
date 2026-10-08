@@ -1,8 +1,8 @@
-"""Endpoint tabel (TRD §5.4): satu kontrak untuk 25 tabel yang bisa dilanjutkan, difilter, dan diurut.
+"""Table endpoint (TRD §5.4): one contract for 25 tables that can be paged, filtered, and sorted.
 
-Tiap tabel = satu SELECT atas tabel agregat (parameter $f folder, $s layanan, $m modul) + daftar kolom teks
-untuk `q` + daftar kolom yang boleh diurut. Nama tabel, kolom urut, dan arah TIDAK pernah disisipkan dari
-masukan: semuanya dicocokkan dengan daftar di bawah, sisanya lewat parameter terikat (TRD §8.1).
+Each table = one SELECT over an aggregate table (parameters $f folder, $s service, $m module) + a list of text columns
+for `q` + a list of sortable columns. Table name, sort column, and direction are NEVER interpolated from
+input: all are matched against the lists below, the rest goes through bound parameters (TRD §8.1).
 """
 import dataclasses, re
 
@@ -11,10 +11,10 @@ from monishield.infrastructure.queries.sql import ip_cell, reject
 
 NG = 'nginx-ingress-controller'
 MAX_LIMIT, MAX_Q = 500, 200
-T = "strftime({}, '%Y-%m-%d %H:%M')"   # TIMESTAMP WIB -> teks format lama
+T = "strftime({}, '%Y-%m-%d %H:%M')"   # WIB TIMESTAMP -> text in the old format
 UTC = "strftime({} + INTERVAL 7 HOUR, '%Y-%m-%d %H:%M')"
 
-# Keparahan kategori serangan aturan LAMA (konstanta SEV di template); aturan CRS membawa keparahannya sendiri (Tahap 21).
+# Severity of the OLD rules' attack categories (SEV constant in the template); CRS rules carry their own severity (Stage 21).
 SEV = {'Log4Shell / RCE': 3, 'SQL Injection': 3, 'Path Traversal / LFI': 3, 'XSS': 3,
        'Probe file sensitif': 2, 'Scan CMS / WordPress': 2, 'Probe PHP / CGI': 2, 'UA tool/scanner otomatis': 1}
 _in = lambda n: ', '.join("'" + c.replace("'", "''") + "'" for c, s in SEV.items() if s == n)
@@ -24,20 +24,20 @@ SEV_SQL = f'CASE WHEN category IN ({_in(3)}) THEN 3 WHEN category IN ({_in(2)}) 
 @dataclasses.dataclass(frozen=True)
 class Table:
     sql: str
-    limit: int                 # batas bawaan = batas tabel itu di sistem lama
-    order: str                 # urutan bawaan (urutan lama), selalu berakhir pada kunci unik agar halaman stabil
-    text: tuple                # kolom yang dicari `q`
-    sort: tuple                # kolom yang boleh diurut
-    ip: str = None             # kolom IP utama: pemiliknya ikut dicari `q`, lokasinya tersedia untuk baris
-    ip_lists: tuple = ()       # kolom berisi daftar IP
-    per_service: bool = False  # wajib parameter `service`
-    fix: object = None         # penyesuaian bentuk baris
+    limit: int                 # default limit = that table's limit in the old system
+    order: str                 # default order (old order), always ending on a unique key so pages are stable
+    text: tuple                # columns searched by `q`
+    sort: tuple                # sortable columns
+    ip: str = None             # main IP column: its owner is also searched by `q`, its location is available for rows
+    ip_lists: tuple = ()       # columns holding IP lists
+    per_service: bool = False  # requires the `service` parameter
+    fix: object = None         # row shape adjustment
 
 
 def _flow(r):
     r['pods'] = [[p['pod'], p['n']] for p in r['pods']]
     lokasi = dict(city=r['_city'], region=r['_region'], cc=r['_country']) if r['_lat'] is not None else None
-    r['location'] = lokasi or ('internal' if r['_cc'] == '-' else None)   # None = tidak diketahui
+    r['location'] = lokasi or ('internal' if r['_cc'] == '-' else None)   # None = unknown
 
 
 EP = """SELECT key, requests, n4xx, n5xx, p50, p95, p99, dur_max AS max, (n4xx + n5xx) / requests AS error_rate
@@ -53,7 +53,7 @@ TABLES = {
                   ('key', 'status'), ('duration_ms', 'key', 'status'), per_service=True),
     'ips': Table('SELECT ip, requests AS n FROM agg_ip WHERE folder = $f AND service = $s', 15, 'n DESC, ip', ('ip',), ('ip', 'n'), ip='ip', per_service=True),
     'user-agents': Table(f"SELECT ua90 AS ua, n FROM agg_ua WHERE folder = $f AND $s = '{NG}'", 12, 'n DESC, ua', ('ua',), ('ua', 'n'), per_service=True),
-    # `service` opsional: tanpa layanan = pesan lintas layanan (Overview)
+    # `service` optional: without a service = messages across services (Overview)
     'messages': Table("""SELECT service, level, msg_key, n, sample_raw AS sample FROM agg_message
                          WHERE folder = $f AND (CAST($s AS VARCHAR) IS NULL OR service = $s)""", 40, 'n DESC, service, msg_key',
                       ('service', 'msg_key'), ('service', 'level', 'msg_key', 'n')),
@@ -73,7 +73,7 @@ TABLES = {
                         ('ip', 'hits', 'max_severity', 'first', 'last'), ip='ip'),
     'accounts': Table(f"""SELECT account, fail, lock, ok, fail_ips, ok_ips, flags, {T.format('first_wib')} AS first, {T.format('last_wib')} AS last, notes
                           FROM agg_account WHERE folder = $f""", 150,
-                      "list_contains(flags, 'Sukses Dari IP Berbeda') DESC, len(flags) DESC, fail DESC, account",   # urutan lama:268
+                      "list_contains(flags, 'Sukses Dari IP Berbeda') DESC, len(flags) DESC, fail DESC, account",   # old order:268
                       ('account', 'fail_ips', 'ok_ips', 'flags', 'notes'), ('account', 'fail', 'lock', 'ok', 'first', 'last'), ip_lists=('fail_ips', 'ok_ips')),
     'login-ips': Table(f"""SELECT ip, fail, lock, ok, list_sort(accounts) AS accounts, {T.format('first_wib')} AS first, {T.format('last_wib')} AS last
                            FROM agg_login_ip WHERE folder = $f AND (fail > 0 OR lock > 0)""", 100, 'lock DESC, fail DESC, ip',
@@ -104,8 +104,8 @@ TABLES = {
                    ('client', 'status', 'error', 'n', 'max_ms', 'first', 'last'), ip='client'),
 }
 
-# Tahap 21 (TRD §4.6): bila cfg.attack_rules = 'crs', dua tabel serangan dibaca dari agregat OWASP CRS (kategori = CAPEC/keluarga,
-# keparahan dari aturan CRS, kolom `rules` = ID aturan). Agregat lama tetap ada untuk uji kesetaraan (attack_rules = 'lama').
+# Stage 21 (TRD §4.6): when cfg.attack_rules = 'crs', the two attack tables are read from the OWASP CRS aggregates (category = CAPEC/family,
+# severity from the CRS rules, column `rules` = rule IDs). The old aggregates stay for equivalence tests (attack_rules = 'lama').
 CRS_TABLES = {
     'attack-urls': Table(f"""SELECT category, severity, method_path, hits, ip_count, top_ip, status_counts, sizes, upstreams, ua_first AS ua, rules,
                                     {T.format('first_wib')} AS first, {T.format('last_wib')} AS last
@@ -119,7 +119,7 @@ CRS_TABLES = {
 
 
 def owners(cur, ips):
-    """{ip: sel IP + pemilik} untuk sekumpulan IP (TRD §5.1), satu query."""
+    """{ip: IP cell + owner} for a set of IPs (TRD §5.1), one query."""
     ips = list({i for i in ips if i})
     if not ips: return {}
     got = {r[0]: r for r in cur.execute(f"SELECT ip, asn, cc, org FROM ip_info WHERE ip IN ({', '.join('?' * len(ips))})", ips).fetchall()}
@@ -127,7 +127,7 @@ def owners(cur, ips):
 
 
 def cells(cur, rows, cols=(), lists=()):
-    """Ganti kolom IP di `rows` (daftar dict) dengan sel IP + pemilik."""
+    """Replace the IP columns in `rows` (list of dicts) with IP cell + owner."""
     own = owners(cur, [r[c] for r in rows for c in cols] + [ip for r in rows for c in lists for ip in r[c]])
     for r in rows:
         for c in cols: r[c] = own[r[c]] if r[c] else None
@@ -136,12 +136,12 @@ def cells(cur, rows, cols=(), lists=()):
 
 
 def table_of(name, scheme='crs'):
-    """Definisi tabel; tabel serangan mengikuti aturan deteksi yang dipakai (cfg.attack_rules)."""
+    """Table definition; attack tables follow the detection rules in use (cfg.attack_rules)."""
     return CRS_TABLES[name] if scheme == 'crs' and name in CRS_TABLES else TABLES.get(name)
 
 
 def page(cur, name, folder, service=None, module=None, q='', sort=None, dir='desc', limit=None, offset=0, scheme='crs'):
-    """Satu halaman tabel. Pemanggil sudah memvalidasi `name`, `sort`, `dir`; di sini hanya nilai terikat."""
+    """One table page. The caller has already validated `name`, `sort`, `dir`; only bound values here."""
     t = table_of(name, scheme)
     limit = t.limit if limit is None else limit
     join = f""", i.org AS _org, i.cc AS _cc, i.city AS _city, i.region AS _region, i.country AS _country, i.lat AS _lat
@@ -163,7 +163,7 @@ def page(cur, name, folder, service=None, module=None, q='', sort=None, dir='des
 
 
 def first(cur, name, folder, service=None, module=None, limit=None, scheme='crs'):
-    """Halaman pertama untuk respons halaman: {total, rows} (TRD §5.1)."""
+    """First page for a page response: {total, rows} (TRD §5.1)."""
     p = page(cur, name, folder, service=service, module=module, limit=limit, scheme=scheme)
     return dict(total=p['total'], rows=p['rows'])
 
@@ -172,24 +172,24 @@ def services(cur, folder): return {r[0]: r[1] for r in cur.execute('SELECT servi
 
 
 def _int(v, nama, lo, hi):
-    if not re.fullmatch(r'\d{1,6}', v) or not lo <= int(v) <= hi: raise reject(400, 'invalid_parameter', f'Parameter tidak sah: {nama}.')
+    if not re.fullmatch(r'\d{1,6}', v) or not lo <= int(v) <= hi: raise reject(400, 'invalid_parameter', f'Invalid parameter: {nama}.')
     return int(v)
 
 
 def table_page(cur, folder, cfg, table, params):
     p = params
     asing = set(p) - {'service', 'module', 'q', 'sort', 'dir', 'limit', 'offset'}
-    if asing: raise reject(400, 'invalid_parameter', 'Parameter tidak dikenal.')
+    if asing: raise reject(400, 'invalid_parameter', 'Unknown parameter.')
     scheme = cfg.attack_rules
     t = table_of(table, scheme)
-    if not t: raise reject(404, 'not_found', 'Tabel tidak ditemukan.')
+    if not t: raise reject(404, 'not_found', 'Table not found.')
     service, module, q, sort, dir = p.get('service'), p.get('module'), p.get('q', ''), p.get('sort'), p.get('dir', 'desc')
-    if t.per_service and not service: raise reject(400, 'invalid_parameter', 'Parameter wajib: service.')
-    if service is not None and service not in services(cur, folder): raise reject(404, 'not_found', 'Layanan tidak ditemukan.')
-    if module is not None and (table != 'flows' or len(module) > 100): raise reject(400, 'invalid_parameter', 'Parameter tidak sah: module.')
-    if len(q) > MAX_Q: raise reject(400, 'invalid_parameter', 'Parameter tidak sah: q.')
-    if sort is not None and sort not in t.sort: raise reject(400, 'invalid_parameter', 'Parameter tidak sah: sort.')
-    if dir not in ('asc', 'desc'): raise reject(400, 'invalid_parameter', 'Parameter tidak sah: dir.')
+    if t.per_service and not service: raise reject(400, 'invalid_parameter', 'Required parameter: service.')
+    if service is not None and service not in services(cur, folder): raise reject(404, 'not_found', 'Service not found.')
+    if module is not None and (table != 'flows' or len(module) > 100): raise reject(400, 'invalid_parameter', 'Invalid parameter: module.')
+    if len(q) > MAX_Q: raise reject(400, 'invalid_parameter', 'Invalid parameter: q.')
+    if sort is not None and sort not in t.sort: raise reject(400, 'invalid_parameter', 'Invalid parameter: sort.')
+    if dir not in ('asc', 'desc'): raise reject(400, 'invalid_parameter', 'Invalid parameter: dir.')
     limit = _int(p['limit'], 'limit', 1, MAX_LIMIT) if 'limit' in p else None
     offset = _int(p['offset'], 'offset', 0, 999999) if 'offset' in p else 0
     return page(cur, table, folder, service=service, module=module or None, q=q, sort=sort, dir=dir, limit=limit, offset=offset, scheme=scheme)

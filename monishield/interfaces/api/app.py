@@ -1,6 +1,6 @@
-"""Aplikasi FastAPI: SATU proses pemilik DuckDB (TRD K1), login + peran, header keamanan, berkas statis.
+"""FastAPI application: ONE process owns DuckDB (TRD K1), login + roles, security headers, static files.
 
-Jalankan dengan satu worker saja: lebih dari satu worker = lebih dari satu proses penulis DuckDB.
+Run with a single worker only: more than one worker = more than one DuckDB writer process.
 """
 import contextlib, dataclasses, os
 
@@ -19,7 +19,7 @@ from monishield.domain.errors import Fail
 from monishield.interfaces.api import admin, config_api, docs, kafka, meta, notify, pages, session, upload, users
 from .common import ROLE_DEPS
 
-WORKERS = 1  # konstanta, bukan konfigurasi (TRD §7.2)
+WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
@@ -33,19 +33,19 @@ def _deps(dependant):
 
 
 def check_roles(routers):
-    """Aman secara bawaan: setiap rute harus mendeklarasikan peran; kalau tidak, aplikasi menolak mulai (TRD §8.3).
+    """Secure by default: every route must declare a role; otherwise the app refuses to start (TRD §8.3).
 
-    Diperiksa pada router (bukan app.routes): FastAPI menyimpan router yang disertakan secara malas.
+    Checked on the routers (not app.routes): FastAPI stores included routers lazily.
     """
     routes = [r for router in routers for r in router.routes]
     bare = [f'{sorted(r.methods)} {r.path}' for r in routes if not isinstance(r, APIRoute) or not set(_deps(r.dependant)) & set(ROLE_DEPS)]
-    if bare: raise RuntimeError(f'rute tanpa deklarasi peran: {bare}')
+    if bare: raise RuntimeError(f'routes without a role declaration: {bare}')
     return routes
 
 
 def wire(state, cfg, env_path):
-    """Akar komposisi: adapter infrastruktur + layanan application di `state` (= ctx layanan; lihat
-    monishield/application/ports.py). Koneksi DuckDB (state.con) dan akun (state.auth) dibuka saat server mulai."""
+    """Composition root: infrastructure adapters + application services on `state` (= the services' ctx; see
+    monishield/application/ports.py). The DuckDB connection (state.con) and accounts (state.auth) are opened at server start."""
     state.cfg, state.settings_pending, state.snapshot_error = cfg, [], None
     state.env = envfile.EnvStore(env_path)
     state.warehouse = warehouse.DuckWarehouse(state)
@@ -67,10 +67,10 @@ def _error(status, code, message): return JSONResponse(dict(error=dict(code=code
 
 
 def create_app(cfg=None, env_path=None):
-    """env_path = file .env yang ditulis layar Konfigurasi. Bawaan: v2/.env bila konfigurasi dibaca di sini; bila `cfg`
-    diberikan pemanggil (uji, penyematan) tanpa env_path, ditulis di samping state_dir-nya agar v2/.env tidak tersentuh."""
+    """env_path = the .env file written by the Configuration page. Default: v2/.env when the configuration is read here; when
+    the caller passes `cfg` (tests, embedding) without env_path, it is written next to its state_dir so v2/.env is untouched."""
     loaded = cfg is None
-    cfg = dataclasses.replace(cfg or config.load())   # salinan sendiri: isian layar ditimpakan ke objek ini
+    cfg = dataclasses.replace(cfg or config.load())   # own copy: values from the page are applied to this object
     env_path = env_path or (config.DOTENV if loaded else os.path.join(cfg.state_dir, '.env'))
 
     @contextlib.asynccontextmanager
@@ -78,15 +78,15 @@ def create_app(cfg=None, env_path=None):
         os.makedirs(cfg.state_dir, exist_ok=True)
         app.state.con = db.open(cfg.db_path)
         if len(cfg.jwt_secret) < authmod.JWT_SECRET_MIN:
-            raise RuntimeError(f'S4_JWT_SECRET wajib diisi (minimal {authmod.JWT_SECRET_MIN} karakter acak); lihat .env.example')
+            raise RuntimeError(f'S4_JWT_SECRET is required (at least {authmod.JWT_SECRET_MIN} random characters); see .env.example')
         app.state.auth = authmod.Auth(cfg.auth_url, cfg.jwt_secret, cfg.session_idle_minutes, cfg.session_max_hours)
         app.state.auth.bootstrap_admin(cfg.admin_user, cfg.admin_password)
-        settings_service.migrate(app.state)   # setelan lama di basis data akun -> .env (sekali)
-        app.state.ingest.snapshot(missing_only=True)   # DbGate langsung punya salinan, tanpa menunggu ingest
-        if cfg.ingest_on_start: app.state.ingest.start(by='(mulai server)')
+        settings_service.migrate(app.state)   # old settings in the account database -> .env (once)
+        app.state.ingest.snapshot(missing_only=True)   # DbGate gets a copy right away, without waiting for ingest
+        if cfg.ingest_on_start: app.state.ingest.start(by='(server start)')
         app.state.imports.start_watch()
         app.state.alerts.start()
-        app.state.kafka.start()   # log dari Kafka (bila S4_KAFKA_BROKERS + S4_KAFKA_TOPIC diisi)
+        app.state.kafka.start()   # logs from Kafka (when S4_KAFKA_BROKERS + S4_KAFKA_TOPIC are set)
         yield
         app.state.imports.stop_watch()
         app.state.alerts.stop()
@@ -98,7 +98,7 @@ def create_app(cfg=None, env_path=None):
 
     app = FastAPI(title='MoniShield', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     wire(app.state, cfg, env_path)
-    detect.use(cfg)   # tingkat paranoia CRS untuk derive lewat API (Tahap 21)
+    detect.use(cfg)   # CRS paranoia level for derive via the API (Stage 21)
     check_roles(ROUTERS)
     for r in ROUTERS: app.include_router(r)
 
@@ -115,15 +115,15 @@ def create_app(cfg=None, env_path=None):
         return _error(exc.status_code, d['code'], d['message'])
 
     @app.exception_handler(Fail)
-    async def domain_error(request, exc):   # galat domain/application (akun, kueri, impor, …) -> JSON yang sama dengan ApiError
+    async def domain_error(request, exc):   # domain/application errors (accounts, queries, import, …) -> the same JSON as ApiError
         return _error(exc.status, exc.code, exc.message)
 
     @app.exception_handler(RequestValidationError)
-    async def bad_request(request, exc):  # nilai masukan tidak dipantulkan kembali
+    async def bad_request(request, exc):  # input values are not echoed back
         fields = ', '.join(sorted({str(e['loc'][-1]) for e in exc.errors()}))
-        return _error(400, 'invalid_parameter', f'Parameter tidak sah: {fields}.')
+        return _error(400, 'invalid_parameter', f'Invalid parameter: {fields}.')
 
-    # Berkas statis: peta (dibuat ingest) dan aplikasi web hasil build. Tidak memuat data log; data hanya lewat /api.
+    # Static files: map (built by ingest) and the built web app. No log data; data only goes through /api.
     os.makedirs(os.path.join(cfg.data_dir, 'map'), exist_ok=True)
     app.mount('/map', StaticFiles(directory=os.path.join(cfg.data_dir, 'map')), name='map')
     dist = os.path.join(config.V2_DIR, 'web', 'dist')

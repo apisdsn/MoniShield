@@ -1,4 +1,4 @@
-"""Akun, sandi, sesi, penguncian, peran, audit (TRD §8.2–§8.3, §9.6). Unit atas monishield.auth, tanpa HTTP."""
+"""Accounts, passwords, sessions, lockout, roles, audit (TRD §8.2–§8.3, §9.6). Units over monishield.auth, no HTTP."""
 import datetime
 
 import jwt
@@ -29,7 +29,7 @@ def admin(a): return a.create_user('admin', 'Admin', 'admin', PW, must_change=Fa
 def test_sandi_disimpan_sebagai_hash_bergaram(a, admin):
     b = a.create_user('budi', 'Budi', 'user', PW)
     u = baris(a, auth.User)
-    assert u[0].password_hash != u[1].password_hash and u[0].password_salt != u[1].password_salt   # sandi sama, hash dan garam berbeda
+    assert u[0].password_hash != u[1].password_hash and u[0].password_salt != u[1].password_salt   # same password, different hash and salt
     assert all(len(x.password_hash) == 32 and len(x.password_salt) == 16 and x.hash_params == '15:8:1' for x in u)
     assert all(PW.encode() not in bytes(x.password_hash) + bytes(x.password_salt) for x in u) and b['must_change_password'] is True
 
@@ -61,7 +61,7 @@ def test_masuk_dan_sesi(a, admin):
     token, user = a.login('Admin ', PW, '1.2.3.4', 'UA')
     assert user['username'] == 'admin' and token.count('.') == 2 and a.session_user(token)['role'] == 'admin'
     ses = baris(a, auth.Session)
-    assert len(ses) == 1 and token not in str(vars(ses[0])) and (ses[0].ip, ses[0].user_agent) == ('1.2.3.4', 'UA')   # token tidak disimpan
+    assert len(ses) == 1 and token not in str(vars(ses[0])) and (ses[0].ip, ses[0].user_agent) == ('1.2.3.4', 'UA')   # token is not stored
     assert a.session_user('token-palsu') is None and a.session_user(None) is None
     a.logout(token, user)
     assert a.session_user(token) is None
@@ -70,14 +70,14 @@ def test_masuk_dan_sesi(a, admin):
 def test_pesan_galat_sama_untuk_user_tidak_ada_dan_sandi_salah(a, admin):
     with pytest.raises(auth.AuthError) as e1: a.login('admin', 'sandi-salah-sekali')
     with pytest.raises(auth.AuthError) as e2: a.login('tidak-ada', 'sandi-salah-sekali')
-    assert (e1.value.code, e1.value.message, e1.value.status) == (e2.value.code, e2.value.message, e2.value.status) == ('invalid_credentials', 'Nama user atau sandi salah.', 401)
+    assert (e1.value.code, e1.value.message, e1.value.status) == (e2.value.code, e2.value.message, e2.value.status) == ('invalid_credentials', 'Wrong username or password.', 401)
 
 
 def test_dikunci_setelah_lima_gagal(a, admin):
     for _ in range(5):
         with pytest.raises(auth.AuthError) as e: a.login('admin', 'salah-salah-salah', '9.9.9.9')
         assert e.value.status == 401
-    with pytest.raises(auth.AuthError) as e: a.login('admin', PW, '9.9.9.9')       # percobaan ke-6, sandi BENAR pun ditolak
+    with pytest.raises(auth.AuthError) as e: a.login('admin', PW, '9.9.9.9')       # 6th attempt: even the CORRECT password is rejected
     assert (e.value.status, e.value.code) == (429, 'too_many_attempts')
     assert a.list_users()[0]['locked'] is True
 
@@ -88,14 +88,14 @@ def test_pembatas_per_ip(a, admin, monkeypatch):
         with pytest.raises(auth.AuthError): a.login(f'tidak-ada-{i}', 'x' * 12, '7.7.7.7')
     with pytest.raises(auth.AuthError) as e: a.login('admin', PW, '7.7.7.7')
     assert e.value.status == 429
-    assert a.login('admin', PW, '8.8.8.8')[1]['username'] == 'admin'            # IP lain tidak terdampak
+    assert a.login('admin', PW, '8.8.8.8')[1]['username'] == 'admin'            # other IPs unaffected
 
 
 def test_sesi_habis_karena_diam_dan_karena_umur(a, admin, monkeypatch):
     token, _ = a.login('admin', PW)
     asli = auth.now()
     monkeypatch.setattr(auth, 'now', lambda: asli + datetime.timedelta(minutes=59))
-    assert a.session_user(token)                                                 # aktivitas memperpanjang masa diam
+    assert a.session_user(token)                                                 # activity extends the idle timeout
     monkeypatch.setattr(auth, 'now', lambda: asli + datetime.timedelta(minutes=59 + 61))
     assert a.session_user(token) is None
     monkeypatch.setattr(auth, 'now', lambda: asli)
@@ -104,7 +104,7 @@ def test_sesi_habis_karena_diam_dan_karena_umur(a, admin, monkeypatch):
         monkeypatch.setattr(auth, 'now', lambda j=jam: asli + datetime.timedelta(minutes=50 * j))
         assert a.session_user(token), jam
     monkeypatch.setattr(auth, 'now', lambda: asli + datetime.timedelta(hours=12, minutes=1))
-    assert a.session_user(token) is None                                         # batas total 12 jam walau terus aktif
+    assert a.session_user(token) is None                                         # 12-hour total limit even while active
 
 
 def test_ganti_sandi_mencabut_sesi_lain(a, admin):
@@ -129,7 +129,7 @@ def test_reset_dan_nonaktif_mencabut_sesi(a, admin):
     a.update_user(b['user_id'], admin, active=False)
     assert a.session_user(t) is None
     with pytest.raises(auth.AuthError) as e: a.login('budi', temp)
-    assert e.value.code == 'invalid_credentials'                                 # akun nonaktif: pesan yang sama
+    assert e.value.code == 'invalid_credentials'                                 # inactive account: same message
     a.update_user(b['user_id'], admin, active=True)
     assert a.login('budi', temp)
 
@@ -143,7 +143,7 @@ def test_admin_terakhir_dilindungi(a, admin):
     kedua = a.create_user('admin2', 'A2', 'admin', PW, by=admin)
     with pytest.raises(auth.AuthError) as e: a.delete_user(kedua['user_id'], kedua)
     assert e.value.code == 'self_delete'
-    a.update_user(admin['user_id'], kedua, role='user')                          # boleh: masih ada admin lain
+    a.update_user(admin['user_id'], kedua, role='user')                          # allowed: another admin still exists
     with pytest.raises(auth.AuthError) as e: a.delete_user(kedua['user_id'], admin)
     assert e.value.code == 'last_admin'
 
@@ -153,7 +153,7 @@ def test_perubahan_peran_berlaku_pada_permintaan_berikutnya(a, admin):
     t, _ = a.login('budi', PW)
     assert a.session_user(t)['role'] == 'user'
     a.update_user(b['user_id'], admin, role='admin')
-    assert a.session_user(t)['role'] == 'admin'                                  # tanpa masuk ulang, tanpa cache
+    assert a.session_user(t)['role'] == 'admin'                                  # no re-login, no cache
 
 
 def test_admin_pertama_hanya_bila_belum_ada_user(a):
@@ -170,10 +170,10 @@ def test_audit_tanpa_rahasia(a, admin):
     temp = a.reset_password(b['user_id'], admin)
     a.update_user(b['user_id'], admin, role='admin'); a.delete_user(b['user_id'], admin)
     total, rows = a.audit_list(50)
-    assert [r['action'] for r in rows][::-1] == ['user.create', 'user.create', 'login.ok', 'login.fail', 'user.reset_password', 'user.update', 'user.delete']  # yang pertama: pembuatan admin oleh fixture
+    assert [r['action'] for r in rows][::-1] == ['user.create', 'user.create', 'login.ok', 'login.fail', 'user.reset_password', 'user.update', 'user.delete']  # the first one: admin creation by the fixture
     teks = str(rows)
     assert PW not in teks and temp not in teks and token not in teks and 'sandi-salah-rahasia' not in teks
-    assert rows[-2]['username'] == 'admin' and rows[-2]['ip'] == '1.1.1.1' and 'peran user -> admin' in teks
+    assert rows[-2]['username'] == 'admin' and rows[-2]['ip'] == '1.1.1.1' and 'role user -> admin' in teks
 
 
 def test_token_mesin():
@@ -186,9 +186,9 @@ def test_isi_jwt_dan_tidak_memuat_rahasia(a, admin):
     token, user = a.login('admin', PW)
     c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')
     assert set(c) == {'iss', 'sub', 'sid', 'iat', 'exp'} and c['sub'] == str(user['user_id'])
-    assert c['exp'] - c['iat'] == 12 * 3600                                       # umur maksimum sesi
+    assert c['exp'] - c['iat'] == 12 * 3600                                       # maximum session age
     assert jwt.get_unverified_header(token)['alg'] == 'HS256'
-    assert 'admin' not in str(c) and 'role' not in c                              # peran dibaca dari basis data, bukan dari token
+    assert 'admin' not in str(c) and 'role' not in c                              # role is read from the database, not from the token
 
 
 def _palsu(claims, secret=JWT_SECRET, alg='HS256', **header): return jwt.encode(claims, secret, algorithm=alg, headers=header or None)
@@ -198,19 +198,19 @@ def test_jwt_palsu_ditolak(a, admin):
     token, user = a.login('admin', PW)
     c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')
     assert a.session_user(token)
-    assert a.session_user(_palsu(c, 'rahasia-lain-yang-juga-panjang-sekali-32')) is None       # tanda tangan salah
+    assert a.session_user(_palsu(c, 'rahasia-lain-yang-juga-panjang-sekali-32')) is None       # wrong signature
     assert a.session_user(jwt.encode(c, None, algorithm='none')) is None                          # alg none
-    assert a.session_user(_palsu(c, alg='HS512')) is None                                         # algoritma lain
-    assert a.session_user(token[:-3] + ('aaa' if not token.endswith('aaa') else 'bbb')) is None   # diutak-atik
+    assert a.session_user(_palsu(c, alg='HS512')) is None                                         # other algorithm
+    assert a.session_user(token[:-3] + ('aaa' if not token.endswith('aaa') else 'bbb')) is None   # tampered
     assert a.session_user(_palsu({**c, 'iss': 'lain'})) is None
-    assert a.session_user(_palsu({k: v for k, v in c.items() if k != 'sid'})) is None             # klaim wajib hilang
-    assert a.session_user(_palsu({**c, 'exp': c['iat'] - 10})) is None                            # kedaluwarsa
-    assert a.session_user(_palsu({**c, 'sid': 'sesi-yang-tidak-ada'})) is None                    # sah tetapi sesinya tidak ada
+    assert a.session_user(_palsu({k: v for k, v in c.items() if k != 'sid'})) is None             # required claim missing
+    assert a.session_user(_palsu({**c, 'exp': c['iat'] - 10})) is None                            # expired
+    assert a.session_user(_palsu({**c, 'sid': 'sesi-yang-tidak-ada'})) is None                    # valid but its session does not exist
     for sampah in ('', 'a.b.c', 'bukan-jwt', None, 123): assert a.session_user(sampah) is None
 
 
 def test_jwt_sah_untuk_user_lain_ditolak(a, admin):
-    """Token yang tanda tangannya sah tetapi `sub`-nya ditukar tidak boleh menjadi user lain."""
+    """A token with a valid signature but a swapped `sub` must not become another user."""
     b = a.create_user('budi', 'Budi', 'user', PW, by=admin)
     token, _ = a.login('budi', PW)
     c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')
@@ -218,19 +218,19 @@ def test_jwt_sah_untuk_user_lain_ditolak(a, admin):
 
 
 def test_jwt_tetap_bisa_dicabut(a, admin):
-    """Alasan sesi diperiksa di basis data: JWT yang belum kedaluwarsa pun mati setelah keluar."""
+    """Session validity is checked in the database: even an unexpired JWT dies after logout."""
     token, user = a.login('admin', PW)
     a.logout(token, user)
-    assert jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')  # tanda tangan masih sah
+    assert jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')  # signature still valid
     assert a.session_user(token) is None
 
 
 def test_rahasia_jwt_pendek_ditolak(auth_url):
-    with pytest.raises(ValueError, match='minimal 32'): auth.Auth(auth_url, 'pendek')
+    with pytest.raises(ValueError, match='at least 32'): auth.Auth(auth_url, 'pendek')
 
 
 def test_tanpa_rahasia_tidak_bisa_masuk(auth_url):
-    x = auth.Auth(auth_url)                      # cara baris perintah membuka: kelola akun saja
+    x = auth.Auth(auth_url)                      # how the command line opens it: account management only
     x.create_user('admin', 'A', 'admin', PW)
     with pytest.raises(RuntimeError, match='S4_JWT_SECRET'): x.login('admin', PW)
     assert x.session_user('apa.saja.token') is None

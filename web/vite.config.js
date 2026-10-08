@@ -1,15 +1,15 @@
-// Bangun: `npm run build` -> web/dist (disajikan FastAPI di "/"). Jalan pengembangan: `npm run dev` dengan server
-// v2 di 127.0.0.1:8000; /api dan /map diteruskan ke sana sehingga cookie sesi tetap satu asal.
+// Build: `npm run build` -> web/dist (served by FastAPI at "/"). Development: `npm run dev` with the v2 server
+// at 127.0.0.1:8000; /api and /map are proxied there so the session cookie stays same-origin.
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const api = 'http://127.0.0.1:8000';
 
-// Pesan galat runtime Svelte memuat tautan dokumentasi https://svelte.dev/e/<kode>; MapLibre memuat tautan logo/atribusi
-// bawaannya (tidak dipakai: atribusi sendiri, DRD §7.8) dan satu tautan isu di teks peringatan. Tidak ada yang diambil,
-// tetapi hasil build harus bebas alamat pihak ketiga (DRD §7.2, A4): kodenya tetap, tautannya dibuang. Yang tersisa
-// hanya tautan atribusi wajib MaxMind dan GeoNames (DRD §7.8, dibuka pengguna sendiri).
+// Svelte runtime error messages contain documentation links https://svelte.dev/e/<code>; MapLibre contains its default
+// logo/attribution links (unused: our own attribution, DRD §7.8) and one issue link in a warning text. Nothing is fetched,
+// but the build output must be free of third-party addresses (DRD §7.2, A4): the code stays, the links are removed. The
+// only ones left are the mandatory MaxMind and GeoNames attribution links (DRD §7.8, opened by the user).
 const LINKS = [['https://svelte.dev/e/', 'svelte/e/'], ['https://maplibre.org/', 'maplibre.org/'],
                ['https://github.com/mapbox/mapbox-gl-js/issues/2907', 'mapbox-gl-js#2907']];
 const noExternalLinks = {
@@ -17,8 +17,8 @@ const noExternalLinks = {
   renderChunk: (code) => ({ code: LINKS.reduce((c, [a, b]) => c.replaceAll(a, b), code), map: null }),
 };
 
-// Dokumentasi API (/api/docs, permintaan pemilik 2026-10-07): Swagger UI dilayani dari server sendiri (CSP 'self', tanpa
-// CDN), disalin dari swagger-ui-dist saat build ke dist/swagger/. Komentar sourceMappingURL dibuang (peta tidak disalin).
+// API documentation (/api/docs, owner request 2026-10-07): Swagger UI is served from our own server (CSP 'self', no
+// CDN), copied from swagger-ui-dist into dist/swagger/ at build time. sourceMappingURL comments are removed (maps not copied).
 const SWAGGER = 'node_modules/swagger-ui-dist/';
 const swaggerAssets = {
   name: 'monishield-swagger-assets',
@@ -33,7 +33,7 @@ const swaggerAssets = {
 
 export default defineConfig({
   plugins: [svelte(), noExternalLinks, swaggerAssets],
-  // chunkSizeWarningLimit: MapLibre ±1 MB, chunk terpisah yang dimuat hanya saat peta dibuka
+  // chunkSizeWarningLimit: MapLibre ±1 MB, a separate chunk loaded only when the map is opened
   build: { outDir: 'dist', emptyOutDir: true, chunkSizeWarningLimit: 1100, sourcemap: false },
   server: { proxy: { '/api': api, '/map': api } },
 });

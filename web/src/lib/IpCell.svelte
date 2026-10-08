@@ -1,18 +1,18 @@
-<!-- Sel IP + pemilik jaringan (DRD §4.4): IP tebal monospace; baris "AS<asn> · <cc> · <org>" 11 px (dipotong 2
-     baris, lengkap saat diklik/fokus); tag "Jaringan Ombudsman"; IP privat -> "Jaringan Internal (IP Privat)".
-     Tombol salin muncul saat hover/fokus (U12). Tidak ada tautan ke layanan pencari IP (privasi).
-     Tahap 24: IP menaut ke profil IP di dashboard ini (#/ip/<ip>, folder yang sama), bukan ke layanan luar. -->
+<!-- IP + network owner cell (DRD §4.4): bold monospace IP; an 11 px "AS<asn> · <cc> · <org>" line (clipped to 2
+     lines, full on click/focus); "Jaringan Ombudsman" tag; private IP -> "Jaringan Internal (IP Privat)".
+     Copy button appears on hover/focus (U12). No links to IP lookup services (privacy).
+     Stage 24: the IP links to the IP profile in this dashboard (#/ip/<ip>, same folder), not to an outside service. -->
 <script>
   import { t } from '../i18n.js';
   import SeverityTag from './SeverityTag.svelte';
   import { route, build } from '../state.js';
-  let { ip, more = 0 } = $props();       // ip: {ip, asn?, cc?, org?} dari API, atau teks
+  let { ip, more = 0 } = $props();       // ip: {ip, asn?, cc?, org?} from the API, or text
   const cell = $derived(typeof ip === 'string' ? { ip } : ip || {});
   const privat = $derived(/^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(cell.ip || ''));
   const omb = $derived(/OMBUDSMAN/i.test(cell.org || ''));
   let open = $state(false), copied = $state(false);
   async function copy() {
-    try { await navigator.clipboard.writeText(cell.ip); copied = true; setTimeout(() => (copied = false), 1500); } catch { /* izin ditolak */ }
+    try { await navigator.clipboard.writeText(cell.ip); copied = true; setTimeout(() => (copied = false), 1500); } catch { /* permission denied */ }
   }
 </script>
 
@@ -31,7 +31,7 @@
 <style>
   .ipc { min-width: 140px; }
   .ip { display: inline-flex; align-items: center; gap: 6px; }
-  b { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }   /* IPv4 tidak dipecah */
+  b { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }   /* IPv4 is not broken */
   .more { color: var(--muted); font-size: 0.6875rem; }
   .lnk { color: inherit; text-decoration: none; }
   .lnk:hover b, .lnk:focus-visible b { color: var(--accent-text); text-decoration: underline; }

@@ -1,23 +1,23 @@
--- Skema DuckDB (TRD §2). Aman dijalankan berulang: semua CREATE memakai IF NOT EXISTS / OR REPLACE.
--- Waktu disimpan UTC; WIB (+7 jam) dihitung saat menurunkan agregat. `folder` = nama folder ekspor.
--- Tabel mentah berkunci logis (file_id, line_no) TANPA PRIMARY KEY: indeks kunci pada puluhan juta baris
--- memperlambat muat massal; keunikan dijaga pola hapus-lalu-muat per file dan diperiksa uji ingest.
+-- DuckDB schema (TRD §2). Safe to run repeatedly: every CREATE uses IF NOT EXISTS / OR REPLACE.
+-- Times are stored in UTC; WIB (+7 h) is computed when deriving aggregates. `folder` = export folder name.
+-- Raw tables have the logical key (file_id, line_no) WITHOUT a PRIMARY KEY: a key index over tens of millions of rows
+-- slows bulk loading; uniqueness is kept by the delete-then-load-per-file pattern and checked by the ingest tests.
 
--- ------------------------------------------------------------------ kendali (TRD §2.1)
+-- ------------------------------------------------------------------ control (TRD §2.1)
 CREATE SEQUENCE IF NOT EXISTS seq_file_id;
 CREATE SEQUENCE IF NOT EXISTS seq_run_id;
 
 CREATE TABLE IF NOT EXISTS ingest_file (
     file_id       INTEGER PRIMARY KEY,
-    relpath       VARCHAR NOT NULL UNIQUE,   -- tanpa akhiran .gz (identitas logis)
-    source_ext    VARCHAR NOT NULL,          -- '.log' | '.log.gz': berkas yang dibaca
+    relpath       VARCHAR NOT NULL UNIQUE,   -- without the .gz suffix (logical identity)
+    source_ext    VARCHAR NOT NULL,          -- '.log' | '.log.gz': the file that was read
     folder        DATE NOT NULL,
     ns            VARCHAR NOT NULL,
     service       VARCHAR NOT NULL,
     pod           VARCHAR NOT NULL,
     size_bytes    BIGINT NOT NULL,
     mtime_ns      BIGINT NOT NULL,
-    sha256        VARCHAR NOT NULL,          -- isi setelah didekompresi
+    sha256        VARCHAR NOT NULL,          -- content after decompression
     lines         BIGINT NOT NULL,
     err           INTEGER NOT NULL,
     warn          INTEGER NOT NULL,
@@ -73,22 +73,22 @@ CREATE TABLE IF NOT EXISTS ingest_run (
     message       VARCHAR
 );
 
--- ------------------------------------------------------------------ mentah (TRD §2.2)
+-- ------------------------------------------------------------------ raw (TRD §2.2)
 CREATE TABLE IF NOT EXISTS nginx_access (
     file_id INTEGER NOT NULL, line_no INTEGER NOT NULL, folder DATE NOT NULL,
     ts_utc         TIMESTAMP NOT NULL,
     ip             VARCHAR NOT NULL,
     method         VARCHAR NOT NULL,
-    path           VARCHAR NOT NULL,         -- path + query, mentah
+    path           VARCHAR NOT NULL,         -- path + query, raw
     path_key       VARCHAR NOT NULL,
     status         SMALLINT NOT NULL,
     bytes          BIGINT NOT NULL,
-    ua             VARCHAR NOT NULL,         -- utuh; pemotongan 90/100/120 saat menurunkan agregat
+    ua             VARCHAR NOT NULL,         -- full; truncated to 90/100/120 when deriving aggregates
     request_time   DOUBLE NOT NULL,
-    upstream       VARCHAR NOT NULL,         -- tanpa awalan; '-' bila kosong
-    request_id     VARCHAR,                  -- NULL bila ekor baris tidak cocok
-    pod_final      VARCHAR NOT NULL,         -- pod yang menjawab; '-' bila tidak ada
-    up_addrs       VARCHAR[],                -- NULL bila ekor tidak berisi 4 bagian
+    upstream       VARCHAR NOT NULL,         -- without prefix; '-' when empty
+    request_id     VARCHAR,                  -- NULL when the line tail does not match
+    pod_final      VARCHAR NOT NULL,         -- pod that answered; '-' when none
+    up_addrs       VARCHAR[],                -- NULL when the tail does not have 4 parts
     up_statuses    VARCHAR[],
     attack_cat     VARCHAR,
     is_uptime_kuma BOOLEAN NOT NULL
@@ -108,23 +108,23 @@ CREATE TABLE IF NOT EXISTS nginx_error (
 CREATE TABLE IF NOT EXISTS fe_access (
     file_id INTEGER NOT NULL, line_no INTEGER NOT NULL, folder DATE NOT NULL,
     ts_utc   TIMESTAMP NOT NULL,
-    ip       VARCHAR NOT NULL,               -- entri pertama X-Forwarded-For
+    ip       VARCHAR NOT NULL,               -- first X-Forwarded-For entry
     method   VARCHAR NOT NULL,
     path     VARCHAR NOT NULL,
     path_key VARCHAR NOT NULL,
     status   SMALLINT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS sl_event (       -- tanpa kolom waktu: log simpel-loop tidak bercap waktu
+CREATE TABLE IF NOT EXISTS sl_event (       -- no time column: the simpel-loop log has no timestamps
     file_id INTEGER NOT NULL, line_no INTEGER NOT NULL, folder DATE NOT NULL,
     level       VARCHAR NOT NULL,
     request_id  VARCHAR,
     event       VARCHAR,
-    method      VARCHAR NOT NULL,            -- str(method): 'None' bila tidak ada, seperti kunci di sistem lama
+    method      VARCHAR NOT NULL,            -- str(method): 'None' when missing, like the key in the old system
     path        VARCHAR NOT NULL,
     path_key    VARCHAR NOT NULL,
     status      SMALLINT NOT NULL,
-    ip          VARCHAR,                     -- NULL pada event tanpa ipAddress
+    ip          VARCHAR,                     -- NULL for events without ipAddress
     duration_ms DOUBLE NOT NULL,
     failed      BOOLEAN NOT NULL,
     err_name    VARCHAR,
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS spring_line (
     restart_seconds DOUBLE,
     jwt_expired_ms  BIGINT,
     refresh_expired BOOLEAN NOT NULL,
-    pdf_template    VARCHAR,                 -- diisi pada baris 'Jasper template path'
+    pdf_template    VARCHAR,                 -- filled on 'Jasper template path' lines
     pdf_failed      BOOLEAN,
     login_kind      VARCHAR,                 -- fail | lock | ok
     login_account   VARCHAR,
@@ -157,15 +157,15 @@ CREATE TABLE IF NOT EXISTS coredns_error (
     message VARCHAR NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS log_message (    -- satu baris per pemanggilan add_msg() sistem lama
+CREATE TABLE IF NOT EXISTS log_message (    -- one row per add_msg() call of the old system
     file_id INTEGER NOT NULL, line_no INTEGER NOT NULL, folder DATE NOT NULL,
     service VARCHAR NOT NULL,
-    level   VARCHAR NOT NULL,                -- ERROR | WARN | EXC | level nginx huruf besar
-    msg_key VARCHAR NOT NULL,                -- 'LEVEL | pesan ternormalisasi'
-    raw     VARCHAR                          -- baris asli 600 karakter, hanya kemunculan pertama kunci dalam file
+    level   VARCHAR NOT NULL,                -- ERROR | WARN | EXC | nginx level in upper case
+    msg_key VARCHAR NOT NULL,                -- 'LEVEL | normalized message'
+    raw     VARCHAR                          -- original line, 600 chars, only the key's first occurrence in the file
 );
 
--- ------------------------------------------------------------------ agregat per folder (TRD §2.3)
+-- ------------------------------------------------------------------ aggregates per folder (TRD §2.3)
 CREATE TABLE IF NOT EXISTS agg_service (
     folder DATE, service VARCHAR,
     lines BIGINT, err BIGINT, warn BIGINT, err_http BIGINT, err_log BIGINT,
@@ -292,18 +292,18 @@ CREATE OR REPLACE VIEW v_attack_cat AS
 CREATE OR REPLACE VIEW v_dns AS
     SELECT folder, key AS domain, requests AS n FROM agg_endpoint WHERE service = 'coredns';
 
--- ---------------------------------------------------------------- Tahap 21: deteksi serangan OWASP CRS, kategori CAPEC (TRD §4.6)
--- Kolom lama attack_cat dan tabel agg_attack_* TETAP (aturan lama, uji kesetaraan). Klasifikasi CRS dihitung saat menurunkan
--- agregat dari path dan User-Agent yang tersimpan (tanpa parse ulang). ADD COLUMN IF NOT EXISTS: berlaku juga untuk database lama.
-ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_rules INTEGER[];      -- ID aturan CRS yang kena; NULL = bukan serangan
-ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS capec VARCHAR;            -- ID CAPEC aturan berkeparahan tertinggi
-ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_attack VARCHAR;       -- keluarga serangan CRS (sqli, xss, rce, ...)
-ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_severity TINYINT;     -- 1..3 (tag tampilan)
-ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_score SMALLINT;       -- skor anomali (>= ambang 5)
-ALTER TABLE folder_state ADD COLUMN IF NOT EXISTS crs_version VARCHAR;      -- versi CRS + tingkat paranoia saat agregat CRS diturunkan
+-- ---------------------------------------------------------------- Stage 21: OWASP CRS attack detection, CAPEC categories (TRD §4.6)
+-- The old attack_cat column and agg_attack_* tables STAY (old rules, equivalence tests). CRS classification is computed when deriving
+-- aggregates from the stored path and User-Agent (no re-parse). ADD COLUMN IF NOT EXISTS: also applies to old databases.
+ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_rules INTEGER[];      -- IDs of matched CRS rules; NULL = not an attack
+ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS capec VARCHAR;            -- CAPEC ID of the highest-severity rule
+ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_attack VARCHAR;       -- CRS attack family (sqli, xss, rce, ...)
+ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_severity TINYINT;     -- 1..3 (display tag)
+ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_score SMALLINT;       -- anomaly score (>= threshold 5)
+ALTER TABLE folder_state ADD COLUMN IF NOT EXISTS crs_version VARCHAR;      -- CRS version + paranoia level when the CRS aggregates were derived
 
 CREATE TABLE IF NOT EXISTS agg_crs_url (
-    folder DATE, category VARCHAR, method_path VARCHAR,          -- category = ID CAPEC
+    folder DATE, category VARCHAR, method_path VARCHAR,          -- category = CAPEC ID
     attack VARCHAR, severity TINYINT, rules INTEGER[],
     hits BIGINT, ip_count BIGINT, top_ip VARCHAR, status_counts MAP(VARCHAR, INTEGER),
     sizes BIGINT[], upstreams VARCHAR[], ua_first VARCHAR, first_wib TIMESTAMP, last_wib TIMESTAMP,
@@ -317,8 +317,8 @@ CREATE TABLE IF NOT EXISTS agg_crs_hour (
     folder DATE, hour_wib TIMESTAMP, n BIGINT,
     PRIMARY KEY (folder, hour_wib));
 
--- Folder yang dihapus admin dari dashboard tetapi filenya masih ada di folder log (hanya-baca) atau kotak masuk:
--- ingest/sinkronisasi melewatinya sampai dipulihkan. Kolom sengaja bukan "folder" agar tidak ikut terhapus oleh forget().
+-- Folders an admin deleted from the dashboard while their files are still in the log folder (read-only) or the inbox:
+-- ingest/sync skips them until restored. The column is deliberately not "folder" so forget() does not delete it too.
 CREATE TABLE IF NOT EXISTS folder_ignored (
     ignored_folder VARCHAR PRIMARY KEY,
     by_user        VARCHAR,

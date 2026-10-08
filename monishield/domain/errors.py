@@ -1,5 +1,5 @@
-"""Galat domain: penolakan yang boleh ditampilkan ke pengguna (kode + pesan + status HTTP saran), tanpa rahasia.
-Lapisan antarmuka (API/CLI) menerjemahkannya; lapisan dalam tidak mengenal HTTP."""
+"""Domain errors: rejections that may be shown to the user (code + message + suggested HTTP status), without secrets.
+The interface layer (API/CLI) translates them; inner layers know nothing about HTTP."""
 
 
 class Fail(Exception):
@@ -8,6 +8,6 @@ class Fail(Exception):
 
 
 class Busy(Fail):
-    """Pekerjaan lain (ingest/impor) sedang berjalan."""
+    """Another job (ingest/import) is running."""
 
-    def __init__(self, message='Ingest sedang berjalan.', code='ingest_running'): super().__init__(code, message, 409)
+    def __init__(self, message='Ingest is running.', code='ingest_running'): super().__init__(code, message, 409)

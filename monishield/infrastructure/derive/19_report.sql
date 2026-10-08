@@ -1,4 +1,4 @@
--- agg_report: pembuatan PDF per template (om-be-report); gagal = 'Jasper template path : null'.
+-- agg_report: PDF generation per template (om-be-report); failed = 'Jasper template path : null'.
 DELETE FROM agg_report WHERE folder = $f;
 INSERT INTO agg_report
 SELECT $f, pdf_template, count(*) FILTER (WHERE NOT pdf_failed), count(*) FILTER (WHERE pdf_failed)

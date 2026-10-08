@@ -1,21 +1,21 @@
-"""Port lapisan application: antarmuka yang dibutuhkan layanan, dipenuhi adapter di monishield/infrastructure/.
+"""Application layer ports: interfaces the services need, implemented by adapters in monishield/infrastructure/.
 
-Layanan menerima `ctx` (di server: `app.state`, dirakit di monishield/interfaces/api/app.py) berisi:
-  cfg            konfigurasi berjalan (monishield.domain.config_model.Config)
-  auth           AccountStore       akun, audit, job impor, log notifikasi        infrastructure/auth.py (Auth)
-  warehouse      Warehouse          ingest + data folder di DuckDB                 infrastructure/warehouse.py (DuckWarehouse)
-  logfolders     LogFolders         folder log di disk (folder utama + kotak masuk) infrastructure/logfolders.py
-  s3             S3Gateway          unduh dari S3, daftar folder, uji koneksi       infrastructure/importer.py (S3Gateway)
-  env            EnvStore           file .env + variabel lingkungan                 infrastructure/envfile.py (EnvStore)
+Services receive `ctx` (on the server: `app.state`, assembled in monishield/interfaces/api/app.py) containing:
+  cfg            running configuration (monishield.domain.config_model.Config)
+  auth           AccountStore       accounts, audit, import jobs, notification log   infrastructure/auth.py (Auth)
+  warehouse      Warehouse          ingest + folder data in DuckDB                  infrastructure/warehouse.py (DuckWarehouse)
+  logfolders     LogFolders         log folders on disk (main folder + inbox)       infrastructure/logfolders.py
+  s3             S3Gateway          S3 download, folder listing, connection test    infrastructure/importer.py (S3Gateway)
+  env            EnvStore           .env file + environment variables               infrastructure/envfile.py (EnvStore)
   channels       NotificationChannels Telegram / Discord / email                   infrastructure/notify_channels.py (Channels)
-  kafka_client   KafkaClient        konsumen + cek pesan Kafka                      infrastructure/kafka_client.py (KafkaClient)
-  inbox          Inbox (pabrik)     penampung baris Kafka -> file kotak masuk       infrastructure/inbox.py (Spool)
-  uploads        UploadStore        file unggahan sementara                         infrastructure/uploads.py (Uploads)
-  maxmind        MaxMindProbe       uji kunci MaxMind                               infrastructure/refdata.py (probe_maxmind)
-  ingest, imports, alerts, kafka    layanan application lain (saling memanggil lewat ctx)
+  kafka_client   KafkaClient        consumer + Kafka message check                  infrastructure/kafka_client.py (KafkaClient)
+  inbox          Inbox (factory)    buffer of Kafka lines -> inbox files            infrastructure/inbox.py (Spool)
+  uploads        UploadStore        temporary upload files                          infrastructure/uploads.py (Uploads)
+  maxmind        MaxMindProbe       MaxMind key test                                infrastructure/refdata.py (probe_maxmind)
+  ingest, imports, alerts, kafka    other application services (calling each other through ctx)
 
-Galat untuk pengguna dilempar sebagai monishield.domain.errors.Fail (kode + pesan + status); lapisan antarmuka
-menerjemahkannya ke HTTP. Protocol di bawah hanya dokumentasi + pemeriksaan tipe; tidak ada yang diwarisi.
+User-facing errors are raised as monishield.domain.errors.Fail (code + message + status); the interface layer
+translates them to HTTP. The Protocols below are only documentation + type checking; nothing inherits from them.
 """
 from typing import Any, Callable, ContextManager, Iterable, Mapping, Protocol
 

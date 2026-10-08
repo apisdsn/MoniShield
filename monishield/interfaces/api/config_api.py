@@ -1,11 +1,11 @@
-"""Konfigurasi: semua kredensial dan setelan yang boleh diisi dari layar, di satu tempat, admin saja. Semuanya DITULIS KE
-FILE .env (monishield/application/settings_service.py) dan langsung berlaku.
-  GET  /api/admin/config        status tiap kelompok (rahasia hanya "sudah diisi" + sumber) + status file .env + kunci yang hanya lewat .env
-  PUT  /api/admin/config        tulis ke .env; kolom rahasia kosong = tidak diubah, `clear` = baris dinonaktifkan (nilai bawaan)
-  POST /api/admin/config/test   uji koneksi memakai setelan TERSIMPAN: {kind: 'aws'} (daftar 1 objek di S3) atau
-                                {kind: 'maxmind'} (minta tautan unduhan GeoLite2; hanya otorisasi, tanpa mengunduh)
-Folder induk S3 otomatis dan notifikasi punya API sendiri (/api/admin/import/watch, /api/admin/alerts); halaman
-Konfigurasi memakai keduanya.
+"""Configuration: all credentials and settings that may be filled in from the UI, in one place, admin only. Everything is
+WRITTEN TO THE .env FILE (monishield/application/settings_service.py) and takes effect immediately.
+  GET  /api/admin/config        status of each group (secrets only "set" + source) + .env file status + keys only settable via .env
+  PUT  /api/admin/config        write to .env; empty secret field = unchanged, `clear` = line disabled (default value)
+  POST /api/admin/config/test   test the connection with the SAVED settings: {kind: 'aws'} (list 1 object in S3) or
+                                {kind: 'maxmind'} (request a GeoLite2 download link; authorization only, no download)
+The automatic S3 parent folder and notifications have their own APIs (/api/admin/import/watch, /api/admin/alerts); the
+Configuration page uses both.
 """
 import threading
 
@@ -34,7 +34,7 @@ class ConfigBody(BaseModel):
     maxmind_license_key: str | None = None
     blocklist_exclude: str | None = None
     blocklist_exclude_org: str | None = None
-    # kartu Kafka (Rancher cluster logging -> Kafka); kolom yang tidak disebut di sini dibuang diam-diam oleh pydantic
+    # Kafka card (Rancher cluster logging -> Kafka); fields not listed here are silently dropped by pydantic
     kafka_enabled: bool | None = None
     kafka_brokers: str | None = None
     kafka_topic: str | None = None
@@ -51,8 +51,8 @@ class ConfigBody(BaseModel):
 @router.put('')
 def put_config(body: ConfigBody, request: Request, admin=Depends(require_admin)):
     groups = settings_service.update(request.app.state, {k: v for k, v in body.model_dump().items() if v is not None})
-    _audit(request, admin, 'config.update', f"kelompok: {', '.join(groups) or 'tidak ada'} (.env)")   # tanpa nilai
-    if 'kafka' in groups:   # konsumen dimulai ulang dengan setelan baru (di latar: menunggu poll berjalan selesai)
+    _audit(request, admin, 'config.update', f"groups: {', '.join(groups) or 'none'} (.env)")   # no values
+    if 'kafka' in groups:   # consumer restarted with the new settings (in the background: waits for the running poll to finish)
         threading.Thread(target=request.app.state.kafka.restart, name='kafka-restart', daemon=True).start()
     return settings_service.view(request.app.state)
 
@@ -65,6 +65,6 @@ class TestBody(BaseModel):
 def test_config(body: TestBody, request: Request, admin=Depends(require_admin)):
     try: r = settings_service.test_connection(request.app.state, body.kind)
     except Fail as e:
-        _audit(request, admin, 'config.test', f'{body.kind}: gagal ({e.code})'); raise
-    _audit(request, admin, 'config.test', f'{body.kind}: berhasil')
+        _audit(request, admin, 'config.test', f'{body.kind}: failed ({e.code})'); raise
+    _audit(request, admin, 'config.test', f'{body.kind}: succeeded')
     return r

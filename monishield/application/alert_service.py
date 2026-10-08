@@ -1,9 +1,9 @@
-"""Notifikasi: kapan dikirim dan ke mana (aturan + teks di monishield/domain/alerts.py, saluran di
-monishield/infrastructure/notify_channels.py). Dipanggil layanan ingest / impor sesudah pekerjaan selesai, dan penjadwal
-tiap jam (folder belum datang). Semua pengiriman di thread latar: ingest dan layar tidak pernah menunggu Telegram/SMTP.
+"""Notifications: when they are sent and where to (rules + texts in monishield/domain/alerts.py, channels in
+monishield/infrastructure/notify_channels.py). Called by the ingest / import services after a job finishes, and by the hourly
+scheduler (folder not arrived). All sending happens in a background thread: ingest and the page never wait for Telegram/SMTP.
 
-ATURAN PROYEK: alamat IP pengguna tidak boleh dikirim ke layanan pihak ketiga — teks dibersihkan `alerts.scrub` di sini,
-tepat sebelum diserahkan ke saluran.
+PROJECT RULE: user IP addresses must not be sent to third-party services — texts are cleaned with `alerts.scrub` here,
+right before being handed to the channel.
 """
 import datetime, threading, time
 
@@ -14,8 +14,8 @@ from monishield.domain.errors import Fail
 
 
 def deliver(ctx, cfg, key, event, title, text, channels=None, force=False):
-    """Kirim ke semua saluran aktif (atau `channels`). Sudah pernah berhasil untuk `key` -> dilewati (kecuali force).
-    -> {saluran: None (berhasil) | pesan galat}. Galat tidak pernah memuat kredensial."""
+    """Send to all enabled channels (or `channels`). Already succeeded for `key` -> skipped (unless force).
+    -> {channel: None (success) | error message}. Errors never contain credentials."""
     auth = ctx.auth
     if not force and auth.alert_seen(key): return {}
     title, text = alerts.scrub(title), alerts.scrub(text)
@@ -29,32 +29,32 @@ def deliver(ctx, cfg, key, event, title, text, channels=None, force=False):
     return out
 
 
-# ------------------------------------------------------------------ layar (admin)
+# ------------------------------------------------------------------ page (admin)
 def view(ctx):
     return dict(alerts.public(alerts.load(ctx.cfg)), events_all=list(alerts.EVENTS), history=ctx.auth.alert_list(30))
 
 
 def update(ctx, body):
-    """Gabungkan isian layar (kredensial kosong = tetap, `clear` = hapus), periksa, tulis ke .env. -> setelan baru."""
+    """Merge page input (empty credential = unchanged, `clear` = erase), validate, write to .env. -> new settings."""
     try: cfg = alerts.merge(alerts.load(ctx.cfg), body)
-    except (TypeError, ValueError): raise Fail('invalid_parameter', 'Isian notifikasi tidak sah.', 400) from None
+    except (TypeError, ValueError): raise Fail('invalid_parameter', 'Invalid notification settings.', 400) from None
     settings_service.write_alerts(ctx, cfg)
     return cfg
 
 
 def send_test(ctx, channel):
-    """Pesan uji ke satu saluran memakai setelan TERSIMPAN. Gagal kirim -> Fail 502."""
-    if channel not in ctx.channels.names: raise Fail('invalid_parameter', 'Saluran tidak dikenal.', 400)
+    """Test message to one channel using the SAVED settings. Send failure -> Fail 502."""
+    if channel not in ctx.channels.names: raise Fail('invalid_parameter', 'Unknown channel.', 400)
     cfg = alerts.load(ctx.cfg)
     alerts.validate(cfg)
     ch = cfg['channels'][channel]
-    if not all(ch[k] for k in alerts.TEST_NEEDS[channel]): raise Fail('alert_not_configured', 'Lengkapi dan simpan isian saluran ini dulu.', 400)
+    if not all(ch[k] for k in alerts.TEST_NEEDS[channel]): raise Fail('alert_not_configured', "Fill in and save this channel's settings first.", 400)
     r = deliver(ctx, cfg, f'test:{channel}:{time.time()}', 'test', alerts._t(cfg, 'test'), alerts._t(cfg, 'test_text'), channels=[channel], force=True)
-    if r.get(channel): raise Fail('alert_send_failed', f'Gagal mengirim ke {channel}: {r[channel]}.', 502)
+    if r.get(channel): raise Fail('alert_send_failed', f'Failed to send to {channel}: {r[channel]}.', 502)
     return dict(sent=True, channel=channel)
 
 
-# ------------------------------------------------------------------ otomatis
+# ------------------------------------------------------------------ automatic
 class Notifier:
     def __init__(self, ctx):
         self.ctx, self._lock = ctx, threading.Lock()
@@ -67,7 +67,7 @@ class Notifier:
     def _safe(self, fn, *a):
         with self._lock:
             try: fn(*a)
-            except Exception: pass   # noqa: BLE001  notifikasi tidak boleh menjatuhkan server; galat kirim tercatat di alert_log
+            except Exception: pass   # noqa: BLE001  notifications must not bring the server down; send errors are recorded in alert_log
 
     def after_ingest(self, result, error=None): self._bg(self._after_ingest, result, error)
 
@@ -82,7 +82,7 @@ class Notifier:
         newest = w.newest_folder()
         floor = (datetime.date.fromisoformat(newest) - datetime.timedelta(days=2)).isoformat()
         crs = self.ctx.cfg.attack_rules == 'crs'
-        for f in (x for x in changed if x >= floor):   # folder lama yang di-ingest ulang tidak memicu notifikasi
+        for f in (x for x in changed if x >= floor):   # old folders that are re-ingested do not trigger notifications
             for ev, key, title, text in alerts.folder_events(cfg, f, w.folder_facts(f, crs)): deliver(self.ctx, cfg, key, ev, title, text)
 
     def after_sync(self, res): self._bg(self._after_sync, res)
@@ -92,7 +92,7 @@ class Notifier:
         if alerts.active(cfg) and (ev := alerts.sync_failed(cfg, res)): deliver(self.ctx, cfg, ev[0], 'sync_failed', ev[1], ev[2])
 
     def check_missing(self, now_utc=None):
-        """Folder bertanggal hari ini (WIB) belum ada setelah `missing_hour` -> sekali per hari."""
+        """Folder dated today (WIB) still missing after `missing_hour` -> once per day."""
         cfg = self._cfg()
         if not alerts.active(cfg) or not cfg['events']['folder_missing']: return None
         wib = (now_utc or datetime.datetime.now(datetime.timezone.utc)) + datetime.timedelta(hours=7)

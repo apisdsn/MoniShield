@@ -1,5 +1,5 @@
--- agg_endpoint (paths, pe, dur, ep lama). Durasi dalam detik. nginx: status 101 (websocket) tidak masuk durasi.
--- frontend tidak punya durasi. coredns: key = domain yang gagal resolve.
+-- agg_endpoint (old paths, pe, dur, ep). Duration in seconds. nginx: status 101 (websocket) is excluded from duration.
+-- frontend has no duration. coredns: key = domain that failed to resolve.
 DELETE FROM agg_endpoint WHERE folder = $f;
 INSERT INTO agg_endpoint
 WITH e AS (
@@ -13,7 +13,7 @@ g AS (
            count(*) FILTER (WHERE status BETWEEN 400 AND 499) AS n4xx, count(*) FILTER (WHERE status BETWEEN 500 AND 599) AS n5xx,
            count(d) AS dur_n, max(d) AS dur_max, list_sort(list(d) FILTER (WHERE d IS NOT NULL)) AS v
     FROM e GROUP BY service, key)
--- rata-rata dihitung dari daftar TERURUT agar hasilnya sama tiap kali (avg() paralel atas DOUBLE bisa beda di digit terakhir)
+-- average computed from the SORTED list so the result is the same every time (parallel avg() over DOUBLE can differ in the last digit)
 SELECT $f, service, key, requests, n4xx, n5xx, dur_n, list_sum(v) / nullif(dur_n, 0), dur_max,
        v[least(dur_n, CAST(floor(0.5::DOUBLE * dur_n) AS BIGINT) + 1)],
        v[least(dur_n, CAST(floor(0.95::DOUBLE * dur_n) AS BIGINT) + 1)],

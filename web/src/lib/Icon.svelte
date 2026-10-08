@@ -1,5 +1,5 @@
-<!-- Ikon garis 24×24 (gaya referensi DRD §12), digambar sendiri dan dibundel: tanpa CDN/pustaka ikon (A4).
-     Dekoratif secara bawaan (aria-hidden); teks di sebelahnya yang memberi arti. -->
+<!-- 24×24 line icons (reference style DRD §12), self-drawn and bundled: no CDN/icon library (A4).
+     Decorative by default (aria-hidden); the text next to them carries the meaning. -->
 <script module>
   const P = {
     overview: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
@@ -21,12 +21,12 @@
     download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
     key: 'M8 15a4 4 0 1 1 3.5-6H21v3h-2v3h-3v-3h-4.5A4 4 0 0 1 8 15',
     logout: 'M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10',
-    sync: 'M3 7h6l2 2h10v10H3zM12 11.5v5M9.5 14l2.5 2.5 2.5-2.5',   // folder + panah masuk: sinkronkan folder log
+    sync: 'M3 7h6l2 2h10v10H3zM12 11.5v5M9.5 14l2.5 2.5 2.5-2.5',   // folder + incoming arrow: sync log folders
     refresh: 'M20 5v5h-5M4 19v-5h5M19 10a7.5 7.5 0 0 0-13.5-3M5 14a7.5 7.5 0 0 0 13.5 3',
     arrow: 'M5 12h14M13 6l6 6-6 6',
     dots: 'M5 12h.01M12 12h.01M19 12h.01',
     calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
-    'side-close': 'M4 4h16v16H4zM9 4v16M16 9.5L13.5 12l2.5 2.5',   // panel kiri + panah: ciutkan navigasi
+    'side-close': 'M4 4h16v16H4zM9 4v16M16 9.5L13.5 12l2.5 2.5',   // left panel + arrow: collapse navigation
     'side-open': 'M4 4h16v16H4zM9 4v16M13.5 9.5L16 12l-2.5 2.5',
   };
 </script>

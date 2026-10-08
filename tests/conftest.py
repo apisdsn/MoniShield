@@ -1,10 +1,10 @@
-"""Lokasi folder log dan modul sistem lama (build_dashboard.py) untuk uji pembanding."""
+"""Location of the log folder and the old-system module (build_dashboard.py) for comparison tests."""
 import glob, importlib, os, sys
 
 import pytest
 
 V2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ROOT = os.path.dirname(V2)  # folder log + build_dashboard.py
+ROOT = os.path.dirname(V2)  # log folder + build_dashboard.py
 
 
 @pytest.fixture(scope='session')
@@ -13,7 +13,7 @@ def log_root(): return ROOT
 
 @pytest.fixture(scope='session')
 def old():
-    """Modul lama; uji dilewati (bukan gagal) bila tidak ada, mis. di dalam image."""
+    """Old module; tests are skipped (not failed) when it is missing, e.g. inside the image."""
     if not os.path.exists(os.path.join(ROOT, 'build_dashboard.py')): pytest.skip('build_dashboard.py tidak ada')
     sys.path.insert(0, ROOT)
     try: return importlib.import_module('build_dashboard')
@@ -29,10 +29,10 @@ JWT_SECRET = 'rahasia-jwt-untuk-uji-minimal-32-karakter'
 
 @pytest.fixture
 def auth_url(tmp_path):
-    """URL basis data akun untuk satu uji, dalam keadaan KOSONG.
+    """Account database URL for one test, in an EMPTY state.
 
-    Bawaan: berkas SQLite baru. Dengan S4_TEST_AUTH_URL=postgresql+psycopg://… uji yang sama berjalan di
-    PostgreSQL sungguhan (tabelnya dihapus dan dibuat ulang tiap uji).
+    Default: a new SQLite file. With S4_TEST_AUTH_URL=postgresql+psycopg://… the same tests run against a real
+    PostgreSQL (its tables are dropped and recreated for each test).
     """
     url = os.environ.get('S4_TEST_AUTH_URL')
     if not url: return 'sqlite:///' + str(tmp_path / 'auth.db')

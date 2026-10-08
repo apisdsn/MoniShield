@@ -1,4 +1,4 @@
-"""Satu-satunya tempat DuckDB dibuka (TRD K1: satu proses pemilik file)."""
+"""The only place DuckDB is opened (TRD K1: one process owns the file)."""
 import builtins, os
 
 import duckdb
@@ -6,8 +6,8 @@ import duckdb
 SCHEMA = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'schema.sql')
 
 
-def open(path, memory_limit='1GB'):  # noqa: A001  (dipanggil sebagai db.open)
-    """Buka database dan terapkan skema (aman diulang). path ':memory:' untuk uji."""
+def open(path, memory_limit='1GB'):  # noqa: A001  (called as db.open)
+    """Open the database and apply the schema (safe to repeat). path ':memory:' for tests."""
     if path != ':memory:':
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         _rename_old(path)
@@ -29,27 +29,27 @@ def _english_status(con):
         con.execute(f"UPDATE {table} SET status = CASE status {case} END WHERE status IN ({', '.join(repr(a) for a in m)})")
 
 
-OLD_NAME = 'simpel4.duckdb'   # nama berkas sebelum 2026-10-07 (nama aplikasi lama)
+OLD_NAME = 'simpel4.duckdb'   # file name before 2026-10-07 (old application name)
 
 
 def _rename_old(path):
-    """Berkas lama data/simpel4.duckdb (+ .wal) dipindah ke nama baru sekali, agar data tidak perlu di-ingest ulang."""
+    """The old file data/simpel4.duckdb (+ .wal) is moved to the new name once, so the data need not be re-ingested."""
     old = os.path.join(os.path.dirname(os.path.abspath(path)), OLD_NAME)
     if os.path.basename(path) != OLD_NAME and not os.path.exists(path) and os.path.exists(old):
         os.replace(old, path)
         if os.path.exists(old + '.wal'): os.replace(old + '.wal', path + '.wal')
 
 
-SNAPSHOT_STORAGE = 'v1.2.0'   # format file salinan: terbaca DuckDB >= 1.2 (DbGate 6.6 memakai 1.2.1)
+SNAPSHOT_STORAGE = 'v1.2.0'   # copy file format: readable by DuckDB >= 1.2 (DbGate 6.6 uses 1.2.1)
 
 
 def snapshot_path(cfg): return os.path.join(cfg.data_dir, 'snapshot', 'monishield.duckdb')
 
 
 def snapshot(con, cfg):
-    """Salinan baca seluruh database untuk penampil luar (DbGate di docker compose). DuckDB hanya boleh dibuka satu proses
-    (K1), jadi penampil membuka SALINAN ini, bukan file milik server. Ditulis ke .tmp lalu diganti atomik; penampil yang
-    sedang membuka salinan lama tetap membaca versi lamanya sampai tersambung ulang. -> path salinan."""
+    """Read-only copy of the whole database for an external viewer (DbGate in docker compose). DuckDB may be opened by only one
+    process (K1), so the viewer opens this COPY, not the server's file. Written to .tmp then replaced atomically; a viewer
+    that has the old copy open keeps reading the old version until it reconnects. -> copy path."""
     path = snapshot_path(cfg)
     tmp = path + '.tmp'
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -59,6 +59,6 @@ def snapshot(con, cfg):
     con.execute(f"ATTACH '{tmp}' AS snapshot_baca (STORAGE_VERSION '{SNAPSHOT_STORAGE}')")
     try: con.execute(f'COPY FROM DATABASE "{main}" TO snapshot_baca')
     finally: con.execute('DETACH snapshot_baca')
-    if os.path.exists(path + '.wal'): os.remove(path + '.wal')   # WAL tulisan penampil atas salinan lama: jangan diputar ke salinan baru
+    if os.path.exists(path + '.wal'): os.remove(path + '.wal')   # WAL of viewer writes on the old copy: must not be replayed onto the new copy
     os.replace(tmp, path)
     return path

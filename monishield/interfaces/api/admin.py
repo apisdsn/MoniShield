@@ -1,6 +1,6 @@
-"""Rute admin: ingest, penurunan ulang, kelola folder (TRD §5.5) dan impor S3 (TRD §3.8). Pekerjaannya di lapisan
-application (monishield/application/ingest_service.py, import_service.py); rute ini memeriksa peran + parameter, lalu
-mencatat audit."""
+"""Admin routes: ingest, re-derive, folder management (TRD §5.5) and S3 import (TRD §3.8). The work happens in the
+application layer (monishield/application/ingest_service.py, import_service.py); these routes check role + parameters, then
+write the audit log."""
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -23,19 +23,19 @@ class FolderBody(BaseModel):
 
 def _folder(value, required=False):
     if value is None and not required: return None
-    if not isinstance(value, str) or not DATE.fullmatch(value): raise ApiError(400, 'invalid_parameter', 'folder harus berbentuk YYYY-MM-DD.')
+    if not isinstance(value, str) or not DATE.fullmatch(value): raise ApiError(400, 'invalid_parameter', 'folder must be in YYYY-MM-DD form.')
     return value
 
 
 def _audit(request, who, action, detail):
-    request.app.state.auth.audit(action, getattr(request.state, 'user', None), f"{detail or ''} oleh {who['username']}".strip(), client_ip(request))
+    request.app.state.auth.audit(action, getattr(request.state, 'user', None), f"{detail or ''} by {who['username']}".strip(), client_ip(request))
 
 
 @router.post('/ingest', status_code=202)
 def start_ingest(request: Request, body: IngestBody = IngestBody(), who=Depends(require_admin_or_job)):
     folder = _folder(body.folder)
     request.app.state.ingest.start(folder, body.force, who['username'])
-    _audit(request, who, 'ingest.start', f"folder={folder or 'semua'} force={body.force}")
+    _audit(request, who, 'ingest.start', f"folder={folder or 'all'} force={body.force}")
     return dict(started=True)
 
 
@@ -48,24 +48,24 @@ def ingest_status(request: Request, who=Depends(require_admin_or_job)):
 def derive(request: Request, body: FolderBody = FolderBody(), admin=Depends(require_admin)):
     folder = _folder(body.folder)
     done = ingest_service.derive(request.app.state, folder)
-    _audit(request, admin, 'derive', f"folder={folder or 'semua'}")
+    _audit(request, admin, 'derive', f"folder={folder or 'all'}")
     return dict(folders=done)
 
 
 class DeleteBody(BaseModel):
-    delete_inbox: bool = True   # hapus juga file log di kotak masuk (hasil impor S3); folder log utama tidak pernah dihapus
+    delete_inbox: bool = True   # also delete the log files in the inbox (from S3 import); the main log folder is never deleted
 
 
 @router.get('/folders')
 def folders_list(request: Request, admin=Depends(require_admin)):
-    """Kelola folder (permintaan pemilik 2026-10-07): semua folder yang dikenal dashboard, di disk, atau diabaikan."""
+    """Folder management (owner request 2026-10-07): every folder known to the dashboard, on disk, or ignored."""
     return ingest_service.folders(request.app.state)
 
 
 @router.post('/folders/{folder}/delete')
 def folder_delete(folder: str, request: Request, body: DeleteBody = DeleteBody(), admin=Depends(require_admin)):
     r = ingest_service.delete_folder(request.app.state, _folder(folder, required=True), body.delete_inbox, admin['username'])
-    _audit(request, admin, 'folder.delete', f"folder={folder} ({r['files']} file data{'; kotak masuk dihapus' if r['inbox_deleted'] else ''}{'; diabaikan' if r['ignored'] else ''})")
+    _audit(request, admin, 'folder.delete', f"folder={folder} ({r['files']} data files{'; inbox deleted' if r['inbox_deleted'] else ''}{'; ignored' if r['ignored'] else ''})")
     return r
 
 
@@ -80,11 +80,11 @@ def folder_restore(folder: str, request: Request, admin=Depends(require_admin)):
 def forget(body: FolderBody, request: Request, admin=Depends(require_admin)):
     folder = _folder(body.folder, required=True)
     n = ingest_service.forget(request.app.state, folder)
-    _audit(request, admin, 'forget', f'folder={folder} ({n} file)')
+    _audit(request, admin, 'forget', f'folder={folder} ({n} files)')
     return dict(folder=folder, files=n)
 
 
-# ------------------------------------------------------------------ impor S3 (TRD §3.8, Tahap 19)
+# ------------------------------------------------------------------ S3 import (TRD §3.8, Stage 19)
 class WatchBody(BaseModel):
     url: str = ''
     minutes: int = 60
@@ -105,24 +105,24 @@ class CredBody(BaseModel):
 @router.post('/import', status_code=202)
 def start_import(request: Request, body: ImportBody = ImportBody(), who=Depends(require_admin_or_job)):
     job = request.app.state.imports.start(body.url, body.dry_run, who['username'])
-    _audit(request, who, 'import.start', f"#{job} {body.url[:300]}{' (coba)' if body.dry_run else ''}")
+    _audit(request, who, 'import.start', f"#{job} {body.url[:300]}{' (dry run)' if body.dry_run else ''}")
     return dict(job_id=job)
 
 
 @router.put('/import/watch')
 def set_watch(body: WatchBody, request: Request, admin=Depends(require_admin)):
-    """Atur sinkron S3 otomatis dari layar: alamat folder induk (s3://bucket/awalan/), jeda, aktif/mati. Admin saja."""
+    """Set up automatic S3 sync from the UI: S3 parent folder address (s3://bucket/prefix/), interval, on/off. Admin only."""
     m = request.app.state.imports
     w = m.set_watch(body.url, body.minutes, body.enabled)
-    _audit(request, admin, 'import.watch', f"{'aktif' if w['enabled'] else 'mati'}: {w['url'][:300]} tiap {w['minutes']} menit")
+    _audit(request, admin, 'import.watch', f"{'on' if w['enabled'] else 'off'}: {w['url'][:300]} every {w['minutes']} minutes")
     return m.view()['watch']
 
 
 @router.post('/import/sync', status_code=202)
 def sync_s3(request: Request, who=Depends(require_admin_or_job)):
-    """Periksa awalan S4_S3_WATCH sekarang (tombol "Periksa S3 sekarang", atau cron dengan token mesin)."""
+    """Check the S4_S3_WATCH prefix now ("Check S3 now" button, or cron with the machine token)."""
     request.app.state.imports.sync(who['username'])
-    _audit(request, who, 'import.sync', 'periksa folder baru di S3')
+    _audit(request, who, 'import.sync', 'check S3 for new folders')
     return dict(started=True)
 
 
@@ -138,10 +138,10 @@ def import_job(job_id: int, request: Request, who=Depends(require_admin_or_job))
 
 @router.post('/import/credentials')
 def set_credentials(body: CredBody, request: Request, admin=Depends(require_admin)):
-    """Hanya admin bersesi (bukan token mesin). Nilai disimpan di memori proses saja dan tidak pernah dikembalikan."""
+    """Only an admin with a session (not the machine token). Values are kept in process memory only and never returned."""
     creds = request.app.state.imports.creds
     creds.set(body.access_key_id, body.secret_access_key, body.session_token)
-    _audit(request, admin, 'import.credentials.set', 'kredensial sementara ditempel (memori)')
+    _audit(request, admin, 'import.credentials.set', 'temporary credentials pasted (memory)')
     return dict(credentials=creds.status())
 
 
@@ -149,5 +149,5 @@ def set_credentials(body: CredBody, request: Request, admin=Depends(require_admi
 def clear_credentials(request: Request, admin=Depends(require_admin)):
     creds = request.app.state.imports.creds
     creds.clear()
-    _audit(request, admin, 'import.credentials.clear', 'kredensial sementara dihapus')
+    _audit(request, admin, 'import.credentials.clear', 'temporary credentials removed')
     return dict(credentials=creds.status())

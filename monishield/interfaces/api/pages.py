@@ -1,5 +1,5 @@
-"""Router halaman (TRD §5.3–§5.4): satu endpoint baca per halaman. Router hanya memeriksa peran dan parameter,
-lalu memanggil kueri sisi baca di monishield/infrastructure/queries/<halaman>.py yang mengembalikan data biasa."""
+"""Page routers (TRD §5.3–§5.4): one read endpoint per page. The router only checks role and parameters,
+then calls the read-side query in monishield/infrastructure/queries/<page>.py, which returns plain data."""
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
@@ -15,7 +15,7 @@ def _cfg(request): return request.app.state.cfg
 
 
 def _file(r):
-    """Hasil kueri berupa berkas unduhan -> respons lampiran; selain itu JSON biasa."""
+    """A query result that is a download file -> attachment response; otherwise plain JSON."""
     if 'file' not in r: return r
     return Response(r['file'], media_type=r['media_type'],
                     headers={'Content-Disposition': f'attachment; filename="{r["filename"]}"', 'Cache-Control': 'no-store'})

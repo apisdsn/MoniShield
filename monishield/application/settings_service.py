@@ -1,15 +1,16 @@
-"""Layar Konfigurasi -> file .env (permintaan pemilik 2026-10-07: "ubah semua yang berbau configuration … ke dalam .env").
+"""Configuration page -> .env file (owner request 2026-10-07: "ubah semua yang berbau configuration … ke dalam .env"
+(move everything configuration-related … into .env)).
 
-Semua setelan yang bisa diubah dari layar (kredensial AWS + wilayah, MaxMind, pengecualian daftar blokir, Kafka, folder
-induk S3 otomatis, notifikasi) DISIMPAN KE FILE .env (ctx.env) — satu sumber kebenaran yang juga dibaca CLI dan Docker.
-Sesudah ditulis, nilainya langsung ditimpakan ke objek konfigurasi server yang sedang berjalan, jadi tidak perlu mulai ulang.
+All settings that can be changed from the page (AWS credentials + region, MaxMind, blocklist exclusions, Kafka, automatic
+S3 parent folder, notifications) are SAVED TO THE .env FILE (ctx.env) — a single source of truth also read by the CLI and Docker.
+Once written, the values are applied right away to the running server's configuration object, so no restart is needed.
 
-Variabel lingkungan proses yang BERBEDA dari .env mengalahkan .env saat server dimulai; layar menandainya (sumber
-'environment') agar admin tahu nilai layar tidak akan bertahan setelah mulai ulang. Aturan kolom dan pemeriksaan isian:
+Process environment variables that DIFFER from .env override .env when the server starts; the page flags them (source
+'environment') so the admin knows the page value will not survive a restart. Field rules and input validation:
 monishield/domain/settings.py.
 
-Setelan lama yang dulu disimpan di basis data akun (app_setting 'config' / 'alerts' / 's3_watch') dipindah sekali ke .env
-saat server mulai (`migrate`).
+Old settings formerly stored in the account database (app_setting 'config' / 'alerts' / 's3_watch') are moved once to .env
+at server start (`migrate`).
 """
 from monishield.domain import alerts, s3_import, settings as rules
 from monishield.domain.config_model import env_name
@@ -22,7 +23,7 @@ def source(ctx, field):
 
 
 def view(ctx):
-    """Untuk browser: nilai non-rahasia apa adanya; rahasia hanya {set, source[, masked]}."""
+    """For the browser: non-secret values as is; secrets only as {set, source[, masked]}."""
     cfg, env, out = ctx.cfg, ctx.env, {}
     fv, environ = env.values(), env.environ()
     for grp in rules.SCREEN_GROUPS:
@@ -40,25 +41,25 @@ def view(ctx):
 
 
 def write(ctx, values):
-    """{kolom: nilai | None}: tulis ke .env (None = baris dinonaktifkan -> bawaan) lalu terapkan ke server. Hanya kolom
-    yang nilainya berubah yang ditulis. -> daftar nama variabel yang berubah."""
+    """{field: value | None}: write to .env (None = line disabled -> default) then apply to the server. Only fields
+    whose value changed are written. -> list of changed variable names."""
     cfg = ctx.cfg
     values = rules.changed_only(cfg, values)
     if not values: return []
     if not ctx.env.writable():
-        raise SettingsFail(f'File {ctx.env.path} tidak bisa ditulis oleh server. Beri izin tulis (lihat docs/06-docker.md) atau ubah file itu langsung.', 'env_not_writable')
+        raise SettingsFail(f'File {ctx.env.path} is not writable by the server. Grant write permission (see docs/06-docker.md) or edit that file directly.', 'env_not_writable')
     changed = ctx.env.write({env_name(k): v for k, v in values.items()})
     for k, v in values.items(): setattr(cfg, k, getattr(rules.BASE, k) if v is None else v)
     return changed
 
 
 def update(ctx, body):
-    """PUT /api/admin/config. -> kelompok yang berubah (mis. 'kafka': konsumen perlu dimulai ulang)."""
+    """PUT /api/admin/config. -> changed groups (e.g. 'kafka': the consumer needs a restart)."""
     return rules.groups_of(write(ctx, rules.screen_values(ctx.cfg, body)))
 
 
 def write_alerts(ctx, d):
-    """Setelan notifikasi (sudah diperiksa alerts.merge) -> .env."""
+    """Notification settings (already validated by alerts.merge) -> .env."""
     return write(ctx, alerts.to_fields(d))
 
 
@@ -66,11 +67,11 @@ def write_watch(ctx, url, minutes, enabled): return write(ctx, rules.watch_value
 
 
 def migrate(ctx):
-    """Setelan lama di app_setting -> .env. Bila .env tidak bisa ditulis: tetap dipakai dari memori (tanpa hilang) dan
-    layar menampilkan peringatan; baris di basis data baru dihapus sesudah berhasil ditulis."""
+    """Old settings in app_setting -> .env. If .env is not writable: still used from memory (nothing lost) and
+    the page shows a warning; the database rows are deleted only after a successful write."""
     auth, cfg = ctx.auth, ctx.cfg
     try: old = {k: auth.setting_get(k) for k in rules.OLD_KEYS}
-    except Exception: return   # noqa: BLE001  basis data akun belum siap
+    except Exception: return   # noqa: BLE001  account database not ready yet
     old = {k: v['value'] for k, v in old.items() if v}
     if not old: return
     values = rules.from_old(cfg, old)
@@ -83,27 +84,27 @@ def migrate(ctx):
         ctx.settings_pending = sorted(env_name(k) for k in values)
 
 
-# ------------------------------------------------------------------ uji koneksi (memakai setelan TERSIMPAN)
+# ------------------------------------------------------------------ connection test (uses the SAVED settings)
 def test_aws(ctx):
-    """Daftar 1 objek di S3: folder induk S3 otomatis bila ada, selain itu awalan pertama daftar izin."""
+    """List 1 object in S3: the automatic S3 parent folder if set, otherwise the first allowlist prefix."""
     cfg, s3 = ctx.cfg, ctx.s3
     s3.ready()
     w = ctx.imports.watch_config()
     try: targets = s3_import.parse_watch(cfg, w['url']) if w['url'] else []
     except s3_import.ImportFail: targets = []
     targets = targets or [(b, p) for b, ps in sorted(cfg.import_buckets.items()) for p in ps][:1]
-    if not targets: raise Fail('import_disabled', 'Impor S3 tidak diaktifkan: daftar izin S4_IMPORT_BUCKETS di .env kosong.', 400)
+    if not targets: raise Fail('import_disabled', 'S3 import is not enabled: the S4_IMPORT_BUCKETS allowlist in .env is empty.', 400)
     bucket, prefix = targets[0]
     s3.probe(bucket, prefix)
     return dict(ok=True, kind='aws', target=f's3://{bucket}/{prefix}', source=s3.creds.get()[1])
 
 
 def test_maxmind(ctx):
-    """Minta tautan unduhan GeoLite2 (hanya otorisasi, tanpa mengunduh)."""
+    """Request a GeoLite2 download link (authorization only, no download)."""
     cfg = ctx.cfg
     if not (cfg.maxmind_account_id and cfg.maxmind_license_key):
-        raise Fail('maxmind_missing', 'Account ID dan License key MaxMind belum diisi.', 400)
-    if cfg.offline: raise Fail('offline', 'Server dalam mode luring (S4_OFFLINE); uji koneksi tidak dijalankan.', 400)
+        raise Fail('maxmind_missing', 'MaxMind Account ID and License key are not set.', 400)
+    if cfg.offline: raise Fail('offline', 'Server is in offline mode (S4_OFFLINE); connection test not run.', 400)
     ctx.maxmind(cfg)
     return dict(ok=True, kind='maxmind')
 
@@ -113,5 +114,5 @@ TESTS = dict(aws=test_aws, maxmind=test_maxmind)
 
 def test_connection(ctx, kind):
     fn = TESTS.get(kind)
-    if not fn: raise Fail('invalid_parameter', 'Jenis uji tidak dikenal.', 400)
+    if not fn: raise Fail('invalid_parameter', 'Unknown test type.', 400)
     return fn(ctx)

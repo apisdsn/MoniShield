@@ -1,4 +1,4 @@
--- agg_pod: jumlah per PERCOBAAN ke tiap pod (termasuk yang gagal lalu dilempar), dan percobaan berstatus 5xx.
+-- agg_pod: count per ATTEMPT to each pod (including those that failed and were passed on), and attempts with a 5xx status.
 DELETE FROM agg_pod WHERE folder = $f;
 INSERT INTO agg_pod
 SELECT $f, upstream, addr, count(*), count(*) FILTER (WHERE st LIKE '5%')

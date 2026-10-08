@@ -1,4 +1,4 @@
-<!-- Pemberitahuan singkat di pojok, 4 detik, role="status", tidak menutupi tombol (DRD §6.9). -->
+<!-- Short notification in the corner, 4 seconds, role="status", does not cover buttons (DRD §6.9). -->
 <script module>
   import { writable } from 'svelte/store';
   export const toasts = writable([]);

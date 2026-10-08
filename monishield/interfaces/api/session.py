@@ -1,4 +1,4 @@
-"""Masuk, keluar, dan akun sendiri (TRD §5.6, §8.2)."""
+"""Sign in, sign out, and own account (TRD §5.6, §8.2)."""
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 
@@ -38,12 +38,12 @@ def logout(request: Request, response: Response, user=Depends(require_user)):
 
 @router.get('/me')
 def me(request: Request, user=Depends(require_user)):
-    # batas menganggur dikirim agar tampilan bisa memperingatkan 5 menit sebelum sesi berakhir (DRD §6.9)
+    # the idle limit is sent so the UI can warn 5 minutes before the session expires (DRD §6.9)
     return dict(_me(user), session_idle_minutes=request.app.state.auth.idle)
 
 
 @router.post('/me/password')
 def change_password(body: ChangePassword, request: Request, user=Depends(require_user)):
-    """Ganti sandi sendiri (butuh sandi sekarang); sesi lain milik user ini dicabut."""
+    """Change own password (needs the current password); this user's other sessions are revoked."""
     request.app.state.auth.change_password(user, body.old_password, body.new_password, keep_token=request.cookies.get(COOKIE), ip=client_ip(request))
     return dict(ok=True)

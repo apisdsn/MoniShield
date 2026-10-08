@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Cetak laporan kesetaraan v2 vs sistem lama (E1, E3, E4). Keluar dengan kode 1 bila ada selisih tak terduga.
+"""Print the equivalence report v2 vs the old system (E1, E3, E4). Exits with code 1 on any unexpected difference.
 
-  python3 tools/laporan_kesetaraan.py [berkas-keluaran.md]
+  python3 tools/laporan_kesetaraan.py [output-file.md]
 """
 import os, sys
 

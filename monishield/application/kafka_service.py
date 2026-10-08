@@ -1,27 +1,27 @@
-"""Layanan log dari Kafka: konsumen di thread latar (KafkaFeed) + kejadian peta realtime (LiveHub). Adapter: klien Kafka
-monishield/infrastructure/kafka_client.py, kotak masuk monishield/infrastructure/inbox.py; aturan pesan
+"""Logs-from-Kafka service: consumer in a background thread (KafkaFeed) + realtime map events (LiveHub). Adapters: Kafka
+client monishield/infrastructure/kafka_client.py, inbox monishield/infrastructure/inbox.py; message rules
 monishield/domain/kafka_message.py.
 
-Log dari Kafka (permintaan pemilik 2026-10-07: "apakah bisa dibuat seperti logging existing?").
+Logs from Kafka (owner request 2026-10-07: "apakah bisa dibuat seperti logging existing?" (can it work like the existing logging?)).
 
-Rancher (cluster logging -> Kafka, fluentd) mengirim satu pesan JSON per baris log container:
-    {"log": "<baris asli>", "stream": "stdout", "tag": "kubernetes.var.log.containers.<pod>_<ns>_<container>-<id>.log",
+Rancher (cluster logging -> Kafka, fluentd) sends one JSON message per container log line:
+    {"log": "<original line>", "stream": "stdout", "tag": "kubernetes.var.log.containers.<pod>_<ns>_<container>-<id>.log",
      "docker": {"container_id": …}, "kubernetes": {"container_name": …, "namespace_name": …, "pod_name": …}, "time": 1515680329}
-Isinya sama dengan log di S3: `log` = satu baris file, sedangkan namespace/layanan/pod yang di S3 ada di nama folder/file
-diambil dari `kubernetes.*`. Konsumen ini menulis ulang pesan menjadi susunan folder yang SAMA dengan ekspor S3:
-    <kotak masuk>/<tanggal>/<namespace>/<layanan>/log_<layanan>_<pod>_<tanggal>-00-00.log
-lalu ingest berkala (S4_KAFKA_INGEST_MINUTES) memproses file yang bertambah — semua halaman dashboard langsung jalan.
+The content is the same as the logs in S3: `log` = one file line, while the namespace/service/pod that S3 has in the folder/file
+names are taken from `kubernetes.*`. This consumer rewrites the messages into the SAME folder layout as the S3 export:
+    <inbox>/<date>/<namespace>/<service>/log_<service>_<pod>_<date>-00-00.log
+then periodic ingest (S4_KAFKA_INGEST_MINUTES) processes the grown files — every dashboard page works right away.
 
-Tanggal folder mengikuti ekspor S3 yang ada: folder D berisi log (D-1 00:00, D 00:00] WIB, jadi kejadian hari ini masuk
-folder bertanggal BESOK (folder itu "sedang terisi" sampai tengah malam). Folder yang sudah diisi Kafka tidak diambil lagi
-oleh sinkron S3 (folder sudah dikenal), jadi tidak ganda; jangan mengimpor S3 manual untuk tanggal yang sama.
+Folder date follows the existing S3 export: folder D holds logs from (D-1 00:00, D 00:00] WIB, so today's events land in
+the folder dated TOMORROW (that folder is "filling up" until midnight). Folders already filled by Kafka are not fetched again
+by S3 sync (the folder is already known), so there are no duplicates; do not import S3 manually for the same date.
 
-Pengiriman: offset di-commit SESUDAH baris ditulis ke disk (at-least-once). Bila server mati di antara keduanya, beberapa
-baris bisa tertulis dua kali; jarang dan kecil.
+Delivery: offsets are committed AFTER the lines are written to disk (at-least-once). If the server dies in between, some
+lines may be written twice; rare and small.
 
-Realtime (animasi peta): baris nginx-ingress diteruskan ke `LiveHub` -> SSE /api/live/map. Yang dikirim ke browser hanya
-koordinat lokasi (dari basis data IP lokal/offline, tabel ip_info) + modul, BUKAN alamat IP. IP yang belum dikenal
-(belum pernah di-ingest) tidak digambar sampai ingest berikutnya mengisi lokasinya.
+Realtime (map animation): nginx-ingress lines are forwarded to `LiveHub` -> SSE /api/live/map. Only location coordinates
+(from the local/offline IP database, ip_info table) + module are sent to the browser, NOT IP addresses. IPs not yet known
+(never ingested) are not drawn until the next ingest fills in their location.
 """
 import collections, datetime, re, threading, time
 
@@ -33,9 +33,9 @@ FLUSH_SECONDS, FLUSH_LINES = 5, 20000
 RECENT = 50
 
 
-# ------------------------------------------------------------------ realtime: lokasi IP -> browser (tanpa IP)
+# ------------------------------------------------------------------ realtime: IP location -> browser (no IPs)
 class LiveHub:
-    """Kumpulan kejadian per detik: {(lat, lon, modul): n}. Pembaca (SSE) mengambil yang lebih baru dari nomor terakhirnya."""
+    """Events collected per second: {(lat, lon, module): n}. Readers (SSE) take what is newer than their last sequence number."""
 
     def __init__(self, ctx):
         self.ctx, self._lock, self.seq, self.ring = ctx, threading.Lock(), 0, collections.deque(maxlen=120)
@@ -45,7 +45,7 @@ class LiveHub:
         if time.time() - self.geo_at > 300:
             self.geo_at = time.time()
             try: self.geo = self.ctx.warehouse.ip_locations()
-            except Exception: pass   # noqa: BLE001  basis data sedang dipakai ingest: coba lagi nanti
+            except Exception: pass   # noqa: BLE001  database in use by ingest: try again later
         return self.geo
 
     def refresh(self): self.geo_at = 0
@@ -68,16 +68,16 @@ class LiveHub:
         self.cur = collections.Counter()
 
     def since(self, seq):
-        """-> (nomor terbaru, [[lat, lon, n, modul], …]) untuk kejadian setelah `seq`."""
+        """-> (latest sequence number, [[lat, lon, n, module], …]) for events after `seq`."""
         with self._lock:
             if self.cur_sec is not None and int(time.time()) != self.cur_sec: self._close(); self.cur_sec = None
             pts = [p for s, ps in self.ring if s > seq for p in ps]
             return self.seq, pts
 
 
-# ------------------------------------------------------------------ konsumen
+# ------------------------------------------------------------------ consumer
 class KafkaFeed:
-    """Konsumen di thread latar milik proses server (ingest tetap satu pemilik DuckDB, TRD K1)."""
+    """Consumer in a background thread of the server process (ingest stays the single DuckDB owner, TRD K1)."""
 
     def __init__(self, ctx):
         self.ctx, self.thread, self._stop = ctx, None, threading.Event()
@@ -88,9 +88,9 @@ class KafkaFeed:
     def _reset_stats(self):
         self.stats = dict(state='off', since=None, received=0, written=0, skipped=0, last_message_at=None, last_ingest_at=None,
                           error=None, last_skip=None, per_service={}, folders={})
-        self.pending = set()   # folder yang bertambah sejak ingest terakhir
+        self.pending = set()   # folders grown since the last ingest
 
-    # -------------------------------------------------------------- kendali
+    # -------------------------------------------------------------- control
     def start(self):
         cfg = self.ctx.cfg
         if not (cfg.kafka_enabled and configured(cfg)): self.stats['state'] = 'off'; return
@@ -112,12 +112,12 @@ class KafkaFeed:
     def running(self): return bool(self.thread and self.thread.is_alive())
 
     def peek(self, n=10):
-        """"Cek pesan": n pesan TERAKHIR dari topic (tanpa grup konsumen; tidak menggeser posisi baca)."""
+        """"Check messages": the LAST n messages of the topic (no consumer group; does not move the read position)."""
         return self.ctx.kafka_client.peek(self.ctx.cfg, n)
 
     def ingest_now(self):
-        if not self.pending: raise Fail('kafka_nothing', 'Belum ada baris baru dari Kafka sejak ingest terakhir.', 400)
-        if not self.maybe_ingest(force=True): raise Busy('Ingest lain sedang berjalan; coba lagi sebentar.')
+        if not self.pending: raise Fail('kafka_nothing', 'No new lines from Kafka since the last ingest.', 400)
+        if not self.maybe_ingest(force=True): raise Busy('Another ingest is running; try again shortly.')
 
     def live_folder(self): return folder_of(datetime.datetime.now(datetime.timezone.utc))
 
@@ -127,7 +127,7 @@ class KafkaFeed:
                     group=cfg.kafka_group, security=cfg.kafka_security, ingest_minutes=cfg.kafka_ingest_minutes, live_folder=self.live_folder(),
                     pending=sorted(self.pending), recent=list(self.recent)[::-1], **self.stats)
 
-    # -------------------------------------------------------------- inti (dapat diuji tanpa broker)
+    # -------------------------------------------------------------- core (testable without a broker)
     def handle(self, records, spool):
         """records: [(value, timestamp_ms, partition, offset)]."""
         prefix = self.ctx.cfg.upstream_prefix
@@ -155,7 +155,7 @@ class KafkaFeed:
         return wrote
 
     def maybe_ingest(self, now=None, force=False):
-        """Ingest berkala folder yang bertambah (lewat IngestManager: satu pemilik DuckDB). -> True bila dimulai."""
+        """Periodic ingest of grown folders (through IngestManager: single DuckDB owner). -> True when started."""
         now = now or time.time()
         last = getattr(self, '_last_ingest', 0)
         if not self.pending or (not force and now - last < self.ctx.cfg.kafka_ingest_minutes * 60): return False
@@ -163,7 +163,7 @@ class KafkaFeed:
         if ing.state['running']: return False
         folders = sorted(self.pending)
         try: ing.start(folders[0] if len(folders) == 1 else None, False, '(kafka)')
-        except Exception: return False   # noqa: BLE001  ingest lain baru saja mulai: coba putaran berikutnya
+        except Exception: return False   # noqa: BLE001  another ingest just started: try next round
         self._last_ingest = now
         self.pending.clear()
         self.stats['last_ingest_at'] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(timespec='seconds')
@@ -188,7 +188,7 @@ class KafkaFeed:
                     elif not spool.n: last_flush = time.time()
                     self.maybe_ingest()
                 if spool.n: self.flush(spool); c.commit()
-            except Exception as e:   # noqa: BLE001  broker mati / sandi salah: status + coba lagi berkala
+            except Exception as e:   # noqa: BLE001  broker down / wrong password: status + periodic retry
                 f = kc.error(e)
                 self.stats.update(state='error', error=f'[{f.code}] {f.message}')
                 self._stop.wait(wait); wait = min(wait * 2, 120)

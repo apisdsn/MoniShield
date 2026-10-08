@@ -1,4 +1,4 @@
--- agg_message (msgs + samples lama). Contoh = baris asli pertama menurut urutan baca (relpath, line_no).
+-- agg_message (old msgs + samples). Sample = first original line in read order (relpath, line_no).
 DELETE FROM agg_message WHERE folder = $f;
 INSERT INTO agg_message
 SELECT $f, m.service, m.msg_key, any_value(m.level), count(*),

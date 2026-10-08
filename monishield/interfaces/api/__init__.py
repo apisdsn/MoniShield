@@ -1,1 +1,1 @@
-"""API dashboard (TRD §5). Satu modul per halaman; yang dipakai bersama ada di common.py."""
+"""Dashboard API (TRD §5). One module per page; shared pieces live in common.py."""
