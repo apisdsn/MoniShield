@@ -26,22 +26,23 @@
 
   const PW_MIN = 12;
   const NAME = /^[a-z0-9._-]{3,32}$/;
+  const EMAIL = /^[^@\s<>(),;:"[\]]{1,64}@[A-Za-z0-9-]{1,63}(\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,24}$/;
   const activeAdmins = $derived((users || []).filter((u) => u.role === 'admin' && u.active).length);
   const lastAdmin = (u) => u.role === 'admin' && u.active && activeAdmins <= 1;
   const isMe = (u) => u.username === me.username;
   // server errors per code -> dictionary (server messages in Indonesian); other codes: the server message as is
-  const errText = (e) => (e.status === 0 ? $t('state.error_network') : ['invalid_username', 'invalid_password', 'username_taken', 'last_admin', 'self_delete', 'not_found', 'invalid_role'].includes(e.code)
+  const errText = (e) => (e.status === 0 ? $t('state.error_network') : ['invalid_username', 'invalid_password', 'username_taken', 'last_admin', 'self_delete', 'not_found', 'invalid_role', 'invalid_email', 'email_taken'].includes(e.code)
     ? $t(`adm.err.${e.code}`, { n: PW_MIN }) : $srvErr(e));
 
   // ---------------------------------------------------------------- dialog
   let dlg = $state(null);            // {kind: 'add' | 'edit' | 'reset' | 'reset-done' | 'deactivate' | 'delete', user?}
   let open = $state(false), busy = $state(false), errs = $state({}), general = $state(null);
-  let f = $state({ username: '', display_name: '', role: 'user', password: '' });
+  let f = $state({ username: '', display_name: '', email: '', role: 'user', password: '' });
   let temp = $state(''), addBtn = $state();
   function show(kind, user = null) {
     dlg = { kind, user }; errs = {}; general = null; busy = false;
-    if (kind === 'add') f = { username: '', display_name: '', role: 'user', password: '' };
-    if (kind === 'edit') f = { username: user.username, display_name: user.display_name, role: user.role, password: '' };
+    if (kind === 'add') f = { username: '', display_name: '', email: '', role: 'user', password: '' };
+    if (kind === 'edit') f = { username: user.username, display_name: user.display_name, email: user.email || '', role: user.role, password: '' };
     open = true;
   }
   function randomPassword() {
@@ -54,6 +55,7 @@
     try { await fn(); await load(); done?.(); }
     catch (e) {
       if (e.code === 'invalid_username' || e.code === 'username_taken') errs = { username: errText(e) };
+      else if (e.code === 'invalid_email' || e.code === 'email_taken') errs = { email: errText(e) };
       else if (e.code === 'invalid_password') errs = { password: errText(e) };
       else general = errText(e);
     } finally { busy = false; }
@@ -65,14 +67,17 @@
     if (!NAME.test(u)) errs.username = $t('adm.err.invalid_username');
     if (f.password.length < PW_MIN) errs.password = $t('adm.err.invalid_password', { n: PW_MIN });
     else if (f.password === u) errs.password = $t('adm.err.password_is_name');
+    if (f.email.trim() && !EMAIL.test(f.email.trim())) errs.email = $t('adm.err.invalid_email');
     if (Object.keys(errs).length) return;
-    act(() => api.post('/api/admin/users', { username: u, display_name: f.display_name.trim(), role: f.role, password: f.password }),
+    act(() => api.post('/api/admin/users', { username: u, display_name: f.display_name.trim(), email: f.email.trim(), role: f.role, password: f.password }),
       () => { open = false; toast($t('adm.done.add', { user: u })); });
   }
   function submitEdit(e) {
     e.preventDefault();
     const u = dlg.user;
-    act(() => api.patch(`/api/admin/users/${u.user_id}`, { display_name: f.display_name.trim(), role: f.role }),
+    errs = {};
+    if (f.email.trim() && !EMAIL.test(f.email.trim())) { errs = { email: $t('adm.err.invalid_email') }; return; }
+    act(() => api.patch(`/api/admin/users/${u.user_id}`, { display_name: f.display_name.trim(), email: f.email.trim(), role: f.role }),
       () => { open = false; toast($t('adm.done.edit', { user: u.username })); if (isMe(u)) onme?.(); });
   }
   const reset = (u) => act(async () => { temp = (await api.post(`/api/admin/users/${u.user_id}/reset-password`)).temporary_password; },
@@ -114,6 +119,7 @@
     <DataTable title={$t('menu.users')} rows={users} limit={500} columns={[
       { key: 'username', label: $t('adm.col.username'), custom: true, sort: true },
       { key: 'display_name', label: $t('adm.col.display_name'), sort: true },
+      { key: 'email', label: $t('adm.col.email'), fmt: (r) => r.email || '–', sort: true },
       { key: 'role', label: $t('adm.col.role'), custom: true, sort: true },
       { key: 'active', label: $t('col.status'), custom: true, sort: true },
       { key: 'last_login_at', label: $t('adm.col.last_login'), fmt: (r) => (r.last_login_at ? tWIB(utcToWib(r.last_login_at), $lang) : '–'), cls: () => 'nowrap', sort: true },
@@ -143,6 +149,11 @@
       {/if}
       <label for="u-disp">{$t('adm.col.display_name')}</label>
       <input id="u-disp" type="text" autocomplete="off" bind:value={f.display_name} maxlength="80" />
+      <label for="u-email">{$t('adm.col.email')}</label>
+      <input id="u-email" type="email" autocomplete="off" autocapitalize="none" spellcheck="false" bind:value={f.email} maxlength="254"
+        placeholder="nama@contoh.go.id" aria-invalid={!!errs.email} aria-describedby="u-email-r{errs.email ? ' u-email-e' : ''}" />
+      <p id="u-email-r" class="muted rule">{$t('adm.rule.email')}</p>
+      {#if errs.email}<p id="u-email-e" class="err">{errs.email}</p>{/if}
       <fieldset disabled={roleLocked} aria-describedby={roleLocked ? 'u-role-lock' : undefined}>
         <legend>{$t('adm.col.role')}</legend>
         <label class="radio"><input type="radio" name="role" value="user" bind:group={f.role} /> {$t('role.user')}</label>
@@ -199,7 +210,7 @@
   .small { font-size: 0.75rem; }
   form { display: flex; flex-direction: column; gap: 4px; }
   label { font-size: 0.8125rem; color: var(--kpi-label); margin-top: 12px; }
-  input[type='text'] { width: 100%; border-radius: 12px; min-height: var(--touch); font-size: 1rem; }
+  input[type='text'], input[type='email'] { width: 100%; border-radius: 12px; min-height: var(--touch); font-size: 1rem; }
   input[aria-invalid='true'] { border-color: var(--err); }
   fieldset { border: 0; padding: 0; margin: 12px 0 0; min-width: 0; }
   legend { font-size: 0.8125rem; color: var(--kpi-label); }

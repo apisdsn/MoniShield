@@ -12,9 +12,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import alert_service, import_service, ingest_service, kafka_service, retention_service, settings_service
+from monishield.application import alert_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service
 from monishield.domain import detect
-from monishield.infrastructure import auth as authmod, config, db, envfile, importer, inbox, kafka_client, logfolders, notify_channels, refdata, uploads, warehouse, wirecrypto
+from monishield.infrastructure import auth as authmod, config, db, envfile, importer, inbox, kafka_client, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
 from monishield.interfaces.api import admin, config_api, docs, kafka, meta, notify, pages, session, upload, users, wire as payload
 from .common import ROLE_DEPS
@@ -52,6 +52,7 @@ def wire(state, cfg, env_path):
     state.logfolders = logfolders.LogFolders(cfg)
     state.s3 = importer.S3Gateway(cfg)
     state.channels = notify_channels.Channels()
+    state.mailer = mailer.Mailer(cfg)
     state.kafka_client = kafka_client.KafkaClient()
     state.inbox = inbox.Spool
     state.uploads = uploads.Uploads(cfg)
@@ -62,6 +63,7 @@ def wire(state, cfg, env_path):
     state.alerts = alert_service.Notifier(state)
     state.kafka = kafka_service.KafkaFeed(state)
     state.retention = retention_service.RetentionService(state)
+    state.resets = password_service.PasswordResets(state)
     return state
 
 

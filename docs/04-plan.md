@@ -68,6 +68,7 @@ package is not yet installed (installed in Stage 2); **only 17 GB of free disk**
 | 32 | Encrypted request/response bodies for the web UI | 27 | — | ☑ 2026-10-08 |
 | 33 | Data retention (database, inbox) | 27 | — | ☑ 2026-10-08 |
 | 34 | Notification thresholds per number and per service | 27 | — | ☑ 2026-10-08 |
+| 35 | Forgot password by email, user emails, shared email letter, mail server settings | 27 | — | ☑ 2026-10-08 |
 
 After Stage 21 the old repo's `migrate/07-docker-compose.md` was done as step **L7** (`06-docker.md`); the equivalence
 report (`migrate/08-kesetaraan.md` there) is produced by `tools/laporan_kesetaraan.py` here.
@@ -1025,6 +1026,35 @@ with the Indonesian message.
 
 **Verification**: `tests/test_alerts.py` (parsing, muted and overridden services, saving from the page); browser at
 1280 and 390 px.
+
+---
+
+## Stage 35 — Forgot password by email, user emails, one email letter (2026-10-08)
+
+**Origin.** Owner request: "forgot password" that emails a unique password mixing letters, digits and special
+characters; an email field for users; the MoniShield logo in the email; a reusable letter for OTP codes and other
+notifications; settings for the mail server.
+
+- **User email**: `app_user.email` (lower case, unique index `ux_app_user_email`, optional). Added to existing account
+  databases on start (`Auth._migrate`, no migration tool yet). Admins set it in Manage users (add / edit dialog, table
+  column); `/api/me` returns it.
+- **Forgot password** (`application/password_service.py`, `POST /api/auth/forgot`, `GET /api/auth/options`): username
+  or email → a temporary password from `domain/accounts.temp_password` (16 characters, at least 2 upper, 2 lower,
+  2 digits, 2 special, no look-alikes) stored hashed in `password_reset`, valid `S4_PASSWORD_RESET_MINUTES` (30).
+  The same answer for every account; the old password keeps working and any successful sign-in cancels the pending
+  one; one per account per minute, 5 requests per IP per 15 minutes; sent in a background thread; audited
+  (`password.forgot`, `password.reset_used`). Signing in with it forces a new password. The admin "reset password"
+  uses the same generator.
+- **One letter for every email** (`domain/letters.py` content in ID/EN; `infrastructure/letter.py` HTML + text with the
+  logo as an inline PNG, `infrastructure/assets/logo.png`): password reset, OTP code (ready to use), notifications
+  (the email channel now sends letters) and the test email.
+- **Mail server (SMTP)**: Configuration → *Mail server (SMTP)* (server, port, security, account, password, sender, test
+  email); `infrastructure/mailer.py`. The notification email channel keeps only on/off + recipients.
+
+**Verification**: `tests/test_password_reset.py` (generator, email rules, letter parts, the full flow, unknown accounts,
+limits, expiry, failed delivery, migration of an old account database, mail server settings and test email). Browser
+with a local SMTP sink: user with email, test email, forgot password at 390 px, the received letter (1280 and 390 px),
+sign-in with the temporary password → change password.
 
 ---
 

@@ -19,7 +19,7 @@
   import KafkaCard from '../lib/KafkaCard.svelte';
 
   let { focus = '' } = $props();
-  const SECTIONS = ['aws', 'watch', 'kafka', 'maxmind', 'notif', 'blocklist', 'retention', 'server'];
+  const SECTIONS = ['aws', 'watch', 'kafka', 'maxmind', 'smtp', 'notif', 'blocklist', 'retention', 'server'];
 
   let v = $state.raw(null), imp = $state.raw(null), error = $state(null);
   // fields per group; secret fields always start empty (empty = unchanged)
@@ -29,6 +29,7 @@
   let bl = $state({ ex: '', org: '' });
   let wf = $state({ url: '', minutes: 60 });
   let rt = $state({ days: 0, inbox: 0 }), rplan = $state.raw(null), rconfirm = $state(false);
+  let sm = $state({}), smTo = $state('');
   let busy = $state(''), msg = $state({});   // msg[group] = {ok, text}
 
   function fill(r) {
@@ -39,6 +40,8 @@
     kf = { enabled: k.kafka_enabled.value, brokers: k.kafka_brokers.value, topic: k.kafka_topic.value, group: k.kafka_group.value, security: k.kafka_security.value,
       mech: k.kafka_sasl_mechanism.value, user: k.kafka_username.value, pass: '', offset: k.kafka_offset_reset.value, minutes: k.kafka_ingest_minutes.value };
     rt = { days: r.retention.retention_days.value, inbox: r.retention.retention_inbox_days.value };
+    const m = r.smtp;
+    sm = { host: m.smtp_host.value || '', port: m.smtp_port.value, security: m.smtp_security.value, user: m.smtp_username.value || '', pass: '', from: m.smtp_from.value || '' };
     bl = { ex: (r.blocklist.blocklist_exclude.value || '').split(',').map((x) => x.trim()).filter(Boolean).join('\n'), org: r.blocklist.blocklist_exclude_org.value || '' };
   }
   async function loadImp() {
@@ -46,6 +49,20 @@
       imp = await api.get('/api/admin/import');
       if (imp.watch) wf = { url: imp.watch.url || '', minutes: imp.watch.minutes || 60 };
     } catch { imp = null; }
+  }
+  const smBody = () => ({ smtp_host: sm.host.trim(), smtp_port: String(sm.port || ''), smtp_security: sm.security, smtp_username: sm.user.trim(),
+    smtp_password: sm.pass, smtp_from: sm.from.trim() });
+  const smTyped = () => sm.pass || sm.host.trim() !== (v.smtp.smtp_host.value || '') || String(sm.port) !== String(v.smtp.smtp_port.value)
+    || sm.security !== v.smtp.smtp_security.value || sm.user.trim() !== (v.smtp.smtp_username.value || '') || sm.from.trim() !== (v.smtp.smtp_from.value || '');
+  const smReady = $derived(v && v.smtp.smtp_host.value && v.smtp.smtp_from.value);
+  async function testSmtp() {
+    if (smTyped() && !(await save('smtp', smBody()))) return;   // the test uses the SAVED settings
+    busy = 'smtp-test'; msg = { ...msg, smtp: null };
+    try {
+      const r = await api.post('/api/admin/config/test', { kind: 'smtp', to: smTo.trim() || null, lang: $lang });
+      msg = { ...msg, smtp: { ok: true, text: $t('cf.sm.test_ok', { to: r.to }) } };
+    } catch (e) { msg = { ...msg, smtp: { ok: false, text: $errText(e) } }; }
+    finally { busy = ''; }
   }
   async function loadRet() { try { rplan = await api.get('/api/admin/retention'); } catch { rplan = null; } }
   async function load() {
@@ -62,7 +79,7 @@
     finally { busy = ''; }
   }
   let ready = $state(false);
-  onMount(async () => { await load(); ready = true; });
+  onMount(async () => { await load(); try { smTo = (await api.get('/api/me')).email || ''; } catch { /* keep empty */ } ready = true; });
   // #/admin/notifikasi -> straight to that section (also when coming from #/admin/konfigurasi without reloading the page)
   $effect(() => { if (ready && focus) tick().then(() => jump(focus)); });
   function jump(id) {
@@ -293,7 +310,43 @@
       </form>
     </section>
 
-    <!-- 4. Notifications -->
+    <!-- 5. Mail server (SMTP): shared by forgot password, email notifications and the test email -->
+    <section class="card" id="cf-smtp" tabindex="-1" aria-labelledby="cf-sm-h">
+      <header>
+        <h2 id="cf-sm-h">{$t('cf.s.smtp')}</h2>
+        <SeverityTag level={smReady ? 'ok' : 1} text={smReady ? $t('cf.ready') : $t('cf.not_ready')} />
+      </header>
+      <p class="muted small">{$t('cf.sm.intro')}</p>
+      <form onsubmit={(e) => { e.preventDefault(); save('smtp', smBody()); }} novalidate>
+        <div class="fields">
+          <div><label for="cf-smh">{$t('cf.sm.host')} {@render srcTag(v.smtp.smtp_host)}</label>
+            <input id="cf-smh" type="text" autocomplete="off" spellcheck="false" bind:value={sm.host} placeholder="smtp.contoh.go.id" /></div>
+          <div><label for="cf-smp">{$t('cf.sm.port')} {@render srcTag(v.smtp.smtp_port)}</label>
+            <input id="cf-smp" type="number" min="1" max="65535" bind:value={sm.port} /></div>
+          <div><label for="cf-sms">{$t('cf.sm.security')} {@render srcTag(v.smtp.smtp_security)}</label>
+            <select id="cf-sms" bind:value={sm.security}><option value="starttls">STARTTLS (587)</option><option value="ssl">SSL/TLS (465)</option><option value="none">{$t('al.em.none')}</option></select></div>
+          <div><label for="cf-smu">{$t('cf.sm.user')} {@render srcTag(v.smtp.smtp_username)}</label>
+            <input id="cf-smu" type="text" autocomplete="off" spellcheck="false" bind:value={sm.user} /></div>
+          <div><label for="cf-smpw">{$t('cf.sm.pass')} {@render srcTag(v.smtp.smtp_password)}</label>
+            <input id="cf-smpw" type="password" autocomplete="new-password" bind:value={sm.pass} placeholder={v.smtp.smtp_password.set ? $t('al.secret_set') : ''} /></div>
+          <div><label for="cf-smf">{$t('cf.sm.from')} {@render srcTag(v.smtp.smtp_from)}</label>
+            <input id="cf-smf" type="text" autocomplete="off" spellcheck="false" bind:value={sm.from} placeholder="MoniShield <monishield@contoh.go.id>" /></div>
+        </div>
+        <p class="muted xs">{$t('cf.sm.used_by')}</p>
+        <div class="wform">
+          <div class="grow"><label for="cf-smto">{$t('cf.sm.test_to')}</label>
+            <input id="cf-smto" type="email" autocomplete="off" spellcheck="false" bind:value={smTo} placeholder="nama@contoh.go.id" /></div>
+        </div>
+        {@render result('smtp')}
+        <div class="acts">
+          <button class="btn primary" type="submit" disabled={busy !== ''}>{busy === 'smtp' ? $t('action.saving') : $t('action.save')}</button>
+          <button class="btn" type="button" onclick={testSmtp} disabled={busy !== '' || !(smReady || (sm.host && sm.from))}>{busy === 'smtp-test' ? $t('al.testing') : $t('cf.sm.test')}</button>
+          {#if anyScreen('smtp')}<button class="btn ghost" type="button" disabled={busy !== ''} onclick={() => save('smtp', { clear: keys('smtp') }, 'cf.cleared')}>{$t('cf.clear')}</button>{/if}
+        </div>
+      </form>
+    </section>
+
+    <!-- 6. Notifications -->
     <div id="cf-notif" tabindex="-1" class="anchor"><AdminAlerts /></div>
 
     <!-- 5. Blocklist -->

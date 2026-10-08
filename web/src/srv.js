@@ -136,6 +136,15 @@ export const srv = derived(lang, (l) => (s) => (typeof s !== 'string' || !s ? s 
 // Error messages that carry details (allowed buckets, limits, names): in Indonesian mode the whole sentence is translated
 // so the details are kept; errors not listed here use the per-code dictionary. [English sentence, Indonesian]
 const ERR_ID = [
+  [/^The mail server rejected the username or password\.$/, 'Server email menolak nama pengguna atau sandi.'],
+  [/^The mail server refused the recipient address\.$/, 'Server email menolak alamat penerima.'],
+  [/^The mail server could not be reached or refused the message \((\w+)\)\.$/, 'Server email tidak bisa dihubungi atau menolak pesan ($1).'],
+  [/^The mail server \(SMTP\) is not set up: fill in Configuration → Mail server\.$/, 'Server email (SMTP) belum diatur: isi Konfigurasi → Server email.'],
+  [/^Add an email address to your account \(Manage users\) or enter a recipient first\.$/, 'Tambahkan email ke akun Anda (Kelola user) atau isi penerima terlebih dahulu.'],
+  [/^Invalid mail server address \(e\.g\. smtp\.example\.go\.id\)\.$/, 'Alamat server email tidak sah (contoh: smtp.contoh.go.id).'],
+  [/^Mail server port must be 1–65535\.$/, 'Port server email harus 1–65535.'],
+  [/^Sender must be an email address, e\.g\. .*$/, 'Pengirim harus alamat email, contoh: monishield@contoh.go.id atau MoniShield <monishield@contoh.go.id>.'],
+  [/^Email is on but the SMTP server \/ port \/ sender \/ recipient is incomplete\.$/, 'Email aktif tetapi server / port / pengirim (bagian Server email) atau penerima belum lengkap.'],
   [/^Threshold for all services must look like 2:50 \(times the average : minimum increase\) or off\.$/, 'Ambang untuk semua layanan harus berbentuk 2:50 (kali rata-rata : naik minimal) atau off.'],
   [/^Threshold for all services: the factor must be above 1 and at most 100, the minimum increase 0 or more\.$/, 'Ambang untuk semua layanan: kelipatan harus di atas 1 dan paling banyak 100, naik minimal 0 atau lebih.'],
   [/^Threshold for (.+) must look like 2:50 \(times the average : minimum increase\) or off\.$/, 'Ambang untuk $1 harus berbentuk 2:50 (kali rata-rata : naik minimal) atau off.'],

@@ -1,10 +1,11 @@
 """Notification channels (adapter): Telegram Bot API, Discord webhook, SMTP email. Only sends a title + text already
 composed and scrubbed of IP addresses by the layer above (monishield/domain/alerts.py `scrub`).
 Errors are returned as AlertFail without credentials."""
-import json, smtplib, ssl, urllib.error, urllib.request
-from email.message import EmailMessage
+import json, smtplib, urllib.error, urllib.request   # noqa: F401  (smtplib: tests replace smtplib.SMTP)
 
+from monishield.domain import letters
 from monishield.domain.alerts import TELEGRAM_API, AlertFail
+from monishield.infrastructure import letter, mailer
 
 TIMEOUT = 15
 
@@ -29,21 +30,11 @@ def send_discord(ch, title, text):
 
 
 def send_email(ch, title, text):
-    m = EmailMessage()
-    m['Subject'], m['From'], m['To'] = title, ch['sender'], ', '.join(x.strip() for x in ch['to'].split(',') if x.strip())
-    m.set_content(text)
-    try:
-        ctx = ssl.create_default_context()
-        cls = smtplib.SMTP_SSL if ch['security'] == 'ssl' else smtplib.SMTP
-        kw = dict(context=ctx) if ch['security'] == 'ssl' else {}
-        with cls(ch['host'], ch['port'], timeout=TIMEOUT, **kw) as s:
-            if ch['security'] == 'starttls': s.starttls(context=ctx)
-            if ch['username']: s.login(ch['username'], ch['password'])
-            s.send_message(m)
-    except smtplib.SMTPAuthenticationError:
-        raise AlertFail('SMTP rejected the username / password') from None
-    except (smtplib.SMTPException, OSError) as x:
-        raise AlertFail(f'SMTP failed ({type(x).__name__})') from None
+    """The notification in the MoniShield letter layout (monishield/domain/letters.py), through the mail server settings."""
+    lt = letters.notification(ch.get('lang') or 'id', title, text)
+    to = ', '.join(x.strip() for x in ch['to'].split(',') if x.strip())
+    try: mailer.deliver(ch, letter.message(lt, ch['sender'], to))
+    except mailer.MailFail as e: raise AlertFail(e.message) from None
 
 
 SENDERS = dict(telegram=send_telegram, discord=send_discord, email=send_email)

@@ -12,7 +12,7 @@ monishield/domain/settings.py.
 Old settings formerly stored in the account database (app_setting 'config' / 'alerts' / 's3_watch') are moved once to .env
 at server start (`migrate`).
 """
-from monishield.domain import alerts, s3_import, settings as rules
+from monishield.domain import alerts, letters, s3_import, settings as rules
 from monishield.domain.config_model import env_name
 from monishield.domain.errors import Fail
 from monishield.domain.settings import SettingsFail
@@ -109,10 +109,18 @@ def test_maxmind(ctx):
     return dict(ok=True, kind='maxmind')
 
 
-TESTS = dict(aws=test_aws, maxmind=test_maxmind)
+def test_smtp(ctx, to=None, lang=None):
+    """Send the test letter to `to` (the admin's own email unless given) with the SAVED mail server settings."""
+    if not to: raise Fail('mail_no_recipient', 'Add an email address to your account (Manage users) or enter a recipient first.', 400)
+    if not rules.SENDER.fullmatch(to) or '<' in to: raise Fail('invalid_parameter', 'The recipient must be an email address.', 400)
+    ctx.mailer.send(letters.smtp_test(lang or ctx.cfg.alert_lang, ctx.cfg.dashboard_url), to)
+    return dict(ok=True, kind='smtp', to=to)
 
 
-def test_connection(ctx, kind):
+TESTS = dict(aws=test_aws, maxmind=test_maxmind, smtp=test_smtp)
+
+
+def test_connection(ctx, kind, **kw):
     fn = TESTS.get(kind)
     if not fn: raise Fail('invalid_parameter', 'Unknown test type.', 400)
-    return fn(ctx)
+    return fn(ctx, **kw) if kind == 'smtp' else fn(ctx)

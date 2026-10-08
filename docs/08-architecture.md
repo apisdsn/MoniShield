@@ -37,7 +37,8 @@ FastAPI's `app.state`. Application services receive that object as `ctx` and onl
 | `inbox` | Inbox factory | `infrastructure/inbox.Spool` |
 | `uploads` | UploadStore | `infrastructure/uploads.Uploads` |
 | `maxmind` | MaxMind probe | `infrastructure/refdata.probe_maxmind` |
-| `ingest`, `imports`, `alerts`, `kafka`, `retention` | services | `application/*_service.py` |
+| `mailer` | Mailer | `infrastructure/mailer.Mailer` (letters from `domain/letters.py`, rendered by `infrastructure/letter.py`) |
+| `ingest`, `imports`, `alerts`, `kafka`, `retention`, `resets` | services | `application/*_service.py` (`resets` = `password_service.PasswordResets`) |
 | `wire` | (interfaces only) | `infrastructure/wirecrypto.WireCrypto`, used by the `interfaces/api/wire.py` middleware for encrypted API bodies |
 
 Tests build the same graph through `create_app(cfg)`; a service can also be tested with a hand-made `ctx` holding fakes
@@ -74,13 +75,13 @@ translates informational server text (warnings, job summaries, audit details) wi
 
 ```
 monishield/
-  domain/          accounts.py alerts.py config_model.py detect.py errors.py kafka_message.py parse.py retention.py rules.py
+  domain/          accounts.py alerts.py config_model.py detect.py errors.py kafka_message.py letters.py parse.py retention.py rules.py
                    s3_import.py settings.py uploads.py  (+ crs_rules.json, capec.json, CRS-LICENSE.txt)
   application/     ports.py ingest_service.py import_service.py alert_service.py settings_service.py
-                   kafka_service.py retention_service.py upload_service.py
+                   kafka_service.py password_service.py retention_service.py upload_service.py
   infrastructure/  auth.py config.py db.py derive/ envfile.py importer.py inbox.py ingest.py kafka_client.py
                    logfiles.py logfolders.py notify_channels.py queries/ refdata.py schema.sql uploads.py warehouse.py
-                   wirecrypto.py
+                   wirecrypto.py letter.py mailer.py assets/logo.png
   interfaces/      api/ (app.py common.py pages.py admin.py config_api.py kafka.py notify.py upload.py session.py
                    users.py meta.py docs.py wire.py)   cli.py
 ```

@@ -19,16 +19,20 @@ GROUPS = {
     'watch': ('s3_watch', 's3_watch_minutes', 's3_watch_enabled'),
     'alerts': tuple(alerts.to_fields(alerts.load(Config()))),
     'retention': ('retention_days', 'retention_inbox_days'),
+    'smtp': ('smtp_host', 'smtp_port', 'smtp_security', 'smtp_username', 'smtp_password', 'smtp_from'),
     'kafka': ('kafka_enabled', 'kafka_brokers', 'kafka_topic', 'kafka_group', 'kafka_security', 'kafka_sasl_mechanism', 'kafka_username',
               'kafka_password', 'kafka_offset_reset', 'kafka_ingest_minutes'),
 }
-SCREEN_GROUPS = ('aws', 'maxmind', 'blocklist', 'kafka', 'retention')
+SCREEN_GROUPS = ('aws', 'maxmind', 'blocklist', 'kafka', 'retention', 'smtp')
 SCREEN = {k for g in SCREEN_GROUPS for k in GROUPS[g]}   # PUT /api/admin/config
 SECRET = set(SECRETS)
 MASKED = ('aws_access_key_id', 'maxmind_account_id')
 ENV_ONLY = ('jwt_secret', 'job_token', 'auth_database_url', 'admin_password')   # only set/empty status
 BASE = Config()
 OLD_KEYS = ('config', 'alerts', 's3_watch')   # old settings in the account database (app_setting), moved once to .env
+
+
+SENDER = re.compile(r'(?:[^<>@\r\n]{1,80} <)?[^@\s<>,]{1,64}@[^@\s<>,]{1,190}\.[A-Za-z]{2,24}>?')
 
 
 class SettingsFail(Fail):
@@ -126,4 +130,10 @@ def validate(s):
         raise SettingsFail('SASL security needs a Kafka username and password.')
     if 'kafka_offset_reset' in s and s['kafka_offset_reset'] not in ('earliest', 'latest'): raise SettingsFail("Start position must be 'earliest' or 'latest'.")
     if 'kafka_ingest_minutes' in s and not 1 <= int(s['kafka_ingest_minutes']) <= 1440: raise SettingsFail('Kafka ingest interval must be 1–1440 minutes.')
+    v = s.get('smtp_host')
+    if v and not re.fullmatch(r'[A-Za-z0-9.-]{1,253}', v): raise SettingsFail('Invalid mail server address (e.g. smtp.example.go.id).')
+    if 'smtp_port' in s and not 1 <= int(s['smtp_port']) <= 65535: raise SettingsFail('Mail server port must be 1–65535.')
+    if 'smtp_security' in s and s['smtp_security'] not in ('starttls', 'ssl', 'none'): raise SettingsFail('Mail server security must be starttls, ssl, or none.')
+    v = s.get('smtp_from')
+    if v and not SENDER.fullmatch(v): raise SettingsFail('Sender must be an email address, e.g. monishield@example.go.id or MoniShield <monishield@example.go.id>.')
     if 'retention_days' in s and (msg := retention.validate(int(s['retention_days']), int(s.get('retention_inbox_days') or 0))): raise SettingsFail(msg)

@@ -45,6 +45,29 @@ critical attacks, failed ingest, S3 sync problems, today's log folder not arrive
 ticked — a summary of every new folder. Messages contain only numbers and links, **no IP addresses**; credentials are never
 shown again after saving.
 
+### Mail server and email letters
+
+Configuration → *Mail server (SMTP)*: server, port, security (STARTTLS 587, SSL/TLS 465, or none for an internal relay),
+account, password and sender address (`MoniShield <monishield@example.go.id>`). **Send test email** sends a letter to the
+address you enter (default: your own account's email). The same server sends the notification emails and the
+forgot-password emails. Every email uses one MoniShield letter: logo, title, text, an optional code box (temporary
+password, OTP code), an optional list and button, in Indonesian or English; there is also a plain-text part.
+`.env`: `S4_SMTP_HOST`, `S4_SMTP_PORT`, `S4_SMTP_SECURITY`, `S4_SMTP_USERNAME`, `SMTP_PASSWORD`, `S4_SMTP_FROM`.
+
+### Forgot password
+
+Shown on the sign-in page once the mail server is set up (`S4_PASSWORD_RESET=false` hides it). The user enters a
+username or email; the account's email receives a temporary password of 16 characters (upper and lower case letters,
+digits, special characters), valid 30 minutes (`S4_PASSWORD_RESET_MINUTES`) and usable once. Signing in with it asks for
+a new password straight away.
+
+- The page gives the same answer whether or not the account exists or has an email.
+- The old password keeps working until the temporary one is used, and any sign-in cancels a pending temporary password,
+  so nobody can lock a user out by asking for resets. At most one per account per minute and 5 requests per address
+  per 15 minutes.
+- Users need an email address: admin → Manage users → add or edit a user. One address per account.
+- The audit log records each request (`password.forgot`) and its use (`password.reset_used`), never the password.
+
 ### Spike thresholds
 
 Configuration → Notifications → *Spike thresholds*. A number is a spike when it is at least *factor × the average of

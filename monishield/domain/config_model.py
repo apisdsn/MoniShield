@@ -40,6 +40,8 @@ class Config:
     auth_database_url: str = ''   # postgresql+psycopg://user:password@host:5432/db ; empty = SQLite in state_dir (test/local)
     session_idle_minutes: int = 60
     session_max_hours: int = 12
+    password_reset: bool = True       # "forgot password" on the sign-in page emails a temporary password (needs the mail server)
+    password_reset_minutes: int = 30  # how long that temporary password works
     server_ip: str = rules.SERVER_IP
     server_fallback: list = dataclasses.field(default_factory=lambda: list(rules.SERVER_FALLBACK))
     hosts: dict = dataclasses.field(default_factory=lambda: dict(rules.HOSTS))

@@ -4,6 +4,7 @@ WRITTEN TO THE .env FILE (monishield/application/settings_service.py) and takes 
   PUT  /api/admin/config        write to .env; empty secret field = unchanged, `clear` = line disabled (default value)
   POST /api/admin/config/test   test the connection with the SAVED settings: {kind: 'aws'} (list 1 object in S3) or
                                 {kind: 'maxmind'} (request a GeoLite2 download link; authorization only, no download)
+                                {kind: 'smtp', to?} (send the test letter; default recipient: the admin's own email)
 The automatic S3 parent folder and notifications have their own APIs (/api/admin/import/watch, /api/admin/alerts); the
 Configuration page uses both.
 """
@@ -45,6 +46,12 @@ class ConfigBody(BaseModel):
     kafka_password: str | None = None
     kafka_offset_reset: str | None = None
     kafka_ingest_minutes: str | int | None = None
+    smtp_host: str | None = None
+    smtp_port: str | int | None = None
+    smtp_security: str | None = None
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
     retention_days: str | int | None = None
     retention_inbox_days: str | int | None = None
     clear: list[str] = []
@@ -61,11 +68,13 @@ def put_config(body: ConfigBody, request: Request, admin=Depends(require_admin))
 
 class TestBody(BaseModel):
     kind: str
+    to: str | None = None     # smtp: recipient of the test email (default: the admin's own email)
+    lang: str | None = None   # smtp: language of the test email (the page language)
 
 
 @router.post('/test')
 def test_config(body: TestBody, request: Request, admin=Depends(require_admin)):
-    try: r = settings_service.test_connection(request.app.state, body.kind)
+    try: r = settings_service.test_connection(request.app.state, body.kind, to=body.to or admin.get('email'), lang=body.lang if body.lang in ('id', 'en') else None)
     except Fail as e:
         _audit(request, admin, 'config.test', f'{body.kind}: failed ({e.code})'); raise
     _audit(request, admin, 'config.test', f'{body.kind}: succeeded')

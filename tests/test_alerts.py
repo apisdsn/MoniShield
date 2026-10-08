@@ -31,7 +31,7 @@ def sent(monkeypatch):
         def __exit__(self, *a): return False
         def starttls(self, context=None): box.append(('smtp-starttls',))
         def login(self, u, p): box.append(('smtp-login', u, p == SMTP_PW))
-        def send_message(self, m): box.append(('smtp-send', m['Subject'], m['To'], m.get_content()))
+        def send_message(self, m): box.append(('smtp-send', m['Subject'], m['To'], m.get_body(('plain',)).get_content()))
     monkeypatch.setattr(notify_channels.smtplib, 'SMTP', FakeSMTP)
     return box
 

@@ -17,7 +17,7 @@
 
   let v = $state.raw(null), error = $state(null), f = $state(null), busy = $state(false), err = $state(null), testing = $state('');
   // secret fields typed anew (empty = unchanged)
-  let sec = $state({ tg_token: '', dc_hook: '', em_pass: '' });
+  let sec = $state({ tg_token: '', dc_hook: '' });
 
   function fill(r) {
     v = r;
@@ -28,7 +28,7 @@
       em: { enabled: c.email.enabled, host: c.email.host, port: c.email.port, security: c.email.security, username: c.email.username, sender: c.email.sender, to: c.email.to },
       events: { ...r.events }, lang: r.lang, dashboard_url: r.dashboard_url || location.origin, missing_hour: r.missing_hour,
     };
-    sec = { tg_token: '', dc_hook: '', em_pass: '' };
+    sec = { tg_token: '', dc_hook: '' };
     const row = (p) => ({ on: p !== null, factor: p?.factor ?? 2, min: p?.min ?? 0 });
     th = {
       spike: Object.fromEntries(r.spike_all.map((k) => [k, row(r.spike[k])])),
@@ -50,7 +50,7 @@
     channels: {
       telegram: { enabled: f.tg.enabled, chat_id: f.tg.chat_id, bot_token: sec.tg_token },
       discord: { enabled: f.dc.enabled, webhook_url: sec.dc_hook },
-      email: { ...f.em, port: Number(f.em.port), password: sec.em_pass },
+      email: { enabled: f.em.enabled, to: f.em.to },   // server, account and sender: Configuration → Mail server
     },
     events: f.events, lang: f.lang, dashboard_url: f.dashboard_url, missing_hour: Number(f.missing_hour), clear, ...thBody(),
   });
@@ -106,21 +106,9 @@
           <!-- Email -->
           <fieldset class="ch">
             <legend><label class="sw"><input type="checkbox" bind:checked={f.em.enabled} /> {$t('al.ch.email')}</label></legend>
-            <div class="two">
-              <div><label for="em-host">{$t('al.em.host')}</label><input id="em-host" type="text" autocomplete="off" bind:value={f.em.host} placeholder="smtp.contoh.go.id" /></div>
-              <div><label for="em-port">{$t('al.em.port')}</label><input id="em-port" type="number" min="1" max="65535" bind:value={f.em.port} /></div>
-            </div>
-            <label for="em-sec">{$t('al.em.security')}</label>
-            <select id="em-sec" bind:value={f.em.security}><option value="starttls">STARTTLS (587)</option><option value="ssl">SSL/TLS (465)</option><option value="none">{$t('al.em.none')}</option></select>
-            <div class="two">
-              <div><label for="em-user">{$t('al.em.user')}</label><input id="em-user" type="text" autocomplete="off" bind:value={f.em.username} /></div>
-              <div><label for="em-pass">{$t('al.em.pass')}</label><input id="em-pass" type="password" autocomplete="new-password" bind:value={sec.em_pass}
-                placeholder={has('email', 'password') ? $t('al.secret_set') : ''} /></div>
-            </div>
-            {#if has('email', 'password')}<button type="button" class="link" onclick={() => save(['email.password'])}>{$t('al.clear')}</button>{/if}
-            <label for="em-from">{$t('al.em.from')}</label><input id="em-from" type="text" autocomplete="off" bind:value={f.em.sender} placeholder="monishield@contoh.go.id" />
+            <p class="muted xs">{$t('al.em.uses_server')}</p>
             <label for="em-to">{$t('al.em.to')}</label><input id="em-to" type="text" autocomplete="off" bind:value={f.em.to} placeholder="tim@contoh.go.id, ketua@contoh.go.id" />
-            <button type="button" class="btn sm" onclick={() => test('email')} disabled={testing !== '' || !f.em.host}>{testing === 'email' ? $t('al.testing') : $t('al.test')}</button>
+            <button type="button" class="btn sm" onclick={() => test('email')} disabled={testing !== '' || !v.channels.email.host}>{testing === 'email' ? $t('al.testing') : $t('al.test')}</button>
           </fieldset>
         </div>
 

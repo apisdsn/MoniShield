@@ -34,7 +34,7 @@ include = ["monishield*"]   # clean architecture layers: domain, application, in
 
 [tool.setuptools.package-data]
 "monishield.domain" = ["crs_rules.json", "capec.json", "CRS-LICENSE.txt"]
-"monishield.infrastructure" = ["schema.sql"]
+"monishield.infrastructure" = ["schema.sql", "assets/*.png"]
 "monishield.infrastructure.derive" = ["*.sql"]
 
 [tool.pytest.ini_options]

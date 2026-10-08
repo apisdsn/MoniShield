@@ -17,6 +17,10 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   `S4_API_ENCRYPTION`); Swagger, the ingest job and curl keep plain JSON.
 - Data retention: `S4_RETENTION_DAYS` (database) and `S4_RETENTION_INBOX_DAYS` (inbox files), cleaned daily and from
   Configuration → Data retention.
+- Forgot password by email: a unique temporary password (letters, digits, special characters) valid 30 minutes,
+  the old password keeps working until it is used; users get an email address (Manage users).
+- One MoniShield email letter with the logo for every email (password reset, OTP code, notifications, test email),
+  and a Mail server (SMTP) section on the Configuration page with a test email.
 - Notification thresholds per number (`S4_ALERT_SPIKE`) and per service (`S4_ALERT_SERVICE_SPIKE`), editable under
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 

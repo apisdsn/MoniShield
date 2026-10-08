@@ -22,7 +22,7 @@ def deliver(ctx, cfg, key, event, title, text, channels=None, force=False):
     out = {}
     for name, ch in cfg['channels'].items():
         if (channels and name not in channels) or (not channels and not ch['enabled']): continue
-        try: ctx.channels.send(name, ch, title, text); out[name] = None
+        try: ctx.channels.send(name, dict(ch, lang=cfg['lang']) if name == 'email' else ch, title, text); out[name] = None
         except AlertFail as e: out[name] = str(e)
         except Exception as e: out[name] = type(e).__name__   # noqa: BLE001
         auth.alert_add(key, event, name, out[name] is None, summary=title, error=out[name])
