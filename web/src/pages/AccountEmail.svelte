@@ -1,6 +1,7 @@
 <!-- Own account email (owner request 2026-10-08; API /api/me/email, monishield/application/account_service.py).
      Changing it needs the current password, a code sent to the CURRENT email (when there is one) and a code sent to
-     the NEW email, so a stolen session alone cannot move the account to another address. -->
+     the NEW email, so a stolen session alone cannot move the account to another address.
+     embedded = inside the account dialog (lib/AccountDialogs.svelte), which supplies the card and the title. -->
 <script>
   import { onMount, tick } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -10,7 +11,7 @@
   import Icon from '../lib/Icon.svelte';
   import Note from '../lib/Note.svelte';
   import Skeleton from '../lib/Skeleton.svelte';
-  let { ondone = null } = $props();
+  let { ondone = null, embedded = false } = $props();
 
   let v = $state.raw(null), busy = $state(false), err = $state(null), sentOld = $state(''), sentNew = $state('');
   let f = $state({ email: '', password: '', old: '', nw: '' });
@@ -46,10 +47,10 @@
 </script>
 
 {#if !v && !err}
-  <Skeleton kpis={0} charts={1} />
+  {#if embedded}<p class="muted" role="status">{$t('state.loading')}</p>{:else}<Skeleton kpis={0} charts={1} />{/if}
 {:else}
-  <section class="card em" aria-labelledby="em-h">
-    <h2 id="em-h">{$t('em.change')}</h2>
+  <section class="em" class:card={!embedded} aria-labelledby={embedded ? undefined : 'em-h'}>
+    {#if !embedded}<h2 id="em-h">{$t('em.change')}</h2>{/if}
     <p class="cur"><Icon name="mail" /><span>{$t('em.current')}</span>
       <b>{v?.email || $t('em.none')}</b></p>
     <p class="muted small">{$t('em.why')}</p>
@@ -90,6 +91,7 @@
         {#if err}<p class="err" role="alert">{err}</p>{/if}
         <div class="acts">
           <button class="btn primary" type="submit" disabled={busy}>{busy ? $t('forgot.sending') : $t('em.send')}</button>
+          {#if embedded}<button class="btn" type="button" onclick={() => ondone?.()}>{$t('action.cancel')}</button>{/if}
         </div>
       </form>
     {/if}
@@ -106,7 +108,7 @@
   form { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
   label { font-size: 0.8125rem; color: var(--kpi-label); margin-top: 12px; }
   input { width: 100%; border-radius: 12px; min-height: var(--touch); font-size: 1rem; }
-  input[inputmode='numeric'] { font-family: var(--mono, ui-monospace, monospace); letter-spacing: 0.3em; font-size: 1.125rem; }
+  input[inputmode='numeric'] { padding-left: 14px; font-family: var(--mono, ui-monospace, monospace); letter-spacing: 0.3em; font-size: 1.125rem; }
   .steps { margin: 12px 0 0; padding-left: 20px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
   .err { color: var(--err); font-size: 0.8125rem; margin: 8px 0 0; }
   .acts { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }

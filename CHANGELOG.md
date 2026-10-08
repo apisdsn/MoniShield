@@ -25,6 +25,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   new address; the old address gets a notice.
 - The sign-in page always shows a *Forgot password?* button; without a mail server it explains that an admin resets
   the password.
+- *Change password* and *Account email* open as pop-ups over the current page instead of separate pages.
 - Notification thresholds per number (`S4_ALERT_SPIKE`) and per service (`S4_ALERT_SERVICE_SPIKE`), editable under
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 

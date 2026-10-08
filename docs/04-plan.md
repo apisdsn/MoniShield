@@ -1085,6 +1085,11 @@ Follow-up (owner request): the sign-in page always shows the *Forgot password?* 
 admins enable it under Configuration → Mail server). The options are fetched again on click, so a mail server set up
 after the page loaded is picked up.
 
+Follow-up (owner request): *Change password* and *Account email* open as pop-ups over the current page
+(`lib/AccountDialogs.svelte`, the shared `Dialog`; full screen on phones) instead of a mostly empty page of their own.
+The old addresses `#/sandi` and `#/email` open the same pop-up over the Overview. The forced password change after
+sign-in stays a full screen.
+
 ---
 
 ## Deviation notes

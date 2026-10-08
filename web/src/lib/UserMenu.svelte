@@ -1,4 +1,4 @@
-<!-- User menu (DRD §2.1 U28, §8.2): button holding the display name; list: name + role, Change password, (admin) Manage
+<!-- User menu (DRD §2.1 U28, §8.2): button holding the display name; list: name + role, Account email and Change password (pop-ups, lib/AccountDialogs.svelte), (admin) Manage
      users, Ingest & import, Log out. Standard menu pattern: Enter/Space opens, arrows move, Esc closes and
      returns focus. `extended` (narrow screen, ⋯ button): language, theme, and reload are moved into the menu too. -->
 <script>
@@ -7,6 +7,7 @@
   import { theme } from '../theme.js';
   import { build } from '../state.js';
   import Icon from './Icon.svelte';
+  import { openAccount } from './AccountDialogs.svelte';
   let { me, route, extended = false, onlogout, onreload } = $props();
 
   let open = $state(false);
@@ -62,8 +63,8 @@
         <button role="menuitem" onclick={() => { close(); onreload(); }}><Icon name="refresh" />{$t('action.reload')}</button>
       {/if}
       <div class="sep" role="separator"></div>
-      <a role="menuitem" href={link('email')} onclick={() => close(false)}><Icon name="mail" />{$t('menu.email')}</a>
-      <a role="menuitem" href={link('sandi')} onclick={() => close(false)}><Icon name="key" />{$t('menu.password')}</a>
+      <button role="menuitem" onclick={() => { close(); openAccount('email'); }}><Icon name="mail" />{$t('menu.email')}</button>
+      <button role="menuitem" onclick={() => { close(); openAccount('password'); }}><Icon name="key" />{$t('menu.password')}</button>
       {#if me.role === 'admin'}
         <a role="menuitem" href={link('admin/user')} onclick={() => close(false)}><Icon name="users" />{$t('menu.users')}</a>
         <a role="menuitem" href={link('admin/ingest')} onclick={() => close(false)}><Icon name="database" />{$t('menu.ingest')}</a>

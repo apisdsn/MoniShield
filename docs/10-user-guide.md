@@ -71,7 +71,8 @@ a new password straight away.
 
 ### Account email
 
-Every user can change their own email under user menu (⋯) → *Account email*. It needs the mail server.
+Every user can change their own email under user menu (⋯) → *Account email*; like *Change password*, it opens as a
+pop-up over the current page. It needs the mail server.
 
 1. Enter the new email and your current password, then *Send verification codes*.
 2. A 6-digit code goes to the old email (skipped when the account has none yet) and another to the new email.
