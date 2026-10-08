@@ -23,6 +23,8 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   and a Mail server (SMTP) section on the Configuration page with a test email.
 - Users change their own email (user menu → Account email) with their password and a code sent to the old and to the
   new address; the old address gets a notice.
+- The sign-in page always shows a *Forgot password?* button; without a mail server it explains that an admin resets
+  the password.
 - Notification thresholds per number (`S4_ALERT_SPIKE`) and per service (`S4_ALERT_SERVICE_SPIKE`), editable under
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 

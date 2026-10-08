@@ -1080,6 +1080,11 @@ it over through forgot password.
 email with one code, taken address, notice letter). Browser with a local SMTP sink at 390 px: first email, change with
 two codes, wrong code message, the received letters.
 
+Follow-up (owner request): the sign-in page always shows the *Forgot password?* button instead of the plain sentence
+"Forgot your password? Contact an admin."; without a mail server the button opens a short explanation (contact an admin;
+admins enable it under Configuration → Mail server). The options are fetched again on click, so a mail server set up
+after the page loaded is picked up.
+
 ---
 
 ## Deviation notes

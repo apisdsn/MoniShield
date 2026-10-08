@@ -56,7 +56,8 @@ password, OTP code), an optional list and button, in Indonesian or English; ther
 
 ### Forgot password
 
-Shown on the sign-in page once the mail server is set up (`S4_PASSWORD_RESET=false` hides it). The user enters a
+The sign-in page always shows *Forgot password?*. Until the mail server is set up (or with `S4_PASSWORD_RESET=false`)
+it explains that an admin resets the password and where the admin enables email resets. Otherwise the user enters a
 username or email; the account's email receives a temporary password of 16 characters (upper and lower case letters,
 digits, special characters), valid 30 minutes (`S4_PASSWORD_RESET_MINUTES`) and usable once. Signing in with it asks for
 a new password straight away.
