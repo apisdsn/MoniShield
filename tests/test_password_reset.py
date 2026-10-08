@@ -40,7 +40,7 @@ def test_one_letter_layout_for_every_email():
     lt = letters.password_reset('id', 'Rina <b>', 'rina', 'Ab3$Xy7!kQ2#mN9@', 30, 'https://monishield.contoh.go.id')
     html, body = letter.render_html(lt, 'cid-x'), letter.render_text(lt)
     assert 'cid:cid-x' in html and 'MoniShield' in html and 'Ab3$Xy7!kQ2#mN9@' in html and 'Rina &lt;b&gt;' in html   # escaped
-    assert 'Sandi sementara: Ab3$Xy7!kQ2#mN9@' in body and 'Berlaku 30 menit' in body and 'https://monishield.contoh.go.id' in body
+    assert 'Kata sandi sementara: Ab3$Xy7!kQ2#mN9@' in body and 'Berlaku selama 30 menit' in body and 'https://monishield.contoh.go.id' in body
     m = letter.message(lt, 'MoniShield <noreply@contoh.go.id>', 'rina@contoh.go.id')
     kinds = [p.get_content_type() for p in m.walk()]
     assert kinds == ['multipart/alternative', 'text/plain', 'multipart/related', 'text/html', 'image/png']
@@ -98,7 +98,7 @@ def make(tmp_path, auth_url, monkeypatch):
 
 
 def temp_from(m):
-    return re.search(r'(?:Sandi sementara|Temporary password): (\S+)', m.get_body(('plain',)).get_content()).group(1)
+    return re.search(r'(?:Kata sandi sementara|Temporary password): (\S+)', m.get_body(('plain',)).get_content()).group(1)
 
 
 def test_forgot_password_flow(make, outbox):
@@ -107,7 +107,7 @@ def test_forgot_password_flow(make, outbox):
     r = tc.post('/api/auth/forgot', json=dict(login='rina', lang='id'), headers=X)
     assert r.status_code == 200 and r.json() == dict(sent=True, minutes=30)
     tc.app.state.resets.wait()
-    assert len(outbox) == 1 and outbox[0]['To'] == 'rina@contoh.go.id' and outbox[0]['Subject'] == 'Sandi sementara MoniShield'
+    assert len(outbox) == 1 and outbox[0]['To'] == 'rina@contoh.go.id' and outbox[0]['Subject'] == 'Kata sandi sementara akun MoniShield Anda'
     temp = temp_from(outbox[0])
     assert temp not in r.text and temp not in tc.app.state.auth.audit_list(50)[1].__repr__()
     # the old password still works and cancels the pending reset: asking for resets cannot lock anyone out
@@ -191,5 +191,5 @@ def test_mail_server_settings_and_test_email(make, outbox):
     assert r.status_code == 400 and r.json()['error']['code'] == 'mail_no_recipient'
     tc.app.state.cfg.smtp_security = 'starttls'   # the recorder speaks plain SMTP only
     r = tc.post('/api/admin/config/test', json=dict(kind='smtp', to='ops@contoh.go.id', lang='en'), headers=X)
-    assert r.status_code == 200 and outbox[-1]['Subject'] == 'MoniShield test email' and outbox[-1]['To'] == 'ops@contoh.go.id'
+    assert r.status_code == 200 and outbox[-1]['Subject'] == 'MoniShield email test' and outbox[-1]['To'] == 'ops@contoh.go.id'
     assert tc.get('/api/auth/options').json() == dict(forgot_password=True)

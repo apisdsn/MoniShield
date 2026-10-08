@@ -35,8 +35,9 @@ def render_html(lt, logo_cid='monishield-logo'):
     btn = ''
     if lt.get('button'):
         b = lt['button']
-        btn = (f'<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 18px"><tr><td style="background:{BRAND};border-radius:10px">'
-               f'<a href="{_e(b["url"])}" style="display:inline-block;padding:12px 22px;font:600 15px/1 {FONT};color:#ffffff;text-decoration:none">{_e(b["label"])}</a>'
+        btn = (f'<table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:8px auto 22px"><tr>'
+               f'<td align="center" style="background:{BRAND};border-radius:10px">'
+               f'<a href="{_e(b["url"])}" style="display:inline-block;padding:13px 26px;font:600 15px/1 {FONT};color:#ffffff;text-decoration:none">{_e(b["label"])}</a>'
                '</td></tr></table>')
     notes = ''.join(f'<p style="margin:0 0 10px;font:13px/1.6 {FONT};color:{MUTED}">{_e(x)}</p>' for x in lt['notes'])
     return f"""<!doctype html>
@@ -46,10 +47,9 @@ def render_html(lt, logo_cid='monishield-logo'):
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">{_e(lt['preheader'])}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{BG}"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:{PAPER};border:1px solid {LINE};border-radius:16px">
-<tr><td style="padding:22px 28px;border-bottom:3px solid {BRAND}">
-<table role="presentation" cellpadding="0" cellspacing="0"><tr>
-<td style="padding-right:12px"><img src="cid:{logo_cid}" width="40" height="40" alt="MoniShield" style="display:block;border:0"></td>
-<td style="font:700 20px/1 {FONT};color:{INK};letter-spacing:.01em">MoniShield</td></tr></table></td></tr>
+<tr><td align="center" style="padding:24px 28px 18px;border-bottom:3px solid {BRAND}">
+<img src="cid:{logo_cid}" width="52" height="52" alt="" style="display:block;margin:0 auto 8px;border:0">
+<div style="font:700 20px/1.2 {FONT};color:{INK};letter-spacing:.01em">MoniShield</div></td></tr>
 <tr><td style="padding:26px 28px 10px">
 <h1 style="margin:0 0 16px;font:700 21px/1.3 {FONT};color:{INK}">{_e(lt['title'])}</h1>
 {p}{code}{items}{btn}{notes}</td></tr>
