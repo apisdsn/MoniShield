@@ -7,6 +7,7 @@ in the [README](../README.md); server deployment in [`07-deploy-vps.md`](07-depl
 - [Command line](#command-line)
 - [Logs from Kafka (Rancher, real time)](#logs-from-kafka-rancher-real-time)
 - [Import from S3](#import-from-s3)
+- [Encrypted API traffic](#encrypted-api-traffic)
 - [Developing the UI](#developing-the-ui)
 - [Tests](#tests)
 
@@ -43,6 +44,33 @@ webhook URL, or SMTP server), **Save**, then **Send test**. Sent on: spikes (≥
 critical attacks, failed ingest, S3 sync problems, today's log folder not arrived yet (the hour can be set), and — if
 ticked — a summary of every new folder. Messages contain only numbers and links, **no IP addresses**; credentials are never
 shown again after saving.
+
+### Spike thresholds
+
+Configuration → Notifications → *Spike thresholds*. A number is a spike when it is at least *factor × the average of
+the 7 folders before it* AND rose by at least the *minimum increase*. Untick a row to stop reporting it.
+
+- **Numbers** (5xx responses, errors of all services, upstream errors, attack requests, attack IPs, IPs with failed
+  logins): one threshold each. `.env`: `S4_ALERT_SPIKE=n5xx=3:50,errors=off` (only the changed ones).
+- **Errors per service**: each service is compared with its own average. *All other services* is the default
+  (2× and +50); add a row for a busy service that needs a higher threshold, or untick it to mute it.
+  `.env`: `S4_ALERT_SERVICE_SPIKE=default=2:50,om-be-report=3:200,coredns=off`. The Command Center's "service errors
+  rose" item uses the same thresholds. A notification lists at most 5 services, largest increase first.
+
+### Data retention
+
+Configuration → *Data retention*, 0 = keep forever:
+
+- **Remove from the database after N days** (`S4_RETENTION_DAYS`, at least 8 because each folder is compared with
+  the 7 before it). Files in the main log folder are not touched; ingest, the Sync data badge and the S3 sync skip
+  folders past the cut-off, so they do not come back. To bring them back, raise or clear the setting and press Sync data.
+- **Delete inbox files after N days** (`S4_RETENTION_INBOX_DAYS`, at least 2): S3 imports, uploads and Kafka folders.
+  For Kafka and uploaded folders the inbox is the only copy of the log files; their data stays in the dashboard until
+  the database setting removes it.
+
+The cleanup runs once a day (first run 5 minutes after the server starts). The card shows what the next run removes;
+**Run now** asks for a confirmation, then removes it at once. Each run is in the audit log (`retention.run`).
+DuckDB reuses the freed space for new data; the database file does not shrink.
 
 ### Comparison with earlier folders
 
@@ -224,6 +252,25 @@ Create a dashboard-specific IAM user that can only read the log prefix, and use 
 The dashboard only uses those two operations (ListObjectsV2 and GetObject); there is no code that writes,
 deletes, or lists buckets. Before relying on this feature, make sure the server can reach S3:
 `curl -sI https://s3.ap-southeast-3.amazonaws.com`.
+
+## Encrypted API traffic
+
+On top of HTTPS, the web UI encrypts the bodies of its API calls, so they are unreadable in the browser's network panel,
+in proxy or CDN logs and to TLS-intercepting middleboxes:
+
+1. When a page loads, the browser and the server exchange ephemeral ECDH P-256 keys (`POST /api/crypto/handshake`) and
+   both derive the same AES-256-GCM key (HKDF-SHA256). The browser's key cannot be exported from the tab.
+2. Every JSON request body and response is `nonce + ciphertext`, bound to the method and path, marked with the header
+   `X-MS-Enc`. A body cannot be replayed on another endpoint.
+3. After a server restart the old keys are gone; the page agrees on a new key and repeats the request by itself.
+
+Cost: about 0.1 ms per page load for the key exchange and about 0.1 ms per 200 KB response.
+
+Not encrypted: requests without `X-MS-Enc` (Swagger, the cron job, curl, other systems with the job token), file
+downloads (CSV, block list), log file uploads, the live map stream (coordinates only), and URLs. The key lives in the
+browser tab, so a signed-in user can always read their own traffic; HTTPS remains the protection in transit.
+Browsers only offer WebCrypto over HTTPS or `localhost`: over plain `http://` to a LAN address the UI falls back to
+plain JSON. Turn it off with `S4_API_ENCRYPTION=false`.
 
 ## Developing the UI
 

@@ -8,7 +8,7 @@ S4_ADMIN_PASSWORD, S4_IMPORT_BUCKETS — the page only shows their status.
 """
 import ipaddress, re
 
-from monishield.domain import alerts
+from monishield.domain import alerts, retention
 from monishield.domain.config_model import SECRETS, Config, cast, env_name
 from monishield.domain.errors import Fail
 
@@ -18,10 +18,11 @@ GROUPS = {
     'blocklist': ('blocklist_exclude', 'blocklist_exclude_org'),
     'watch': ('s3_watch', 's3_watch_minutes', 's3_watch_enabled'),
     'alerts': tuple(alerts.to_fields(alerts.load(Config()))),
+    'retention': ('retention_days', 'retention_inbox_days'),
     'kafka': ('kafka_enabled', 'kafka_brokers', 'kafka_topic', 'kafka_group', 'kafka_security', 'kafka_sasl_mechanism', 'kafka_username',
               'kafka_password', 'kafka_offset_reset', 'kafka_ingest_minutes'),
 }
-SCREEN_GROUPS = ('aws', 'maxmind', 'blocklist', 'kafka')
+SCREEN_GROUPS = ('aws', 'maxmind', 'blocklist', 'kafka', 'retention')
 SCREEN = {k for g in SCREEN_GROUPS for k in GROUPS[g]}   # PUT /api/admin/config
 SECRET = set(SECRETS)
 MASKED = ('aws_access_key_id', 'maxmind_account_id')
@@ -125,3 +126,4 @@ def validate(s):
         raise SettingsFail('SASL security needs a Kafka username and password.')
     if 'kafka_offset_reset' in s and s['kafka_offset_reset'] not in ('earliest', 'latest'): raise SettingsFail("Start position must be 'earliest' or 'latest'.")
     if 'kafka_ingest_minutes' in s and not 1 <= int(s['kafka_ingest_minutes']) <= 1440: raise SettingsFail('Kafka ingest interval must be 1–1440 minutes.')
+    if 'retention_days' in s and (msg := retention.validate(int(s['retention_days']), int(s.get('retention_inbox_days') or 0))): raise SettingsFail(msg)

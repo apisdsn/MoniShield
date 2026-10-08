@@ -12,7 +12,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Version | 2.0.0 + the *Unreleased* changes in `CHANGELOG.md` |
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
-| Tests | pytest: 339 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
+| Tests | pytest: 352 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
 | CI | `.github/workflows/ci.yml` green on `dev`. `stg` and `prd` still point to the commit before the deploy job. |
 | Deploy | Automatic deploy of `prd` built and tested with a stub; **not yet run against the real server** (see next steps). |
 | Server today | Still runs from the old checkout `/srv/dashboard-logging/v2` (compose project `monishield`). The first automatic deploy moves it to `/srv/MoniShield`, reusing the same containers and volumes. |
@@ -43,9 +43,14 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 18 | A step-by-step release guide (which merge deploys, which merge button) | | [`07-deploy-vps.md`](07-deploy-vps.md) §13 |
 | 19 | English documents including their titles, updated for local hand-over | This file, [`README.md`](README.md), `CLAUDE.md` | plan stage 31 |
 | 20 | A README in the style of Best-README-Template | `README.md`; the detailed how-to moved to [`10-user-guide.md`](10-user-guide.md) | plan stage 31 |
+| 21 | Encrypt the credentials in `.env` | Built, then **rolled back at the owner's request** before it was committed | — |
+| 22 | Encrypt / obfuscate API responses and request payloads without loading the server | ECDH + AES-GCM bodies for the web UI | plan stage 32, [`10-user-guide.md`](10-user-guide.md) |
+| 23 | Data retention (database, inbox) | Daily cleanup, Configuration → *Data retention* | plan stage 33 |
+| 24 | Notification thresholds per service | Configuration → Notifications → *Spike thresholds* | plan stage 34 |
 
 Questions answered along the way, recorded so they are not asked again:
 
+- **Real phone test** (plan stage 12): done by the owner on 2026-10-08, no problems found.
 - **Several admins** share one configuration: there is one `.env` per server and only admins can change it through
   the Configuration page. Per-admin settings do not exist.
 - **Viewing Kafka logs**: Ingest & import → *Logs from Kafka* (status, counts, last 50 messages, "Check messages in
@@ -68,10 +73,9 @@ Questions answered along the way, recorded so they are not asked again:
    the git proxy.
 3. **Rancher → Kafka for ingress-nginx**: ask a cluster owner to grant the `clusterloggings` permission, or to create
    the cluster-level Kafka output, so that nginx lines (needed for the map and attack detection) arrive.
-4. **Real phone test** of the UI (plan stage 12; only 390/360 px emulation so far).
-5. **Let's Encrypt on the real domain**: checked with Caddy's local certificates only; the first deploy with the
+4. **Let's Encrypt on the real domain**: checked with Caddy's local certificates only; the first deploy with the
    `https` profile is the real check ([`07-deploy-vps.md`](07-deploy-vps.md) §6–7).
-6. After the server runs from `/srv/MoniShield`: the old checkout `/srv/dashboard-logging/v2` can be removed and the
+5. After the server runs from `/srv/MoniShield`: the old checkout `/srv/dashboard-logging/v2` can be removed and the
    old repo archived (the old repo's `build_dashboard.py`, `dashboard_template.html` and log folders are never edited).
 
 ## Known issues
@@ -79,8 +83,11 @@ Questions answered along the way, recorded so they are not asked again:
 - `tools/uji_browser.cjs`: two checks fail and did so before the recent changes ("14 IP" count, Tab focus order).
 - The S3 sync skips dates that already have a Kafka folder, so a Kafka folder that misses some services (for example
   ingress-nginx before step 3 above) is not completed from S3. Offered as an option, not requested yet.
-- Credentials entered on the Configuration page are stored in `.env` in plain text: protect the file permissions
-  (the app writes it as group 10001, mode 660).
+- Credentials entered on the Configuration page are stored in `.env` in plain text (encrypting them was tried and
+  rolled back at the owner's request): protect the file permissions (the app writes it as group 10001, mode 660).
+- Encrypted API bodies need WebCrypto, which browsers only offer on HTTPS or `localhost`; over plain `http://` to a LAN
+  address the web UI falls back to plain JSON. URLs (paths, query strings) and the live map stream stay unencrypted.
+- With retention on, DuckDB reuses the space of removed folders for new data; the database file itself does not shrink.
 - `00-reference.json` keeps the old system's Indonesian key names on purpose: they are a data contract with
   `tools/kesetaraan.py` and the old build (TRD K9).
 

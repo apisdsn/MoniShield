@@ -14,6 +14,7 @@ dependencies = [
     "sqlalchemy>=2.0,<3",   # ORM for accounts, sessions, audit (PostgreSQL on the server; SQLite for tests/local)
     "psycopg[binary]>=3.1,<4",  # driver PostgreSQL
     "pyjwt>=2.8,<3",        # JWT session tokens (HS256)
+    "cryptography>=42",     # ECDH + AES-GCM for encrypted API bodies (monishield/infrastructure/wirecrypto.py)
 ]
 
 [project.optional-dependencies]

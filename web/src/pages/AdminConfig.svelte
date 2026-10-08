@@ -9,7 +9,8 @@
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { build, route } from '../state.js';
-  import { errText } from '../srv.js';
+  import { errText, srv } from '../srv.js';
+  import { dLabel, tWIB, utcToWib } from '../format.js';
   import { toast } from '../lib/Toast.svelte';
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
@@ -18,7 +19,7 @@
   import KafkaCard from '../lib/KafkaCard.svelte';
 
   let { focus = '' } = $props();
-  const SECTIONS = ['aws', 'watch', 'kafka', 'maxmind', 'notif', 'blocklist', 'server'];
+  const SECTIONS = ['aws', 'watch', 'kafka', 'maxmind', 'notif', 'blocklist', 'retention', 'server'];
 
   let v = $state.raw(null), imp = $state.raw(null), error = $state(null);
   // fields per group; secret fields always start empty (empty = unchanged)
@@ -27,6 +28,7 @@
   let kf = $state({}), kcard = $state();
   let bl = $state({ ex: '', org: '' });
   let wf = $state({ url: '', minutes: 60 });
+  let rt = $state({ days: 0, inbox: 0 }), rplan = $state.raw(null), rconfirm = $state(false);
   let busy = $state(''), msg = $state({});   // msg[group] = {ok, text}
 
   function fill(r) {
@@ -36,6 +38,7 @@
     const k = r.kafka;
     kf = { enabled: k.kafka_enabled.value, brokers: k.kafka_brokers.value, topic: k.kafka_topic.value, group: k.kafka_group.value, security: k.kafka_security.value,
       mech: k.kafka_sasl_mechanism.value, user: k.kafka_username.value, pass: '', offset: k.kafka_offset_reset.value, minutes: k.kafka_ingest_minutes.value };
+    rt = { days: r.retention.retention_days.value, inbox: r.retention.retention_inbox_days.value };
     bl = { ex: (r.blocklist.blocklist_exclude.value || '').split(',').map((x) => x.trim()).filter(Boolean).join('\n'), org: r.blocklist.blocklist_exclude_org.value || '' };
   }
   async function loadImp() {
@@ -44,9 +47,19 @@
       if (imp.watch) wf = { url: imp.watch.url || '', minutes: imp.watch.minutes || 60 };
     } catch { imp = null; }
   }
+  async function loadRet() { try { rplan = await api.get('/api/admin/retention'); } catch { rplan = null; } }
   async function load() {
     try { fill(await api.get('/api/admin/config')); error = null; } catch (e) { error = e; }
-    await loadImp();
+    await Promise.all([loadImp(), loadRet()]);
+  }
+  async function saveRet() {
+    if (await save('retention', { retention_days: String(rt.days || 0), retention_inbox_days: String(rt.inbox || 0) })) await loadRet();
+  }
+  async function runRet() {
+    busy = 'retention-run'; msg = { ...msg, retention: null };
+    try { rplan = await api.post('/api/admin/retention/run'); rconfirm = false; toast($t('cf.rt.done')); }
+    catch (e) { msg = { ...msg, retention: { ok: false, text: $errText(e) } }; }
+    finally { busy = ''; }
   }
   let ready = $state(false);
   onMount(async () => { await load(); ready = true; });
@@ -307,7 +320,53 @@
       </form>
     </section>
 
-    <!-- 6. .env only -->
+    <!-- 6. Data retention -->
+    <section class="card" id="cf-retention" tabindex="-1" aria-labelledby="cf-rt-h">
+      <header>
+        <h2 id="cf-rt-h">{$t('cf.s.retention')}</h2>
+        <SeverityTag level={v.retention.retention_days.value || v.retention.retention_inbox_days.value ? 'ok' : 1}
+          text={v.retention.retention_days.value || v.retention.retention_inbox_days.value ? $t('cf.on') : $t('cf.off')} />
+      </header>
+      <p class="muted small">{$t('cf.rt.intro')}</p>
+      <form onsubmit={(e) => { e.preventDefault(); saveRet(); }} novalidate>
+        <div class="fields">
+          <div>
+            <label for="cf-rtd">{$t('cf.rt.days')} {@render srcTag(v.retention.retention_days)}</label>
+            <input id="cf-rtd" type="number" min="0" max="3650" bind:value={rt.days} />
+            <p class="muted xs">{$t('cf.rt.days_help')}</p>
+          </div>
+          <div>
+            <label for="cf-rti">{$t('cf.rt.inbox')} {@render srcTag(v.retention.retention_inbox_days)}</label>
+            <input id="cf-rti" type="number" min="0" max="3650" bind:value={rt.inbox} />
+            <p class="muted xs">{$t('cf.rt.inbox_help')}</p>
+          </div>
+        </div>
+        {#if rplan}
+          <div class="plan small">
+            <b>{$t('cf.rt.next')}</b>
+            {#if !rplan.db.length && !rplan.inbox.length}<span class="muted">{$t('cf.rt.none')}</span>{/if}
+            {#if rplan.db.length}<span>{$t('cf.rt.plan_db', { n: rplan.db.length, d: dLabel(rplan.cutoff_db, $lang) })}</span>{/if}
+            {#if rplan.inbox.length}<span>{$t('cf.rt.plan_inbox', { n: rplan.inbox.length, d: dLabel(rplan.cutoff_inbox, $lang) })}</span>{/if}
+            {#if rplan.last}<span class="muted xs">{$t('cf.rt.last', { at: tWIB(utcToWib(rplan.last.at), $lang), by: $srv(rplan.last.by), db: rplan.last.db.length, inbox: rplan.last.inbox.length })}</span>{/if}
+          </div>
+        {/if}
+        {@render result('retention')}
+        <div class="acts">
+          <button class="btn primary" type="submit" disabled={busy !== ''}>{busy === 'retention' ? $t('action.saving') : $t('action.save')}</button>
+          {#if rplan && (rplan.db.length || rplan.inbox.length)}
+            {#if !rconfirm}
+              <button class="btn" type="button" disabled={busy !== ''} onclick={() => (rconfirm = true)}>{$t('cf.rt.run')}</button>
+            {:else}
+              <span class="warnline small confirm">{$t('cf.rt.confirm_q')}</span>
+              <button class="btn danger" type="button" disabled={busy !== ''} onclick={runRet}>{busy === 'retention-run' ? $t('state.loading') : $t('cf.rt.confirm')}</button>
+              <button class="btn" type="button" disabled={busy !== ''} onclick={() => (rconfirm = false)}>{$t('action.cancel')}</button>
+            {/if}
+          {/if}
+        </div>
+      </form>
+    </section>
+
+    <!-- 7. .env only -->
     <section class="card" id="cf-server" tabindex="-1" aria-labelledby="cf-sv-h">
       <header><h2 id="cf-sv-h">{$t('cf.s.server')}</h2></header>
       <p class="muted small">{$t('cf.sv.intro')}</p>
@@ -358,6 +417,10 @@
   .err { color: var(--err); font-size: 0.875rem; margin-top: 10px; }
   .okmsg { color: var(--ok-text); font-size: 0.875rem; margin-top: 10px; }
   .warnline { color: var(--warn); margin-top: 8px; }
+  .plan { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+  .plan .xs { margin-top: 2px; }
+  .confirm { margin: 0; align-self: center; }
+  .btn.danger { border-color: var(--err); color: var(--err); }
   .env { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 8px; }
   .env li { display: grid; grid-template-columns: minmax(170px, max-content) minmax(0, 1fr) max-content; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding-top: 8px; }
   .env li .xs { margin-top: 0; }

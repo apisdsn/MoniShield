@@ -6,7 +6,7 @@ Aggregates are derived via derive_folder(), filled in by a later stage.
 import concurrent.futures, datetime, json, multiprocessing, os, shutil, threading, time
 
 from monishield.infrastructure import db, derive, logfiles, refdata
-from monishield.domain import detect, parse, rules
+from monishield.domain import detect, parse, retention, rules
 
 RAW_TABLES = list(parse.TABLES)
 _lock = threading.Lock()  # one ingest at a time (TRD §3.1)
@@ -135,7 +135,8 @@ def _run(cfg, con, only_folder, force, workers, progress):
     try:
         files, res['warnings'] = scan([cfg.log_dir, cfg.inbox_dir])
         ign = ignored(con)   # folders an admin deleted from the dashboard: skipped until restored
-        files = {k: f for k, f in files.items() if f['folder'] not in ign}
+        cut = retention.cutoff(retention.today_wib(datetime.datetime.now(datetime.timezone.utc)), cfg.retention_days)   # past the keeping period
+        files = {k: f for k, f in files.items() if f['folder'] not in ign and not retention.expired(f['folder'], cut)}
         if only_folder: files = {k: f for k, f in files.items() if f['folder'] == only_folder}
         res['files_seen'] = len(files)
         cols = 'file_id, relpath, source_ext, folder, size_bytes, mtime_ns, sha256, rules_version'

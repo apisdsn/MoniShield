@@ -13,6 +13,12 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 - `docs/09-status.md` (state, owner requests, next steps), `docs/README.md` (document index) and `CLAUDE.md`
   (working rules for Claude Code) for continuing the work on another machine.
 - `docs/10-user-guide.md`: the detailed usage, command line, Kafka and S3 sections formerly in the README.
+- Encrypted request and response bodies between the web UI and the API (ECDH P-256 + AES-256-GCM per page load,
+  `S4_API_ENCRYPTION`); Swagger, the ingest job and curl keep plain JSON.
+- Data retention: `S4_RETENTION_DAYS` (database) and `S4_RETENTION_INBOX_DAYS` (inbox files), cleaned daily and from
+  Configuration → Data retention.
+- Notification thresholds per number (`S4_ALERT_SPIKE`) and per service (`S4_ALERT_SERVICE_SPIKE`), editable under
+  Configuration → Notifications; the Command Center uses the same per-service thresholds.
 
 ### Changed
 - The repo stands alone: the contents of the `v2/` folder of the `apisdsn/dashboard-logging` repo were moved to `apisdsn/MoniShield` together with
@@ -86,6 +92,5 @@ Summarized from the plan notes (`docs/04-plan.md`, stages 12a–25 and deviation
 - Documents on architecture, mechanisms, usage, and data flow (separate artifact).
 
 ### Known issues / not yet done
-- Not yet tested on a real phone (only 390/360 px emulation).
 - Kafka not yet tested against a real Rancher cluster; Let's Encrypt certificates only tested with Caddy's local certificates.
 - Credentials entered via the UI are stored in `.env` without additional encryption (protect the file permissions and the server).

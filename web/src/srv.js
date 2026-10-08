@@ -57,7 +57,7 @@ const ID = [
   [/^not <date>\/<namespace>\/<service>\/<file>$/, 'bukan <tanggal>/<namespace>/<layanan>/<file>'],
   [/^folder (\S+) already exists in the main log folder \(that one is used\)$/, 'folder $1 sudah ada di folder log utama (yang itu yang dipakai)'],
   // ingest / import triggers
-  [/^\(server start\)$/, '(mulai server)'], [/^import #(\d+)$/, 'impor #$1'], [/^upload by (.+)$/, 'unggah oleh $1'],
+  [/^\(server start\)$/, '(mulai server)'], [/^\(daily\)$/, '(harian)'], [/^import #(\d+)$/, 'impor #$1'], [/^upload by (.+)$/, 'unggah oleh $1'],
   [/^\(machine token\)$/, '(token mesin)'], [/^\(automatic S3 sync\)$/, '(sinkron S3 otomatis)'], [/^\(kafka\)$/, '(kafka)'],
   // audit details
   [/^folder=all/, 'folder=semua'], [/ by (\S+)$/, ' oleh $1'], [/\((\d+) data files/, '($1 file data'], [/\((\d+) files\)/, '($1 file)'],
@@ -107,7 +107,7 @@ const LEGACY = [
   [/^tidak ada folder tanggal \(YYYY-MM-DD\) di jalurnya$/, 'no date folder (YYYY-MM-DD) in its path'], [/^isi tanggal folder$/, 'fill in the folder date'],
   [/^bukan <tanggal>\/<namespace>\/<layanan>\/<file>$/, 'not <date>/<namespace>/<service>/<file>'],
   [/^folder (\S+) sudah ada di folder log utama \(yang itu yang dipakai\)$/, 'folder $1 already exists in the main log folder (that one is used)'],
-  [/^\(mulai server\)$/, '(server start)'], [/^impor #(\d+)$/, 'import #$1'], [/^unggah oleh (.+)$/, 'upload by $1'],
+  [/^\(mulai server\)$/, '(server start)'], [/^\(harian\)$/, '(daily)'], [/^impor #(\d+)$/, 'import #$1'], [/^unggah oleh (.+)$/, 'upload by $1'],
   [/^\(token mesin\)$/, '(machine token)'], [/^\(sinkron S3 otomatis\)$/, '(automatic S3 sync)'],
   [/^folder=semua/, 'folder=all'], [/ oleh (\S+)$/, ' by $1'], [/\((\d+) file data/, '($1 data files'], [/\((\d+) file\)/, '($1 files)'],
   [/^kotak masuk dihapus$/, 'inbox deleted'], [/^diabaikan\)?/, (m) => m.replace('diabaikan', 'ignored')],
@@ -136,6 +136,15 @@ export const srv = derived(lang, (l) => (s) => (typeof s !== 'string' || !s ? s 
 // Error messages that carry details (allowed buckets, limits, names): in Indonesian mode the whole sentence is translated
 // so the details are kept; errors not listed here use the per-code dictionary. [English sentence, Indonesian]
 const ERR_ID = [
+  [/^Threshold for all services must look like 2:50 \(times the average : minimum increase\) or off\.$/, 'Ambang untuk semua layanan harus berbentuk 2:50 (kali rata-rata : naik minimal) atau off.'],
+  [/^Threshold for all services: the factor must be above 1 and at most 100, the minimum increase 0 or more\.$/, 'Ambang untuk semua layanan: kelipatan harus di atas 1 dan paling banyak 100, naik minimal 0 atau lebih.'],
+  [/^Threshold for (.+) must look like 2:50 \(times the average : minimum increase\) or off\.$/, 'Ambang untuk $1 harus berbentuk 2:50 (kali rata-rata : naik minimal) atau off.'],
+  [/^Threshold for (.+): the factor must be above 1 and at most 100, the minimum increase 0 or more\.$/, 'Ambang untuk $1: kelipatan harus di atas 1 dan paling banyak 100, naik minimal 0 atau lebih.'],
+  [/^"(.+)" is not a service name\.$/, '"$1" bukan nama layanan.'],
+  [/^Database retention must be 0 \(keep forever\) or (\d+)–(\d+) days: .*$/,
+    'Retensi database harus 0 (simpan selamanya) atau $1–$2 hari: dashboard membandingkan tiap folder dengan 7 folder sebelumnya.'],
+  [/^Inbox retention must be 0 \(keep forever\) or (\d+)–(\d+) days\.$/, 'Retensi kotak masuk harus 0 (simpan selamanya) atau $1–$2 hari.'],
+  [/^Retention cleanup is already running\.$/, 'Pembersihan retensi sedang berjalan.'],
   [/^This bucket is not allowed\. Allowed: (.*)$/, 'Bucket ini tidak diizinkan. Yang diizinkan: $1'],
   [/^This prefix is not allowed for bucket (\S+)\. Allowed: (.*)$/, 'Awalan ini tidak diizinkan untuk bucket $1. Yang diizinkan: $2'],
   [/^The last part of the link must be a valid YYYY-MM-DD date \(the folder name\), not "(.*)"\.$/,

@@ -43,7 +43,7 @@ package is not yet installed (installed in Stage 2); **only 17 GB of free disk**
 | 9 | Size and performance gate | 8 | P7 | ☑ 2026-10-06 |
 | 10 | API: skeleton, login, roles, in-process ingest | 8 | — | ☑ 2026-10-06 |
 | 11 | Data API for all pages + parity test E2 | 10 | X6 | ☑ 2026-10-06 |
-| 12 | UI shell and shared components | 1, 11 | Q6, Q7, Q8 | ◐ 2026-10-06 partial: only testing on a real phone remains |
+| 12 | UI shell and shared components | 1, 11 | Q6, Q7, Q8 | ☑ 2026-10-08 (real phone test done by the owner) |
 | 12a | Styling following the owner's design reference (tokens, icons, attention cards) for the whole dashboard | 12 | — (R6 answered) | ☑ 2026-10-06 |
 | 13 | Service and Overview pages | 12 | — | ☑ 2026-10-06 (service page map: Stage 20) |
 | 14 | Trends page | 12 | Q4 | ☑ 2026-10-06 |
@@ -65,6 +65,9 @@ package is not yet installed (installed in Stage 2); **only 17 GB of free disk**
 | 29 | Kafka folders labelled "(Kafka)" | 23 | — | ☑ 2026-10-08 |
 | 30 | GitHub Actions CI + automatic deployment of `prd` | 26 | — | ◐ 2026-10-08 built and green on `dev`; the first real deploy waits for the promotion to `prd` |
 | 31 | Documentation in English (file names too) + hand-over for local work | 28 | — | ☑ 2026-10-08 |
+| 32 | Encrypted request/response bodies for the web UI | 27 | — | ☑ 2026-10-08 |
+| 33 | Data retention (database, inbox) | 27 | — | ☑ 2026-10-08 |
+| 34 | Notification thresholds per number and per service | 27 | — | ☑ 2026-10-08 |
 
 After Stage 21 the old repo's `migrate/07-docker-compose.md` was done as step **L7** (`06-docker.md`); the equivalence
 report (`migrate/08-kesetaraan.md` there) is produced by `tools/laporan_kesetaraan.py` here.
@@ -966,6 +969,62 @@ continue with Claude Code on a local machine.
 - The repository `README.md` follows Best-README-Template (owner request); its long how-to sections moved to
   [`10-user-guide.md`](10-user-guide.md).
 - TRD §6.1 shows the current folder layout; old paths (`v2/`, `simpel4`) replaced where they described the current state.
+
+---
+
+## Stage 32 — Encrypted request and response bodies (2026-10-08)
+
+**Origin.** Owner request: encrypt or obfuscate endpoint responses and the payloads sent to the backend without loading
+the server. (An earlier attempt in the same session encrypted the credentials in `.env`; the owner had it rolled back
+before it was committed.)
+
+- Key agreement once per page load: `POST /api/crypto/handshake` (public, needed before sign-in) exchanges ephemeral
+  ECDH P-256 keys; both sides derive AES-256-GCM with HKDF-SHA256 (`monishield-api-v1`). The server keeps
+  `{key id: AES key}` in memory, at most 5,000 keys, expiring with the session length (`infrastructure/wirecrypto.py`).
+- `interfaces/api/wire.py` (ASGI middleware): a request with `X-MS-Enc: <key id>` has an encrypted body
+  (`application/octet-stream`, 12-byte nonce + ciphertext, AAD `req METHOD /path`) and gets an encrypted JSON response
+  (AAD `resp METHOD /path`, header `X-MS-Enc: 1`). Unknown key → `enc_key_unknown`, bad body → `enc_invalid`; the browser
+  agrees on a new key and repeats the request once.
+- `web/src/wire.js` (WebCrypto) + `api.js`: every JSON call of the UI is encrypted. Without WebCrypto (plain http on a LAN
+  address) or with `S4_API_ENCRYPTION=false` the UI uses plain JSON.
+- Not encrypted, on purpose: requests without the header (Swagger, the cron job, curl), file downloads (CSV, block
+  list), uploads of log files, the live map stream, URLs.
+
+**Verification**: `tests/test_wire.py` (encrypted login and pages, plain clients, unknown key, a body replayed on another
+path, CSV untouched, switch off, bounded key store). Browser: 13 of 13 API calls of a session encrypted, no plain JSON,
+the password never in a request body. Cost measured on the server: handshake 0.09 ms, encrypting a 200 KB response 0.09 ms.
+
+---
+
+## Stage 33 — Data retention (2026-10-08)
+
+**Origin.** Owner request (suggestion 2): keep the server disk from filling up.
+
+- `S4_RETENTION_DAYS` (min. 8, so the 7-folder comparison keeps working) removes folders from the database;
+  `S4_RETENTION_INBOX_DAYS` (min. 2) deletes inbox folders (S3 imports, uploads, Kafka) from disk; 0 = keep forever.
+  Rules in `domain/retention.py`; cleanup in `application/retention_service.py` (holds the ingest lock, audited),
+  daily (first run 5 minutes after start) and from Configuration → *Data retention* (preview + "Run now").
+- Ingest, the "new folders" badge and the S3 sync skip folders past the cut-off, so removed folders do not come back.
+  Files in the main log folder are never touched.
+
+**Verification**: `tests/test_retention.py`; browser: card in both languages, 1280 and 390 px, invalid value refused
+with the Indonesian message.
+
+---
+
+## Stage 34 — Notification thresholds per number and per service (2026-10-08)
+
+**Origin.** Owner request (suggestion 5): a busy service and a quiet one need different spike thresholds.
+
+- `S4_ALERT_SPIKE` overrides the threshold of each folder number (`n5xx=3:50,errors=off`); `S4_ALERT_SERVICE_SPIKE`
+  compares the errors of each service with that service's own 7-folder average (`default=2:50` plus overrides, `off`
+  mutes a service). Spike notifications list up to 5 services. The Command Center "service errors rose" item uses the
+  same per-service thresholds (default unchanged: 2× and +50).
+- Configuration → Notifications → *Spike thresholds*: table per number, default + per-service rows (service names
+  suggested from the data).
+
+**Verification**: `tests/test_alerts.py` (parsing, muted and overridden services, saving from the page); browser at
+1280 and 390 px.
 
 ---
 

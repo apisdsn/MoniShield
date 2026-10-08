@@ -31,7 +31,10 @@ def deliver(ctx, cfg, key, event, title, text, channels=None, force=False):
 
 # ------------------------------------------------------------------ page (admin)
 def view(ctx):
-    return dict(alerts.public(alerts.load(ctx.cfg)), events_all=list(alerts.EVENTS), history=ctx.auth.alert_list(30))
+    try: services = ctx.warehouse.services()
+    except Exception: services = []   # noqa: BLE001  database not open yet
+    return dict(alerts.public(alerts.load(ctx.cfg)), events_all=list(alerts.EVENTS), spike_all=list(alerts.SPIKE), services=services,
+                history=ctx.auth.alert_list(30))
 
 
 def update(ctx, body):

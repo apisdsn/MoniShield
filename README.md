@@ -176,9 +176,10 @@ Command line, Kafka and S3 details, notifications and the block list are in the
 - [x] Logs from Rancher through Kafka with a live map
 - [x] Telegram, Discord and email notifications
 - [x] Docker Compose, automatic HTTPS, automatic deploy from `prd`
+- [x] Tested on a real phone
+- [x] Encrypted API traffic for the web UI, data retention, per-service notification thresholds
 - [ ] First automatic deploy to the production server
 - [ ] ingress-nginx logs from Rancher cluster logging
-- [ ] Test on a real phone
 
 The current state and the reasons behind each item are in [`docs/09-status.md`](docs/09-status.md).
 

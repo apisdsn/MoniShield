@@ -29,7 +29,20 @@
       events: { ...r.events }, lang: r.lang, dashboard_url: r.dashboard_url || location.origin, missing_hour: r.missing_hour,
     };
     sec = { tg_token: '', dc_hook: '', em_pass: '' };
+    const row = (p) => ({ on: p !== null, factor: p?.factor ?? 2, min: p?.min ?? 0 });
+    th = {
+      spike: Object.fromEntries(r.spike_all.map((k) => [k, row(r.spike[k])])),
+      def: row(r.service_spike.default),
+      svc: Object.entries(r.service_spike.services).map(([service, p]) => ({ service, ...row(p) })),
+    };
   }
+  let th = $state(null);   // thresholds: {spike: {number: {on, factor, min}}, def: {...}, svc: [{service, on, factor, min}]}
+  const pair = (x) => (x.on ? { factor: Number(x.factor), min: Number(x.min) } : null);
+  const thBody = () => ({
+    spike: Object.fromEntries(Object.entries(th.spike).map(([k, x]) => [k, pair(x)])),
+    service_spike: { default: pair(th.def), services: Object.fromEntries(th.svc.filter((x) => x.service.trim()).map((x) => [x.service.trim().toLowerCase(), pair(x)])) },
+  });
+  function addSvc() { th.svc = [...th.svc, { service: '', on: true, factor: 3, min: 100 }]; }
   async function load() { try { fill(await api.get('/api/admin/alerts')); error = null; } catch (e) { error = e; } }
   onMount(load);
 
@@ -39,7 +52,7 @@
       discord: { enabled: f.dc.enabled, webhook_url: sec.dc_hook },
       email: { ...f.em, port: Number(f.em.port), password: sec.em_pass },
     },
-    events: f.events, lang: f.lang, dashboard_url: f.dashboard_url, missing_hour: Number(f.missing_hour), clear,
+    events: f.events, lang: f.lang, dashboard_url: f.dashboard_url, missing_hour: Number(f.missing_hour), clear, ...thBody(),
   });
   async function save(clear = []) {
     err = null; busy = true;
@@ -118,6 +131,41 @@
           {/each}
         </fieldset>
 
+        <fieldset class="th">
+          <legend>{$t('al.th.title')}</legend>
+          <p class="muted xs">{$t('al.th.intro')}</p>
+          <div class="thgrid" role="group" aria-label={$t('al.th.title')}>
+            <span class="hd">{$t('al.th.number')}</span><span class="hd">{$t('al.th.factor')}</span><span class="hd">{$t('al.th.min')}</span><span></span>
+            {#each Object.keys(th.spike) as k}
+              <label class="sw nm" for={`th-${k}`}><input id={`th-${k}`} type="checkbox" bind:checked={th.spike[k].on} /> {$t(`al.m.${k}`)}</label>
+              <input type="number" min="1.1" max="100" step="0.1" aria-label={`${$t(`al.m.${k}`)}: ${$t('al.th.factor')}`} bind:value={th.spike[k].factor} disabled={!th.spike[k].on} />
+              <input type="number" min="0" step="1" aria-label={`${$t(`al.m.${k}`)}: ${$t('al.th.min')}`} bind:value={th.spike[k].min} disabled={!th.spike[k].on} />
+              <span></span>
+            {/each}
+          </div>
+          <p class="sub">{$t('al.th.svc_title')}</p>
+          <p class="muted xs">{$t('al.th.svc_intro')}</p>
+          <datalist id="th-services">{#each v.services as s}<option value={s}></option>{/each}</datalist>
+          <div class="thgrid">
+            <span class="hd">{$t('al.th.service')}</span><span class="hd">{$t('al.th.factor')}</span><span class="hd">{$t('al.th.min')}</span><span></span>
+            <label class="sw nm" for="th-def"><input id="th-def" type="checkbox" bind:checked={th.def.on} /> {$t('al.th.default')}</label>
+            <input type="number" min="1.1" max="100" step="0.1" aria-label={`${$t('al.th.default')}: ${$t('al.th.factor')}`} bind:value={th.def.factor} disabled={!th.def.on} />
+            <input type="number" min="0" step="1" aria-label={`${$t('al.th.default')}: ${$t('al.th.min')}`} bind:value={th.def.min} disabled={!th.def.on} />
+            <span></span>
+            {#each th.svc as x, i}
+              <div class="svcname">
+                <input type="checkbox" aria-label={$t('al.th.on')} bind:checked={x.on} />
+                <input type="text" list="th-services" autocomplete="off" spellcheck="false" aria-label={$t('al.th.service')} placeholder="om-be-report" bind:value={x.service} />
+              </div>
+              <input class="f" type="number" min="1.1" max="100" step="0.1" aria-label={`${x.service}: ${$t('al.th.factor')}`} bind:value={x.factor} disabled={!x.on} />
+              <input type="number" min="0" step="1" aria-label={`${x.service}: ${$t('al.th.min')}`} bind:value={x.min} disabled={!x.on} />
+              <button type="button" class="link" onclick={() => (th.svc = th.svc.filter((_, j) => j !== i))}>{$t('al.th.remove')}</button>
+            {/each}
+          </div>
+          <button type="button" class="btn sm add" onclick={addSvc}>{$t('al.th.add')}</button>
+          <p class="muted xs">{$t('al.th.off_help')}</p>
+        </fieldset>
+
         <div class="opts">
           <div><label for="al-lang">{$t('al.lang')}</label>
             <select id="al-lang" bind:value={f.lang}><option value="id">Bahasa Indonesia</option><option value="en">English</option></select></div>
@@ -159,10 +207,23 @@
   .btn.sm { min-height: 34px; padding: 0.3rem 0.9rem; font-size: 0.8125rem; }
   .link { align-self: flex-start; background: none; border: 0; color: var(--err); font-size: 0.75rem; cursor: pointer; padding: 2px 0; }
   .ev { margin-top: 14px; gap: 6px; }
+  .th { margin-top: 14px; }
+  .thgrid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(70px, 1fr) minmax(80px, 1fr) max-content; gap: 6px 10px; align-items: center; margin-top: 6px; }
+  .thgrid .hd { font-size: 0.75rem; color: var(--kpi-label); }
+  .thgrid .nm { margin-top: 0; }
+  .thgrid .link { align-self: center; }
+  .svcname { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .svcname input[type='checkbox'] { width: auto; min-height: 0; }
+  .sub { font-weight: 600; margin-top: 12px; font-size: 0.875rem; }
+  .th .add { align-self: flex-start; margin-top: 8px; }
   .opts { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
   .opts > div { display: flex; flex-direction: column; min-width: 140px; }
   .opts .grow { flex: 1 1 260px; }
   .err { color: var(--err); font-size: 0.875rem; margin-top: 10px; }
   .acts { margin-top: 14px; } .acts .btn { min-height: var(--touch); }
   @media (max-width: 420px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 560px) {   /* phone: the service name gets its own line, its numbers go under the column headings */
+    .svcname { grid-column: 1 / -1; }
+    .thgrid .f { grid-column: 2; }
+  }
 </style>

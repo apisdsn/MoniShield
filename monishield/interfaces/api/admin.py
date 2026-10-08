@@ -76,6 +76,19 @@ def folder_restore(folder: str, request: Request, admin=Depends(require_admin)):
     return r
 
 
+@router.get('/retention')
+def retention_view(request: Request, admin=Depends(require_admin)):
+    """Data retention (S4_RETENTION_DAYS / S4_RETENTION_INBOX_DAYS): what the next cleanup removes + the last cleanup."""
+    return request.app.state.retention.view()
+
+
+@router.post('/retention/run')
+def retention_run(request: Request, admin=Depends(require_admin)):
+    """Run the cleanup now (otherwise once a day). Audited by the service."""
+    request.app.state.retention.run(admin['username'])
+    return request.app.state.retention.view()
+
+
 @router.post('/forget')
 def forget(body: FolderBody, request: Request, admin=Depends(require_admin)):
     folder = _folder(body.folder, required=True)

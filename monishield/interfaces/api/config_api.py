@@ -45,6 +45,8 @@ class ConfigBody(BaseModel):
     kafka_password: str | None = None
     kafka_offset_reset: str | None = None
     kafka_ingest_minutes: str | int | None = None
+    retention_days: str | int | None = None
+    retention_inbox_days: str | int | None = None
     clear: list[str] = []
 
 

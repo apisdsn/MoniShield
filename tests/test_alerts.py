@@ -209,3 +209,52 @@ def test_user_biasa_tidak_boleh(app_env):
     u.post('/api/auth/login', json=dict(username='rina', password='sandi-awal-rina-123'), headers=X)
     u.post('/api/me/password', json=dict(old_password='sandi-awal-rina-123', new_password='sandi-baru-rina-123'), headers=X)
     assert u.get('/api/admin/alerts').status_code == 403 and u.post('/api/admin/alerts/test', json=dict(channel='email'), headers=X).status_code == 403
+
+
+# ------------------------------------------------------------------ thresholds per number and per service (owner request 2026-10-08)
+def _facts(svc, svc_avg, errors=100, errors_avg=100):
+    kpi = dict(requests=1000, n5xx=0, errors=errors, upstream_errors=0, attack_ips=0, login_fail_ips=0)
+    base = dict(requests=1000, n5xx=0, errors=errors_avg, upstream_errors=0, attack_ips=0, login_fail_ips=0)
+    return dict(kpi=dict(kpi=kpi, atk_req=0, crit_req=0, svc={s: (e, 1000) for s, e in svc.items()}),
+                base=dict(kpi=base, atk_req=0, n_nginx=7, n_all=7, svc=svc_avg), ngx_keys={'requests', 'n5xx'}, crit_cats=[])
+
+
+def test_threshold_text_round_trip_and_errors():
+    assert alerts.parse_spike('') == alerts.SPIKE
+    s = alerts.parse_spike('n5xx=3:50, errors=off, attack_ips=1.5:2')
+    assert (s['n5xx'], s['errors'], s['attack_ips'], s['upstream_errors']) == ((3, 50), None, (1.5, 2), (2, 20))
+    assert alerts.format_spike(s) == 'n5xx=3:50,errors=off,attack_ips=1.5:2'
+    d = alerts.parse_service_spike('default=2:50,OM-BE-REPORT=3:200,coredns=off')
+    assert d == dict(default=(2, 50), services={'om-be-report': (3, 200), 'coredns': None})
+    assert alerts.format_service_spike(d) == 'default=2:50,coredns=off,om-be-report=3:200'
+    assert alerts.service_threshold(d, 'Om-Be-Report') == (3, 200) and alerts.service_threshold(d, 'lain') == (2, 50)
+    for bad in ('n5xx=1:5', 'n5xx=abc', 'tidak_ada=2:5', 'n5xx'):
+        with pytest.raises(alerts.AlertFail): alerts.parse_spike(bad)
+    with pytest.raises(alerts.AlertFail): alerts.parse_service_spike('../x=2:5')
+
+
+def test_service_spikes_use_their_own_thresholds():
+    cfg = alerts.load(dataclasses.replace(config.Config(), alert_service_spike='default=2:50,om-be-report=3:200,coredns=off', alert_spike='errors=off'))
+    f = _facts(svc=dict(simpel=120, coredns=900, **{'om-be-report': 300}), svc_avg=dict(simpel=50, coredns=10, **{'om-be-report': 120}), errors=1320, errors_avg=180)
+    ev = {e[0]: e for e in alerts.folder_events(cfg, '2026-01-06', f)}
+    text = ev['spike'][3]
+    assert 'simpel: 120' in text and 'coredns' not in text and 'om-be-report' not in text   # muted / below its own threshold
+    assert 'Errors (all services)' not in text and 'Error (semua layanan)' not in text      # errors=off
+    cfg = alerts.load(dataclasses.replace(config.Config(), alert_service_spike='default=off', alert_spike='errors=off'))
+    assert 'spike' not in {e[0] for e in alerts.folder_events(cfg, '2026-01-06', f)}         # every service muted, nothing else rose
+
+
+def test_thresholds_saved_from_the_page(app_env):
+    tc, c, _ = app_env
+    setel(tc)
+    r = tc.put('/api/admin/alerts', json=dict(spike=dict(n5xx=dict(factor=3, min=50), errors=None),
+                                               service_spike=dict(default=dict(factor=2, min=80), services={'coredns': None, 'om-be-report': dict(factor=4, min=300)})), headers=X)
+    assert r.status_code == 200, r.text
+    v = r.json()
+    assert v['spike']['n5xx'] == dict(factor=3, min=50) and v['spike']['errors'] is None and 'n5xx' in v['spike_all']
+    assert v['service_spike'] == dict(default=dict(factor=2, min=80), services={'coredns': None, 'om-be-report': dict(factor=4, min=300)})
+    assert isinstance(v['services'], list)
+    env = config.read_dotenv(os.path.join(c.state_dir, '.env'))
+    assert env['S4_ALERT_SPIKE'] == 'n5xx=3:50,errors=off' and env['S4_ALERT_SERVICE_SPIKE'] == 'default=2:80,coredns=off,om-be-report=4:300'
+    r = tc.put('/api/admin/alerts', json=dict(service_spike=dict(services={'om-be-report': dict(factor=1, min=5)})), headers=X)
+    assert r.status_code == 400 and 'factor' in r.json()['error']['message']

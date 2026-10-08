@@ -12,7 +12,7 @@ Services receive `ctx` (on the server: `app.state`, assembled in monishield/inte
   inbox          Inbox (factory)    buffer of Kafka lines -> inbox files            infrastructure/inbox.py (Spool)
   uploads        UploadStore        temporary upload files                          infrastructure/uploads.py (Uploads)
   maxmind        MaxMindProbe       MaxMind key test                                infrastructure/refdata.py (probe_maxmind)
-  ingest, imports, alerts, kafka    other application services (calling each other through ctx)
+  ingest, imports, alerts, kafka, retention    other application services (calling each other through ctx)
 
 User-facing errors are raised as monishield.domain.errors.Fail (code + message + status); the interface layer
 translates them to HTTP. The Protocols below are only documentation + type checking; nothing inherits from them.
@@ -50,6 +50,7 @@ class Warehouse(Protocol):
     def unignore(self, folder: str) -> bool: ...
     def folder_facts(self, folder: str, crs: bool) -> dict: ...
     def ip_locations(self) -> Mapping[str, tuple]: ...
+    def services(self) -> list: ...
 
 
 class LogFolders(Protocol):

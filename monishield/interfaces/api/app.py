@@ -12,18 +12,18 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import alert_service, import_service, ingest_service, kafka_service, settings_service
+from monishield.application import alert_service, import_service, ingest_service, kafka_service, retention_service, settings_service
 from monishield.domain import detect
-from monishield.infrastructure import auth as authmod, config, db, envfile, importer, inbox, kafka_client, logfolders, notify_channels, refdata, uploads, warehouse
+from monishield.infrastructure import auth as authmod, config, db, envfile, importer, inbox, kafka_client, logfolders, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
-from monishield.interfaces.api import admin, config_api, docs, kafka, meta, notify, pages, session, upload, users
+from monishield.interfaces.api import admin, config_api, docs, kafka, meta, notify, pages, session, upload, users, wire as payload
 from .common import ROLE_DEPS
 
 WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
-ROUTERS = (meta.router, session.router, users.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
+ROUTERS = (meta.router, session.router, payload.router, users.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
 
 
 def _deps(dependant):
@@ -56,10 +56,12 @@ def wire(state, cfg, env_path):
     state.inbox = inbox.Spool
     state.uploads = uploads.Uploads(cfg)
     state.maxmind = refdata.probe_maxmind
+    state.wire = wirecrypto.WireCrypto(ttl_hours=cfg.session_max_hours)
     state.ingest = ingest_service.IngestService(state)
     state.imports = import_service.ImportService(state)
     state.alerts = alert_service.Notifier(state)
     state.kafka = kafka_service.KafkaFeed(state)
+    state.retention = retention_service.RetentionService(state)
     return state
 
 
@@ -87,7 +89,9 @@ def create_app(cfg=None, env_path=None):
         app.state.imports.start_watch()
         app.state.alerts.start()
         app.state.kafka.start()   # logs from Kafka (when S4_KAFKA_BROKERS + S4_KAFKA_TOPIC are set)
+        app.state.retention.start()   # daily cleanup when S4_RETENTION_DAYS / S4_RETENTION_INBOX_DAYS are set
         yield
+        app.state.retention.stop()
         app.state.imports.stop_watch()
         app.state.alerts.stop()
         app.state.kafka.stop()
@@ -108,6 +112,8 @@ def create_app(cfg=None, env_path=None):
         for k, v in HEADERS.items(): response.headers.setdefault(k, v)
         if request.url.path.startswith('/api'): response.headers.setdefault('Cache-Control', 'no-store')
         return response
+
+    app.add_middleware(payload.PayloadCrypto, state=app.state)   # encrypted bodies for the web UI (X-MS-Enc)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request, exc):
