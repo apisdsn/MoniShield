@@ -39,6 +39,9 @@ def deliver(s, msg):
     except smtplib.SMTPRecipientsRefused:
         raise MailFail('The mail server refused the recipient address.') from None
     except (smtplib.SMTPException, OSError) as x:
+        port, sec = int(s['port']), s['security']
+        if (sec == 'ssl' and port == 587) or (sec == 'starttls' and port == 465):
+            raise MailFail(f'Port {port} does not match the security setting: use 465 with SSL/TLS or 587 with STARTTLS ({type(x).__name__}).') from None
         raise MailFail(f'The mail server could not be reached or refused the message ({type(x).__name__}).') from None
 
 
@@ -52,4 +55,4 @@ class Mailer:
     def send(self, lt, to):
         s = settings(self.cfg)
         if not ready(s): raise MailFail('The mail server (SMTP) is not set up: fill in Configuration → Mail server.', 'mail_not_configured', 503)
-        deliver(s, render.message(lt, s['sender'], to))
+        deliver(s, render.message(lt, s['sender'], to, render.logo_url(self.cfg.dashboard_url)))

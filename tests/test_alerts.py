@@ -118,7 +118,7 @@ def test_gagal_kirim_dilaporkan_tanpa_kredensial(app_env, monkeypatch):
     def tolak(url, payload): raise alerts.AlertFail('ditolak HTTP 401')
     monkeypatch.setattr(notify_channels, '_post_json', tolak)
     r = tc.post('/api/admin/alerts/test', json=dict(channel='telegram'), headers=X)
-    assert r.status_code == 502 and 'HTTP 401' in r.json()['error']['message'] and TOKEN not in r.text
+    assert r.status_code == 424 and 'HTTP 401' in r.json()['error']['message'] and TOKEN not in r.text
     assert tc.get('/api/admin/alerts').json()['history'][0]['ok'] is False
 
 

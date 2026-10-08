@@ -153,7 +153,7 @@ def test_cek_pesan_tanpa_setelan_dan_tanpa_broker(client):
     assert r.status_code == 400 and r.json()['error']['code'] == 'kafka_not_configured'
     client.app.state.cfg.kafka_topic = 'k8s-logs'
     r = client.post('/api/admin/kafka/peek', json=dict(n=5), headers=X)   # 127.0.0.1:9 has no broker
-    assert r.status_code == 502 and r.json()['error']['code'] == 'kafka_unreachable'
+    assert r.status_code == 424 and r.json()['error']['code'] == 'kafka_unreachable'
 
 
 def serve(app):

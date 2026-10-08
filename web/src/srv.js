@@ -141,6 +141,8 @@ const ERR_ID = [
   [/^The mail server rejected the username or password\.$/, 'Server email menolak nama pengguna atau kata sandi.'],
   [/^The mail server refused the recipient address\.$/, 'Server email menolak alamat penerima.'],
   [/^The mail server could not be reached or refused the message \((\w+)\)\.$/, 'Server email tidak bisa dihubungi atau menolak pesan ($1).'],
+  [/^Port (\d+) does not match the security setting: use 465 with SSL\/TLS or 587 with STARTTLS \((\w+)\)\.$/,
+    'Port $1 tidak cocok dengan pilihan keamanan: pakai 465 untuk SSL/TLS atau 587 untuk STARTTLS ($2).'],
   [/^The mail server \(SMTP\) is not set up: fill in Configuration → Mail server\.$/, 'Server email (SMTP) belum diatur: isi Konfigurasi → Server email.'],
   [/^Add an email address to your account \(Manage users\) or enter a recipient first\.$/, 'Tambahkan email ke akun Anda (Kelola user) atau isi penerima terlebih dahulu.'],
   [/^Invalid mail server address \(e\.g\. smtp\.example\.go\.id\)\.$/, 'Alamat server email tidak sah (contoh: smtp.contoh.go.id).'],

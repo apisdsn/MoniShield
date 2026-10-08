@@ -38,13 +38,19 @@ def test_email_rules():
 
 def test_one_letter_layout_for_every_email():
     lt = letters.password_reset('id', 'Rina <b>', 'rina', 'Ab3$Xy7!kQ2#mN9@', 30, 'https://monishield.contoh.go.id')
-    html, body = letter.render_html(lt, 'cid-x'), letter.render_text(lt)
+    html, body = letter.render_html(lt, 'cid:cid-x'), letter.render_text(lt)
     assert 'cid:cid-x' in html and 'MoniShield' in html and 'Ab3$Xy7!kQ2#mN9@' in html and 'Rina &lt;b&gt;' in html   # escaped
     assert 'Kata sandi sementara: Ab3$Xy7!kQ2#mN9@' in body and 'Berlaku selama 30 menit' in body and 'https://monishield.contoh.go.id' in body
     m = letter.message(lt, 'MoniShield <noreply@contoh.go.id>', 'rina@contoh.go.id')
     kinds = [p.get_content_type() for p in m.walk()]
     assert kinds == ['multipart/alternative', 'text/plain', 'multipart/related', 'text/html', 'image/png']
     assert m['Auto-Submitted'] == 'auto-generated'
+    # a public https dashboard: the logo is linked instead of attached (relays break Content-ID images)
+    url = letter.logo_url('https://monishield.contoh.go.id/')
+    assert url == 'https://monishield.contoh.go.id/mail-logo.png' and letter.logo_url('http://10.0.0.5:8000') == ''
+    m = letter.message(lt, 'MoniShield <noreply@contoh.go.id>', 'rina@contoh.go.id', url)
+    assert [p.get_content_type() for p in m.walk()] == ['multipart/alternative', 'text/plain', 'text/html']
+    assert f'src="{url}"' in m.get_body(('html',)).get_content()
     # the same layout for an OTP code and a notification
     otp = letters.otp('en', 'Rina', '483920', 10, 'confirm your sign-in')
     assert otp['code']['value'] == '483920' and 'confirm your sign-in' in letter.render_text(otp)
@@ -248,8 +254,24 @@ def test_first_email_and_limits(make, outbox):
     # mail server refuses: nothing stays pending
     outbox.fail = smtplib.SMTPRecipientsRefused({'admin@contoh.go.id': (550, b'no')})
     r = tc.post('/api/me/email/start', json=dict(new_email='admin@contoh.go.id', password=PW2), headers=X)
-    assert r.status_code == 502 and r.json()['error']['code'] == 'mail_failed'
+    assert r.status_code == 424 and r.json()['error']['code'] == 'mail_failed'
     assert tc.get('/api/me/email').json()['pending'] is None
     outbox.fail = None
     tc.post('/api/me/email/start', json=dict(new_email='admin@contoh.go.id', password=PW2), headers=X)
     assert tc.delete('/api/me/email/start', headers=X).json()['pending'] is None
+
+
+def test_mail_logo_is_public(make, outbox):
+    tc = make()
+    tc.cookies.clear()
+    r = tc.get('/mail-logo.png')   # signed out: email clients fetch it without a session
+    assert r.status_code == 200 and r.headers['content-type'] == 'image/png' and r.content[:8] == b'\x89PNG\r\n\x1a\n'
+
+
+def test_port_and_security_mismatch_is_explained(monkeypatch):
+    import ssl
+    def boom(*a, **k): raise ssl.SSLError('wrong version number')
+    monkeypatch.setattr(smtplib, 'SMTP_SSL', boom)
+    s = dict(host='smtp.contoh.go.id', port=587, security='ssl', username='', password='', sender='a@contoh.go.id')
+    with pytest.raises(mailer.MailFail) as e: mailer.deliver(s, None)
+    assert 'use 465 with SSL/TLS or 587 with STARTTLS' in e.value.message

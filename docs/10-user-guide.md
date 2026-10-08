@@ -54,6 +54,16 @@ forgot-password emails. Every email uses one MoniShield letter: logo, title, tex
 password, OTP code), an optional list and button, in Indonesian or English; there is also a plain-text part.
 `.env`: `S4_SMTP_HOST`, `S4_SMTP_PORT`, `S4_SMTP_SECURITY`, `S4_SMTP_USERNAME`, `SMTP_PASSWORD`, `S4_SMTP_FROM`.
 
+- **Port and security go together**: 465 with SSL/TLS, 587 with STARTTLS. Choosing the security mode moves a standard
+  port along; a mismatch is reported as such when sending.
+- **Sender domain**: the domain of the sender address must be the one verified at the mail provider (SPF/DKIM records).
+  With an unverified domain, providers such as SumoPod (kirim.email) send from their own address
+  (`…@…sumosender.com`) and put your account email in *Reply-To*. If the provider verified `monishield.example.go.id`,
+  the sender is `MoniShield <noreply@monishield.example.go.id>`, not `…@example.go.id`.
+- **Logo**: with `S4_DASHBOARD_URL` set to the public `https://` address, the logo is loaded from
+  `<address>/mail-logo.png` (public, no data). Without it the logo is attached to the email; some relays rewrite
+  messages and break such attached images.
+
 ### Forgot password
 
 The sign-in page always shows *Forgot password?*. Until the mail server is set up (or with `S4_PASSWORD_RESET=false`)

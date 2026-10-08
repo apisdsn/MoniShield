@@ -205,7 +205,7 @@ def test_uji_aws(client):
     assert r.json() == dict(ok=True, kind='aws', target='s3://simpel4-backup/k8s-logs/', source='environment')
     assert client.put('/api/admin/config', json=dict(aws_access_key_id='AKIASALAHSALAHSALAH1', aws_secret_access_key=SECRET_UI), headers=X).status_code == 200
     r = client.post('/api/admin/config/test', json=dict(kind='aws'), headers=X)
-    assert r.status_code == 502 and r.json()['error']['code'] == 's3_denied'
+    assert r.status_code == 424 and r.json()['error']['code'] == 's3_denied'
     bersih(r.text)
     assert client.post('/api/admin/config/test', json=dict(kind='lain'), headers=X).status_code == 400
 
@@ -221,7 +221,7 @@ def test_uji_maxmind(client, monkeypatch):
         def open(self, req, timeout=None):
             seen.append((req.get_method(), req.full_url, req.get_header('Authorization')))
             raise urllib.error.HTTPError(req.full_url, self.code, 'x', {}, None)
-    for code, status, err in ((302, 200, None), (401, 502, 'maxmind_denied'), (500, 502, 'maxmind_error')):
+    for code, status, err in ((302, 200, None), (401, 424, 'maxmind_denied'), (500, 424, 'maxmind_error')):
         monkeypatch.setattr(refdata.urllib.request, 'build_opener', lambda *a, c=code: Opener(c))
         r = client.post('/api/admin/config/test', json=dict(kind='maxmind'), headers=X)
         assert r.status_code == status, (code, r.text)

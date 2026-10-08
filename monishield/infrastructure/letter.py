@@ -1,7 +1,9 @@
 """Renders a letter (monishield/domain/letters.py) to an email: HTML with the MoniShield logo + a plain-text part.
 
-Email clients ignore <style> blocks and external images often, so the HTML is a table layout with inline styles, and
-the logo is a PNG attached inline (Content-ID) instead of an SVG or a link: Gmail and Outlook show it without asking.
+Email clients ignore <style> blocks, so the HTML is a table layout with inline styles. The logo is a PNG: linked from
+the dashboard (`logo_url`, https://<S4_DASHBOARD_URL>/mail-logo.png) when the dashboard has a public https address,
+otherwise attached inline (Content-ID). The link is preferred because relays such as SumoPod / kirim.email rewrite
+the message for open tracking and break Content-ID images (the logo then shows as an empty box plus an attachment).
 Light colours only: most clients that offer a dark mode invert light emails well, the other way round less so.
 """
 import html, os
@@ -17,7 +19,7 @@ MONO = "'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace"
 def _e(s): return html.escape(str(s), quote=True)
 
 
-def render_html(lt, logo_cid='monishield-logo'):
+def render_html(lt, logo_src='cid:monishield-logo'):
     p = ''.join(f'<p style="margin:0 0 14px;font:15px/1.6 {FONT};color:{INK}">{_e(x)}</p>' for x in lt['paragraphs'])
     code = ''
     if lt.get('code'):
@@ -48,7 +50,7 @@ def render_html(lt, logo_cid='monishield-logo'):
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{BG}"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:{PAPER};border:1px solid {LINE};border-radius:16px">
 <tr><td align="center" style="padding:24px 28px 18px;border-bottom:3px solid {BRAND}">
-<img src="cid:{logo_cid}" width="52" height="52" alt="" style="display:block;margin:0 auto 8px;border:0">
+<img src="{_e(logo_src)}" width="52" height="52" alt="MoniShield" style="display:block;margin:0 auto 8px;border:0">
 <div style="font:700 20px/1.2 {FONT};color:{INK};letter-spacing:.01em">MoniShield</div></td></tr>
 <tr><td style="padding:26px 28px 10px">
 <h1 style="margin:0 0 16px;font:700 21px/1.3 {FONT};color:{INK}">{_e(lt['title'])}</h1>
@@ -70,15 +72,25 @@ def render_text(lt):
     return '\n'.join(out) + '\n'
 
 
-def message(lt, sender, to):
-    """-> EmailMessage: multipart/alternative (text + HTML), the HTML part related to the inline logo."""
+def logo_url(dashboard_url):
+    """Public logo address for letters, or '' when the dashboard has no https address (the logo is then attached)."""
+    u = (dashboard_url or '').strip().rstrip('/')
+    return f'{u}/mail-logo.png' if u.startswith('https://') else ''
+
+
+def message(lt, sender, to, logo=''):
+    """-> EmailMessage: multipart/alternative (text + HTML). logo = public logo URL; empty = the HTML part is related
+    to the logo attached inline."""
     m = EmailMessage()
     m['Subject'], m['From'], m['To'], m['Date'] = lt['subject'], sender, to if isinstance(to, str) else ', '.join(to), formatdate(localtime=False)
     m['Message-ID'] = make_msgid('monishield')
     m['Auto-Submitted'] = 'auto-generated'   # RFC 3834: out-of-office replies are not sent back
     m.set_content(render_text(lt))
+    if logo:
+        m.add_alternative(render_html(lt, logo), subtype='html')
+        return m
     cid = make_msgid('logo')[1:-1]
-    m.add_alternative(render_html(lt, cid), subtype='html')
+    m.add_alternative(render_html(lt, f'cid:{cid}'), subtype='html')
     with open(LOGO, 'rb') as fh:
         m.get_payload()[1].add_related(fh.read(), maintype='image', subtype='png', cid=f'<{cid}>', filename='monishield.png')
     return m

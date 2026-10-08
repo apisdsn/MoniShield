@@ -46,7 +46,7 @@ def update(ctx, body):
 
 
 def send_test(ctx, channel):
-    """Test message to one channel using the SAVED settings. Send failure -> Fail 502."""
+    """Test message to one channel using the SAVED settings. Send failure -> Fail 502 (answered as 424)."""
     if channel not in ctx.channels.names: raise Fail('invalid_parameter', 'Unknown channel.', 400)
     cfg = alerts.load(ctx.cfg)
     alerts.validate(cfg)

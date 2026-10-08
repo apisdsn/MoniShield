@@ -50,6 +50,8 @@
       if (imp.watch) wf = { url: imp.watch.url || '', minutes: imp.watch.minutes || 60 };
     } catch { imp = null; }
   }
+  // choosing a security mode moves a standard port along (465 = SSL/TLS, 587 = STARTTLS); a custom port is kept
+  function smPort() { if (['', '25', '465', '587'].includes(String(sm.port ?? ''))) sm.port = sm.security === 'ssl' ? 465 : sm.security === 'starttls' ? 587 : sm.port; }
   const smBody = () => ({ smtp_host: sm.host.trim(), smtp_port: String(sm.port || ''), smtp_security: sm.security, smtp_username: sm.user.trim(),
     smtp_password: sm.pass, smtp_from: sm.from.trim() });
   const smTyped = () => sm.pass || sm.host.trim() !== (v.smtp.smtp_host.value || '') || String(sm.port) !== String(v.smtp.smtp_port.value)
@@ -324,7 +326,7 @@
           <div><label for="cf-smp">{$t('cf.sm.port')} {@render srcTag(v.smtp.smtp_port)}</label>
             <input id="cf-smp" type="number" min="1" max="65535" bind:value={sm.port} /></div>
           <div><label for="cf-sms">{$t('cf.sm.security')} {@render srcTag(v.smtp.smtp_security)}</label>
-            <select id="cf-sms" bind:value={sm.security}><option value="starttls">STARTTLS (587)</option><option value="ssl">SSL/TLS (465)</option><option value="none">{$t('al.em.none')}</option></select></div>
+            <select id="cf-sms" bind:value={sm.security} onchange={smPort}><option value="starttls">STARTTLS (587)</option><option value="ssl">SSL/TLS (465)</option><option value="none">{$t('al.em.none')}</option></select></div>
           <div><label for="cf-smu">{$t('cf.sm.user')} {@render srcTag(v.smtp.smtp_username)}</label>
             <input id="cf-smu" type="text" autocomplete="off" spellcheck="false" bind:value={sm.user} /></div>
           <div><label for="cf-smpw">{$t('cf.sm.pass')} {@render srcTag(v.smtp.smtp_password)}</label>

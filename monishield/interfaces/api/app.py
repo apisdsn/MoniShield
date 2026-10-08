@@ -6,7 +6,7 @@ import contextlib, dataclasses, os
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -14,7 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from monishield import __version__
 from monishield.application import account_service, alert_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service
 from monishield.domain import detect
-from monishield.infrastructure import auth as authmod, config, db, envfile, importer, inbox, kafka_client, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
+from monishield.infrastructure import auth as authmod, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
 from monishield.interfaces.api import admin, config_api, docs, kafka, meta, notify, pages, session, upload, users, wire as payload
 from .common import ROLE_DEPS
@@ -125,12 +125,18 @@ def create_app(cfg=None, env_path=None):
 
     @app.exception_handler(Fail)
     async def domain_error(request, exc):   # domain/application errors (accounts, queries, import, …) -> the same JSON as ApiError
-        return _error(exc.status, exc.code, exc.message)
+        # an outside service failed (S3, Kafka, MaxMind, mail server): 424, not 502/504, because Cloudflare and other
+        # proxies replace a 502/504 answer with their own error page and the real message never reaches the screen
+        return _error(424 if exc.status in (502, 504) else exc.status, exc.code, exc.message)
 
     @app.exception_handler(RequestValidationError)
     async def bad_request(request, exc):  # input values are not echoed back
         fields = ', '.join(sorted({str(e['loc'][-1]) for e in exc.errors()}))
         return _error(400, 'invalid_parameter', f'Invalid parameter: {fields}.')
+
+    @app.get('/mail-logo.png', include_in_schema=False)
+    def mail_logo():   # public: the logo in emails (monishield/infrastructure/letter.py), no data
+        return FileResponse(letter.LOGO, media_type='image/png', headers={'Cache-Control': 'public, max-age=86400'})
 
     # Static files: map (built by ingest) and the built web app. No log data; data only goes through /api.
     os.makedirs(os.path.join(cfg.data_dir, 'map'), exist_ok=True)

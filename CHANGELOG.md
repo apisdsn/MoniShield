@@ -32,6 +32,11 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 
 ### Changed
+- Failures of an outside service (mail server, S3, Kafka, MaxMind) are answered with HTTP 424 instead of 502/504:
+  Cloudflare replaced those answers with its own error page, so the screen showed only "502".
+- The email logo is loaded from `S4_DASHBOARD_URL/mail-logo.png` when the dashboard has a public https address, instead
+  of an attached image that relays such as SumoPod break (empty box plus "One attachment").
+- Choosing SMTP security moves the standard port along (465 / 587), and a port/security mismatch is named in the error.
 - Saving a section of the Configuration page only checks that section: an invalid value elsewhere (for example an AWS
   key from the process environment) no longer blocks saving the mail server, retention or other sections.
 - The page title in the header no longer breaks into one word per line on medium screens (around 1280 px, English):
