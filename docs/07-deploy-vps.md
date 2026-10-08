@@ -308,9 +308,12 @@ deploy waits for an approval click), then in that environment:
 | Secret | `DEPLOY_SSH_KEY` | contents of the private key `monishield-deploy` |
 | Secret | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan` above |
 | Secret (optional) | `DEPLOY_PORT` | SSH port when not 22 |
-| Variable | `DEPLOY_DIR` | `/srv/MoniShield` (default) |
-| Variable | `DEPLOY_PROFILES` | compose profiles, comma-separated, e.g. `https,kafka` (default `https`) |
-| Variable (first run only) | `DEPLOY_MIGRATE_FROM` | `/srv/dashboard-logging/v2` to copy its `.env`; remove after the first deploy |
+| Variable or secret | `DEPLOY_DIR` | `/srv/MoniShield` (default) |
+| Variable or secret | `DEPLOY_PROFILES` | compose profiles, comma-separated, e.g. `https,kafka` (default `https`) |
+| Variable or secret (first run only) | `DEPLOY_MIGRATE_FROM` | `/srv/dashboard-logging/v2` to copy its `.env`; remove after the first deploy |
+
+Before the first run, check the key from your own machine: `ssh -i ~/monishield-deploy deploy@SERVER_IP 'id && docker ps'`
+must print the `deploy` user (with the `docker` group) and the container list without asking for a password.
 
 ### Every release
 

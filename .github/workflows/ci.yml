@@ -99,10 +99,11 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
       - name: Pull, build and restart on the server
+        # each setting may be an environment variable or an environment secret
         env:
-          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/srv/MoniShield' }}
-          DEPLOY_PROFILES: ${{ vars.DEPLOY_PROFILES || 'https' }}
-          DEPLOY_MIGRATE_FROM: ${{ vars.DEPLOY_MIGRATE_FROM }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || secrets.DEPLOY_DIR || '/srv/MoniShield' }}
+          DEPLOY_PROFILES: ${{ vars.DEPLOY_PROFILES || secrets.DEPLOY_PROFILES || 'https' }}
+          DEPLOY_MIGRATE_FROM: ${{ vars.DEPLOY_MIGRATE_FROM || secrets.DEPLOY_MIGRATE_FROM }}
         run: |
           remote_env=$(printf 'DEPLOY_DIR=%q DEPLOY_BRANCH=prd DEPLOY_SHA=%q DEPLOY_PROFILES=%q DEPLOY_MIGRATE_FROM=%q' \
             "$DEPLOY_DIR" "$GITHUB_SHA" "$DEPLOY_PROFILES" "$DEPLOY_MIGRATE_FROM")
