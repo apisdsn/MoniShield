@@ -315,12 +315,97 @@ deploy waits for an approval click), then in that environment:
 Before the first run, check the key from your own machine: `ssh -i ~/monishield-deploy deploy@SERVER_IP 'id && docker ps'`
 must print the `deploy` user (with the `docker` group) and the container list without asking for a password.
 
-### Every release
+### What deploys and what does not
 
-Merge `dev` → `stg` → `prd` (CONTRIBUTING.md). The push to `prd` deploys; the run is listed under **Actions → CI**.
-To deploy the current `prd` again without a new commit: **Actions → CI → Run workflow → branch `prd`**.
-If the job fails, its log shows the last 40 lines of the app log; the previous containers keep running when the build
-fails.
+| You do | CI runs the checks | Deploys to the server |
+|---|---|---|
+| push or merge into `dev` | yes | **no** |
+| merge `dev` → `stg` | yes | **no** |
+| merge `stg` → `prd` | yes | **yes**, automatically, once every check is green |
+| open a pull request (any branch) | yes | **no** |
+| **Actions → CI → Run workflow → branch `prd`** | yes | **yes** (re-deploys the current `prd`) |
+
+Only `prd` deploys. `stg` is where you try a release before it reaches production. If *Required reviewers* is set on
+the `production` environment, the deploy job waits on the run page until a reviewer clicks **Approve and deploy**.
+
+### Before the first deploy (checklist)
+
+1. The server steps above are done and the key check prints the `deploy` user without a password prompt.
+2. The `production` environment has `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS`.
+3. `DEPLOY_PROFILES` matches what runs today: `https,kafka` when Kafka is used, otherwise `https`.
+4. One of these is true, otherwise the first deploy stops with `.env is missing`:
+   - `DEPLOY_MIGRATE_FROM` = `/srv/dashboard-logging/v2` (the old checkout whose `.env` is copied), or
+   - `/srv/MoniShield/.env` already exists on the server.
+
+### Every release, step by step
+
+**Step 1: promote `dev` to `stg` (checks only, nothing is deployed)**
+
+1. GitHub → **Pull requests → New pull request**: base `stg`, compare `dev` → **Create pull request**.
+2. Title: `chore(release): promote dev to stg`. In the description, list what is included (example below).
+3. Wait until the CI checks on the pull request are green.
+4. Merge with **Create a merge commit** (see *Which merge button* below). The merge commit message may stay as GitHub
+   suggests, or be `chore(release): promote dev to stg (#<PR number>)`.
+5. Test the release on staging if you run one.
+
+**Step 2: promote `stg` to `prd` (this deploys)**
+
+1. **New pull request**: base `prd`, compare `stg` → title `chore(release): promote stg to prd`.
+2. Add *Merging this deploys to production.* to the description and wait for green checks.
+3. Merge with **Create a merge commit**.
+4. Open **Actions → CI**, click the run for `prd` and watch the job **Deploy to the production server**.
+
+**Step 3: check the result**
+
+- The job log ends with `==> deployed <commit>: app is healthy`.
+- The site opens and you can sign in.
+- On the server: `cd /srv/MoniShield && docker compose ps` shows every service `Up` and the app `(healthy)`.
+- After the first successful deploy, delete `DEPLOY_MIGRATE_FROM` from the environment; it is no longer needed.
+
+Pull request description example:
+
+```
+## Changes
+- feat(kafka): label Kafka folders with "(Kafka)"
+- ci: deploy prd to the server automatically after CI passes
+- docs: deploy key setup for the production server
+
+## Checklist
+- [x] CI green on dev
+- [ ] Production environment secrets set
+```
+
+### Which merge button
+
+Always use **Create a merge commit** for `dev` → `stg` and `stg` → `prd`:
+
+| Button | Use for promotions? | Why |
+|---|---|---|
+| Create a merge commit | **yes** | keeps the same commits on all three branches, so the next promotion is clean |
+| Squash and merge | no | turns the release into one new commit that `dev` does not have; the next promotion conflicts |
+| Rebase and merge | no | rewrites the commits with new hashes; `stg`/`prd` drift away from `dev` the same way |
+
+Squash is fine for a feature branch (`feat/…` → `dev`) as long as the squashed message is a Conventional Commit.
+The CI commit check skips merge commits, so GitHub's default `Merge pull request #… from …` message also passes.
+
+### Re-deploy, roll back, and when it fails
+
+- **Re-deploy without a new commit:** Actions → CI → **Run workflow** → branch `prd` → **Run workflow**.
+- **Roll back:** revert the bad commit (`git revert <commit>` on a `fix/…` branch, pull request to `prd`); the merge
+  deploys the reverted code. Merge the revert back into `stg` and `dev` afterwards, as for any hotfix.
+- **When the deploy job fails**, read the last lines of its log:
+
+| Log message | Cause | Fix |
+|---|---|---|
+| `Deploy secrets not set: …` | a secret is missing or not in the `production` environment | add it under Settings → Environments → `production` |
+| `Permission denied (publickey)` | the public key is not in `/home/deploy/.ssh/authorized_keys`, or `DEPLOY_SSH_KEY` is not the matching private key | repeat the key step above; paste the whole private key including the `BEGIN`/`END` lines |
+| `Host key verification failed` | `DEPLOY_KNOWN_HOSTS` is empty or from another server | run `ssh-keyscan` again and replace the secret |
+| `Connection timed out` | port 22 is closed to the internet (firewall / security group) | open the SSH port; keep password login disabled |
+| `.env is missing` | first deploy without an existing `.env` | set `DEPLOY_MIGRATE_FROM` or create `/srv/MoniShield/.env` (§5) |
+| `permission denied … docker.sock` | `deploy` is not in the `docker` group | `sudo usermod -aG docker deploy`, then run the job again |
+| `app is 'unhealthy' after 180s` | the app does not start; the log shows its last 40 lines | fix the cause shown there (often a wrong value in `.env`) |
+
+When the build fails, the containers that were running keep running, so production stays up.
 
 ---
 
