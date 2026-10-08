@@ -1,6 +1,6 @@
 # TRD — Technical requirements for the SIMPEL4 log dashboard (v2)
 
-Technical decisions for the migration. Basis: [`00-inventaris.md`](00-inventaris.md) ("inv. §x"),
+Technical decisions for the migration. Basis: [`00-inventory.md`](00-inventory.md) ("inv. §x"),
 [`01-prd.md`](01-prd.md) (F/B/T/A/P-nn), [`02-drd.md`](02-drd.md) (U/D/Q-nn), all three re-read from
 file. This document contains no implementation code; table, column, and endpoint names are a contract.
 
@@ -51,7 +51,7 @@ Contents: [1 Architecture](#1-architecture-and-data-flow) · [2 Schema](#2-duckd
                                    │                                              │
  IP databases (downloaded) ──────► │   6. fill in IP owner & location (offline)   │
  .cache: ip2asn, GeoLite2,         │                                              │
- Natural Earth, GeoNames           │        simpel4.duckdb  (one file)            │
+ Natural Earth, GeoNames           │        monishield.duckdb  (one file)            │
                                    └──────────────────────────────────────────────┘
                                                       ▲
                                     browser ──────────┘  only to this server
@@ -69,9 +69,9 @@ Contents: [1 Architecture](#1-architecture-and-data-flow) · [2 Schema](#2-duckd
 | K6 | **Data unit = export folder** (A1). Every raw row carries `folder` and its original UTC timestamp. | Numbers can be compared directly with the reference; a per-calendar-date view (T01) remains possible later because the original time is stored. |
 | K7 | **One transaction per folder**: delete the old rows of the changed folder/file, load the new ones, derive aggregates, record status. | Readers never see a half-finished folder; an interrupted ingest leaves nothing behind; repeating an ingest yields the same state. |
 | K8 | **The frontend is built into static files** and served by the same FastAPI. | One service, one port, no CORS; sufficient for internal use. |
-| K9 | **Text that is currently data stays in Indonesian as identifiers** (attack categories, account flags, business metrics, JWT buckets). Translation is done by the frontend via a dictionary (U15). | Same as the old system and as the keys in `00-acuan.json`; the API needs no language parameter. |
+| K9 | **Text that is currently data stays in Indonesian as identifiers** (attack categories, account flags, business metrics, JWT buckets). Translation is done by the frontend via a dictionary (U15). | Same as the old system and as the keys in `00-reference.json`; the API needs no language parameter. |
 | K10 | **Automatic finding sentences are composed in the frontend** from data, as they are now. | The sentences are bilingual and contain markup; the rules (inv. §2.4, §2.5) stay in one place together with their display. |
-| K11 | **Accounts, sessions, and the audit log are stored in PostgreSQL via an ORM (SQLAlchemy)**, separate from DuckDB. *(Decided by the owner 2026-10-06: "untuk token gunakan jwt untuk database gunakan postgresql dan pakai orm" (for tokens use JWT, for the database use PostgreSQL and use an ORM).)* | DuckDB is designed for analytics, not for many small writes; and the DuckDB file must be deletable and rebuildable from the logs without losing accounts. The ORM makes the account code the same on PostgreSQL (server) and SQLite (tests, running locally without a database server; used when `S4_AUTH_DATABASE_URL` is empty). **ASSUMPTION T16**: that decision applies to accounts, sessions, audit, and import records only; log data stays in DuckDB, because replacing it would mean redoing Stages 3–9 (schema, ingest, aggregates, equivalence, the 4.75 GB/20 ms size gate) and would contradict the stack in `migrate/00-konteks.md`. Needs confirmation by the owner. |
+| K11 | **Accounts, sessions, and the audit log are stored in PostgreSQL via an ORM (SQLAlchemy)**, separate from DuckDB. *(Decided by the owner 2026-10-06: "for tokens use JWT, for the database use PostgreSQL and use an ORM".)* | DuckDB is designed for analytics, not for many small writes; and the DuckDB file must be deletable and rebuildable from the logs without losing accounts. The ORM makes the account code the same on PostgreSQL (server) and SQLite (tests, running locally without a database server; used when `S4_AUTH_DATABASE_URL` is empty). **ASSUMPTION T16**: that decision applies to accounts, sessions, audit, and import records only; log data stays in DuckDB, because replacing it would mean redoing Stages 3–9 (schema, ingest, aggregates, equivalence, the 4.75 GB/20 ms size gate) and would contradict the stack in `migrate/00-konteks.md`. Needs confirmation by the owner. |
 | K12 | **Roles are enforced in the API**, in one place; hiding the admin menu in the frontend is only a convenience. | Many computers means the API can be called directly; the only meaningful boundary is on the server. |
 | K13 | **Import from the bucket only adds folders to the "inbox" directory** and then triggers a normal ingest. | One ingest path for all sources; the original log folder stays read-only. |
 
@@ -79,7 +79,7 @@ Contents: [1 Architecture](#1-architecture-and-data-flow) · [2 Schema](#2-duckd
 
 ## 2. DuckDB schema
 
-One file: `simpel4.duckdb`. Conventions:
+One file: `monishield.duckdb`. Conventions:
 
 - `folder` has type `DATE` (the export folder name). Times are stored as `TIMESTAMP` **UTC**; WIB is computed
   when deriving aggregates (`+ 7 hours`). Hourly aggregates store `hour_wib`.
@@ -545,7 +545,7 @@ see all buckets in the Jakarta region. Consequently:
 
 **ASSUMPTION T14**: the object layout under the prefix is the same as in the local log folder
 (`[ns/]<service>/log_<service>_<pod>_<date>.log[.gz]`). Verified on first use with
-**dry run** mode (`simpel4 import --dry-run s3://…`), which only lists objects and prints which would be
+**dry run** mode (`monishield import --dry-run s3://…`), which only lists objects and prints which would be
 fetched or skipped, without downloading.
 
 Credentials are never sent to the browser, do not appear in API responses, and are not written to logs.
@@ -892,7 +892,7 @@ Example `GET /api/folders/2026-10-06/tables/c401?limit=2`:
 ```
 
 (The numbers in the §5.2–§5.4 examples illustrate the response shape; only numbers that also appear in
-`00-acuan.json` are real.)
+`00-reference.json` are real.)
 
 ### 5.5 Admin
 
@@ -958,72 +958,68 @@ empty state (DRD §6.6).
 
 ### 6.1 Structure
 
+The repository is `apisdsn/MoniShield` (formerly the `v2/` folder of `apisdsn/dashboard-logging`). The Python package
+follows clean architecture since 2026-10-07; the layer rules and "where new code goes" are in
+[`08-architecture.md`](08-architecture.md). Current layout:
+
 ```
-v2/
-├─ README.md
+MoniShield/
+├─ README.md  CHANGELOG.md  CONTRIBUTING.md  CLAUDE.md
 ├─ run.sh                    run locally: one command
-├─ pyproject.toml            Python dependencies
-├─ config.example.toml       example configuration (all optional)
-├─ monishield/                  Python package
-│  ├─ config.py              read configuration + environment variables
-│  ├─ rules.py               copy of the old rules (§4.1)
-│  ├─ parse.py               per-service parser → CSV rows (§4.2)
-│  ├─ ingest.py              scan, fingerprint, per-folder transaction (§3)
-│  ├─ schema.sql             table definitions (§2)
-│  ├─ derive/                one .sql per aggregate table (+ accounts, incidents)
-│  ├─ refdata.py             downloads + IP owner/location + map files
-│  ├─ db.py                  one DuckDB connection for the whole process
-│  ├─ auth.py                passwords, JWT sessions, roles, audit (ORM, §8)
-│  ├─ importer.py            import from an S3 prefix (§3.8)
-│  ├─ api/
-│  │  ├─ app.py              FastAPI, static files, errors, security headers
-│  │  ├─ common.py           parameter validation, IP cell, table endpoint
-│  │  └─ overview.py map.py trends.py security.py rootcause.py availability.py
-│  │     pods.py business.py tracing.py service.py              ← one module per page
-│  │     admin.py users.py session.py                           ← ingest/import, users, sign-in/out
-│  └─ cli.py                 serve | ingest | derive | forget | status | user (create the first admin)
-├─ web/                      Svelte + Vite
-│  ├─ package.json  vite.config.js  index.html
+├─ pyproject.toml            Python dependencies (extras: test, s3, kafka)
+├─ .env.example              every setting (the server reads and the Configuration page writes .env)
+├─ monishield/               Python package
+│  ├─ domain/                pure rules: parse.py rules.py detect.py (+ crs_rules.json, capec.json) accounts.py
+│  │                         alerts.py settings.py s3_import.py uploads.py kafka_message.py config_model.py errors.py
+│  ├─ application/           use cases: ingest, import (S3 + automatic sync), alert, settings, kafka, upload services
+│  │                         + ports.py (the interfaces the services depend on)
+│  ├─ infrastructure/        adapters: warehouse.py (DuckDB) ingest.py schema.sql derive/ (one .sql per aggregate
+│  │                         + steps.py) queries/ (read side, one module per page) refdata.py auth.py (SQLAlchemy, JWT)
+│  │                         importer.py (boto3) kafka_client.py envfile.py notify_channels.py inbox.py logfolders.py
+│  └─ interfaces/            api/ (app.py = composition root wire(), pages.py, admin.py, config_api.py, kafka.py,
+│                            notify.py, upload.py, session.py, users.py, meta.py, docs.py, common.py) and cli.py
+├─ web/                      Svelte 5 + Vite
 │  ├─ public/fonts/          .pbf glyphs for map labels
 │  └─ src/
-│     ├─ App.svelte  api.js  state.js (folder, tab, module ↔ URL)  format.js (time, duration, numbers)
+│     ├─ App.svelte  api.js  state.js (folder, tab, module ↔ URL)  format.js  srv.js (server text → Indonesian)
 │     ├─ theme.css           DRD §5 tokens
 │     ├─ i18n/  id.json  en.json
-│     ├─ lib/                Kpi, ChartCard, DataTable, IpCell, SeverityTag, Alert, Note, MapView, …
-│     └─ pages/              Overview, IpMap, Trends, Security, RootCause, Availability, Pods,
-│                            Business, Tracing, Service      ← one file per page
-│                            Login, ChangePassword, AdminUsers, AdminIngest
-├─ tests/
-│  ├─ fixtures/lines/        original log lines per format (from inv. §3)
-│  ├─ test_rules.py  test_parse.py  test_ingest.py  test_api.py  test_auth.py  test_import.py
-│  └─ test_equivalence.py    against the old system (§9.3)
-├─ tools/acuan_lama.py       (already exists) reference numbers from the old system
+│     ├─ lib/                Kpi, ChartCard, DataTable, IpCell, MapView, FlowMap, FolderPicker, FolderManager,
+│     │                      ImportCard, UploadCard, KafkaCard, SyncButton, GlobalSearch, Heatmap, …
+│     └─ pages/              Overview, CommandCenter, Trends, Security, RootCause, Availability, Pods, Business,
+│                            Tracing, Service, IpProfile, Login, ChangePassword, AdminUsers, AdminIngest, AdminConfig
+├─ tests/                    pytest (rules, parse, ingest, derive, API, auth, import, upload, Kafka, settings, alerts,
+│                            status migration, architecture rule, equivalence with the old system) + test_format.mjs
+├─ tools/                    reference numbers from the old system, equivalence report, browser tests (uji_*.cjs),
+│                            measurements, commit message check, i18n check
+├─ deploy/                   Caddyfiles, pgAdmin servers.json, remote-deploy.sh (used by the deploy job)
+├─ .github/workflows/ci.yml  CI (commit messages, Python tests, web build) + automatic deploy of prd
 ├─ docs/
-├─ Dockerfile  docker-compose.yml          (done in step 7)
-└─ data/                     simpel4.duckdb, map/, inbox/, tmp/ (auth.db only without PostgreSQL)     ← not in the repo
+├─ Dockerfile  docker-compose.yml
+└─ data/                     monishield.duckdb, map/, inbox/, tmp/ (auth.db only without PostgreSQL)     ← not in the repo
 ```
 
-One backend module and one frontend file per page satisfy PRD §5.6 (changing one tab does not
-touch other tabs). The only shared parts are `common.py` and `web/src/lib/`.
+Each report page has one query module (`infrastructure/queries/<page>.py`) and one frontend file, which satisfies
+PRD §5.6 (changing one tab does not touch other tabs). The page endpoints share one thin router (`interfaces/api/pages.py`).
 
 ### 6.2 Running locally
 
 Prerequisites: Python ≥ 3.11 and Node.js ≥ 20 (Node only to build the frontend).
 
-`./v2/run.sh` does the following, in order, skipping what is already done: creates the Python environment and installs
+`./run.sh` does the following, in order, skipping what is already done: creates the Python environment and installs
 dependencies; builds the frontend if it does not exist yet or its sources changed; runs the server on
 `127.0.0.1:8000`; the server ingests folders not yet loaded; opens the browser. On the first run the script
 asks for the name and password of the first admin (only once).
 
 The next day, the same command updates (PRD §5.5). If the server is already running,
-`./v2/run.sh ingest` only triggers an ingest through the API (K1).
+`./run.sh ingest` only triggers an ingest through the API (K1).
 
 Development mode: Vite server with an `/api` proxy to FastAPI; not used outside development.
 
 ### 6.3 Configuration
 
 Everything has a default = the old system's behavior. **One place for all configuration and secrets: `.env`**
-(owner decision 2026-10-06). Priority order: environment variables > `v2/.env` > `config.toml` (optional)
+(owner decision 2026-10-06). Priority order: environment variables > `.env` > `config.toml` (optional)
 > default values. Every key below can be written in `.env` as `S4_<NAME>` (uppercase); lists and
 dictionaries (`hosts`, `server_fallback`, `import_buckets`) are written as single-line JSON. Secrets may only be
 in `.env`/the environment, not in `config.toml`, and are never printed. `.env.example` (in the repo, without
@@ -1032,15 +1028,15 @@ keys in `.env` make startup fail, so typos are not silently ignored.
 
 | Key | Default | Purpose |
 |---|---|---|
-| `S4_LOG_DIR` | parent folder of `v2/` | log folder (read only) |
-| `S4_DATA_DIR` | `v2/data` | DuckDB, map files, temporary CSV |
+| `S4_LOG_DIR` | `logs/` in the project folder (formerly the parent folder of `v2/`) | log folder (read only) |
+| `S4_DATA_DIR` | `data` | DuckDB, map files, temporary CSV |
 | `S4_CACHE_DIR` | `<log dir>/.cache` | downloads; the local default uses the old cache so as not to re-download 100 MB |
 | `S4_BIND` | `127.0.0.1:8000` | listen address |
 | `S4_INGEST_ON_START` | `true` | ingest when the server starts |
-| `S4_STATE_DIR` | `v2/data` | SQLite `auth.db`, only when `S4_AUTH_DATABASE_URL` is empty |
+| `S4_STATE_DIR` | `data` | SQLite `auth.db`, only when `S4_AUTH_DATABASE_URL` is empty |
 | `S4_AUTH_DATABASE_URL` | empty | **Secret.** PostgreSQL URL for accounts: `postgresql+psycopg://user:password@host:5432/db` |
 | `S4_JWT_SECRET` | — (required) | **Secret.** Session token signing key, at least 32 random characters; the server refuses to start when it is empty or short |
-| `S4_INBOX_DIR` | `v2/data/inbox` | folder for bucket import results (§3.8) |
+| `S4_INBOX_DIR` | `data/inbox` | folder for bucket import results (§3.8) |
 | `S4_ADMIN_USER`, `S4_ADMIN_PASSWORD` | empty | creates the first admin **only when there are no users yet**; the password must be changed at first sign-in |
 | `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY` | empty | GeoLite2 download for IP location (§3.6); without both, location is empty |
 | `S4_JOB_TOKEN` | empty | token for machine callers: the `ingest` task and bucket link senders (§8.2) |
@@ -1079,7 +1075,7 @@ Password hashing stays `hashlib.scrypt` from the standard library; the machine t
 |---|---|
 | `boto3` | listing and downloading S3 objects with AWS credentials (including session tokens, list pagination, retries) |
 
-Installed as an optional extra (`simpel4[s3]`) and only imported when the feature is used; without this package
+Installed as an optional extra (`monishield[s3]`) and only imported when the feature is used; without this package
 the dashboard runs fully and import answers "not available". Reason for not writing it ourselves: signing
 AWS requests by hand is security code that is easy to get wrong in edge cases, and this is the only
 place where the dashboard holds a third party's credentials.
@@ -1134,7 +1130,7 @@ It is not shared: only `app` opens it (K1). `ingest` is only a trigger over HTTP
 
 - `app` runs with **one worker**; more than one would mean more than one writer process. This is
   written as a constant, not configuration.
-- Command-line commands (`simpel4 ingest|derive|forget`) always try the API first; they open DuckDB themselves only
+- Command-line commands (`monishield ingest|derive|forget`) always try the API first; they open DuckDB themselves only
   when the server is not running, and fail with a clear message when the file is locked.
 - Readers are never blocked: ingest writes in a transaction; API requests during ingest see the
   state before the transaction finished.
@@ -1146,7 +1142,7 @@ It is not shared: only `app` opens it (K1). `ingest` is only a trigger over HTTP
 | Mount | Kind | Mode | Content |
 |---|---|---|---|
 | host log folder → `/logs` | bind | **read-only** | log exports; read-only mode also guarantees the "do not change the log folder" rule |
-| `s4-data` → `/data` | named volume | read-write | `simpel4.duckdb`, map files, temporary CSV |
+| `s4-data` → `/data` | named volume | read-write | `monishield.duckdb`, map files, temporary CSV |
 | `s4-cache` → `/cache` | named volume | read-write | ip2asn, GeoLite2, Natural Earth, GeoNames downloads (±70 MB) |
 | `s4-pgdata` → PostgreSQL data | named volume | read-write | accounts, sessions, audit, import records. **Cannot be rebuilt**; must be backed up (`pg_dump`) |
 | `s4-inbox` → `/inbox` | named volume | read-write | log folders from bucket imports (§3.8) |
@@ -1222,7 +1218,7 @@ The dashboard is opened from many computers and contains account emails, client 
 | Item | Decision | Reason |
 |---|---|---|
 | Accounts | Created by an admin. There is no self-registration and no "forgot password" by email; the admin gives a temporary password. | Few, known users; no dependency on email |
-| First admin | From `S4_ADMIN_USER`/`S4_ADMIN_PASSWORD` when there are no users yet, or the `simpel4 user` command. Must change the password at first sign-in. | No default password in the code |
+| First admin | From `S4_ADMIN_USER`/`S4_ADMIN_PASSWORD` when there are no users yet, or the `monishield user` command. Must change the password at first sign-in. | No default password in the code |
 | Passwords | At least 12 characters, no composition rules. Stored as a per-user salted **scrypt** hash; the parameters are stored so they can be raised. Constant-time comparison. | Common recommendation (length matters more than composition); scrypt is in the standard library |
 | Sessions | **JWT** (HS256, signed with `S4_JWT_SECRET`) containing `sub` (user id), `sid` (session id), `iat`, `exp`; sent only via an `HttpOnly`, `Secure`, `SameSite=Strict` **cookie**, not accepted from the `Authorization` header. After the signature, issuer, and validity period pass, the `sid` session row is **still checked in the database**. Expires after 60 minutes without activity or 12 hours in total. Sign-out, password change, reset, and deactivation revoke sessions immediately. The role is not carried in the token. | Requested by the owner (JWT). A pure JWT cannot be revoked before it expires; the `sid` check preserves immediate revocation. Only the HS256 algorithm is accepted (`alg: none` and other algorithms are rejected). The token cannot be read by page scripts |
 | CSRF | `SameSite=Strict` + every data-changing request must carry a custom header and a matching `Origin`. | API and pages share one origin; no separate token needed |
@@ -1318,10 +1314,10 @@ Answers PRD §6.2. Run against the real log folders; requires the old system.
 
 | Level | What is compared | Condition |
 |---|---|---|
-| E1 Reference numbers | Every number in `00-acuan.json` (regenerated by `tools/acuan_lama.py` right before the test) vs a query on the aggregate tables, per folder × service | exactly equal |
+| E1 Reference numbers | Every number in `00-reference.json` (regenerated by `tools/acuan_lama.py` right before the test) vs a query on the aggregate tables, per folder × service | exactly equal |
 | E2 List contents | Every list in `D` extracted from `dashboard.html` (`paths`, `perr`, `ips`, `msgs`, `atk`, `atk_ip`, `login`, `acct`, `ep`, `c401`, `incidents`, `pod`, `retry`, `uperr`, `trace`, `flow`, `rep`, …) vs the API response with `limit` = the old limit | same rows and values; order may differ only among rows with equal values; percentiles equal up to display rounding |
 | E3 IP data | `D.ipinfo` (network owner) vs `ip_info` for the same IPs, with the same ip2asn file | equal. Location is not compared: its source is now GeoLite2 (§3.6); tested against that GeoLite2 file itself |
-| E4 Expected differences | The §4.4 fixes: for each item, the old value, the new value, and the correct value (from `00-acuan.json` for item 1; computed from the old system's raw data for items 2, 4, 9) | new value = correct value; the list of differences is **closed** (items 1, 2, 3, 4, 9 in §4.4), any other difference = failure |
+| E4 Expected differences | The §4.4 fixes: for each item, the old value, the new value, and the correct value (from `00-reference.json` for item 1; computed from the old system's raw data for items 2, 4, 9) | new value = correct value; the list of differences is **closed** (items 1, 2, 3, 4, 9 in §4.4), any other difference = failure |
 
 The E1–E4 results are written to the equivalence report (step 8). E1 runs from the moment the ingest stage is done, before
 any display exists (PRD R2, R9).
@@ -1493,6 +1489,6 @@ a stream can be added as a source without changing the display.
   a "streaming · last event N seconds ago" marker and a Live/disconnected status.
 - **The daily folders stay the source of truth (R3)**: a folder ingest replaces the stream data for that date, so the
   equivalence tests E1–E4 still apply.
-- New optional dependency `simpel4[kafka]` (`confluent-kafka`), only imported when `S4_KAFKA_BROKERS` is set;
+- New optional dependency `monishield[kafka]` (`kafka-python`; the plan said `confluent-kafka`), only imported when `S4_KAFKA_BROKERS` is set;
   without it the dashboard runs as now and Command Center uses the latest folder data.
 

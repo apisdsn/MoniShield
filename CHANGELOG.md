@@ -10,6 +10,8 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 - Automatic deployment: a push to `prd` that passes CI is deployed to the server over SSH
   (`deploy/remote-deploy.sh`, `docs/07-deploy-vps.md` §13); the first run can migrate the old checkout.
 - Kafka folders are labelled "(Kafka)" in the folder picker, page title and folder management.
+- `docs/09-status.md` (state, owner requests, next steps), `docs/README.md` (document index) and `CLAUDE.md`
+  (working rules for Claude Code) for continuing the work on another machine.
 
 ### Changed
 - The repo stands alone: the contents of the `v2/` folder of the `apisdsn/dashboard-logging` repo were moved to `apisdsn/MoniShield` together with
@@ -17,16 +19,19 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 - Branches: `dev` (development) → `stg` (testing/staging) → `prd` (production); rules in `CONTRIBUTING.md`.
 - Code comments, documentation, commit messages, server error messages, API responses and CLI output are now in English;
   API status values are English (old values in existing databases are migrated on start). The web UI remains bilingual.
+- Document file names are English: `00-reference.json`, `00-inventory.md`, `04-plan.md`, `04a-measurements.md`,
+  `04b-page-checklist.md`, `04c-crs-detection.md`; the plan gained stages 26–31 and the TRD shows the current folder layout.
+- Deploy settings `DEPLOY_DIR`, `DEPLOY_PROFILES`, `DEPLOY_MIGRATE_FROM` may be GitHub environment variables or secrets.
 
 ## [2.0.0] — 2026-10-07
 
 Replacement for the old static HTML dashboard (`build_dashboard.py` → `dashboard.html`): FastAPI + DuckDB on the server, Svelte in the
 browser, role-based accounts (admin/user), two languages (ID/EN), light/dark theme, usable on phones. Its key numbers are tested
-to match the old system. Design: `docs/` (PRD, DRD, TRD, plan `04-rencana.md`).
+to match the old system. Design: `docs/` (PRD, DRD, TRD, plan `04-plan.md`).
 
 ### Additions at the owner's request
 
-Summarized from the plan notes (`docs/04-rencana.md`, stages 12a–25 and deviation lines 25 (a)–(s)).
+Summarized from the plan notes (`docs/04-plan.md`, stages 12a–25 and deviation lines 25 (a)–(s)).
 
 **Accounts, security, and database**
 - Login sessions use **JWT**; accounts, sessions, audit, and import history are in **PostgreSQL via an ORM (SQLAlchemy)**

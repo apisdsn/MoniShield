@@ -13,7 +13,7 @@ USERNAME = re.compile(r'[a-z0-9._-]{3,32}')
 PASSWORD_MIN, PASSWORD_MAX = 12, 128
 
 
-SCRYPT = (15, 8, 1)          # n = 2^15, r, p: ±76 ms on the developer laptop (docs/04a-hasil-ukur.md); stored per account
+SCRYPT = (15, 8, 1)          # n = 2^15, r, p: ±76 ms on the developer laptop (docs/04a-measurements.md); stored per account
 
 
 # ------------------------------------------------------------------ helpers

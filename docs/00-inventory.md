@@ -691,8 +691,8 @@ Loaded by the browser when the dashboard is opened (not log data, but still thir
 
 ## 7. Reference figures
 
-Produced by `python3 v2/tools/acuan_lama.py` (wraps the old build; `dashboard.html` is rewritten as well) →
-`v2/docs/00-acuan.json`. Conditions: 2026-10-06 17:51, Python 3.13.1, build 14.2 seconds, 195 log files,
+Produced by `python3 tools/acuan_lama.py` (wraps the old build; `dashboard.html` is rewritten as well) →
+`docs/00-reference.json`. Conditions: 2026-10-06 17:51, Python 3.13.1, build 14.2 seconds, 195 log files,
 `--selftest` passed. Figures are taken from the **raw** statistics, before top-N.
 
 **These figures only hold for the log folder contents at that time.** Log folders grow every day; re-run the
@@ -845,7 +845,7 @@ Column definitions: *Lines* = all lines of the files including unparsed ones; *R
 | 2026-10-03 | 99 | 0 |
 
 Other figures (level distribution, attack categories, all business and JWT keys, hours with data, unique endpoints,
-unique messages) are in `00-acuan.json`.
+unique messages) are in `00-reference.json`.
 
 ---
 

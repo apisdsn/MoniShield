@@ -61,7 +61,7 @@ inside the folder, as with real data (0 cross-folder matches). Building the simu
     Pelacakan: jejak                           0.9 /     0.9
     Peta: titik                                2.4 /     2.5
     Peta: tabel alur                           6.9 /     7.3
-    JUMLAH semua query halaman                          20.5
+    TOTAL of all page queries                          20.5
 
 ### Trends (all 365 folders); target ≤ 500 ms
     Tren: baris/error/warning per hari         1.0 /     1.1
@@ -71,7 +71,7 @@ inside the folder, as with real data (0 cross-folder matches). Building the simu
     Daftar folder                              0.3 /     0.3
     JUMLAH query tab Tren                                5.4
 
-Halaman di atas target: tidak ada
+Pages above target: none
 
 ### Password hashing cost (scrypt)
     n=2^14 r=8 p=1: 36 ms

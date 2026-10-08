@@ -2,7 +2,7 @@
 
 Product requirements document for moving the SIMPEL4 log dashboard from a single built HTML file to a
 small application (ingest once per day, data fetched per tab). Written for readers who have not seen the
-code. Details of the old system are in [`00-inventaris.md`](00-inventaris.md); references such as "inv. §2.4"
+code. Details of the old system are in [`00-inventory.md`](00-inventory.md); references such as "inv. §2.4"
 point there. Technical decisions (schema, endpoints, code structure) are deliberately not made here; they belong to the TRD.
 
 Items marked **ASSUMPTION** are decisions I made without confirmation from the product owner, choosing the
@@ -31,7 +31,7 @@ Terms:
 | Service | A log source: ingress nginx, om-fe-inhouse, om-be-simpel-loop, om-be-appsmanager, om-be-referensi, om-be-report, coredns. |
 | Ingest | The process of reading log files and storing them in a form ready for display. |
 | Old system | `build_dashboard.py` + `dashboard_template.html` → `dashboard.html`. |
-| Reference figures | Figures from the old system for each folder, in `00-acuan.json` (inv. §7). |
+| Reference figures | Figures from the old system for each folder, in `00-reference.json` (inv. §7). |
 
 ---
 
@@ -281,7 +281,7 @@ Raw logs are not moved or deleted by v2.
 
 ### 6.2 Numeric parity with the old system
 
-Compared per folder and per service against `00-acuan.json`, which is regenerated from the old system
+Compared per folder and per service against `00-reference.json`, which is regenerated from the old system
 on the same folder contents.
 
 | Group | Figures | Condition |

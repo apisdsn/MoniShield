@@ -88,10 +88,10 @@ def test_transformasi():
 @pytest.fixture(scope='module')
 def nyata():
     cfg = config.load(dotenv=False)
-    if not os.path.exists(cfg.db_path): pytest.skip('database nyata tidak ada')
+    if not os.path.exists(cfg.db_path): pytest.skip('real database is missing')
     import duckdb
     try: con = duckdb.connect(cfg.db_path, read_only=True)
-    except duckdb.IOException: pytest.skip('database nyata sedang dipakai proses lain')
+    except duckdb.IOException: pytest.skip('real database is in use by another process')
     yield con
     con.close()
 

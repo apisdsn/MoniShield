@@ -14,7 +14,7 @@ def log_root(): return ROOT
 @pytest.fixture(scope='session')
 def old():
     """Old module; tests are skipped (not failed) when it is missing, e.g. inside the image."""
-    if not os.path.exists(os.path.join(ROOT, 'build_dashboard.py')): pytest.skip('build_dashboard.py tidak ada')
+    if not os.path.exists(os.path.join(ROOT, 'build_dashboard.py')): pytest.skip('build_dashboard.py is missing')
     sys.path.insert(0, ROOT)
     try: return importlib.import_module('build_dashboard')
     finally: sys.path.remove(ROOT)

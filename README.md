@@ -1,6 +1,6 @@
 # MoniShield — log & security dashboard
 
-Log and security dashboard: FastAPI + DuckDB on the server, Svelte in the browser. The full design is in `docs/`
+Log and security dashboard: FastAPI + DuckDB on the server, Svelte in the browser. The full design is in `docs/` (index: `docs/README.md`, current state: `docs/09-status.md`)
 (PRD, DRD, TRD, plan). Formerly the `v2/` folder of the `dashboard-logging` repo; since 2026-10-07 it stands alone in this repo
 (commit history moved along). Summary of all additions made at the owner's request: `CHANGELOG.md`. Commit and
 branch rules (`dev` → `stg` → `prd`): `CONTRIBUTING.md`.

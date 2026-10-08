@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Comparison of v2 numbers with the old system (TRD §9.3). Used by tests/test_equivalence.py and the report.
 
-E1  every number in docs/00-acuan.json (RAW statistics of the old system, before the top-N cut) vs v2 aggregate queries.
+E1  every number in docs/00-reference.json (RAW statistics of the old system, before the top-N cut) vs v2 aggregate queries.
 E3  network owner of each IP in the old dashboard.html vs the ip_info table.
 E4  CLOSED list of expected differences (definition fixes of TRD §4.4 items 1, 2, 3, 4, 9).
 
@@ -338,7 +338,7 @@ def e4(con, acuan, D):
 def jalankan(db_path=None, acuan_path=None):
     import duckdb
     import ekstrak_dashboard
-    acuan = json.load(open(acuan_path or os.path.join(V2, 'docs', '00-acuan.json'), encoding='utf-8'))
+    acuan = json.load(open(acuan_path or os.path.join(V2, 'docs', '00-reference.json'), encoding='utf-8'))
     con = duckdb.connect(db_path or os.path.join(V2, 'data', 'monishield.duckdb'), read_only=True)
     D = ekstrak_dashboard.load()
     return acuan, con, D, e1(con, acuan), e3(con, D), e4(con, acuan, D)
