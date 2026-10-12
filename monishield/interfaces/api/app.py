@@ -18,6 +18,7 @@ from monishield.infrastructure import auth as authmod, config, db, envfile, impo
 from monishield.domain.errors import Fail
 from monishield.interfaces.api import admin, config_api, docs, kafka, meta, notify, pages, session, upload, users, wire as payload
 from .common import ROLE_DEPS
+from .legacy import LegacyPaths
 
 WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
@@ -116,6 +117,7 @@ def create_app(cfg=None, env_path=None):
         if request.url.path.startswith('/api'): response.headers.setdefault('Cache-Control', 'no-store')
         return response
 
+    app.add_middleware(LegacyPaths)   # old API paths -> new ones (inside PayloadCrypto, which signs the path the browser used)
     app.add_middleware(payload.PayloadCrypto, state=app.state)   # encrypted bodies for the web UI (X-MS-Enc)
 
     @app.exception_handler(StarletteHTTPException)

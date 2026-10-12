@@ -110,7 +110,7 @@ def _ingest_via_api(cfg, args):
     if code == 409: print('ingest already running on the server; waiting for it to finish', file=sys.stderr)
     while True:
         time.sleep(1)
-        code, st = _api(cfg, 'GET', '/api/admin/ingest/status') or (None, None)
+        code, st = _api(cfg, 'GET', '/api/admin/ingest') or (None, None)
         if code != 200: print('server stopped responding while ingest was running', file=sys.stderr); return 2
         if not st['running']: break
     if st['error']: print('ingest failed:', st['error'], file=sys.stderr); return 1
@@ -160,11 +160,11 @@ def cmd_import(cfg, args):
     if not up and cfg.api_url: print(f'server {cfg.api_url} unreachable; import not run', file=sys.stderr); return 2
     if up:
         if not cfg.job_token: print('server is running but S4_JOB_TOKEN is empty', file=sys.stderr); return 2
-        code, body = _api(cfg, 'POST', '/api/admin/import', dict(url=args.url, dry_run=args.dry_run))
+        code, body = _api(cfg, 'POST', '/api/admin/imports', dict(url=args.url, dry_run=args.dry_run))
         if code != 202: print(f"rejected: {body.get('error', {}).get('message', code)}", file=sys.stderr); return 2
         while True:
             time.sleep(1)
-            code, j = _api(cfg, 'GET', f"/api/admin/import/{body['job_id']}") or (None, None)
+            code, j = _api(cfg, 'GET', f"/api/admin/imports/{body['job_id']}") or (None, None)
             if code != 200: print('server stopped responding while the import was running', file=sys.stderr); return 2
             if not j['running'] and j['status'] not in ('running',) and (j['result'] or j['status'] == 'failed'): break
         if j['status'] == 'failed': print(f"import failed: {j['message']}", file=sys.stderr); return 1

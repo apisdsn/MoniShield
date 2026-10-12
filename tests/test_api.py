@@ -74,7 +74,7 @@ def test_health_tanpa_sesi_tanpa_data(client):
 
 
 def test_tanpa_sesi_ditolak(client):
-    for path in ('/api/meta', f'/api/folders/{B}', '/api/me', '/api/admin/users', '/api/admin/ingest/status'):
+    for path in ('/api/meta', f'/api/folders/{B}', '/api/me', '/api/admin/users', '/api/admin/ingest'):
         r = client.get(path)
         assert (r.status_code, kode(r)) == (401, 'unauthenticated'), path
 
@@ -150,7 +150,7 @@ def test_user_melihat_dashboard_tetapi_bukan_admin(client):
     a, b = client.get(f'/api/folders/{B}').json(), tc.get(f'/api/folders/{B}').json()
     assert a == b and len(b['services']) == 7                                    # user sees the same as admin
     assert tc.get('/api/meta').status_code == 200
-    for method, path in (('get', '/api/admin/users'), ('get', '/api/admin/audit'), ('get', '/api/admin/ingest/status'), ('post', '/api/admin/ingest'),
+    for method, path in (('get', '/api/admin/users'), ('get', '/api/admin/audit'), ('get', '/api/admin/ingest'), ('post', '/api/admin/ingest'),
                          ('post', '/api/admin/derive'), ('post', '/api/admin/forget'), ('post', '/api/admin/users')):
         r = getattr(tc, method)(path, headers=X) if method == 'get' else getattr(tc, method)(path, json={}, headers=X)
         assert (r.status_code, kode(r)) == (403, 'forbidden'), path
@@ -183,8 +183,8 @@ def test_matriks_peran_mencakup_semua_rute(client):
 def test_token_mesin_hanya_untuk_ingest(client):
     h = {**X, 'Authorization': f'Bearer {TOKEN}'}
     tc = TestClient(client.app)
-    assert tc.get('/api/admin/ingest/status', headers=h).status_code == 200
-    assert tc.get('/api/admin/ingest/status', headers={**X, 'Authorization': 'Bearer salah'}).status_code == 401
+    assert tc.get('/api/admin/ingest', headers=h).status_code == 200
+    assert tc.get('/api/admin/ingest', headers={**X, 'Authorization': 'Bearer salah'}).status_code == 401
     for path in ('/api/meta', '/api/admin/users', f'/api/folders/{B}', '/api/me'):
         assert tc.get(path, headers=h).status_code == 401, path
     assert tc.post('/api/admin/forget', json=dict(folder=B), headers=h).status_code == 401
@@ -280,7 +280,7 @@ def test_ingest_lewat_api_dan_dashboard_tetap_terbuka(client):
     assert r.status_code == 202
     selama = []
     for _ in range(200):
-        st = client.get('/api/admin/ingest/status').json()
+        st = client.get('/api/admin/ingest').json()
         selama.append(client.get(f'/api/folders/{B}').status_code)                # read while ingest is running
         if not st['running']: break
         time.sleep(0.02)
@@ -306,7 +306,7 @@ def test_salinan_duckdb_untuk_dbgate(cfg, auth_url, monkeypatch):
             admin(tc)
             assert tc.post('/api/admin/ingest', json=dict(force=True), headers=X).status_code == 202
             tc.app.state.ingest.wait(60)
-            st = tc.get('/api/admin/ingest/status').json()
+            st = tc.get('/api/admin/ingest').json()
             assert st['error'] is None and st['snapshot_error'] is None and os.stat(path).st_mtime_ns > sebelum
         ro = duckdb.connect(path, read_only=True)
         try: assert ro.execute('SELECT count(*) FROM folder_state').fetchone() == (2,)
@@ -320,14 +320,14 @@ def test_sinkronisasi_mendeteksi_folder_baru(client, cfg):
     """Sync button: ingest status names new log folders not yet ingested; after ingest, the list is empty."""
     import shutil
     admin(client)
-    assert client.get('/api/admin/ingest/status').json()['new_folders'] == []
+    assert client.get('/api/admin/ingest').json()['new_folders'] == []
     os.makedirs(os.path.join(cfg.log_dir, '2026-03-03', 'kosong'))                     # folder without log files: not counted
     src = os.path.join(cfg.log_dir, B)
     shutil.copytree(src, os.path.join(cfg.log_dir, '2026-03-04'))
-    assert client.get('/api/admin/ingest/status').json()['new_folders'] == ['2026-03-04']
+    assert client.get('/api/admin/ingest').json()['new_folders'] == ['2026-03-04']
     assert client.post('/api/admin/ingest', json={}, headers=X).status_code == 202
     for _ in range(300):
-        st = client.get('/api/admin/ingest/status').json()
+        st = client.get('/api/admin/ingest').json()
         if not st['running']: break
         time.sleep(0.02)
     try:
@@ -341,7 +341,7 @@ def test_sinkronisasi_mendeteksi_folder_baru(client, cfg):
 def _ingest_tunggu(client):
     assert client.post('/api/admin/ingest', json={}, headers=X).status_code == 202
     for _ in range(300):
-        st = client.get('/api/admin/ingest/status').json()
+        st = client.get('/api/admin/ingest').json()
         if not st['running']: return st
         time.sleep(0.02)
     raise AssertionError('ingest tidak selesai')
@@ -354,7 +354,7 @@ def test_hapus_folder_dari_dashboard_dan_pulihkan(client, cfg):
     admin(client)
     rows = {r['folder']: r for r in client.get('/api/admin/folders').json()['rows']}
     assert rows[B]['in_db'] and rows[B]['log'] and not rows[B]['ignored']
-    r = client.post(f'/api/admin/folders/{B}/delete', json={}, headers=X).json()
+    r = client.delete(f'/api/admin/folders/{B}', headers=X).json()
     assert r['files'] > 0 and r['ignored'] and not r['inbox_deleted'] and os.path.isdir(os.path.join(cfg.log_dir, B))   # main log file is not touched
     assert B not in [f['folder'] for f in client.get('/api/meta').json()['folders']]
     st = _ingest_tunggu(client)
@@ -362,19 +362,19 @@ def test_hapus_folder_dari_dashboard_dan_pulihkan(client, cfg):
     assert B not in [f['folder'] for f in client.get('/api/meta').json()['folders']]
     assert {r['folder']: r for r in client.get('/api/admin/folders').json()['rows']}[B]['ignored']
     assert client.post(f'/api/admin/folders/{B}/restore', headers=X).status_code == 200
-    assert client.get('/api/admin/ingest/status').json()['new_folders'] == [B]
+    assert client.get('/api/admin/ingest').json()['new_folders'] == [B]
     _ingest_tunggu(client)
     assert B in [f['folder'] for f in client.get('/api/meta').json()['folders']]
     # inbox: data + files deleted, not ignored (nothing left on disk)
     shutil.copytree(os.path.join(cfg.log_dir, B), os.path.join(cfg.inbox_dir, '2026-03-05'))
     try:
         _ingest_tunggu(client)
-        r = client.post('/api/admin/folders/2026-03-05/delete', json=dict(delete_inbox=True), headers=X).json()
+        r = client.delete('/api/admin/folders/2026-03-05?delete_inbox=true', headers=X).json()
         assert r['files'] > 0 and r['inbox_deleted'] and not r['ignored'] and not os.path.exists(os.path.join(cfg.inbox_dir, '2026-03-05'))
         assert '2026-03-05' not in [x['folder'] for x in client.get('/api/admin/folders').json()['rows']]
     finally: shutil.rmtree(os.path.join(cfg.inbox_dir, '2026-03-05'), ignore_errors=True)
-    assert client.post('/api/admin/folders/bukan-tanggal/delete', json={}, headers=X).status_code in (400, 404)
-    assert client.post('/api/admin/folders/2030-01-01/delete', json={}, headers=X).status_code == 404
+    assert client.delete('/api/admin/folders/bukan-tanggal', headers=X).status_code in (400, 404)
+    assert client.delete('/api/admin/folders/2030-01-01', headers=X).status_code == 404
     assert client.post('/api/admin/folders/2030-01-01/restore', headers=X).status_code == 404
     assert {'folder.delete', 'folder.restore'} <= {x['action'] for x in client.get('/api/admin/audit').json()['rows']}
 
@@ -397,7 +397,7 @@ def test_ingest_dengan_token_mesin(client):
     tc = TestClient(client.app)
     assert tc.post('/api/admin/ingest', headers={**X, 'Authorization': f'Bearer {TOKEN}'}).status_code == 202
     client.app.state.ingest.wait(30)
-    st = tc.get('/api/admin/ingest/status', headers={'Authorization': f'Bearer {TOKEN}'}).json()
+    st = tc.get('/api/admin/ingest', headers={'Authorization': f'Bearer {TOKEN}'}).json()
     assert st['running'] is False and st['last']['files_changed'] == 0 and st['started_by'] == '(machine token)'
 
 
@@ -582,27 +582,27 @@ def test_modul_peta_menyaring_alur(user):
 
 def test_command_center_menyusun_angka_halaman_lain(user):
     """Stage 22: the Command Center computes nothing itself; every number equals its source page."""
-    c = user.get(f'/api/folders/{B}/command').json()
+    c = user.get(f'/api/folders/{B}/command-center').json()
     sec, av = user.get(f'/api/folders/{B}/security').json(), user.get(f'/api/folders/{B}/availability').json()
-    rc, peta = user.get(f'/api/folders/{B}/rootcause').json(), user.get(f'/api/folders/{B}/map').json()
+    rc, peta = user.get(f'/api/folders/{B}/root-causes').json(), user.get(f'/api/folders/{B}/map').json()
     assert c['scheme'] == sec['scheme'] and c['map'] == peta
     k = c['kpi']
     assert (k['requests'], k['n5xx'], k['upstream_errors']) == (av['kpi']['requests'], av['kpi']['n5xx'], rc['upstream_errors_total'])
     assert (k['attack_ips'], k['login_fail_ips']) == (sec['kpi']['attack_ips'], sec['kpi']['login_fail_ips'])
     per = {a['key']: a for a in c['attention']}
     assert [a['tone'] for a in c['attention']] == sorted((a['tone'] for a in c['attention']), key=lambda x: x != 'err')   # red first
-    if sec['kpi']['critical_hits']: assert per['attack_critical']['n'] == sec['kpi']['critical_hits'] and per['attack_critical']['tab'] == 'keamanan'
-    if k['n5xx']: assert per['n5xx']['n'] == k['n5xx'] and per['n5xx']['tab'] == 'ketersediaan'
+    if sec['kpi']['critical_hits']: assert per['attack_critical']['n'] == sec['kpi']['critical_hits'] and per['attack_critical']['tab'] == 'security'
+    if k['n5xx']: assert per['n5xx']['n'] == k['n5xx'] and per['n5xx']['tab'] == 'availability'
     if k['login_fail_ips']: assert per['login']['resets'] == sec['kpi']['resets']
     assert all(set(a) >= {'key', 'tone', 'tab', 'n'} and a['n'] > 0 for a in c['attention'])
-    satu = user.get(f'/api/folders/{B}/command', params=dict(module=peta['modules'][0])).json()
+    satu = user.get(f'/api/folders/{B}/command-center', params=dict(module=peta['modules'][0])).json()
     assert satu['map']['module'] == peta['modules'][0] and satu['kpi'] == k                                       # module only filters the map
-    assert user.get(f'/api/folders/{B}/command?module=tidak-ada').status_code == 404
+    assert user.get(f'/api/folders/{B}/command-center?module=tidak-ada').status_code == 404
 
 
 # ------------------------------------------------------------------ Stage 24
 def test_command_center_kemarin_per_jam_dan_butir_baru(user):
-    c = user.get(f'/api/folders/{B}/command').json()
+    c = user.get(f'/api/folders/{B}/command-center').json()
     h = c['by_hour']
     assert len(h['hours']) == len(h['requests']) == len(h['n5xx']) == len(h['attacks']) and h['hours'] == sorted(h['hours'])
     av = user.get(f'/api/folders/{B}/availability').json()
@@ -612,7 +612,7 @@ def test_command_center_kemarin_per_jam_dan_butir_baru(user):
     keys = {'attack_critical', 'attack', 'upstream', 'n5xx', 'uptime', 'svc_jump', 'login', 'restarts', 'pdf', 'jwt', 'files'}
     assert {a['key'] for a in c['attention']} <= keys
     for a in c['attention']:
-        if a['key'] == 'svc_jump': assert a['n'] >= 2 * a['prev'] and a['service'] and a['tab'] == 'layanan'
+        if a['key'] == 'svc_jump': assert a['n'] >= 2 * a['prev'] and a['service'] and a['tab'] == 'service'
     if c['prev']:
         assert set(c['prev']['kpi']) == set(c['kpi']) and set(c['prev']['comparable']) == {'nginx', 'all'}
         lalu = user.get(f"/api/folders/{c['prev']['folder']}/command").json()
@@ -650,7 +650,7 @@ def test_pencarian_global(user):
     eps = user.get(f'/api/folders/{B}/tables/endpoints', params=dict(service='nginx-ingress-controller')).json()['rows']
     ep = next(r['key'] for r in eps if len(r['key'].split(' ', 1)[1]) >= 6)
     u = user.get('/api/search', params=dict(q=ep.split(' ', 1)[1][:12], folder=B)).json()['results']
-    assert any(x['type'] == 'url' and x['target']['tab'] == 'layanan' for x in u)
+    assert any(x['type'] == 'url' and x['target']['tab'] == 'service' for x in u)
     assert user.get('/api/search', params=dict(q='%_%', folder=B)).status_code == 200      # LIKE wildcards are escaped
 
 
@@ -689,7 +689,7 @@ def test_swagger_hanya_setelah_masuk(client):
     assert '<script>' not in r.text                                                       # no inline scripts (CSP)
     s = client.get('/api/openapi.json').json()
     assert s['info']['title'] == 'MoniShield API' and {'session', 'jobToken'} <= set(s['components']['securitySchemes'])
-    assert {'/api/admin/ingest', '/api/folders/{folder}', '/api/admin/import/watch', '/api/admin/upload'} <= set(s['paths'])
+    assert {'/api/admin/ingest', '/api/folders/{folder}', '/api/admin/imports/watch', '/api/admin/uploads'} <= set(s['paths'])
     assert '/api/docs' not in s['paths'] and '/api/openapi.json' not in s['paths']
 
 
@@ -714,11 +714,11 @@ def test_command_rata_rata_folder_sebanding(tmp_path, auth_url, monkeypatch):
     con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
     with TestClient(appmod.create_app(c)) as tc:
         admin(tc)
-        r = tc.get('/api/folders/2026-01-06/command').json()
+        r = tc.get('/api/folders/2026-01-06/command-center').json()
         b, k = r['baseline'], r['kpi']
         assert (b['window'], b['n_all'], b['folders'][:2]) == (7, 4, ['2026-01-05', '2026-01-04'])
         assert all(b['kpi'][x] == k[x] for x in ('errors', 'login_fail_ips')) and b['kpi']['requests'] == k['requests']
-        b2 = tc.get(f'/api/folders/{B}/command').json()['baseline']
+        b2 = tc.get(f'/api/folders/{B}/command-center').json()['baseline']
         assert b2['n_all'] == 0 and b2['kpi']['errors'] is None          # fewer than 3 comparable folders: no average
 
 
@@ -745,3 +745,16 @@ def test_daftar_blokir_format_dan_pengecualian(client, monkeypatch):
     assert ips._excluded(cfg, '10.1.2.3', False, None) == 'private' and ips._excluded(cfg, '103.1.1.1', False, 'IDNIC-OMBUDSMAN-AS-ID Ombudsman') == 'org'
     assert ips._excluded(cfg, '8.8.8.8', False, 'GOOGLE') is None
     assert g(format='exe').status_code == 400 and g(days=0).status_code == 400
+
+
+def test_old_api_paths_still_work_and_are_marked_deprecated(client):
+    """API paths renamed 2026-10-12 (English REST names): the old ones answer for one release, marked deprecated."""
+    admin(client)
+    for old, new in (('/api/admin/ingest/status', '/api/admin/ingest'), (f'/api/folders/{B}/rootcause', f'/api/folders/{B}/root-causes'),
+                     (f'/api/folders/{B}/command', f'/api/folders/{B}/command-center'), ('/api/admin/import', '/api/admin/imports')):
+        r, n = client.get(old, headers=X), client.get(new, headers=X)
+        assert r.status_code == n.status_code == 200, (old, r.status_code)
+        assert r.headers['deprecation'] == 'true' and r.headers['link'] == f'<{new}>; rel="successor-version"' and 'deprecation' not in n.headers
+    assert client.post('/api/admin/folders/2030-01-01/delete', json={}, headers=X).status_code == 404   # old POST form still routed
+    paths = client.get('/api/openapi.json', headers=X).json()['paths']
+    assert '/api/admin/imports' in paths and '/api/admin/import' not in paths and '/api/admin/folders/{folder}/delete' not in paths

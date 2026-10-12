@@ -90,7 +90,7 @@
           </li>
           <li class:warn={problemFolders.length}>
             {#if problemFolders.length}<b>{$t('tr.comp.corrupt', { n: num(problemFolders.length, $lang) })}</b>
-              {#each problemFolders as x, i}{i ? ', ' : ''}<a href={build({ tab: 'pod', service: null, folder: x.f })}>{dLabel(x.f, $lang)}</a> ({$t('tr.comp.n_files', { n: num(x.c, $lang) })}){/each}.
+              {#each problemFolders as x, i}{i ? ', ' : ''}<a href={build({ tab: 'pods', service: null, folder: x.f })}>{dLabel(x.f, $lang)}</a> ({$t('tr.comp.n_files', { n: num(x.c, $lang) })}){/each}.
               <span class="muted">{$t('tr.comp.corrupt_note')}</span>
             {:else}{$t('tr.comp.no_corrupt')}{/if}
           </li>

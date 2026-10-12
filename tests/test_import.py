@@ -190,52 +190,52 @@ def client(cfg, auth_url, monkeypatch, s3):
 
 def tunggu(tc, job, h=X):
     for _ in range(300):
-        j = tc.get(f'/api/admin/import/{job}', headers=h).json()
+        j = tc.get(f'/api/admin/imports/{job}', headers=h).json()
         if not j['running'] and j['status'] != 'running' and (j['result'] or j['status'] == 'failed'): return j
         time.sleep(0.05)
     raise AssertionError('impor tidak selesai')
 
 
 def test_api_coba_lalu_impor_lewat_token_mesin(client, cfg):
-    r = client.post('/api/admin/import', json=dict(url=URL, dry_run=True), headers=X)
+    r = client.post('/api/admin/imports', json=dict(url=URL, dry_run=True), headers=X)
     assert r.status_code == 202
     j = tunggu(client, r.json()['job_id'])
     assert (j['status'], j['files'], j['skipped'], j['result']['downloaded']) == ('dry_run', 2, 4, 0) and kosong(cfg)
     mesin = TestClient(client.app)
     h = {**X, 'Authorization': f'Bearer {TOKEN}'}
-    r = mesin.post('/api/admin/import', json=dict(url=URL), headers=h)
+    r = mesin.post('/api/admin/imports', json=dict(url=URL), headers=h)
     assert r.status_code == 202
     j = tunggu(mesin, r.json()['job_id'], h)
     assert (j['status'], j['files'], j['folder'], j['requested_by']) == ('done', 2, D, '(machine token)'), j
     assert j['result']['ingest']['files_changed'] == 2 and 'ingest #' in j['message']
     assert D in [f['folder'] for f in client.get('/api/meta').json()['folders']]               # folder appears in the dashboard
-    ov = client.get('/api/admin/import').json()
+    ov = client.get('/api/admin/imports').json()
     assert [x['status'] for x in ov['jobs']][:2] == ['done', 'dry_run'] and ov['enabled'] and ov['allowed'] == ['s3://simpel4-backup/k8s-logs/<YYYY-MM-DD>/']
     assert {'import.start'} <= {x['action'] for x in client.get('/api/admin/audit').json()['rows']}
 
 
 @pytest.mark.parametrize('url, code', [('s3://bucket-lain/k8s-logs/2026-01-05/', 'bucket_not_allowed'), ('s3://simpel4-backup/k8s-logs/x/', 'invalid_date'), ('', 'invalid_url')])
 def test_api_tautan_ditolak_400(client, s3, url, code):
-    r = client.post('/api/admin/import', json=dict(url=url), headers=X)
+    r = client.post('/api/admin/imports', json=dict(url=url), headers=X)
     assert (r.status_code, r.json()['error']['code']) == (400, code) and s3.log == []
-    assert client.get('/api/admin/import').json()['jobs'] == []
+    assert client.get('/api/admin/imports').json()['jobs'] == []
 
 
 def test_api_kredensial_sementara(client, cfg, auth_url, s3):
     h = {**X, 'Authorization': f'Bearer {TOKEN}'}
     mesin = TestClient(client.app)
-    assert mesin.post('/api/admin/import/credentials', json=dict(access_key_id=KEY_OK, secret_access_key=SECRET), headers=h).status_code == 401
-    assert mesin.delete('/api/admin/import/credentials', headers=h).status_code == 401
-    r = client.post('/api/admin/import/credentials', json=dict(access_key_id='AKIATEMPELUJI0000002', secret_access_key=SECRET), headers=X)
+    assert mesin.post('/api/admin/imports/credentials', json=dict(access_key_id=KEY_OK, secret_access_key=SECRET), headers=h).status_code == 401
+    assert mesin.delete('/api/admin/imports/credentials', headers=h).status_code == 401
+    r = client.post('/api/admin/imports/credentials', json=dict(access_key_id='AKIATEMPELUJI0000002', secret_access_key=SECRET), headers=X)
     assert r.status_code == 200 and r.json()['credentials']['source'] == 'pasted' and SECRET not in r.text and 'AKIATEMPEL' not in r.text
     meta = client.get('/api/meta').json()['imports']
     assert meta == dict(enabled=True, credentials=dict(available=True, source='pasted'))
     # pasted key unknown to the fake S3 -> import fails with a cause; inbox stays empty
-    j = tunggu(client, client.post('/api/admin/import', json=dict(url=URL), headers=X).json()['job_id'])
+    j = tunggu(client, client.post('/api/admin/imports', json=dict(url=URL), headers=X).json()['job_id'])
     assert j['status'] == 'failed' and 'S3 denied' in j['message'] and kosong(cfg)
-    assert client.delete('/api/admin/import/credentials', headers=X).json()['credentials']['source'] == 'environment'
+    assert client.delete('/api/admin/imports/credentials', headers=X).json()['credentials']['source'] == 'environment'
     # secrets are not in the response, the audit, or the account database
-    semua = client.get('/api/admin/audit?limit=500').text + client.get('/api/admin/import').text + client.get(f'/api/admin/import/{j["job_id"]}').text
+    semua = client.get('/api/admin/audit?limit=500').text + client.get('/api/admin/imports').text + client.get(f'/api/admin/imports/{j["job_id"]}').text
     assert SECRET not in semua and KEY_OK not in semua and 'AKIATEMPEL' not in semua
     assert {'import.credentials.set', 'import.credentials.clear'} <= {x['action'] for x in client.get('/api/admin/audit?limit=500').json()['rows']}
     if auth_url.startswith('sqlite:///'):
@@ -252,11 +252,11 @@ def test_kredensial_tempel_hilang_setelah_mulai_ulang(cfg, auth_url, monkeypatch
             assert tc.post('/api/auth/login', json=dict(username='admin', password=PW if i == 0 else PW2), headers=X).status_code == 200
             if i == 0:
                 assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
-                assert tc.post('/api/admin/import/credentials', json=dict(access_key_id=KEY_OK, secret_access_key=SECRET), headers=X).status_code == 200
-                assert tc.get('/api/admin/import').json()['credentials']['available'] is True
+                assert tc.post('/api/admin/imports/credentials', json=dict(access_key_id=KEY_OK, secret_access_key=SECRET), headers=X).status_code == 200
+                assert tc.get('/api/admin/imports').json()['credentials']['available'] is True
             else:
-                assert tc.get('/api/admin/import').json()['credentials']['available'] is False
-                r = tc.post('/api/admin/import', json=dict(url=URL), headers=X)
+                assert tc.get('/api/admin/imports').json()['credentials']['available'] is False
+                r = tc.post('/api/admin/imports', json=dict(url=URL), headers=X)
                 assert (r.status_code, r.json()['error']['code']) == (400, 'no_credentials')
 
 
@@ -265,8 +265,8 @@ def test_user_biasa_403(client):
     tc = TestClient(client.app)
     assert tc.post('/api/auth/login', json=dict(username='rina', password='sandi-awal-rina-123'), headers=X).status_code == 200
     assert tc.post('/api/me/password', json=dict(old_password='sandi-awal-rina-123', new_password='sandi-baru-rina-456'), headers=X).status_code == 200
-    for m, p in (('get', '/api/admin/import'), ('post', '/api/admin/import'), ('get', '/api/admin/import/1'), ('post', '/api/admin/import/credentials'),
-                 ('delete', '/api/admin/import/credentials')):
+    for m, p in (('get', '/api/admin/imports'), ('post', '/api/admin/imports'), ('get', '/api/admin/imports/1'), ('post', '/api/admin/imports/credentials'),
+                 ('delete', '/api/admin/imports/credentials')):
         r = getattr(tc, m)(p, headers=X) if m in ('get', 'delete') else getattr(tc, m)(p, json={}, headers=X)
         assert r.status_code == 403, p
 
@@ -275,13 +275,13 @@ def test_tanpa_boto3_ditolak_dengan_cara_memasang(client, monkeypatch):
     """Owner report 2026-10-07: import failed with "No module named 'botocore'" (s3 package not installed). Now rejected
     up front with a message on how to install it, without creating a failed job; the UI reads `library` to disable import."""
     monkeypatch.setattr(importer, 'library_ok', lambda *a: False)
-    sebelum = len(client.get('/api/admin/import').json()['jobs'])
-    r = client.post('/api/admin/import', json=dict(url=URL), headers=X)
+    sebelum = len(client.get('/api/admin/imports').json()['jobs'])
+    r = client.post('/api/admin/imports', json=dict(url=URL), headers=X)
     assert r.status_code == 400 and r.json()['error']['code'] == 'no_s3_library' and 'pip install' in r.json()['error']['message']
-    ov = client.get('/api/admin/import').json()
+    ov = client.get('/api/admin/imports').json()
     assert ov['library'] is False and len(ov['jobs']) == sebelum
     monkeypatch.undo()
-    assert importer.library_ok() is True and client.get('/api/admin/import').json()['library'] is True
+    assert importer.library_ok() is True and client.get('/api/admin/imports').json()['library'] is True
 
 
 # ------------------------------------------------------------------ extract .log.gz -> .log (owner request 2026-10-07)
@@ -374,20 +374,20 @@ def wclient(cfg, auth_url, monkeypatch, s3):
 
 
 def sinkron(tc, h=X, baca=None):
-    assert tc.post('/api/admin/import/sync', headers=h).status_code == 202
+    assert tc.post('/api/admin/imports/sync', headers=h).status_code == 202
     tc.app.state.imports.wait(60)
-    return (baca or tc).get('/api/admin/import', headers=X).json()['watch']['last']
+    return (baca or tc).get('/api/admin/imports', headers=X).json()['watch']['last']
 
 
 def test_sinkron_otomatis_mengambil_folder_baru_tanpa_tautan(wclient, cfg, s3):
-    w = wclient.get('/api/admin/import').json()['watch']
+    w = wclient.get('/api/admin/imports').json()['watch']
     assert w['enabled'] and w['sources'] == [WATCH] and w['problem'] is None and w['last'] is None
     r = sinkron(wclient)
     assert (r['imported'], r['waiting'], r['errors'], r['failed']) == (['2026-01-06', '2026-01-07'], 1, [], []), r   # newest first, max. 2
     assert r['sources'] == [dict(source=WATCH, folders=4, new=3)]                    # 01-02 is in the local log folder: not fetched
     folders = [f['folder'] for f in wclient.get('/api/meta').json()['folders']]
     assert {'2026-01-06', '2026-01-07'} <= set(folders) and D not in folders
-    jobs = wclient.get('/api/admin/import').json()['jobs']
+    jobs = wclient.get('/api/admin/imports').json()['jobs']
     assert [(j['folder'], j['status']) for j in jobs[:2]] == [('2026-01-07', 'done'), ('2026-01-06', 'done')] and jobs[0]['requested_by'] == 'admin'
     # next round via machine token (cron): pending folders follow; existing ones are not downloaded again
     n0 = len(s3.gets())
@@ -404,29 +404,29 @@ def test_sinkron_otomatis_mengambil_folder_baru_tanpa_tautan(wclient, cfg, s3):
 
 def test_folder_yang_dihapus_admin_tidak_disinkron_lagi(wclient, cfg):
     sinkron(wclient)
-    assert wclient.post('/api/admin/folders/2026-01-07/delete', json=dict(delete_inbox=True), headers=X).status_code == 200
+    assert wclient.delete('/api/admin/folders/2026-01-07?delete_inbox=true', headers=X).status_code == 200
     r = sinkron(wclient)
     assert '2026-01-07' not in r['imported'] + r['rechecked'] and r['imported'] == [D]
     assert not os.path.exists(os.path.join(cfg.inbox_dir, '2026-01-07'))
 
 
 def test_sinkron_belum_diatur_dan_tanpa_kredensial(client, cfg):
-    r = client.post('/api/admin/import/sync', headers=X)
+    r = client.post('/api/admin/imports/sync', headers=X)
     assert (r.status_code, r.json()['error']['code']) == (400, 'watch_disabled')
-    assert client.get('/api/admin/import').json()['watch']['enabled'] is False
+    assert client.get('/api/admin/imports').json()['watch']['enabled'] is False
 
 
 def test_penjadwal_memeriksa_sendiri(wclient):
     """Settings saved from the UI -> the scheduler is woken and checks ±5 seconds later, without a button."""
     m = wclient.app.state.imports
-    r = wclient.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=5, enabled=True), headers=X)
+    r = wclient.put('/api/admin/imports/watch', json=dict(url=WATCH, minutes=5, enabled=True), headers=X)
     assert r.status_code == 200 and r.json()['minutes'] == 5
     assert config.read_dotenv(os.path.join(wclient.app.state.cfg.state_dir, '.env'))['S4_S3_WATCH_MINUTES'] == '5'   # written to .env
     for _ in range(400):
         if m.watch['last'] and not m.state['running']: break
         time.sleep(0.05)
     assert m.watch['last']['by'] == '(automatic S3 sync)' and m.watch['last']['imported'] == ['2026-01-06', '2026-01-07']
-    assert wclient.get('/api/admin/import').json()['watch']['next_check']
+    assert wclient.get('/api/admin/imports').json()['watch']['next_check']
 
 
 @pytest.fixture
@@ -450,34 +450,34 @@ def masuk_admin(tc):
 def test_alamat_dari_layar_diperiksa(plain, url, code):
     with TestClient(appmod.create_app(plain)) as tc:
         masuk_admin(tc)
-        r = tc.put('/api/admin/import/watch', json=dict(url=url, minutes=60, enabled=True), headers=X)
+        r = tc.put('/api/admin/imports/watch', json=dict(url=url, minutes=60, enabled=True), headers=X)
         assert (r.status_code, r.json()['error']['code']) == (400, code)
 
 
 def test_alamat_dari_layar_tersimpan_dan_dipakai(plain, s3):
     with TestClient(appmod.create_app(plain)) as tc:
         masuk_admin(tc)
-        w = tc.get('/api/admin/import').json()['watch']
+        w = tc.get('/api/admin/imports').json()['watch']
         assert (w['enabled'], w['source'], w['url']) == (False, None, '')
-        assert tc.post('/api/admin/import/sync', headers=X).json()['error']['code'] == 'watch_disabled'
-        r = tc.put('/api/admin/import/watch', json=dict(url='s3://simpel4-backup/k8s-logs', minutes=60, enabled=True), headers=X)   # without trailing "/"
+        assert tc.post('/api/admin/imports/sync', headers=X).json()['error']['code'] == 'watch_disabled'
+        r = tc.put('/api/admin/imports/watch', json=dict(url='s3://simpel4-backup/k8s-logs', minutes=60, enabled=True), headers=X)   # without trailing "/"
         assert r.status_code == 200, r.text
         w = r.json()
         assert (w['enabled'], w['sources'], w['source'], w['minutes']) == (True, [WATCH], 'file', 60)
         env = config.read_dotenv(os.path.join(plain.state_dir, '.env'))
         assert env == {'S4_S3_WATCH': 's3://simpel4-backup/k8s-logs'}   # only values that differ from the current ones are written
         assert 'import.watch' in {x['action'] for x in tc.get('/api/admin/audit').json()['rows']}
-        assert tc.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=7, enabled=True), headers=X).status_code == 400   # interval outside the choices
+        assert tc.put('/api/admin/imports/watch', json=dict(url=WATCH, minutes=7, enabled=True), headers=X).status_code == 400   # interval outside the choices
     # settings persist after a server restart (read again from .env), then the check uses that address
     with TestClient(appmod.create_app(muat_ulang(plain))) as tc:
         assert tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X).status_code == 200   # password already changed above
-        assert tc.get('/api/admin/import').json()['watch']['sources'] == [WATCH]
-        assert tc.post('/api/admin/import/sync', headers=X).status_code == 202
+        assert tc.get('/api/admin/imports').json()['watch']['sources'] == [WATCH]
+        assert tc.post('/api/admin/imports/sync', headers=X).status_code == 202
         tc.app.state.imports.wait(60)
-        assert tc.get('/api/admin/import').json()['watch']['last']['imported'] == [D, '2026-01-06']
+        assert tc.get('/api/admin/imports').json()['watch']['last']['imported'] == [D, '2026-01-06']
         # turned off from the UI: S4_S3_WATCH_ENABLED=false, address kept; button rejected
-        assert tc.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=60, enabled=False), headers=X).json()['enabled'] is False
-        assert tc.post('/api/admin/import/sync', headers=X).json()['error']['code'] == 'watch_disabled'
+        assert tc.put('/api/admin/imports/watch', json=dict(url=WATCH, minutes=60, enabled=False), headers=X).json()['enabled'] is False
+        assert tc.post('/api/admin/imports/sync', headers=X).json()['error']['code'] == 'watch_disabled'
         assert tc.app.state.cfg.s3_watch == WATCH
         assert config.read_dotenv(os.path.join(plain.state_dir, '.env'))['S4_S3_WATCH_ENABLED'] == 'false'
 
@@ -497,7 +497,7 @@ def test_user_biasa_tidak_boleh_mengatur_sinkron(plain):
         u = TestClient(tc.app)
         u.post('/api/auth/login', json=dict(username='rina', password='sandi-awal-rina-123'), headers=X)
         u.post('/api/me/password', json=dict(old_password='sandi-awal-rina-123', new_password='sandi-baru-rina-123'), headers=X)
-        assert u.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=60, enabled=True), headers=X).status_code == 403
+        assert u.put('/api/admin/imports/watch', json=dict(url=WATCH, minutes=60, enabled=True), headers=X).status_code == 403
 
 
 @pytest.fixture

@@ -1,5 +1,5 @@
 <!-- Command Center (Stage 22, DRD §12, TRD §12): absorbs the IP Map tab (ASSUMPTION DRD §12) at the same address (#/peta, ?modul=).
-     One request: GET /api/folders/{folder}/command[?module=…] = main KPIs (+ previous folder) + "what needs attention"
+     One request: GET /api/folders/{folder}/command-center[?module=…] = main KPIs (+ previous folder) + "what needs attention"
      + hourly + map data (IP Map response). Layout: 6 operational KPIs with ▲/▼ change vs the previous folder ·
      module picker + map numbers · map as wide and tall as the screen (main content, owner request) · attention card ·
      2 hourly charts (requests; 5xx & attacks — different scales, so two charts, not two axes) · flow table.
@@ -34,7 +34,7 @@
     busy = true; error = null; onready?.(false);
     try {
       const q = module ? `?module=${encodeURIComponent(module)}` : '';
-      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/command${q}`);
+      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/command-center${q}`);
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) {
@@ -72,7 +72,7 @@
     if (a.basis === 'avg') p.days = num(a.days ?? 0, $lang);
     const text = a.key === 'n5xx' && !a.upstream ? $t('cc.a.n5xx.text_plain') : a.key === 'login' && !a.resets ? $t('cc.a.login.text_none')
       : a.basis === 'avg' ? $t(`cc.a.${a.key}.text_avg`, p) : $t(`cc.a.${a.key}.text`, p);
-    const svc = a.tab === 'layanan';
+    const svc = a.tab === 'service';
     return { title: $t(`cc.a.${a.key}.title`, p), text, tone: a.tone, link: $t('cc.open', { page: svc ? p.service : $t(`tab.${a.tab}`) }),
              href: build({ tab: a.tab, service: svc ? a.service : null, folder, module: null }) };
   }));

@@ -1,7 +1,7 @@
 <!-- Configuration (owner request 2026-10-07: "satu halaman untuk semua kredensial" — one page for all credentials), admin only. One place for:
      AWS S3 credentials + region, automatic S3 parent folder, MaxMind GeoLite2 key, notifications (Telegram/Discord/email),
      blocklist exclusions, and the status of keys that can only be set via .env. API: /api/admin/config (monishield/
-     settings.py), /api/admin/import/watch, /api/admin/alerts. Secrets are never sent back by the server: their fields
+     settings.py), /api/admin/imports/watch, /api/admin/alerts. Secrets are never sent back by the server: their fields
      show "sudah diisi"; left empty on save = unchanged; "Hapus dari .env" = line disabled (default).
      Every field is WRITTEN TO THE server's .env FILE (owner request 2026-10-07) and takes effect immediately without a restart.
      Since 2026-10-08 each part opens as a pop-up from the sidebar (lib/ConfigDialogs.svelte): only = storage | kafka |
@@ -67,7 +67,7 @@
   }
   async function loadImp() {
     try {
-      imp = await api.get('/api/admin/import');
+      imp = await api.get('/api/admin/imports');
       if (imp.watch) wf = { url: imp.watch.url || '', minutes: imp.watch.minutes || 60 };
     } catch { imp = null; }
   }
@@ -137,7 +137,7 @@
   async function saveWatch(enabled) {
     busy = 'watch'; msg = { ...msg, watch: null };
     try {
-      await api.put('/api/admin/import/watch', { url: wf.url.trim(), minutes: Number(wf.minutes), enabled });
+      await api.put('/api/admin/imports/watch', { url: wf.url.trim(), minutes: Number(wf.minutes), enabled });
       toast(enabled ? $t('imp.w.saved') : $t('imp.w.disabled'));
       window.dispatchEvent(new Event('monishield:watch-changed'));
       await loadImp();

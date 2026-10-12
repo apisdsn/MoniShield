@@ -19,7 +19,7 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
-      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/rootcause`);
+      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/root-causes`);
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) error = e;

@@ -95,7 +95,7 @@ const URL = 's3://simpel4-backup/k8s-logs/2026-01-05/', TEMPEL_AK = 'AKIATEMPELB
   cek('clear pasted credentials -> back to "konfigurasi server"', /konfigurasi server/.test(await kartu()));
 
   // audit and all responses: no secrets
-  const semua = await p.evaluate(() => Promise.all(['/api/admin/audit?limit=500', '/api/admin/import', '/api/meta', '/api/admin/import/1'].map((u) => fetch(u).then((r) => r.text()))));
+  const semua = await p.evaluate(() => Promise.all(['/api/admin/audit?limit=500', '/api/admin/imports', '/api/meta', '/api/admin/imports/1'].map((u) => fetch(u).then((r) => r.text()))));
   const aksi = JSON.parse(semua[0]).rows.map((r) => r.action);
   cek('audit: import.start, import.credentials.set/clear; no credential values in audit/history/meta',
     ['import.start', 'import.credentials.set', 'import.credentials.clear'].every((a) => aksi.includes(a)) && !semua.some((s) => [SECRET, TEMPEL_SK, TEMPEL_AK, 'AKIATIRUAN'].some((x) => s.includes(x))));

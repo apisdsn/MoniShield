@@ -12,7 +12,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Version | 2.0.0 + the *Unreleased* changes in `CHANGELOG.md` |
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
-| Tests | pytest: 391 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
+| Tests | pytest: 392 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
 | CI | `.github/workflows/ci.yml` green on `dev`. `stg` and `prd` still point to the commit before the deploy job. |
 | Deploy | Automatic deploy of `prd` built and tested with a stub; **not yet run against the real server** (see next steps). |
 | Server today | Still runs from the old checkout `/srv/dashboard-logging/v2` (compose project `monishield`). The first automatic deploy moves it to `/srv/MoniShield`, reusing the same containers and volumes. |
@@ -51,6 +51,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 26 | Users change their own email, verified through the old address | User menu → *Account email*; password + code to the old email + code to the new email | plan stage 36, [`10-user-guide.md`](10-user-guide.md) |
 | 27 | Configuration in the sidebar as pop-ups, folding sidebar groups, object storage with a choice of providers (S3, R2, MinIO, Wasabi, GCS, Spaces, Azure), free-text region, `example.com` placeholders | Sidebar → *Configuration* | plan stage 37, [`10-user-guide.md`](10-user-guide.md) |
 | 28 | Manage users must not change emails without a code (option B) | Admin enters a new address with own password; it counts once the user confirms the code; own email only via Account email | plan stage 38, [`10-user-guide.md`](10-user-guide.md) |
+| 29 | English endpoints and web addresses, REST best practices | Renamed API paths (old ones deprecated for one release), English `#/…` addresses with old ones rewritten | [`03-trd.md`](03-trd.md) §5 |
 
 Questions answered along the way, recorded so they are not asked again:
 
@@ -85,7 +86,9 @@ Questions answered along the way, recorded so they are not asked again:
 5. **Before the next deploy to `prd`**: `S4_IMPORT_REGION` no longer defaults to `ap-southeast-3`. If the server's
    `.env` does not set it, fill in the region under Configuration → Object storage (or add
    `S4_IMPORT_REGION=ap-southeast-3` to `.env`) so S3 requests go straight to the bucket's region.
-6. After the server runs from `/srv/MoniShield`: the old checkout `/srv/dashboard-logging/v2` can be removed and the
+6. **Cron jobs and scripts**: move calls to the new API paths (e.g. `/api/admin/imports/sync`); the old paths are
+   deprecated and will be removed in a later release.
+7. After the server runs from `/srv/MoniShield`: the old checkout `/srv/dashboard-logging/v2` can be removed and the
    old repo archived (the old repo's `build_dashboard.py`, `dashboard_template.html` and log folders are never edited).
 
 ## Known issues

@@ -39,7 +39,7 @@ def start_ingest(request: Request, body: IngestBody = IngestBody(), who=Depends(
     return dict(started=True)
 
 
-@router.get('/ingest/status')
+@router.get('/ingest')
 def ingest_status(request: Request, who=Depends(require_admin_or_job)):
     return request.app.state.ingest.status()
 
@@ -62,11 +62,18 @@ def folders_list(request: Request, admin=Depends(require_admin)):
     return ingest_service.folders(request.app.state)
 
 
-@router.post('/folders/{folder}/delete')
-def folder_delete(folder: str, request: Request, body: DeleteBody = DeleteBody(), admin=Depends(require_admin)):
-    r = ingest_service.delete_folder(request.app.state, _folder(folder, required=True), body.delete_inbox, admin['username'])
+@router.delete('/folders/{folder}')
+def folder_delete(folder: str, request: Request, delete_inbox: bool = True, admin=Depends(require_admin)):
+    """Remove a folder from the dashboard; ?delete_inbox=false keeps its inbox files (the main log folder is never deleted)."""
+    r = ingest_service.delete_folder(request.app.state, _folder(folder, required=True), delete_inbox, admin['username'])
     _audit(request, admin, 'folder.delete', f"folder={folder} ({r['files']} data files{'; inbox deleted' if r['inbox_deleted'] else ''}{'; ignored' if r['ignored'] else ''})")
     return r
+
+
+@router.post('/folders/{folder}/delete', include_in_schema=False, deprecated=True)
+def folder_delete_legacy(folder: str, request: Request, body: DeleteBody = DeleteBody(), admin=Depends(require_admin)):
+    """Old form (until 2026-10-12): POST with a body. Use DELETE /api/admin/folders/{folder}?delete_inbox=…."""
+    return folder_delete(folder, request, body.delete_inbox, admin)
 
 
 @router.post('/folders/{folder}/restore')
@@ -115,14 +122,14 @@ class CredBody(BaseModel):
     session_token: str = ''
 
 
-@router.post('/import', status_code=202)
+@router.post('/imports', status_code=202)
 def start_import(request: Request, body: ImportBody = ImportBody(), who=Depends(require_admin_or_job)):
     job = request.app.state.imports.start(body.url, body.dry_run, who['username'])
     _audit(request, who, 'import.start', f"#{job} {body.url[:300]}{' (dry run)' if body.dry_run else ''}")
     return dict(job_id=job)
 
 
-@router.put('/import/watch')
+@router.put('/imports/watch')
 def set_watch(body: WatchBody, request: Request, admin=Depends(require_admin)):
     """Set up automatic S3 sync from the UI: S3 parent folder address (s3://bucket/prefix/), interval, on/off. Admin only."""
     m = request.app.state.imports
@@ -131,7 +138,7 @@ def set_watch(body: WatchBody, request: Request, admin=Depends(require_admin)):
     return m.view()['watch']
 
 
-@router.post('/import/sync', status_code=202)
+@router.post('/imports/sync', status_code=202)
 def sync_s3(request: Request, who=Depends(require_admin_or_job)):
     """Check the S4_S3_WATCH prefix now ("Check S3 now" button, or cron with the machine token)."""
     request.app.state.imports.sync(who['username'])
@@ -139,17 +146,17 @@ def sync_s3(request: Request, who=Depends(require_admin_or_job)):
     return dict(started=True)
 
 
-@router.get('/import')
+@router.get('/imports')
 def import_overview(request: Request, limit: int = Query(20, ge=1, le=100), admin=Depends(require_admin)):
     return dict(request.app.state.imports.view(), jobs=request.app.state.auth.job_list(limit))
 
 
-@router.get('/import/{job_id}')
+@router.get('/imports/{job_id}')
 def import_job(job_id: int, request: Request, who=Depends(require_admin_or_job)):
     return request.app.state.imports.job(job_id)
 
 
-@router.post('/import/credentials')
+@router.post('/imports/credentials')
 def set_credentials(body: CredBody, request: Request, admin=Depends(require_admin)):
     """Only an admin with a session (not the machine token). Values are kept in process memory only and never returned."""
     creds = request.app.state.imports.creds
@@ -158,7 +165,7 @@ def set_credentials(body: CredBody, request: Request, admin=Depends(require_admi
     return dict(credentials=creds.status())
 
 
-@router.delete('/import/credentials')
+@router.delete('/imports/credentials')
 def clear_credentials(request: Request, admin=Depends(require_admin)):
     creds = request.app.state.imports.creds
     creds.clear()
