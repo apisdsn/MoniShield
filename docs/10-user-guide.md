@@ -204,6 +204,7 @@ is marked *Ignored* so the sync does not load it again, and it can be brought ba
 | `refdata [--offline]` | update IP owner & location data and map files |
 | `import [--dry-run] s3://…/YYYY-MM-DD/` | import a log folder from S3 (see [Import from S3](#import-from-s3)) |
 | `forget YYYY-MM-DD` | delete one folder's data from the database |
+| `sync` | check the automatic sync folder now, through the running server (needs `S4_JOB_TOKEN`); the server also checks by itself |
 
 Data lives in `data/` (`monishield.duckdb`, map files). Accounts, sessions and the audit log live in PostgreSQL
 (`S4_AUTH_DATABASE_URL`, back it up with `pg_dump`) or, without PostgreSQL, in `auth.db` in `S4_STATE_DIR` (back it up); `monishield.duckdb` can be rebuilt from the log folder. The server uses a single process: do not
@@ -288,8 +289,9 @@ Each check: list the `YYYY-MM-DD` folders directly under the prefix (ListObjects
 listed) → folders not yet in the dashboard, the log folder, the inbox, or the *Ignored* list are imported + ingested
 one by one (recorded in the Import history) → recently synced folders (`S4_S3_WATCH_RECHECK_DAYS`) are re-checked
 and only new/changed objects are downloaded. Folders deleted by an admin are marked *Ignored* so they are not downloaded
-again (bring them back with **Restore**). From cron: `curl -X POST -H "Authorization: Bearer $S4_JOB_TOKEN"
--H "X-Requested-With: job" https://<server>/api/admin/imports/sync`.
+again (bring them back with **Restore**). The server runs these checks by itself; no cron job is needed. To check right
+away from the command line: `.venv/bin/python -m monishield sync` (Docker: `docker compose --profile job run --rm ingest
+python -m monishield sync`; needs `S4_JOB_TOKEN`).
 
 Do a dry run first without downloading anything (proves the object layout matches the local log folder):
 

@@ -180,6 +180,25 @@ def cmd_import(cfg, args):
     return 0
 
 
+def cmd_sync(cfg, args):
+    """Check the automatic sync parent folder now (same as the "Sync data" button), through the running server with the
+    machine token, and wait for the result. For cron: no API path to remember."""
+    import time
+    if _api(cfg, 'GET', '/api/health') is None: print('server unreachable; sync runs inside the server', file=sys.stderr); return 2
+    if not cfg.job_token: print('S4_JOB_TOKEN is empty; set it in .env so sync can be triggered', file=sys.stderr); return 2
+    code, body = _api(cfg, 'POST', '/api/admin/imports/sync', {})
+    if code != 202: print(f"sync not started: {body.get('error', {}).get('message', code)}", file=sys.stderr); return 2
+    while True:   # the ingest status (allowed for the machine token) carries the sync state
+        time.sleep(2)
+        code, v = _api(cfg, 'GET', '/api/admin/ingest') or (None, None)
+        if code != 200: print('server stopped responding while sync was running', file=sys.stderr); return 2
+        if not v['s3']['running']: break
+    s = v['s3']
+    for e in s.get('last_errors', []): print(f"  error: {e.get('where') or ''} {e['message']}", file=sys.stderr)
+    print(f"sync: {len(s['last_imported'])} folders imported or rechecked {s['last_imported']}; {len(s['last_errors'])} errors")
+    return 1 if s['last_errors'] else 0
+
+
 def cmd_refdata(cfg, args):
     import dataclasses
 
@@ -271,6 +290,7 @@ def main(argv=None):
     p.add_argument('--offline', action='store_true', help='do not download anything')
     p = sub.add_parser('import', help='import a log folder from an S3 prefix (s3://<bucket>/<prefix>/<YYYY-MM-DD>/)'); p.set_defaults(fn=cmd_import)
     p.add_argument('url'); p.add_argument('--dry-run', action='store_true', help='only list objects and the plan; no download')
+    sub.add_parser('sync', help='check the automatic sync parent folder now (needs the running server and S4_JOB_TOKEN)').set_defaults(fn=cmd_sync)
     p = sub.add_parser('forget', help='remove one folder\'s data from the database'); p.set_defaults(fn=cmd_forget)
     p.add_argument('folder', type=_date)
     args = ap.parse_args(argv)

@@ -555,3 +555,19 @@ def test_drop_kafka_keeps_other_services_and_removes_the_mark(tmp_path):
     assert importer._drop_kafka(str(d), [dict(rel='ns/a/s3.log')]) == 1
     assert not (d / 'ns' / 'a' / 'a.log').exists() and (d / 'ns' / 'b' / 'b.log').exists() and (d / inbox.MARK).exists()
     assert importer._drop_kafka(str(d), [dict(rel='ns/b/s3.log')]) == 1 and not (d / inbox.MARK).exists()   # nothing from Kafka left
+
+
+def test_cli_sync_runs_through_the_server(wclient, cfg, monkeypatch, capsys):
+    """`python -m monishield sync` (for cron): the server checks the parent folder; no API path to remember."""
+    from monishield.interfaces import cli
+    tc = TestClient(wclient.app)
+
+    def api(c, method, path, body=None):
+        r = tc.request(method, path, json=body, headers={**X, 'Authorization': f'Bearer {TOKEN}'})
+        return r.status_code, r.json()
+    monkeypatch.setattr(cli, '_api', api)
+    assert cli.cmd_sync(cfg, None) == 0
+    out = capsys.readouterr().out
+    assert out.startswith('sync: 2 folders imported or rechecked') and '2026-01-07' in out and '0 errors' in out
+    monkeypatch.setattr(cli, '_api', lambda *a, **k: None)
+    assert cli.cmd_sync(cfg, None) == 2                                            # server down: says so, exit code 2

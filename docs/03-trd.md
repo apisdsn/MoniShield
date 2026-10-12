@@ -685,9 +685,8 @@ sub-resource with `POST` (`…/restore`, `…/sync`, `…/confirm`, `…/reset-p
 `/root-causes`, `/availability`, `/pods`, `/business`, `/tracing`, `/services/<name>`, `/ips/<ip>`, `/admin/users`,
 `/admin/ingest`, `/password`, `/email`, `/admin/configuration`, `/admin/notifications`; query `?folder=`, `?module=`,
 `?search=`. The server answers those first segments with the web app (`SpaFiles` in `interfaces/api/app.py`); any other
-unknown path stays 404. Links inside the app change the page without reloading. Links from before 2026-10-12 used
-`#/…` (`#/peta`, `#/keamanan`, `#/layanan/<name>`, `?modul=`, `?cari=`): the browser never sends the part after `#`, so
-the app turns it into the new path itself (`web/src/state.js`) and links in old notifications keep working.
+unknown path stays 404. Links inside the app change the page without reloading. Addresses with `#` (before 2026-10-12) are not supported
+any more; they open the Overview. Scripts that need a sync use `python -m monishield sync`, not an API path.
 
 
 ### 5.1 General rules
