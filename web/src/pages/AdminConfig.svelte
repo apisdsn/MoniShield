@@ -3,7 +3,10 @@
      blocklist exclusions, and the status of keys that can only be set via .env. API: /api/admin/config (monishield/
      settings.py), /api/admin/import/watch, /api/admin/alerts. Secrets are never sent back by the server: their fields
      show "sudah diisi"; left empty on save = unchanged; "Hapus dari .env" = line disabled (default).
-     Every field is WRITTEN TO THE server's .env FILE (owner request 2026-10-07) and takes effect immediately without a restart. -->
+     Every field is WRITTEN TO THE server's .env FILE (owner request 2026-10-07) and takes effect immediately without a restart.
+     Since 2026-10-08 each part opens as a pop-up from the sidebar (lib/ConfigDialogs.svelte): only = storage | kafka |
+     maxmind | smtp | notif | blocklist | retention | server shows that part alone; embedded = inside the dialog (no cards).
+     Object storage: provider choice (monishield/domain/storage.py) — AWS S3, S3-compatible services, Azure Blob Storage. -->
 <script>
   import { onMount, tick } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -18,12 +21,29 @@
   import AdminAlerts from './AdminAlerts.svelte';
   import KafkaCard from '../lib/KafkaCard.svelte';
 
-  let { focus = '' } = $props();
+  let { focus = '', only = '', embedded = false } = $props();
+  const PART = { storage: ['aws', 'watch'], server: ['intro', 'server'] };
+  const show = (s) => !only || (PART[only] || [only]).includes(s) || (s === 'intro' && !only);
+  const heading = (s) => !embedded || only === 'storage';   // in a pop-up the dialog title names the part
+  // object storage providers (same list as monishield/domain/storage.py): default region, endpoint example
+  // the region is free text: the values below are placeholders only, never filled in for the user
+  const PROVIDERS = [
+    { id: 'aws', label: 'Amazon S3', region: 'ap-southeast-3' },
+    { id: 'r2', label: 'Cloudflare R2', region: 'auto', endpoint: 'https://<account-id>.r2.cloudflarestorage.com', needs: true },
+    { id: 'minio', label: 'MinIO', region: 'us-east-1', endpoint: 'https://minio.example.com:9000', needs: true },
+    { id: 'wasabi', label: 'Wasabi', region: 'ap-southeast-1', endpoint: 'https://s3.<region>.wasabisys.com' },
+    { id: 'gcs', label: 'Google Cloud Storage (HMAC)', region: 'auto', endpoint: 'https://storage.googleapis.com' },
+    { id: 'spaces', label: 'DigitalOcean Spaces', region: 'sgp1', endpoint: 'https://<region>.digitaloceanspaces.com' },
+    { id: 'azure', label: 'Azure Blob Storage' },
+    { id: 's3', label: 'S3-compatible', region: 'us-east-1', endpoint: 'https://s3.example.com', needs: true },
+  ];
+  const prov = $derived(PROVIDERS.find((p) => p.id === aws.provider) || PROVIDERS[0]);
+  function pickProvider() { /* nothing is filled in: the region stays what the user typed (placeholder shows an example) */ }
   const SECTIONS = ['aws', 'watch', 'kafka', 'maxmind', 'smtp', 'notif', 'blocklist', 'retention', 'server'];
 
   let v = $state.raw(null), imp = $state.raw(null), error = $state(null);
   // fields per group; secret fields always start empty (empty = unchanged)
-  let aws = $state({ ak: '', sk: '', st: '', region: '' });
+  let aws = $state({ provider: 'aws', endpoint: '', ak: '', sk: '', st: '', region: '', azAcc: '', azKey: '' });
   let mm = $state({ id: '', key: '' });
   let kf = $state({}), kcard = $state();
   let bl = $state({ ex: '', org: '' });
@@ -34,7 +54,8 @@
 
   function fill(r) {
     v = r;
-    aws = { ak: '', sk: '', st: '', region: r.aws.import_region.value || '' };
+    aws = { provider: r.aws.storage_provider.value || 'aws', endpoint: r.aws.storage_endpoint.value || '', ak: '', sk: '', st: '',
+      region: r.aws.import_region.value || '', azAcc: '', azKey: '' };
     mm = { id: '', key: '' };
     const k = r.kafka;
     kf = { enabled: k.kafka_enabled.value, brokers: k.kafka_brokers.value, topic: k.kafka_topic.value, group: k.kafka_group.value, security: k.kafka_security.value,
@@ -95,9 +116,13 @@
     catch (e) { msg = { ...msg, [group]: { ok: false, text: $errText(e) } }; return false; }
     finally { busy = ''; }
   }
-  const awsBody = () => ({ aws_access_key_id: aws.ak.trim(), aws_secret_access_key: aws.sk.trim(), aws_session_token: aws.st.trim(), import_region: aws.region.trim() });
+  const awsBody = () => (aws.provider === 'azure'
+    ? { storage_provider: 'azure', storage_endpoint: '', azure_storage_account: aws.azAcc.trim(), azure_storage_key: aws.azKey.trim() }
+    : { storage_provider: aws.provider, storage_endpoint: aws.provider === 'aws' ? '' : aws.endpoint.trim(), aws_access_key_id: aws.ak.trim(),
+        aws_secret_access_key: aws.sk.trim(), aws_session_token: aws.provider === 'aws' ? aws.st.trim() : '', import_region: aws.region.trim() });
   const mmBody = () => ({ maxmind_account_id: mm.id.trim(), maxmind_license_key: mm.key.trim() });
-  const typed = (g) => (g === 'aws' ? aws.ak || aws.sk || aws.st || aws.region.trim() !== (v.aws.import_region.value || '') : mm.id || mm.key);
+  const typed = (g) => (g === 'aws' ? aws.ak || aws.sk || aws.st || aws.azAcc || aws.azKey || aws.region.trim() !== (v.aws.import_region.value || '')
+    || aws.provider !== (v.aws.storage_provider.value || 'aws') || aws.endpoint.trim() !== (v.aws.storage_endpoint.value || '') : mm.id || mm.key);
 
   async function test(kind) {
     if (typed(kind) && !(await save(kind, kind === 'aws' ? awsBody() : mmBody()))) return;   // the test uses the SAVED settings
@@ -126,7 +151,9 @@
   const keys = (g) => Object.keys(v[g]);
   const ENV = { jwt_secret: 'S4_JWT_SECRET', job_token: 'S4_JOB_TOKEN', auth_database_url: 'S4_AUTH_DATABASE_URL', admin_password: 'S4_ADMIN_PASSWORD' };
   const ingestLink = $derived(build({ ...$route, tab: 'admin/ingest', service: null, q: null }));
-  const awsReady = $derived(v && v.aws.aws_access_key_id.set && v.aws.aws_secret_access_key.set);
+  const awsReady = $derived(v && (v.aws.storage_provider.value === 'azure' ? v.aws.azure_storage_account.set && v.aws.azure_storage_key.set
+    : v.aws.aws_access_key_id.set && v.aws.aws_secret_access_key.set));
+  const keysTyped = $derived(aws.provider === 'azure' ? aws.azAcc && aws.azKey : aws.ak && aws.sk);
   const kfBody = () => ({ kafka_enabled: kf.enabled, kafka_brokers: kf.brokers.trim(), kafka_topic: kf.topic.trim(), kafka_group: kf.group.trim(),
     kafka_security: kf.security, kafka_sasl_mechanism: kf.mech, kafka_username: kf.user.trim(), kafka_password: kf.pass, kafka_offset_reset: kf.offset,
     kafka_ingest_minutes: String(kf.minutes) });
@@ -146,7 +173,8 @@
 {:else if !v}
   <Skeleton kpis={0} charts={2} />
 {:else}
-  <div class="page">
+  <div class="page" class:embedded>
+    {#if show('intro')}
     <section class="card intro" aria-label={$t('cf.title')}>
       <p class="muted small">{$t('cf.intro')}</p>
       <p class="small file">{$t('cf.file.title')} <code>{v.file.path}</code>
@@ -154,58 +182,96 @@
       {#if !v.file.writable}<p class="warnline small" role="alert">{$t('cf.file.ro')}</p>{/if}
       {#if v.file.environment_override.length}<p class="warnline small">{$t('cf.file.override', { list: v.file.environment_override.join(', ') })}</p>{/if}
       {#if v.file.pending.length}<p class="warnline small">{$t('cf.file.pending', { list: v.file.pending.join(', ') })}</p>{/if}
-      <nav class="chips" aria-label={$t('cf.nav')}>
-        {#each SECTIONS as s}<button type="button" class="chip" onclick={() => jump(s)}>{$t(`cf.s.${s}`)}</button>{/each}
-      </nav>
+      {#if !only}
+        <nav class="chips" aria-label={$t('cf.nav')}>
+          {#each SECTIONS as s}<button type="button" class="chip" onclick={() => jump(s)}>{$t(`cf.s.${s}`)}</button>{/each}
+        </nav>
+      {/if}
     </section>
+    {/if}
 
-    <!-- 1. AWS S3 -->
+    <!-- 1. Object storage: provider + keys -->
+    {#if show('aws')}
     <section class="card" id="cf-aws" tabindex="-1" aria-labelledby="cf-aws-h">
       <header>
-        <h2 id="cf-aws-h">{$t('cf.s.aws')}</h2>
+        <h2 id="cf-aws-h" class:sr-only={!heading('aws')}>{$t('cf.s.aws')}</h2>
         <SeverityTag level={awsReady ? 'ok' : 3} text={awsReady ? $t('cf.ready') : $t('cf.not_ready')} />
       </header>
-      <p class="muted small">{$t('cf.aws.intro')}</p>
+      <p class="muted small">{$t('cf.st.intro')}</p>
       <form onsubmit={(e) => { e.preventDefault(); save('aws', awsBody()); }} novalidate>
         <div class="fields">
           <div>
-            <label for="cf-ak">{$t('imp.c.ak')} {@render srcTag(v.aws.aws_access_key_id)}</label>
-            <input id="cf-ak" type="text" autocomplete="off" spellcheck="false" bind:value={aws.ak}
-              placeholder={v.aws.aws_access_key_id.set ? `${v.aws.aws_access_key_id.masked} — ${$t('cf.keep')}` : 'AKIA…'} />
+            <label for="cf-prov">{$t('cf.st.provider')} {@render srcTag(v.aws.storage_provider)}</label>
+            <select id="cf-prov" bind:value={aws.provider} onchange={pickProvider}>
+              {#each PROVIDERS as p}<option value={p.id}>{p.id === 's3' ? $t('cf.st.other') : p.label}</option>{/each}
+            </select>
           </div>
-          <div>
-            <label for="cf-sk">{$t('imp.c.sk')} {@render srcTag(v.aws.aws_secret_access_key)}</label>
-            <input id="cf-sk" type="password" autocomplete="new-password" spellcheck="false" bind:value={aws.sk}
-              placeholder={v.aws.aws_secret_access_key.set ? $t('al.secret_set') : ''} />
-          </div>
-          <div>
-            <label for="cf-st">{$t('imp.c.st')} {@render srcTag(v.aws.aws_session_token)}</label>
-            <input id="cf-st" type="password" autocomplete="new-password" spellcheck="false" bind:value={aws.st}
-              placeholder={v.aws.aws_session_token.set ? $t('al.secret_set') : $t('cf.optional')} />
-          </div>
-          <div>
-            <label for="cf-region">{$t('cf.aws.region')} {@render srcTag(v.aws.import_region)}</label>
-            <input id="cf-region" type="text" autocomplete="off" spellcheck="false" bind:value={aws.region} placeholder="ap-southeast-3" />
-          </div>
+          {#if aws.provider === 'azure'}
+            <div>
+              <label for="cf-azacc">{$t('cf.st.az_account')} {@render srcTag(v.aws.azure_storage_account)}</label>
+              <input id="cf-azacc" type="text" autocomplete="off" spellcheck="false" bind:value={aws.azAcc}
+                placeholder={v.aws.azure_storage_account.set ? `${v.aws.azure_storage_account.masked} — ${$t('cf.keep')}` : 'examplestorage'} />
+            </div>
+            <div>
+              <label for="cf-azkey">{$t('cf.st.az_key')} {@render srcTag(v.aws.azure_storage_key)}</label>
+              <input id="cf-azkey" type="password" autocomplete="new-password" spellcheck="false" bind:value={aws.azKey}
+                placeholder={v.aws.azure_storage_key.set ? $t('al.secret_set') : ''} />
+            </div>
+          {:else}
+            {#if aws.provider !== 'aws'}
+              <div>
+                <label for="cf-ep">{$t('cf.st.endpoint')} {@render srcTag(v.aws.storage_endpoint)}</label>
+                <input id="cf-ep" type="url" autocomplete="off" spellcheck="false" bind:value={aws.endpoint} placeholder={prov.endpoint}
+                  aria-describedby="cf-ep-h" />
+              </div>
+            {/if}
+            <div>
+              <label for="cf-region">{aws.provider === 'aws' ? $t('cf.aws.region') : $t('cf.st.region')} {@render srcTag(v.aws.import_region)}</label>
+              <input id="cf-region" type="text" autocomplete="off" spellcheck="false" bind:value={aws.region} placeholder={$t('cf.st.region_eg', { r: prov.region || 'example-region' })} />
+            </div>
+            <div>
+              <label for="cf-ak">{$t('cf.st.ak')} {@render srcTag(v.aws.aws_access_key_id)}</label>
+              <input id="cf-ak" type="text" autocomplete="off" spellcheck="false" bind:value={aws.ak}
+                placeholder={v.aws.aws_access_key_id.set ? `${v.aws.aws_access_key_id.masked} — ${$t('cf.keep')}` : aws.provider === 'aws' ? 'AKIA…' : ''} />
+            </div>
+            <div>
+              <label for="cf-sk">{$t('cf.st.sk')} {@render srcTag(v.aws.aws_secret_access_key)}</label>
+              <input id="cf-sk" type="password" autocomplete="new-password" spellcheck="false" bind:value={aws.sk}
+                placeholder={v.aws.aws_secret_access_key.set ? $t('al.secret_set') : ''} />
+            </div>
+            {#if aws.provider === 'aws'}
+              <div>
+                <label for="cf-st">{$t('cf.st.st')} {@render srcTag(v.aws.aws_session_token)}</label>
+                <input id="cf-st" type="password" autocomplete="new-password" spellcheck="false" bind:value={aws.st}
+                  placeholder={v.aws.aws_session_token.set ? $t('al.secret_set') : $t('cf.optional')} />
+              </div>
+            {/if}
+          {/if}
         </div>
+        {#if aws.provider !== 'aws' && aws.provider !== 'azure'}
+          <p id="cf-ep-h" class="muted xs">{prov.needs ? $t('cf.st.endpoint_needed') : $t('cf.st.endpoint_default', { url: prov.endpoint })}</p>
+        {/if}
+        {#if aws.provider !== (v.aws.storage_provider.value || 'aws') && !keysTyped}<p class="warnline small">{$t('cf.st.new_keys')}</p>{/if}
         <p class="muted xs">{$t('cf.aws.buckets')}
           {#if Object.keys(v.server.import_buckets).length}
-            {#each Object.entries(v.server.import_buckets) as [b, ps]}{#each ps as p}<code>s3://{b}/{p}</code>{' '}{/each}{/each}
+            {#each Object.entries(v.server.import_buckets) as [b, ps]}{#each ps as p}<code>{aws.provider === 'azure' ? 'az' : 's3'}://{b}/{p}</code>{' '}{/each}{/each}
           {:else}<b>{$t('cf.aws.no_buckets')}</b>{/if}
         </p>
         {@render result('aws')}
         <div class="acts">
           <button class="btn primary" type="submit" disabled={busy !== ''}>{busy === 'aws' ? $t('action.saving') : $t('action.save')}</button>
-          <button class="btn" type="button" onclick={() => test('aws')} disabled={busy !== '' || !(awsReady || (aws.ak && aws.sk))}>{busy === 'aws-test' ? $t('al.testing') : $t('cf.test')}</button>
+          <button class="btn" type="button" onclick={() => test('aws')} disabled={busy !== '' || !(awsReady || keysTyped)}>{busy === 'aws-test' ? $t('al.testing') : $t('cf.test')}</button>
           {#if anyScreen('aws')}<button class="btn ghost" type="button" disabled={busy !== ''} onclick={() => save('aws', { clear: keys('aws') }, 'cf.cleared')}>{$t('cf.clear')}</button>{/if}
         </div>
       </form>
     </section>
+    {/if}
 
     <!-- 2. Automatic S3 folder -->
+    {#if show('watch')}
     <section class="card" id="cf-watch" tabindex="-1" aria-labelledby="cf-watch-h">
       <header>
-        <h2 id="cf-watch-h">{$t('cf.s.watch')}</h2>
+        <h2 id="cf-watch-h" class:sr-only={!heading('watch')}>{$t('cf.s.watch')}</h2>
         {#if imp?.watch}<SeverityTag level={imp.watch.enabled ? 'ok' : 1} text={imp.watch.enabled ? $t('cf.on') : $t('cf.off')} />{/if}
       </header>
       <p class="muted small">{$t('imp.w.intro')}</p>
@@ -218,7 +284,7 @@
           <div class="grow">
             <label for="cf-wurl">{$t('imp.w.url')}</label>
             <input id="cf-wurl" type="text" autocomplete="off" spellcheck="false" bind:value={wf.url}
-              placeholder={imp.allowed[0]?.replace('<YYYY-MM-DD>/', '') || 's3://nama-bucket/k8s-logs/'} />
+              placeholder={imp.allowed[0]?.replace('<YYYY-MM-DD>/', '') || 's3://example-bucket/logs/'} />
           </div>
           <div>
             <label for="cf-wmin">{$t('imp.w.every')}</label>
@@ -237,11 +303,13 @@
       {/if}
       <p class="muted xs"><a href={ingestLink}>{$t('cf.watch.more')}</a></p>
     </section>
+    {/if}
 
     <!-- 3. Kafka -->
+    {#if show('kafka')}
     <section class="card" id="cf-kafka" tabindex="-1" aria-labelledby="cf-kf-h">
       <header>
-        <h2 id="cf-kf-h">{$t('cf.s.kafka')}</h2>
+        <h2 id="cf-kf-h" class:sr-only={!heading('kafka')}>{$t('cf.s.kafka')}</h2>
         <SeverityTag level={v.kafka.kafka_brokers.value && v.kafka.kafka_topic.value && kf.enabled ? 'ok' : 1}
           text={v.kafka.kafka_brokers.value && v.kafka.kafka_topic.value ? (v.kafka.kafka_enabled.value ? $t('cf.on') : $t('cf.off')) : $t('cf.not_ready')} />
       </header>
@@ -249,9 +317,9 @@
       <form onsubmit={(e) => { e.preventDefault(); saveKafka(); }} novalidate>
         <div class="fields">
           <div><label for="cf-kb">{$t('cf.kf.brokers')} {@render srcTag(v.kafka.kafka_brokers)}</label>
-            <input id="cf-kb" type="text" autocomplete="off" spellcheck="false" bind:value={kf.brokers} placeholder="10.10.1.5:9092" /></div>
+            <input id="cf-kb" type="text" autocomplete="off" spellcheck="false" bind:value={kf.brokers} placeholder="kafka.example.com:9092" /></div>
           <div><label for="cf-kt">{$t('cf.kf.topic')} {@render srcTag(v.kafka.kafka_topic)}</label>
-            <input id="cf-kt" type="text" autocomplete="off" spellcheck="false" bind:value={kf.topic} placeholder="k8s-logs" /></div>
+            <input id="cf-kt" type="text" autocomplete="off" spellcheck="false" bind:value={kf.topic} placeholder="example-topic" /></div>
           <div><label for="cf-kg">{$t('cf.kf.group')} {@render srcTag(v.kafka.kafka_group)}</label>
             <input id="cf-kg" type="text" autocomplete="off" spellcheck="false" bind:value={kf.group} /></div>
           <div><label for="cf-ks">{$t('cf.kf.security')} {@render srcTag(v.kafka.kafka_security)}</label>
@@ -281,11 +349,13 @@
       </form>
       {#if v.kafka.kafka_brokers.value && v.kafka.kafka_topic.value}<KafkaCard compact bind:this={kcard} />{/if}
     </section>
+    {/if}
 
     <!-- 4. MaxMind -->
+    {#if show('maxmind')}
     <section class="card" id="cf-maxmind" tabindex="-1" aria-labelledby="cf-mm-h">
       <header>
-        <h2 id="cf-mm-h">{$t('cf.s.maxmind')}</h2>
+        <h2 id="cf-mm-h" class:sr-only={!heading('maxmind')}>{$t('cf.s.maxmind')}</h2>
         <SeverityTag level={mmReady ? 'ok' : 1} text={mmReady ? $t('cf.ready') : $t('cf.not_ready')} />
       </header>
       <p class="muted small">{$t('cf.mm.intro')}</p>
@@ -311,18 +381,20 @@
         </div>
       </form>
     </section>
+    {/if}
 
     <!-- 5. Mail server (SMTP): shared by forgot password, email notifications and the test email -->
+    {#if show('smtp')}
     <section class="card" id="cf-smtp" tabindex="-1" aria-labelledby="cf-sm-h">
       <header>
-        <h2 id="cf-sm-h">{$t('cf.s.smtp')}</h2>
+        <h2 id="cf-sm-h" class:sr-only={!heading('smtp')}>{$t('cf.s.smtp')}</h2>
         <SeverityTag level={smReady ? 'ok' : 1} text={smReady ? $t('cf.ready') : $t('cf.not_ready')} />
       </header>
       <p class="muted small">{$t('cf.sm.intro')}</p>
       <form onsubmit={(e) => { e.preventDefault(); save('smtp', smBody()); }} novalidate>
         <div class="fields">
           <div><label for="cf-smh">{$t('cf.sm.host')} {@render srcTag(v.smtp.smtp_host)}</label>
-            <input id="cf-smh" type="text" autocomplete="off" spellcheck="false" bind:value={sm.host} placeholder="smtp.contoh.go.id" /></div>
+            <input id="cf-smh" type="text" autocomplete="off" spellcheck="false" bind:value={sm.host} placeholder="smtp.example.com" /></div>
           <div><label for="cf-smp">{$t('cf.sm.port')} {@render srcTag(v.smtp.smtp_port)}</label>
             <input id="cf-smp" type="number" min="1" max="65535" bind:value={sm.port} /></div>
           <div><label for="cf-sms">{$t('cf.sm.security')} {@render srcTag(v.smtp.smtp_security)}</label>
@@ -332,12 +404,12 @@
           <div><label for="cf-smpw">{$t('cf.sm.pass')} {@render srcTag(v.smtp.smtp_password)}</label>
             <input id="cf-smpw" type="password" autocomplete="new-password" bind:value={sm.pass} placeholder={v.smtp.smtp_password.set ? $t('al.secret_set') : ''} /></div>
           <div><label for="cf-smf">{$t('cf.sm.from')} {@render srcTag(v.smtp.smtp_from)}</label>
-            <input id="cf-smf" type="text" autocomplete="off" spellcheck="false" bind:value={sm.from} placeholder="MoniShield <monishield@contoh.go.id>" /></div>
+            <input id="cf-smf" type="text" autocomplete="off" spellcheck="false" bind:value={sm.from} placeholder="MoniShield <noreply@example.com>" /></div>
         </div>
         <p class="muted xs">{$t('cf.sm.used_by')}</p>
         <div class="wform">
           <div class="grow"><label for="cf-smto">{$t('cf.sm.test_to')}</label>
-            <input id="cf-smto" type="email" autocomplete="off" spellcheck="false" bind:value={smTo} placeholder="nama@contoh.go.id" /></div>
+            <input id="cf-smto" type="email" autocomplete="off" spellcheck="false" bind:value={smTo} placeholder="name@example.com" /></div>
         </div>
         {@render result('smtp')}
         <div class="acts">
@@ -347,23 +419,27 @@
         </div>
       </form>
     </section>
+    {/if}
 
     <!-- 6. Notifications -->
-    <div id="cf-notif" tabindex="-1" class="anchor"><AdminAlerts /></div>
+    {#if show('notif')}
+    <div id="cf-notif" tabindex="-1" class="anchor"><AdminAlerts {embedded} /></div>
+    {/if}
 
     <!-- 5. Blocklist -->
+    {#if show('blocklist')}
     <section class="card" id="cf-blocklist" tabindex="-1" aria-labelledby="cf-bl-h">
-      <header><h2 id="cf-bl-h">{$t('cf.s.blocklist')}</h2></header>
+      <header><h2 id="cf-bl-h" class:sr-only={!heading('blocklist')}>{$t('cf.s.blocklist')}</h2></header>
       <p class="muted small">{$t('cf.bl.intro')}</p>
       <form onsubmit={(e) => { e.preventDefault(); save('blocklist', { blocklist_exclude: bl.ex.split(/[\s,]+/).filter(Boolean).join(', '), blocklist_exclude_org: bl.org.trim() }); }} novalidate>
         <div class="fields">
           <div>
             <label for="cf-blex">{$t('cf.bl.ex')} {@render srcTag(v.blocklist.blocklist_exclude)}</label>
-            <textarea id="cf-blex" rows="4" spellcheck="false" bind:value={bl.ex} placeholder={'36.66.1.0/24\n198.51.100.7'}></textarea>
+            <textarea id="cf-blex" rows="4" spellcheck="false" bind:value={bl.ex} placeholder={'203.0.113.0/24\n198.51.100.7'}></textarea>
           </div>
           <div>
             <label for="cf-blorg">{$t('cf.bl.org')} {@render srcTag(v.blocklist.blocklist_exclude_org)}</label>
-            <input id="cf-blorg" type="text" autocomplete="off" spellcheck="false" bind:value={bl.org} placeholder="OMBUDSMAN|KOMINFO" />
+            <input id="cf-blorg" type="text" autocomplete="off" spellcheck="false" bind:value={bl.org} placeholder="EXAMPLE-ORG|EXAMPLE-ISP" />
             <p class="muted xs">{$t('cf.bl.org_help')}</p>
           </div>
         </div>
@@ -374,11 +450,13 @@
         </div>
       </form>
     </section>
+    {/if}
 
     <!-- 6. Data retention -->
+    {#if show('retention')}
     <section class="card" id="cf-retention" tabindex="-1" aria-labelledby="cf-rt-h">
       <header>
-        <h2 id="cf-rt-h">{$t('cf.s.retention')}</h2>
+        <h2 id="cf-rt-h" class:sr-only={!heading('retention')}>{$t('cf.s.retention')}</h2>
         <SeverityTag level={v.retention.retention_days.value || v.retention.retention_inbox_days.value ? 'ok' : 1}
           text={v.retention.retention_days.value || v.retention.retention_inbox_days.value ? $t('cf.on') : $t('cf.off')} />
       </header>
@@ -420,10 +498,12 @@
         </div>
       </form>
     </section>
+    {/if}
 
     <!-- 7. .env only -->
+    {#if show('server')}
     <section class="card" id="cf-server" tabindex="-1" aria-labelledby="cf-sv-h">
-      <header><h2 id="cf-sv-h">{$t('cf.s.server')}</h2></header>
+      <header><h2 id="cf-sv-h" class:sr-only={!heading('server')}>{$t('cf.s.server')}</h2></header>
       <p class="muted small">{$t('cf.sv.intro')}</p>
       <ul class="env">
         {#each Object.entries(ENV) as [k, name]}
@@ -434,11 +514,17 @@
           <SeverityTag level={Object.keys(v.server.import_buckets).length ? 'ok' : 1} text={Object.keys(v.server.import_buckets).length ? $t('cf.sv.set') : $t('cf.sv.empty')} /></li>
       </ul>
     </section>
+    {/if}
+
   </div>
 {/if}
 
 <style>
   .page { display: flex; flex-direction: column; gap: 16px; }
+  /* inside a configuration pop-up: no cards, the dialog is the card */
+  .embedded { gap: 22px; }
+  .embedded > .card { background: none; border: 0; box-shadow: none; padding: 0; border-radius: 0; }
+  .embedded > .card + .card { border-top: 1px solid var(--line); padding-top: 18px; }
   .card { scroll-margin-top: 80px; }
   .card:focus, .anchor:focus { outline: none; }
   .anchor { scroll-margin-top: 80px; }

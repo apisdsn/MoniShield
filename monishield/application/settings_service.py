@@ -34,7 +34,7 @@ def view(ctx):
             out.setdefault(grp, {})[k] = item
     out['server'] = {k: bool(getattr(cfg, k)) for k in rules.ENV_ONLY}
     out['server']['import_buckets'] = cfg.import_buckets
-    override = sorted(env_name(k) for g in rules.GROUPS.values() for k in g if rules.source(k, fv, environ) == 'environment')
+    override = sorted({env_name(k) for g in rules.GROUPS.values() for k in g if rules.source(k, fv, environ) == 'environment'})   # a field can be in two groups
     out['file'] = dict(path=env.path, exists=env.exists(), writable=env.writable(), environment_override=override,
                        pending=getattr(ctx, 'settings_pending', []))
     return out

@@ -28,14 +28,39 @@ header also checks S3 first, then the local log folder. (Alternative without the
 
 ### Configuration
 
-User menu → **Configuration**. Contains the AWS S3 access keys + region,
-the automatic S3 parent folder, the MaxMind GeoLite2 key, notifications, and block list exclusions; each section has
-**Save** and (for AWS/MaxMind) **Test connection**. **Save writes directly to the `.env` file** (existing lines are replaced,
+Sidebar → **Configuration** (admins). Every item opens as a pop-up over the current page: **Object storage**
+(provider, keys, region, automatic sync), **Kafka broker**, **GeoIP (MaxMind)**, **Mail server (SMTP)**,
+**Notifications**, **Block list**, **Data retention** and **Server keys (.env)**. Each has **Save** and, where it
+applies, **Test connection**. The sidebar groups (Analysis, Services, Configuration) fold open and closed with the
+arrow next to their name; the choice is kept per browser. The old addresses `#/admin/konfigurasi` and
+`#/admin/notifikasi` open the matching pop-up. **Save writes directly to the `.env` file** (existing lines are replaced,
 comments are kept) and takes effect immediately without a restart; **Remove from .env** disables the line (default value).
 All URLs/addresses of external services and limits that used to be hard-coded are also in `.env` (section 10 of `.env.example`:
 `S4_URL_*`, `S4_TELEGRAM_API`, `S4_*_MAX_AGE_DAYS`, …). The server must be allowed to write `.env`. Credentials are never shown again
 (the Access Key ID is only shown masked, `AKIA…1234`). Settings that remain `.env`-only (the basis of server security: `S4_JWT_SECRET`,
 `S4_JOB_TOKEN`, the account database, `S4_ADMIN_PASSWORD`, `S4_IMPORT_BUCKETS`) only have their status shown.
+
+### Object storage providers
+
+Configuration → **Object storage** → *Provider*: Amazon S3, Cloudflare R2, MinIO, Wasabi, Google Cloud Storage (HMAC
+keys), DigitalOcean Spaces, any other S3-compatible service, or Azure Blob Storage.
+
+| Provider | Endpoint | Region (free text) | Keys |
+|---|---|---|---|
+| Amazon S3 | — | e.g. `ap-southeast-3` | access key ID + secret (+ session token) |
+| Cloudflare R2 | `https://<account-id>.r2.cloudflarestorage.com` (required) | `auto` | R2 API token key pair |
+| MinIO, other S3-compatible | your server, e.g. `https://minio.example.com:9000` (required) | as configured, e.g. `us-east-1` | access key pair |
+| Wasabi, DigitalOcean Spaces | built from the region, or entered | e.g. `ap-southeast-1`, `sgp1` (required without endpoint) | access key pair |
+| Google Cloud Storage | `https://storage.googleapis.com` | `auto` | HMAC key pair |
+| Azure Blob Storage | `https://<account>.blob.core.windows.net` | — | storage account name + key |
+
+The region is never filled in for you: type what the provider uses (the field shows an example). Empty = the storage
+library's default; for AWS buckets outside `us-east-1` fill it in to avoid a redirect on every request. Links keep the
+form `s3://<bucket>/<prefix>/<YYYY-MM-DD>/` for every provider (`az://<container>/…` is accepted too); the allow list
+`S4_IMPORT_BUCKETS` applies to buckets and containers alike. `.env`: `S4_STORAGE_PROVIDER`, `S4_STORAGE_ENDPOINT`,
+`S4_IMPORT_REGION`, `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (every S3-compatible provider),
+`AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_KEY`. Azure needs the `azure` extra (`pip install -e ".[azure]"`; the Docker
+image has it).
 
 ### Notifications
 

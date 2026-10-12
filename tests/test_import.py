@@ -274,7 +274,7 @@ def test_user_biasa_403(client):
 def test_tanpa_boto3_ditolak_dengan_cara_memasang(client, monkeypatch):
     """Owner report 2026-10-07: import failed with "No module named 'botocore'" (s3 package not installed). Now rejected
     up front with a message on how to install it, without creating a failed job; the UI reads `library` to disable import."""
-    monkeypatch.setattr(importer, 'library_ok', lambda: False)
+    monkeypatch.setattr(importer, 'library_ok', lambda *a: False)
     sebelum = len(client.get('/api/admin/import').json()['jobs'])
     r = client.post('/api/admin/import', json=dict(url=URL), headers=X)
     assert r.status_code == 400 and r.json()['error']['code'] == 'no_s3_library' and 'pip install' in r.json()['error']['message']

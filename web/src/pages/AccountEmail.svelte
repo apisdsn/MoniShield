@@ -89,7 +89,7 @@
     {:else}
       <form onsubmit={start} novalidate>
         <label for="em-email">{$t('em.new')}</label>
-        <input id="em-email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="254" bind:value={f.email} placeholder="nama@contoh.go.id" />
+        <input id="em-email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="254" bind:value={f.email} placeholder="name@example.com" />
         <label for="em-pw">{$t('pw.old')}</label>
         <input id="em-pw" type="password" autocomplete="current-password" bind:value={f.password} />
         <ol class="steps small">

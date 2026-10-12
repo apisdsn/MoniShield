@@ -17,6 +17,7 @@
   import Login from './pages/Login.svelte';
   import ChangePassword from './pages/ChangePassword.svelte';
   import AccountDialogs, { openAccount } from './lib/AccountDialogs.svelte';
+  import ConfigDialogs, { openConfig } from './lib/ConfigDialogs.svelte';
   import Pods from './pages/Pods.svelte';
   import Business from './pages/Business.svelte';
   import Tracing from './pages/Tracing.svelte';
@@ -24,7 +25,6 @@
   import IpProfile from './pages/IpProfile.svelte';
   import AdminUsers from './pages/AdminUsers.svelte';
   import AdminIngest from './pages/AdminIngest.svelte';
-  import AdminConfig from './pages/AdminConfig.svelte';
   import Overview from './pages/Overview.svelte';
   import Service from './pages/Service.svelte';
   import Trends from './pages/Trends.svelte';
@@ -113,6 +113,12 @@
     openAccount($route.tab === 'sandi' ? 'password' : 'email');
     go({ tab: 'overview', service: null, q: null }, { replace: true });
   });
+  // old addresses #/admin/konfigurasi and #/admin/notifikasi: the matching configuration pop-up (sidebar → Configuration)
+  $effect(() => {
+    if (screen !== 'app' || ($route.tab !== 'admin/konfigurasi' && $route.tab !== 'admin/notifikasi')) return;
+    if (me?.role === 'admin') openConfig($route.tab === 'admin/notifikasi' ? 'notif' : 'storage');
+    go({ tab: 'overview', service: null, q: null }, { replace: true });
+  });
 
   // folder in the address does not exist -> newest folder + notice (DRD §1.3); no folder -> newest folder in the address
   $effect(() => {
@@ -177,7 +183,6 @@
     if (r.tab === 'ip') return $t('ipp.title', { ip: r.service });
     if (r.tab === 'admin/user') return $t('menu.users');
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
-    if (r.tab === 'admin/konfigurasi' || r.tab === 'admin/notifikasi') return $t('menu.config');
     return $t(`tab.${r.tab}`);
   });
   // data freshness line under the header (U2 + stand-in for the reference's "streaming · last event" while Kafka is deferred)
@@ -253,7 +258,7 @@
 {:else}
   <a class="skip" href="#main" onclick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>{$t('ui.skip')}</a>
   <aside id="side" class="side" class:open={drawer} class:collapsed aria-label={$t('nav.label')}>
-    <Sidebar route={{ ...$route, folder }} {summary} ingest={meta?.ingest} onpick={() => (drawer = false)} {collapsed} ontoggle={toggleSide} />
+    <Sidebar route={{ ...$route, folder }} {summary} ingest={meta?.ingest} onpick={() => (drawer = false)} {collapsed} ontoggle={toggleSide} admin={me?.role === 'admin'} />
   </aside>
   {#if drawer}<button class="backdrop" aria-label={$t('nav.close')} onclick={closeDrawer}></button>{/if}
 
@@ -294,9 +299,6 @@
         <AdminUsers {me} onme={refreshMe} />
       {:else if $route.tab === 'admin/ingest'}
         <AdminIngest onfinished={reload} />
-      {:else if $route.tab === 'admin/konfigurasi' || $route.tab === 'admin/notifikasi'}
-        <!-- #/admin/notifikasi (old address) = Configuration page, straight to the notifications section -->
-        <AdminConfig focus={$route.tab === 'admin/notifikasi' ? 'notif' : ''} />
       {:else if !folders.length}
         <EmptyState title={$t('state.no_data')} text={me.role === 'admin' ? '' : $t('state.no_data_user')}>
           {#if me.role === 'admin'}<a class="btn primary" href={build({ tab: 'admin/ingest', service: null })}>{$t('menu.ingest')}</a>{/if}
@@ -331,7 +333,7 @@
     </main>
   </div>
 {/if}
-{#if screen === 'app'}<AccountDialogs onme={refreshMe} returnFocus={menuBtn} />{/if}
+{#if screen === 'app'}<AccountDialogs onme={refreshMe} returnFocus={menuBtn} />{#if me?.role === 'admin'}<ConfigDialogs returnFocus={menuBtn} />{/if}{/if}
 <Toast />
 
 <style>

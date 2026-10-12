@@ -151,7 +151,7 @@
       <input id="u-disp" type="text" autocomplete="off" bind:value={f.display_name} maxlength="80" />
       <label for="u-email">{$t('adm.col.email')}</label>
       <input id="u-email" type="email" autocomplete="off" autocapitalize="none" spellcheck="false" bind:value={f.email} maxlength="254"
-        placeholder="nama@contoh.go.id" aria-invalid={!!errs.email} aria-describedby="u-email-r{errs.email ? ' u-email-e' : ''}" />
+        placeholder="name@example.com" aria-invalid={!!errs.email} aria-describedby="u-email-r{errs.email ? ' u-email-e' : ''}" />
       <p id="u-email-r" class="muted rule">{$t('adm.rule.email')}</p>
       {#if errs.email}<p id="u-email-e" class="err">{errs.email}</p>{/if}
       <fieldset disabled={roleLocked} aria-describedby={roleLocked ? 'u-role-lock' : undefined}>

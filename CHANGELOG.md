@@ -7,6 +7,12 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Sidebar group *Configuration* (admins): Object storage, Kafka broker, GeoIP (MaxMind), Mail server, Notifications,
+  Block list, Data retention and Server keys open as pop-ups; the Configuration page and its user-menu item are gone.
+- Sidebar groups (Analysis, Services, Configuration) fold open and closed with an animation, remembered per browser.
+- Object storage providers: Amazon S3, Cloudflare R2, MinIO, Wasabi, Google Cloud Storage (HMAC), DigitalOcean Spaces,
+  other S3-compatible services and Azure Blob Storage (`S4_STORAGE_PROVIDER`, `S4_STORAGE_ENDPOINT`,
+  `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_KEY`; `azure` extra in the Docker image).
 - Automatic deployment: a push to `prd` that passes CI is deployed to the server over SSH
   (`deploy/remote-deploy.sh`, `docs/07-deploy-vps.md` §13); the first run can migrate the old checkout.
 - Kafka folders are labelled "(Kafka)" in the folder picker, page title and folder management.
@@ -32,6 +38,9 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 
 ### Changed
+- `S4_IMPORT_REGION` has no default any more and is free text (any region name without spaces); set it for AWS buckets
+  outside `us-east-1`.
+- Every placeholder in the UI uses `example.com` / `example` values.
 - Failures of an outside service (mail server, S3, Kafka, MaxMind) are answered with HTTP 424 instead of 502/504:
   Cloudflare replaced those answers with its own error page, so the screen showed only "502".
 - The email logo is loaded from `S4_DASHBOARD_URL/mail-logo.png` when the dashboard has a public https address, instead

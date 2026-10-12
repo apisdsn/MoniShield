@@ -6,7 +6,7 @@ import datetime, os, re
 from monishield.domain import rules
 from monishield.domain.errors import Fail
 
-URL = re.compile(r's3://([a-z0-9][a-z0-9.-]{1,61}[a-z0-9])/(.*)')
+URL = re.compile(r'(?:s3|az|gs)://([a-z0-9][a-z0-9.-]{1,61}[a-z0-9])/(.*)')   # scheme is cosmetic: the provider is S4_STORAGE_PROVIDER
 
 
 CONTROL = re.compile(r'[\x00-\x1f\x7f]')

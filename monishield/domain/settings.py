@@ -8,12 +8,13 @@ S4_ADMIN_PASSWORD, S4_IMPORT_BUCKETS — the page only shows their status.
 """
 import ipaddress, re
 
-from monishield.domain import alerts, retention
+from monishield.domain import alerts, retention, storage
 from monishield.domain.config_model import SECRETS, Config, cast, env_name
 from monishield.domain.errors import Fail
 
 GROUPS = {
-    'aws': ('aws_access_key_id', 'aws_secret_access_key', 'aws_session_token', 'import_region'),
+    'aws': ('storage_provider', 'storage_endpoint', 'aws_access_key_id', 'aws_secret_access_key', 'aws_session_token', 'import_region',
+            'azure_storage_account', 'azure_storage_key'),   # object storage (any provider); the group keeps its old name in the API
     'maxmind': ('maxmind_account_id', 'maxmind_license_key'),
     'blocklist': ('blocklist_exclude', 'blocklist_exclude_org'),
     'watch': ('s3_watch', 's3_watch_minutes', 's3_watch_enabled'),
@@ -26,7 +27,7 @@ GROUPS = {
 SCREEN_GROUPS = ('aws', 'maxmind', 'blocklist', 'kafka', 'retention', 'smtp')
 SCREEN = {k for g in SCREEN_GROUPS for k in GROUPS[g]}   # PUT /api/admin/config
 SECRET = set(SECRETS)
-MASKED = ('aws_access_key_id', 'maxmind_account_id')
+MASKED = ('aws_access_key_id', 'maxmind_account_id', 'azure_storage_account')
 ENV_ONLY = ('jwt_secret', 'job_token', 'auth_database_url', 'admin_password')   # only set/empty status
 BASE = Config()
 OLD_KEYS = ('config', 'alerts', 's3_watch')   # old settings in the account database (app_setting), moved once to .env
@@ -117,16 +118,11 @@ def _regex(v):
 
 # (fields a rule reads, check -> message | None). A save only runs the rules of the sections being saved, so a bad
 # value elsewhere (for example an AWS key from the process environment) does not block saving another section.
+STORAGE = ('storage_provider', 'storage_endpoint', 'import_region', 'aws_access_key_id', 'aws_secret_access_key',
+           'azure_storage_account', 'azure_storage_key')
 RULES = [
-    (('aws_access_key_id',), lambda s: s.get('aws_access_key_id') and not re.fullmatch(r'[A-Z0-9]{16,128}', s['aws_access_key_id'])
-        and 'AWS Access Key ID is 16–128 uppercase letters/digits (e.g. AKIA…).'),
-    (('aws_secret_access_key',), lambda s: (v := s.get('aws_secret_access_key')) and not (16 <= len(v) <= 128 and re.fullmatch(r'[A-Za-z0-9/+=]+', v))
-        and 'AWS Secret Access Key does not look like a secret key (16–128 characters).'),
+    (STORAGE, lambda s: storage.check(s)),
     (('aws_session_token',), lambda s: s.get('aws_session_token') and len(s['aws_session_token']) > 4096 and 'Session token is too long.'),
-    (('aws_access_key_id', 'aws_secret_access_key'), lambda s: bool(s.get('aws_access_key_id')) != bool(s.get('aws_secret_access_key'))
-        and 'Set Access Key ID and Secret Access Key together.'),
-    (('import_region',), lambda s: s.get('import_region') and not re.fullmatch(r'[a-z]{2}(-[a-z]+)+-\d', s['import_region'])
-        and 'Invalid AWS region (e.g. ap-southeast-3).'),
     (('maxmind_account_id',), lambda s: s.get('maxmind_account_id') and not re.fullmatch(r'\d{3,12}', s['maxmind_account_id'])
         and 'MaxMind Account ID must be a number.'),
     (('maxmind_license_key',), lambda s: s.get('maxmind_license_key') and not re.fullmatch(r'[A-Za-z0-9_]{10,64}', s['maxmind_license_key'])
@@ -150,12 +146,12 @@ RULES = [
     (('kafka_ingest_minutes',), lambda s: 'kafka_ingest_minutes' in s and not 1 <= int(s['kafka_ingest_minutes']) <= 1440
         and 'Kafka ingest interval must be 1–1440 minutes.'),
     (('smtp_host',), lambda s: s.get('smtp_host') and not re.fullmatch(r'[A-Za-z0-9.-]{1,253}', s['smtp_host'])
-        and 'Invalid mail server address (e.g. smtp.example.go.id).'),
+        and 'Invalid mail server address (e.g. smtp.example.com).'),
     (('smtp_port',), lambda s: 'smtp_port' in s and not 1 <= int(s['smtp_port']) <= 65535 and 'Mail server port must be 1–65535.'),
     (('smtp_security',), lambda s: 'smtp_security' in s and s['smtp_security'] not in ('starttls', 'ssl', 'none')
         and 'Mail server security must be starttls, ssl, or none.'),
     (('smtp_from',), lambda s: s.get('smtp_from') and not SENDER.fullmatch(s['smtp_from'])
-        and 'Sender must be an email address, e.g. monishield@example.go.id or MoniShield <monishield@example.go.id>.'),
+        and 'Sender must be an email address, e.g. noreply@example.com or MoniShield <noreply@example.com>.'),
     (('retention_days', 'retention_inbox_days'), lambda s: 'retention_days' in s
         and retention.validate(int(s['retention_days']), int(s.get('retention_inbox_days') or 0))),
 ]

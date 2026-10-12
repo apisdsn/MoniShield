@@ -12,7 +12,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Version | 2.0.0 + the *Unreleased* changes in `CHANGELOG.md` |
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
-| Tests | pytest: 366 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
+| Tests | pytest: 387 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
 | CI | `.github/workflows/ci.yml` green on `dev`. `stg` and `prd` still point to the commit before the deploy job. |
 | Deploy | Automatic deploy of `prd` built and tested with a stub; **not yet run against the real server** (see next steps). |
 | Server today | Still runs from the old checkout `/srv/dashboard-logging/v2` (compose project `monishield`). The first automatic deploy moves it to `/srv/MoniShield`, reusing the same containers and volumes. |
@@ -49,6 +49,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 24 | Notification thresholds per service | Configuration → Notifications → *Spike thresholds* | plan stage 34 |
 | 25 | Forgot password by email (unique temporary password), user emails, MoniShield letter for every email (also OTP), mail server settings | Sign-in page → *Forgot password?*; Manage users; Configuration → *Mail server (SMTP)* | plan stage 35, [`10-user-guide.md`](10-user-guide.md) |
 | 26 | Users change their own email, verified through the old address | User menu → *Account email*; password + code to the old email + code to the new email | plan stage 36, [`10-user-guide.md`](10-user-guide.md) |
+| 27 | Configuration in the sidebar as pop-ups, folding sidebar groups, object storage with a choice of providers (S3, R2, MinIO, Wasabi, GCS, Spaces, Azure), free-text region, `example.com` placeholders | Sidebar → *Configuration* | plan stage 37, [`10-user-guide.md`](10-user-guide.md) |
 
 Questions answered along the way, recorded so they are not asked again:
 
@@ -80,7 +81,10 @@ Questions answered along the way, recorded so they are not asked again:
    the cluster-level Kafka output, so that nginx lines (needed for the map and attack detection) arrive.
 4. **Let's Encrypt on the real domain**: checked with Caddy's local certificates only; the first deploy with the
    `https` profile is the real check ([`07-deploy-vps.md`](07-deploy-vps.md) §6–7).
-5. After the server runs from `/srv/MoniShield`: the old checkout `/srv/dashboard-logging/v2` can be removed and the
+5. **Before the next deploy to `prd`**: `S4_IMPORT_REGION` no longer defaults to `ap-southeast-3`. If the server's
+   `.env` does not set it, fill in the region under Configuration → Object storage (or add
+   `S4_IMPORT_REGION=ap-southeast-3` to `.env`) so S3 requests go straight to the bucket's region.
+6. After the server runs from `/srv/MoniShield`: the old checkout `/srv/dashboard-logging/v2` can be removed and the
    old repo archived (the old repo's `build_dashboard.py`, `dashboard_template.html` and log folders are never edited).
 
 ## Known issues
