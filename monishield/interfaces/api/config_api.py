@@ -5,7 +5,7 @@ WRITTEN TO THE .env FILE (monishield/application/settings_service.py) and takes 
   POST /api/admin/config/test   test the connection with the SAVED settings: {kind: 'aws'} (list 1 object in S3) or
                                 {kind: 'maxmind'} (request a GeoLite2 download link; authorization only, no download)
                                 {kind: 'smtp', to?} (send the test letter; default recipient: the admin's own email)
-The automatic S3 parent folder and notifications have their own APIs (/api/admin/import/watch, /api/admin/alerts); the
+The automatic S3 parent folder and notifications have their own APIs (/api/admin/imports/watch, /api/admin/alerts); the
 Configuration page uses both.
 """
 import threading

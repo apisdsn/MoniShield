@@ -22,7 +22,7 @@ Roles: `admin` for the `/api/admin/*` routes, otherwise any signed-in user. Erro
 
 # Swagger groups by whole-segment path prefix (first match wins; /api/me is not /api/meta); order = display order
 TAGS = [('/api/auth', 'Sign-in & session'), ('/api/me', 'Sign-in & session'), ('/api/admin/users', 'Users (admin)'),
-        ('/api/admin/import', 'S3 import & sync (admin)'), ('/api/admin/upload', 'Folder upload (admin)'),
+        ('/api/admin/imports', 'Object storage import & sync (admin)'), ('/api/admin/uploads', 'Folder upload (admin)'),
         ('/api/admin/kafka', 'Kafka (admin)'), ('/api/live', 'Realtime (Kafka)'),
         ('/api/admin', 'Ingest, folder & audit (admin)'), ('/api/folders/{folder}/tables', 'Tables'),
         ('/api/folders', 'Folder pages'), ('/api', 'General')]

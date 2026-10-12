@@ -25,7 +25,7 @@
 
   async function loadStatus() {
     try {
-      const s = await api.get('/api/admin/ingest/status');
+      const s = await api.get('/api/admin/ingest');
       const selesai = (st?.running || watching) && !s.running;
       if (!s.running) watching = false;
       st = s; error = null;

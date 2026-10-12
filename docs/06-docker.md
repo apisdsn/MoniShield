@@ -97,8 +97,9 @@ cron on the host:
 - **Automatic sync from S3**: set `S4_IMPORT_BUCKETS` and the AWS keys in `.env`, then on the Ingest & import page enter the parent folder
   (e.g. `s3://nama-bucket/k8s-logs`) → Save & enable (stored in PostgreSQL, table `app_setting`). Alternative: `S4_S3_WATCH` in `.env`.
   `app` checks the bucket every `S4_S3_WATCH_MINUTES` minutes, downloads new date folders to the `s4-inbox` volume, then
-  ingests them. The first check is 1 minute after the container starts. A cron job with the machine token can also trigger it:
-  `curl -X POST -H "Authorization: Bearer $S4_JOB_TOKEN" -H "X-Requested-With: job" http://127.0.0.1:8000/api/admin/import/sync`.
+  ingests them. The first check is 1 minute after the container starts, so no cron job is needed. To check right away
+  (or from cron if you want an extra check): `docker compose --profile job run --rm ingest python -m monishield sync`
+  (uses `S4_JOB_TOKEN`; prints what was imported).
 - **Upload from the browser**: Ingest & import page → Upload log folder. Files go to `s4-inbox` and are then ingested. The reverse proxy
   in front of `app` must allow request bodies as large as the largest log file (nginx: `client_max_body_size 1024m;`;
   Caddy from the `proxy` profile has no limit).

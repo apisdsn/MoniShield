@@ -1,55 +1,82 @@
-// Tab, folder, and map module <-> address (DRD §1.3, U1). Address form: #/<tab>?folder=YYYY-MM-DD&modul=<module>
-// Analysis tabs use the old slugs (#keamanan from the old system still opens); services: #/layanan/<name>;
-// account/admin screens: #/sandi, #/admin/user, #/admin/ingest. Language and theme are NOT in the address (per browser).
-// Stage 24: IP profile #/ip/<ip>?folder=… (the IP is stored in `service`, the page target); ?cari=<text> fills the target table's
-// filter from the global search (dropped when switching tabs through normal navigation).
-// Examples: #/keamanan?folder=2026-10-06, #/layanan/coredns?folder=2026-09-29, #/peta?folder=2026-10-06&modul=om-be-report
+// Tab, folder, and map module <-> address (DRD §1.3, U1). Clean English paths (owner request 2026-10-12), no "#":
+//   /<tab>?folder=YYYY-MM-DD&module=<module>&search=<text>   tabs: TABS below
+//   /services/<name>?folder=…   one service        /ips/<ip>?folder=…   IP profile (the IP is kept in `service`)
+//   /admin/users, /admin/ingest                       admin screens
+//   /password, /email, /admin/configuration, /admin/notifications   open a pop-up over the Overview (App.svelte)
+// ?search=<text> fills the target table's filter from the global search (dropped when switching tabs).
+// The server answers every such path with the web app (interfaces/api/app.py, SpaFiles). Links inside the app are
+// followed without reloading the page (History API). Unknown paths open the Overview.
+// Language and theme are NOT in the address (per browser).
 import { writable, get } from 'svelte/store';
 
-export const TABS = ['overview', 'peta', 'tren', 'keamanan', 'akar-masalah', 'ketersediaan', 'pod', 'bisnis', 'pelacakan'];
-export const ADMIN = ['admin/user', 'admin/ingest', 'admin/konfigurasi', 'admin/notifikasi'];
-const OTHER = ['sandi', 'email', ...ADMIN];
+export const TABS = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing'];
+export const ADMIN = ['admin/users', 'admin/ingest'];
+const DIALOGS = ['password', 'email', 'admin/configuration', 'admin/notifications'];
+const SERVER = /^\/(api|map|swagger|assets|fonts)(\/|$)/;   // paths the server answers itself (never app pages)
 
-export function parse(hash) {
-  const h = (hash || '').replace(/^#\/?/, '');
+/** "/security?folder=…" -> {tab, service, folder, module, q}. */
+export function parse(address) {
+  const h = (address || '').replace(/^\//, '');
   const [path, query = ''] = h.split('?');
   const q = new URLSearchParams(query);
-  let tab = decodeURIComponent(path || 'overview');
+  let tab = decodeURIComponent(path.replace(/\/+$/, '') || 'overview');
   let service = null;
-  if (tab.startsWith('ip/')) { service = tab.slice(3); tab = 'ip'; }
-  else if (tab.startsWith('layanan/')) { service = tab.slice(8); tab = 'layanan'; }
-  else if (!TABS.includes(tab) && !OTHER.includes(tab)) { service = tab; tab = 'layanan'; }   // old address: #<service-name>
-  return { tab, service, folder: q.get('folder') || null, module: q.get('modul') || null, q: q.get('cari') || null };
+  if (tab.startsWith('ips/')) { service = tab.slice(4); tab = 'ip'; }
+  else if (tab.startsWith('services/')) { service = tab.slice(9); tab = 'service'; }
+  else if (!TABS.includes(tab) && !ADMIN.includes(tab) && !DIALOGS.includes(tab)) tab = 'overview';   // unknown address
+  return { tab, service, folder: q.get('folder') || null, module: q.get('module') || null, q: q.get('search') || null };
 }
 
 export function build({ tab, service, folder, module, q = null }) {
-  const path = tab === 'layanan' || tab === 'ip' ? `${tab}/${encodeURIComponent(service)}` : tab;
+  const path = tab === 'service' ? `services/${encodeURIComponent(service)}` : tab === 'ip' ? `ips/${encodeURIComponent(service)}` : tab;
   const qs = new URLSearchParams();
   if (folder) qs.set('folder', folder);   // also in Trends and admin screens: the folder is kept when returning to a data page
-  if (module && tab === 'peta') qs.set('modul', module);
-  if (q) qs.set('cari', q);
+  if (module && tab === 'command-center') qs.set('module', module);
+  if (q) qs.set('search', q);
   const s = qs.toString();
-  return `#/${path}${s ? '?' + s : ''}`;
+  return `/${path}${s ? '?' + s : ''}`;
 }
 
-export const route = writable(parse(typeof location !== 'undefined' ? location.hash : ''));
+const here = () => (typeof location === 'undefined' ? '' : location.pathname + location.search);
+
+/** Loose address (/, trailing slash, unknown page) -> the canonical path in the address bar, without a history entry.
+ *  ?next= (return after sign-in) is kept. */
+function canonical() {
+  if (typeof location === 'undefined' || new URLSearchParams(location.search).has('next')) return;
+  const url = build(parse(here()));
+  if (url !== location.pathname + location.search) history.replaceState(null, '', url + location.hash);
+}
+canonical();
+export const route = writable(parse(here()));
 
 /** Navigate: adds to history (the back button works). replace=true for automatic corrections (missing folder, etc.). */
 export function go(patch, { replace = false } = {}) {
   const next = { ...get(route), ...patch };
-  if (patch.tab && patch.tab !== 'layanan' && patch.tab !== 'ip') next.service = null;
+  if (patch.tab && patch.tab !== 'service' && patch.tab !== 'ip') next.service = null;
   if (patch.tab && !('q' in patch)) next.q = null;
   const url = build(next);
-  if (url !== location.hash) (replace ? history.replaceState : history.pushState).call(history, null, '', url);
+  if (url !== location.pathname + location.search) (replace ? history.replaceState : history.pushState).call(history, null, '', url);
   route.set(parse(url));
 }
 
-// plain links (<a href="#/...">), back/forward buttons: one update per real change
+// back/forward buttons and links: one update per real change
 function sync() {
-  const r = parse(location.hash);
+  canonical();
+  const r = parse(here());
   if (JSON.stringify(r) !== JSON.stringify(get(route))) route.set(r);
+}
+// a click on an app link (<a href="/security?…">) changes the page without reloading; new tabs, downloads and
+// server paths (/api/…, /map/…) are left to the browser
+function follow(e) {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const a = e.target.closest?.('a[href]');
+  if (!a || a.target || a.hasAttribute('download') || a.origin !== location.origin || SERVER.test(a.pathname)) return;
+  if (a.getAttribute('href').startsWith('#')) return;   // in-page fragment (skip links)
+  e.preventDefault();
+  if (a.pathname + a.search !== location.pathname + location.search) history.pushState(null, '', a.pathname + a.search);
+  sync();
 }
 if (typeof window !== 'undefined') {
   window.addEventListener('popstate', sync);
-  window.addEventListener('hashchange', sync);
+  document.addEventListener('click', follow);
 }

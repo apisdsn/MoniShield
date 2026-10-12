@@ -62,7 +62,7 @@ def test_cleanup_removes_old_folders_for_good(tc):
     # the log files are still there, but ingest and the "new folders" badge skip them
     st.ingest.start(by='uji'); st.ingest.wait(60)
     assert st.warehouse.known_folders() == {'2026-01-02'}
-    assert tc.get('/api/admin/ingest/status', headers=X).json()['new_folders'] == []
+    assert tc.get('/api/admin/ingest', headers=X).json()['new_folders'] == []
 
 
 @pytest.mark.parametrize('body', [dict(retention_days='7'), dict(retention_inbox_days='1'), dict(retention_days='abc')])

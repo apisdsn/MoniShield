@@ -30,12 +30,12 @@
   const isOpen = (g) => collapsed || open[g];
   const tip = (s) => (collapsed ? s : undefined);
 
-  const ICON = { overview: 'overview', peta: 'globe', tren: 'trend', keamanan: 'shield', 'akar-masalah': 'search',
-                 ketersediaan: 'pulse', pod: 'box', bisnis: 'briefcase', pelacakan: 'route' };
+  const ICON = { overview: 'overview', 'command-center': 'globe', trends: 'trend', security: 'shield', 'root-causes': 'search',
+                 availability: 'pulse', pods: 'box', business: 'briefcase', tracing: 'route' };
   const ingestTone = $derived(ingest?.running ? 'accent' : ingest?.last_status === 'ok' ? 'ok' : ingest?.last_status ? 'err' : '');
 
-  const href = (patch) => build({ ...route, ...patch, q: null, ...(patch.tab !== 'layanan' ? { service: null } : {}) });
-  const active = (tab, service = null) => (route.tab === tab && (tab !== 'layanan' || route.service === service) ? 'page' : undefined);
+  const href = (patch) => build({ ...route, ...patch, q: null, ...(patch.tab !== 'service' ? { service: null } : {}) });
+  const active = (tab, service = null) => (route.tab === tab && (tab !== 'service' || route.service === service) ? 'page' : undefined);
 </script>
 
 <div class="logo" class:c={collapsed}>
@@ -55,7 +55,7 @@
       <li>
         <a href={href({ tab })} aria-current={active(tab)} onclick={onpick} title={tip($t(`tab.${tab}`))}>
           <Icon name={ICON[tab]} /><span class="lbl">{$t(`tab.${tab}`)}</span>
-          {#if tab === 'keamanan' && summary?.attack_ip_count}
+          {#if tab === 'security' && summary?.attack_ip_count}
             <span class="b" aria-hidden="true">{num(summary.attack_ip_count, $lang)} IP</span><span class="pip" aria-hidden="true"></span>
             <span class="sr-only">{$t('nav.badge_attack', { n: num(summary.attack_ip_count, $lang) })}</span>
           {/if}
@@ -70,7 +70,7 @@
     <ul aria-labelledby="nav-layanan">
       {#each summary.services as s}
         <li>
-          <a href={href({ tab: 'layanan', service: s.service })} aria-current={active('layanan', s.service)} onclick={onpick} title={tip(sysName(s.service))}>
+          <a href={href({ tab: 'service', service: s.service })} aria-current={active('service', s.service)} onclick={onpick} title={tip(sysName(s.service))}>
             <Icon name="server" /><span class="lbl sys">{sysName(s.service)}</span>
             {#if s.err}
               <span class="b" aria-hidden="true">{num(s.err, $lang)}</span><span class="pip" aria-hidden="true"></span>

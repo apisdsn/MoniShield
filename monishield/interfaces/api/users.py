@@ -44,13 +44,13 @@ class SetEmail(BaseModel):
     lang: str = 'id'
 
 
-@router.post('/users/{user_id}/email')
+@router.post('/users/{user_id}/email/change')
 def set_email(user_id: int, body: SetEmail, request: Request, admin=Depends(require_admin)):
     """New address for another user: pending until the user enters the code sent to it (monishield/application/account_service.py)."""
     return request.app.state.emails.admin_set(user_id, admin, body.password, body.email[:254], client_ip(request), body.lang)
 
 
-@router.delete('/users/{user_id}/email')
+@router.delete('/users/{user_id}/email/change')
 def cancel_email(user_id: int, request: Request, admin=Depends(require_admin)):
     return request.app.state.emails.admin_cancel(user_id, admin, client_ip(request))
 

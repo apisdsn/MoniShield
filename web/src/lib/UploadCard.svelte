@@ -25,13 +25,13 @@
   async function check() {
     err = null; busy = true;
     try {
-      plan = await api.post('/api/admin/upload', { files: files.map((f) => ({ path: f.webkitRelativePath || f.name, size: f.size })), folder: folder.trim() });
+      plan = await api.post('/api/admin/uploads', { files: files.map((f) => ({ path: f.webkitRelativePath || f.name, size: f.size })), folder: folder.trim() });
     } catch (e) { plan = null; err = why(e); }
     finally { busy = false; }
   }
   async function cancel(quiet = false) {
     ctl?.abort(); ctl = null;
-    if (plan?.upload_id) { try { await api.del(`/api/admin/upload/${plan.upload_id}`); } catch { /* already expired */ } }
+    if (plan?.upload_id) { try { await api.del(`/api/admin/uploads/${plan.upload_id}`); } catch { /* already expired */ } }
     plan = null; sent = 0; total = 0;
     if (!quiet) { files = []; if (input) input.value = ''; }
   }
@@ -42,11 +42,11 @@
     try {
       await Promise.all([0, 1, 2].map(async () => {
         for (let o = queue.shift(); o; o = queue.shift()) {
-          await api.putFile(`/api/admin/upload/${plan.upload_id}/${o.i}`, files[o.i], (n) => { part.set(o.i, n); bump(); }, ctl.signal);
+          await api.putFile(`/api/admin/uploads/${plan.upload_id}/${o.i}`, files[o.i], (n) => { part.set(o.i, n); bump(); }, ctl.signal);
           part.set(o.i, o.size); bump();
         }
       }));
-      const r = await api.post(`/api/admin/upload/${plan.upload_id}/finish`, {});
+      const r = await api.post(`/api/admin/uploads/${plan.upload_id}/finish`, {});
       done = r; plan = null; files = []; if (input) input.value = '';
       toast($t('up.toast', { n: num(r.files, $lang), list: r.folders.join(', ') }));
       onfinished?.();

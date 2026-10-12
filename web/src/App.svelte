@@ -108,16 +108,16 @@
   const folderName = $derived(folder ? (folderInfo?.source === 'kafka' ? $t('folder.kafka', { date: dLabel(folder, $lang) }) : dLabel(folder, $lang)) : '');
   const isAdminTab = $derived(ADMIN.includes($route.tab));
   const isDataTab = $derived(!isAdminTab);
-  // old addresses #/sandi and #/email: open the account pop-up over the Overview (lib/AccountDialogs.svelte)
+  // #/password and #/email (old #/sandi): open the account pop-up over the Overview (lib/AccountDialogs.svelte)
   $effect(() => {
-    if (screen !== 'app' || ($route.tab !== 'sandi' && $route.tab !== 'email')) return;
-    openAccount($route.tab === 'sandi' ? 'password' : 'email');
+    if (screen !== 'app' || ($route.tab !== 'password' && $route.tab !== 'email')) return;
+    openAccount($route.tab);
     go({ tab: 'overview', service: null, q: null }, { replace: true });
   });
-  // old addresses #/admin/konfigurasi and #/admin/notifikasi: the matching configuration pop-up (sidebar → Configuration)
+  // #/admin/configuration and #/admin/notifications (old Indonesian addresses too): the matching configuration pop-up
   $effect(() => {
-    if (screen !== 'app' || ($route.tab !== 'admin/konfigurasi' && $route.tab !== 'admin/notifikasi')) return;
-    if (me?.role === 'admin') openConfig($route.tab === 'admin/notifikasi' ? 'notif' : 'storage');
+    if (screen !== 'app' || ($route.tab !== 'admin/configuration' && $route.tab !== 'admin/notifications')) return;
+    if (me?.role === 'admin') openConfig($route.tab === 'admin/notifications' ? 'notif' : 'storage');
     go({ tab: 'overview', service: null, q: null }, { replace: true });
   });
 
@@ -145,7 +145,7 @@
   });
   // service tab not present in the selected folder -> Overview (old)
   $effect(() => {
-    if (screen === 'app' && summary?.folder === folder && $route.tab === 'layanan' && !summary.services.some((s) => s.service === $route.service))
+    if (screen === 'app' && summary?.folder === folder && $route.tab === 'service' && !summary.services.some((s) => s.service === $route.service))
       go({ tab: 'overview' }, { replace: true });
   });
   // folder change: scroll position to top (DRD §6.1)
@@ -180,16 +180,16 @@
   const title = $derived.by(() => {
     const r = $route;
     if (r.tab === 'overview') return $t('title.overview');
-    if (r.tab === 'layanan') return sysName(r.service);
+    if (r.tab === 'service') return sysName(r.service);
     if (r.tab === 'ip') return $t('ipp.title', { ip: r.service });
-    if (r.tab === 'admin/user') return $t('menu.users');
+    if (r.tab === 'admin/users') return $t('menu.users');
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
     return $t(`tab.${r.tab}`);
   });
   // data freshness line under the header (U2 + stand-in for the reference's "streaming · last event" while Kafka is deferred)
   const subtitle = $derived.by(() => {
     if (!isDataTab || !folder) return '';
-    if ($route.tab === 'tren') return $t('sub.trends', { n: num(folders.length, $lang) });
+    if ($route.tab === 'trends') return $t('sub.trends', { n: num(folders.length, $lang) });
     const parts = [$t('sub.folder', { date: folderName })];
     const rng = logRange(folderInfo?.range_start, folderInfo?.range_end, $lang);
     if (rng) parts.push($t('sub.contains', { range: rng }));
@@ -198,20 +198,20 @@
   });
   // compact status line under the title (reference style DRD §12): number of services, errors, warnings, attack IPs
   const status = $derived.by(() => {
-    if (!isDataTab || $route.tab === 'tren' || summary?.folder !== folder) return [];
-    const sv = $route.tab === 'layanan' ? summary.services.filter((x) => x.service === $route.service) : summary.services;
+    if (!isDataTab || $route.tab === 'trends' || summary?.folder !== folder) return [];
+    const sv = $route.tab === 'service' ? summary.services.filter((x) => x.service === $route.service) : summary.services;
     const sum = (k) => sv.reduce((a, x) => a + (x[k] || 0), 0);
     const out = [];
-    if ($route.tab !== 'layanan') out.push({ tone: 'accent', n: num(summary.services.length, $lang), text: $t('status.services') });
+    if ($route.tab !== 'service') out.push({ tone: 'accent', n: num(summary.services.length, $lang), text: $t('status.services') });
     else out.push({ tone: 'accent', n: num(sum('lines'), $lang), text: $t('status.lines') });
     out.push({ tone: sum('err') ? 'err' : 'ok', n: num(sum('err'), $lang), text: $t('status.errors') });
     out.push({ tone: sum('warn') ? 'warn' : 'ok', n: num(sum('warn'), $lang), text: $t('status.warnings') });
-    if ($route.tab !== 'layanan' && summary.attack_ip_count) out.push({ tone: 'err', n: num(summary.attack_ip_count, $lang), text: $t('status.attack_ips') });
+    if ($route.tab !== 'service' && summary.attack_ip_count) out.push({ tone: 'err', n: num(summary.attack_ip_count, $lang), text: $t('status.attack_ips') });
     return out;
   });
-  const suffix = $derived(isDataTab && folder && $route.tab !== 'tren' ? folderName : '');
+  const suffix = $derived(isDataTab && folder && $route.tab !== 'trends' ? folderName : '');
   $effect(() => { document.title = screen === 'app' ? `${title} · ${APP_NAME}` : APP_NAME; });
-  const sparse = $derived(isDataTab && $route.tab !== 'tren' && folderInfo && folderInfo.lines < SPARSE_LINES);
+  const sparse = $derived(isDataTab && $route.tab !== 'trends' && folderInfo && folderInfo.lines < SPARSE_LINES);
 
   // ---------------------------------------------------------------- idle session (DRD §6.9)
   let now = $state(Date.now());
@@ -226,8 +226,8 @@
     const el = e.target;
     if (el.closest?.('input, select, textarea, [contenteditable="true"]')) return;
     const i = folders.findIndex((f) => f.folder === folder);
-    if (e.key === '[' && i >= 0 && i < folders.length - 1 && $route.tab !== 'tren') { e.preventDefault(); setFolder(folders[i + 1].folder); }
-    else if (e.key === ']' && i > 0 && $route.tab !== 'tren') { e.preventDefault(); setFolder(folders[i - 1].folder); }
+    if (e.key === '[' && i >= 0 && i < folders.length - 1 && $route.tab !== 'trends') { e.preventDefault(); setFolder(folders[i + 1].folder); }
+    else if (e.key === ']' && i > 0 && $route.tab !== 'trends') { e.preventDefault(); setFolder(folders[i - 1].folder); }
     else if (e.key === '/') { const q = document.querySelector('main [data-filter]'); if (q) { e.preventDefault(); q.focus(); } }
     else if (e.key === 'Escape' && drawer) closeDrawer();
   }
@@ -264,9 +264,9 @@
   {#if drawer}<button class="backdrop" aria-label={$t('nav.close')} onclick={closeDrawer}></button>{/if}
 
   <div class="wrap" class:collapsed inert={drawer || undefined}>
-    <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'tren' || !isDataTab}
+    <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'trends' || !isDataTab}
       onfolder={setFolder} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
-      {title} sysTitle={$route.tab === 'layanan'} {suffix} {status} bind:titleEl={h1} />
+      {title} sysTitle={$route.tab === 'service'} {suffix} {status} bind:titleEl={h1} />
     {#if subtitle}<p class="sub"><span class="dot ok" aria-hidden="true"></span>{subtitle}</p>{/if}
 
     {#if $offline}
@@ -294,7 +294,7 @@
       {#if sparse}
         <div class="band warn" role="note">
           <span>{$t('band.sparse', { n: num(folderInfo.lines, $lang), m: num(folderInfo.files_corrupt, $lang) })}</span>
-          <a href={build({ ...$route, tab: 'pod', service: null, folder, q: null })}>{$t('band.to_pods')}</a>
+          <a href={build({ ...$route, tab: 'pods', service: null, folder, q: null })}>{$t('band.to_pods')}</a>
         </div>
       {/if}
 
@@ -302,7 +302,7 @@
         <EmptyState title={$t('state.no_access')} text={$t('state.no_access_text')}>
           <a class="btn" href={build({ tab: 'overview', service: null, folder, module: null })}>{$t('action.to_overview')}</a>
         </EmptyState>
-      {:else if $route.tab === 'admin/user'}
+      {:else if $route.tab === 'admin/users'}
         <AdminUsers {me} onme={refreshMe} />
       {:else if $route.tab === 'admin/ingest'}
         <AdminIngest onfinished={reload} />
@@ -314,25 +314,25 @@
         {#key $route.tab + '/' + ($route.service || '')}
           {#if $route.tab === 'overview'}
             <Overview {folder} {summary} {reloadKey} {onready} />
-          {:else if $route.tab === 'keamanan'}
+          {:else if $route.tab === 'security'}
             <Security {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} />
-          {:else if $route.tab === 'akar-masalah'}
+          {:else if $route.tab === 'root-causes'}
             <RootCause {folder} dnsUpstream={meta?.dns_upstream || ''} {reloadKey} {onready} />
-          {:else if $route.tab === 'ketersediaan'}
+          {:else if $route.tab === 'availability'}
             <Availability {folder} {reloadKey} {onready} />
-          {:else if $route.tab === 'tren'}
+          {:else if $route.tab === 'trends'}
             <Trends {reloadKey} {onready} />
-          {:else if $route.tab === 'peta'}
+          {:else if $route.tab === 'command-center'}
             <CommandCenter {folder} server={meta?.server} {reloadKey} {onready} />
-          {:else if $route.tab === 'pod'}
+          {:else if $route.tab === 'pods'}
             <Pods {folder} {summary} {reloadKey} {onready} />
-          {:else if $route.tab === 'bisnis'}
+          {:else if $route.tab === 'business'}
             <Business {folder} {summary} {reloadKey} {onready} />
-          {:else if $route.tab === 'pelacakan'}
+          {:else if $route.tab === 'tracing'}
             <Tracing {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} />
           {:else if $route.tab === 'ip'}
             <IpProfile {folder} ip={$route.service} {reloadKey} {onready} />
-          {:else if $route.tab === 'layanan'}
+          {:else if $route.tab === 'service'}
             <Service {folder} service={$route.service} server={meta?.server} {reloadKey} {onready} />
           {/if}
         {/key}

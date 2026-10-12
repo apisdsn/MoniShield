@@ -38,6 +38,15 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 
 ### Changed
+- Web addresses are plain English paths without `#`: `/command-center`, `/trends`, `/security`, `/root-causes`,
+  `/availability`, `/pods`, `/business`, `/tracing`, `/services/<name>`, `/ips/<ip>`, `/admin/users`, `?module=`,
+  `?search=`; the server answers them with the web app; notifications link to these paths. Addresses with `#` are no
+  longer supported (they open the Overview).
+- REST-style English API paths: `/api/admin/imports…`, `/api/admin/uploads…`, `GET /api/admin/ingest`,
+  `DELETE /api/admin/folders/{folder}`, `/command-center`, `/root-causes`, `/api/me/email/change…`,
+  `/api/admin/users/{id}/email/change`. The old paths are removed (docs/03-trd.md §5).
+- `python -m monishield sync`: checks the automatic sync folder now through the running server (for scripts; the server
+  already checks by itself, so no cron job is needed).
 - Manage users no longer sets a new email directly: the admin confirms with their own password, a code goes to the new
   address (valid 24 hours) and a notice to the current one, and the address counts once the user enters the code
   (banner + Account email). An admin's own email changes only under Account email; removing an email stays direct.

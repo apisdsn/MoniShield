@@ -490,7 +490,7 @@ AWS credentials can only be obtained through the AWS website. The dashboard must
 **Flow**
 
 1. An admin (through the "Ingest & import" screen) or an external system with a **machine token** sends the link to
-   `POST /api/admin/import` (§5.5).
+   `POST /api/admin/imports` (§5.5).
 2. The server checks the link, **lists the objects** under that prefix, selects the objects to fetch, downloads them
    to a temporary directory, then atomically moves the `YYYY-MM-DD` folder into the **inbox**
    (`S4_INBOX_DIR`).
@@ -664,6 +664,31 @@ parser for it.
 
 ## 5. API contract
 
+**Naming (owner request 2026-10-12).** Paths are English, lower case, kebab-case nouns; collections are plural
+(`/api/admin/imports`, `/api/admin/uploads`, `/api/admin/users`); the HTTP method says what happens (`DELETE
+/api/admin/folders/{folder}`, not `POST …/delete`); an action that is not create/read/update/delete is a verb
+sub-resource with `POST` (`…/restore`, `…/sync`, `…/confirm`, `…/reset-password`). The old paths were removed on
+2026-10-12 (no aliases):
+
+| Old (removed) | New |
+|---|---|
+| `GET /api/admin/ingest/status` | `GET /api/admin/ingest` |
+| `POST /api/admin/folders/{folder}/delete` (body `delete_inbox`) | `DELETE /api/admin/folders/{folder}?delete_inbox=` |
+| `/api/admin/import…` | `/api/admin/imports…` |
+| `/api/admin/upload…` | `/api/admin/uploads…` |
+| `GET /api/folders/{folder}/command` | `GET /api/folders/{folder}/command-center` |
+| `GET /api/folders/{folder}/rootcause` | `GET /api/folders/{folder}/root-causes` |
+| `POST`/`DELETE /api/me/email/start`, `POST /api/me/email/confirm` | `/api/me/email/change`, `/api/me/email/change/confirm` |
+| `POST`/`DELETE /api/admin/users/{id}/email` | `/api/admin/users/{id}/email/change` |
+
+**Web addresses** are plain paths, without `#` (History API): `/overview`, `/command-center`, `/trends`, `/security`,
+`/root-causes`, `/availability`, `/pods`, `/business`, `/tracing`, `/services/<name>`, `/ips/<ip>`, `/admin/users`,
+`/admin/ingest`, `/password`, `/email`, `/admin/configuration`, `/admin/notifications`; query `?folder=`, `?module=`,
+`?search=`. The server answers those first segments with the web app (`SpaFiles` in `interfaces/api/app.py`); any other
+unknown path stays 404. Links inside the app change the page without reloading. Addresses with `#` (before 2026-10-12) are not supported
+any more; they open the Overview. Scripts that need a sync use `python -m monishield sync`, not an API path.
+
+
 ### 5.1 General rules
 
 - Prefix `/api`. Only `GET`, except for the ingest trigger.
@@ -738,7 +763,7 @@ The "comparable" rule and the ▲/▼ text (inv. §2.0) are computed by the fron
 | `GET /api/folders/{folder}/map` | `module` (optional) | §3.2 IP Map; map in §3.10 | module list, 6 KPIs, location points, abroad / unlocated counts, first page of flows |
 | `GET /api/trends` | `last` = 14 \| 30 \| 90 \| `all` (default 30) | §3.3 Trends | per folder × service: lines, errors, warnings; nginx total/4xx/5xx; attacks; wrong passwords; resets; 5 business metrics |
 | `GET /api/folders/{folder}/security` | — | §3.4 Security | 8 KPIs, series for 6 charts, material for "Key findings", first page of 5 tables |
-| `GET /api/folders/{folder}/rootcause` | — | §3.5 Root Causes | summary material, series for 4 charts, first page of 3 tables, expired refresh tokens |
+| `GET /api/folders/{folder}/root-causes` | — | §3.5 Root Causes | summary material, series for 4 charts, first page of 3 tables, expired refresh tokens |
 | `GET /api/folders/{folder}/availability` | — | §3.6 Availability | 7 KPIs, series for 3 charts, first page of 4 tables |
 | `GET /api/folders/{folder}/pods` | — | §3.7 Pods | KPIs, series for 2 charts, first page of 2 tables (pod health from `/api/folders/{folder}`) |
 | `GET /api/folders/{folder}/business` | — | §3.8 Business | 11 KPIs + previous folder values, series for 5 charts, 2 tables |
@@ -899,14 +924,14 @@ Example `GET /api/folders/2026-10-06/tables/c401?limit=2`:
 | Endpoint | Purpose |
 |---|---|
 | `POST /api/admin/ingest` | Starts an ingest in the API process. Optional body `{"folder": "YYYY-MM-DD", "force": false}`. Answer 202 + `run_id`; 409 when one is running |
-| `GET /api/admin/ingest/status` | Status of the running/last ingest: phase, folder, files done/total, warnings |
+| `GET /api/admin/ingest` | Status of the running/last ingest: phase, folder, files done/total, warnings |
 | `POST /api/admin/derive` | Re-derive aggregates from the raw tables (all or one folder) |
 | `POST /api/admin/forget` | Delete one folder's data (replacing the old "missing folder" behavior) |
 
-| `POST /api/admin/import` | Import from an S3 prefix (§3.8). Body `{"url": "s3://simpel4-backup/k8s-logs/2026-09-26/", "dry_run": false}`. Answer 202 + `job_id`; `dry_run` only lists objects |
-| `POST /api/admin/import/credentials` | **Admin only** (not the machine token). Stores temporary AWS credentials in memory: `access_key_id`, `secret_access_key`, `session_token`. The answer does not contain the values |
-| `DELETE /api/admin/import/credentials` | Removes the credentials from memory |
-| `GET /api/admin/import/{job_id}` | Import status |
+| `POST /api/admin/imports` | Import from an S3 prefix (§3.8). Body `{"url": "s3://simpel4-backup/k8s-logs/2026-09-26/", "dry_run": false}`. Answer 202 + `job_id`; `dry_run` only lists objects |
+| `POST /api/admin/imports/credentials` | **Admin only** (not the machine token). Stores temporary AWS credentials in memory: `access_key_id`, `secret_access_key`, `session_token`. The answer does not contain the values |
+| `DELETE /api/admin/imports/credentials` | Removes the credentials from memory |
+| `GET /api/admin/imports/{job_id}` | Import status |
 
 Only for the **admin** role, or for machine callers with a token (§8.2): the `ingest` task in compose and
 external systems that send bucket links.
@@ -1161,7 +1186,7 @@ again, `s4-state` is irreplaceable, `s4-inbox` holds raw logs that exist only he
 - **Health check**: `GET /api/health`.
 - **Daily ingest**: two paths. (a) Mounted log folder: a cron job on the host runs
   `docker compose run --rm ingest` after the log export arrives (ASSUMPTION T7; the export time is not known yet).
-  (b) Bucket: the link sender calls `POST /api/admin/import` (§3.8), which ends with an ingest. `S4_INGEST_ON_START` also catches folders missed while the
+  (b) Bucket: the link sender calls `POST /api/admin/imports` (§3.8), which ends with an ingest. `S4_INGEST_ON_START` also catches folders missed while the
   service was restarting.
 - **Outbound network**: to download the IP databases and map data (`iptoasn.com`, `download.maxmind.com`
   and its download storage, `raw.githubusercontent.com`, `download.geonames.org`), and to S3 in the
@@ -1223,7 +1248,7 @@ The dashboard is opened from many computers and contains account emails, client 
 | Sessions | **JWT** (HS256, signed with `S4_JWT_SECRET`) containing `sub` (user id), `sid` (session id), `iat`, `exp`; sent only via an `HttpOnly`, `Secure`, `SameSite=Strict` **cookie**, not accepted from the `Authorization` header. After the signature, issuer, and validity period pass, the `sid` session row is **still checked in the database**. Expires after 60 minutes without activity or 12 hours in total. Sign-out, password change, reset, and deactivation revoke sessions immediately. The role is not carried in the token. | Requested by the owner (JWT). A pure JWT cannot be revoked before it expires; the `sid` check preserves immediate revocation. Only the HS256 algorithm is accepted (`alg: none` and other algorithms are rejected). The token cannot be read by page scripts |
 | CSRF | `SameSite=Strict` + every data-changing request must carry a custom header and a matching `Origin`. | API and pages share one origin; no separate token needed |
 | Sign-in attempts | After 5 failures: the account is locked for 15 minutes; also limited per IP. The error message does not distinguish "user does not exist" from "wrong password". The hash is still computed for nonexistent users. | Resists password guessing and user enumeration |
-| Machine callers | The `ingest` task and bucket link senders use `S4_JOB_TOKEN` in a header; the token is only valid for `POST /api/admin/ingest`, `POST /api/admin/import`, and the status of both. | Machines have no session; the token scope is as narrow as possible |
+| Machine callers | The `ingest` task and bucket link senders use `S4_JOB_TOKEN` in a header; the token is only valid for `POST /api/admin/ingest`, `POST /api/admin/imports`, and the status of both. | Machines have no session; the token scope is as narrow as possible |
 | Audit | Recorded: successful/failed sign-in, sign-out, password change/reset, user create/update/delete, role changes, ingest, import, `forget`. Not recorded: passwords, tokens, the content of pages opened. | A trail for actions that change access or data |
 | No session | The API answers 401; the frontend goes to the sign-in page and returns to the original address after success. | |
 

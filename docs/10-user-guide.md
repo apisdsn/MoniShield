@@ -35,8 +35,8 @@ Sidebar → **Configuration** (admins). Every item opens as a pop-up over the cu
 (provider, keys, region, automatic sync), **Kafka broker**, **GeoIP (MaxMind)**, **Mail server (SMTP)**,
 **Notifications**, **Block list**, **Data retention** and **Server keys (.env)**. Each has **Save** and, where it
 applies, **Test connection**. The sidebar groups (Analysis, Services, Configuration) fold open and closed with the
-arrow next to their name; the choice is kept per browser. The old addresses `#/admin/konfigurasi` and
-`#/admin/notifikasi` open the matching pop-up. **Save writes directly to the `.env` file** (existing lines are replaced,
+arrow next to their name; the choice is kept per browser. The addresses `/admin/configuration` and
+`/admin/notifications` (and the old `#/…` ones) open the matching pop-up. **Save writes directly to the `.env` file** (existing lines are replaced,
 comments are kept) and takes effect immediately without a restart; **Remove from .env** disables the line (default value).
 All URLs/addresses of external services and limits that used to be hard-coded are also in `.env` (section 10 of `.env.example`:
 `S4_URL_*`, `S4_TELEGRAM_API`, `S4_*_MAX_AGE_DAYS`, …). The server must be allowed to write `.env`. Credentials are never shown again
@@ -204,6 +204,7 @@ is marked *Ignored* so the sync does not load it again, and it can be brought ba
 | `refdata [--offline]` | update IP owner & location data and map files |
 | `import [--dry-run] s3://…/YYYY-MM-DD/` | import a log folder from S3 (see [Import from S3](#import-from-s3)) |
 | `forget YYYY-MM-DD` | delete one folder's data from the database |
+| `sync` | check the automatic sync folder now, through the running server (needs `S4_JOB_TOKEN`); the server also checks by itself |
 
 Data lives in `data/` (`monishield.duckdb`, map files). Accounts, sessions and the audit log live in PostgreSQL
 (`S4_AUTH_DATABASE_URL`, back it up with `pg_dump`) or, without PostgreSQL, in `auth.db` in `S4_STATE_DIR` (back it up); `monishield.duckdb` can be rebuilt from the log folder. The server uses a single process: do not
@@ -288,8 +289,9 @@ Each check: list the `YYYY-MM-DD` folders directly under the prefix (ListObjects
 listed) → folders not yet in the dashboard, the log folder, the inbox, or the *Ignored* list are imported + ingested
 one by one (recorded in the Import history) → recently synced folders (`S4_S3_WATCH_RECHECK_DAYS`) are re-checked
 and only new/changed objects are downloaded. Folders deleted by an admin are marked *Ignored* so they are not downloaded
-again (bring them back with **Restore**). From cron: `curl -X POST -H "Authorization: Bearer $S4_JOB_TOKEN"
--H "X-Requested-With: job" https://<server>/api/admin/import/sync`.
+again (bring them back with **Restore**). The server runs these checks by itself; no cron job is needed. To check right
+away from the command line: `.venv/bin/python -m monishield sync` (Docker: `docker compose --profile job run --rm ingest
+python -m monishield sync`; needs `S4_JOB_TOKEN`).
 
 Do a dry run first without downloading anything (proves the object layout matches the local log folder):
 
@@ -301,8 +303,8 @@ From an external system (automated, unattended):
 
 ```sh
 curl -H "Authorization: Bearer $S4_JOB_TOKEN" -H "X-Requested-With: job" -H "Content-Type: application/json" \
-     -d '{"url": "s3://nama-bucket/k8s-logs/2026-09-26/"}' https://<server>/api/admin/import      # 202 + job_id
-curl -H "Authorization: Bearer $S4_JOB_TOKEN" https://<server>/api/admin/import/<job_id>           # status
+     -d '{"url": "s3://nama-bucket/k8s-logs/2026-09-26/"}' https://<server>/api/admin/imports      # 202 + job_id
+curl -H "Authorization: Bearer $S4_JOB_TOKEN" https://<server>/api/admin/imports/<job_id>           # status
 ```
 
 Credentials are never sent to the browser and never appear in API responses, logs, the database, or the audit log.
