@@ -136,6 +136,10 @@ export const srv = derived(lang, (l) => (s) => (typeof s !== 'string' || !s ? s 
 // Error messages that carry details (allowed buckets, limits, names): in Indonesian mode the whole sentence is translated
 // so the details are kept; errors not listed here use the per-code dictionary. [English sentence, Indonesian]
 const ERR_ID = [
+  [/^Change your own email under Account email: it needs codes sent to the old and the new address\.$/, 'Email akun Anda sendiri diganti lewat Email akun: perlu kode ke alamat lama dan baru.'],
+  [/^A new email is set through the email change, which sends a code to it\.$/, 'Email baru diatur lewat penggantian email yang mengirim kode ke alamat itu.'],
+  [/^Your password is wrong\.$/, 'Kata sandi Anda salah.'],
+  [/^This is already the email of this account\.$/, 'Ini sudah email akun tersebut.'],
   // object storage (monishield/domain/storage.py, infrastructure/importer.py)
   [/^AWS Access Key ID is 16–128 uppercase letters\/digits \(e\.g\. AKIA…\)\.$/, 'AWS Access Key ID berisi 16–128 huruf kapital/angka (mis. AKIA…).'],
   [/^AWS Secret Access Key does not look like a secret key \(16–128 characters\)\.$/, 'AWS Secret Access Key tidak tampak seperti kunci rahasia (16–128 karakter).'],

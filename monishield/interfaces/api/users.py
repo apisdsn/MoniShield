@@ -38,6 +38,23 @@ def edit_user(user_id: int, body: EditUser, request: Request, admin=Depends(requ
     return request.app.state.auth.update_user(user_id, admin, client_ip(request), body.display_name, body.role, body.active, body.email)
 
 
+class SetEmail(BaseModel):
+    email: str = ''
+    password: str = ''   # the ADMIN's own password
+    lang: str = 'id'
+
+
+@router.post('/users/{user_id}/email')
+def set_email(user_id: int, body: SetEmail, request: Request, admin=Depends(require_admin)):
+    """New address for another user: pending until the user enters the code sent to it (monishield/application/account_service.py)."""
+    return request.app.state.emails.admin_set(user_id, admin, body.password, body.email[:254], client_ip(request), body.lang)
+
+
+@router.delete('/users/{user_id}/email')
+def cancel_email(user_id: int, request: Request, admin=Depends(require_admin)):
+    return request.app.state.emails.admin_cancel(user_id, admin, client_ip(request))
+
+
 @router.post('/users/{user_id}/reset-password')
 def reset_password(user_id: int, request: Request, admin=Depends(require_admin)):
     """The temporary password is shown ONCE in this response; it is not stored and not logged."""

@@ -1124,6 +1124,27 @@ endpoint is refused, provider switch hint, old addresses, placeholders.
 
 ---
 
+## Stage 38 — Admin-entered emails are confirmed by the user (2026-10-12)
+
+**Origin.** Owner question: Manage users changed any email without a code while Account email needed codes. Chosen:
+option B.
+
+- `Auth.update_user` no longer sets a new address (`email_needs_code`); removing stays direct.
+- `Auth.email_change_by_admin` + `POST /api/admin/users/{id}/email` (admin password; not for the admin's own account,
+  `own_email`): an `email_change` row with only a new-address code, valid `ADMIN_CODE_MINUTES` (24 h),
+  `requested_by` = the admin (column added on start for older databases). Letters: code to the new address
+  (`letters.email_set_by_admin_code`), notice to the current one (`letters.email_change_requested`).
+  `DELETE /api/admin/users/{id}/email` withdraws it.
+- The user confirms under Account email (one code field); `/api/me` returns `email_pending`, the app shows a banner.
+  `list_users` returns `email_pending` / `email_pending_by` for the table and the edit dialog.
+
+**Verification**: `tests/test_password_reset.py` (wrong admin password, own account refused, letters to the new and the
+old address, 24-hour code, old email kept until confirmed, wrong code, confirm, withdraw, audit, migration of
+`requested_by`). Browser: edit dialog with admin password, waiting state in the table, own row read-only, banner,
+confirm with the code.
+
+---
+
 ## Deviation notes
 
 Filled in whenever a stage is finished: stage number, date, what differs from the plan or from the TRD/DRD, and why.

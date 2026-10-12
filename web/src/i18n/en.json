@@ -1156,5 +1156,22 @@
  "cf.st.sk": "Secret access key",
  "cf.st.st": "Session token (optional)",
  "cf.st.new_keys": "Provider changed: also enter the access keys for this provider before saving.",
- "cf.st.region_eg": "e.g. {r}"
+ "cf.st.region_eg": "e.g. {r}",
+ "adm.email_pending": "Waiting for confirmation: {email}",
+ "adm.email_pending_by": "entered by {admin}",
+ "adm.email_cancel": "Withdraw request",
+ "adm.email_own": "Your own email is changed under the profile menu → Account email, with verification codes to the old and the new address.",
+ "adm.email_own_btn": "Open Account email",
+ "adm.apw": "Your password (admin)",
+ "adm.email_flow": "The new address is not used right away: a confirmation code goes to it (valid 24 hours) and {user} enters it under Account email. Until then the current email keeps working and gets a notice.",
+ "adm.err.apw": "Your password is wrong.",
+ "adm.err.apw_needed": "Enter your password to change another user's email.",
+ "adm.err.email_same": "This is already the email of that account.",
+ "adm.done.email_sent": "Confirmation code sent to {email}. The new email counts once {user} enters it.",
+ "adm.done.email_cancel": "Email request for {user} withdrawn",
+ "em.by_admin": "Admin {admin} entered {email} as the email of your account. Enter the code sent to that address (valid 24 hours). Until you confirm, your current email stays in use.",
+ "band.email_pending": "An admin entered a new email for your account ({email}). Confirm it with the code sent to that address.",
+ "band.email_confirm": "Confirm",
+ "err.own_email": "Change your own email under the profile menu → Account email.",
+ "err.email_needs_code": "A new email has to be confirmed with a code."
 }

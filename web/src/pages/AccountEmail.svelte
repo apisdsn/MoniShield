@@ -65,7 +65,7 @@
       <Note wide={false}>{$t('em.no_mail')}</Note>
     {:else if v?.pending}
       <form class="codes" onsubmit={confirm} novalidate>
-        <p class="lead">{v.pending.needs_old ? $t('em.enter_both') : $t('em.enter_one')}</p>
+        <p class="lead">{v.pending.needs_old ? $t('em.enter_both') : v.pending.by_admin ? $t('em.by_admin', { admin: v.pending.by_admin, email: v.pending.new_email }) : $t('em.enter_one')}</p>
         {#if v.pending.needs_old}
           <div class="codebox">
             <div class="ch"><span class="ic"><Icon name="mail" /></span>

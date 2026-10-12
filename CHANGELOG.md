@@ -38,6 +38,9 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 
 ### Changed
+- Manage users no longer sets a new email directly: the admin confirms with their own password, a code goes to the new
+  address (valid 24 hours) and a notice to the current one, and the address counts once the user enters the code
+  (banner + Account email). An admin's own email changes only under Account email; removing an email stays direct.
 - With Kafka streaming on, the automatic S3 sync now fetches and ingests the S3 folder of a date Kafka has filled (it
   was skipped as "already known"): the S3 files replace Kafka's files of the same services, so lines are not counted
   twice; the folder Kafka is still writing is left alone.

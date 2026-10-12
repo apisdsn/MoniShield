@@ -73,6 +73,7 @@
   }
   function onlogin(u) {
     me = u; expired = false;
+    refreshMe();   // the sign-in answer has no email_pending (an address an admin entered, waiting for this user's code)
     if (u.must_change_password) screen = 'force-password';
     else if (!goNext()) loadMeta().then(() => meta && (screen = 'app'));   // return to the previously requested address: the address is not changed
   }
@@ -80,7 +81,7 @@
   async function refreshMe() {
     try {
       const u = await api.get('/api/me');
-      if (u.role !== me?.role || u.display_name !== me?.display_name) me = u;
+      if (['role', 'display_name', 'email', 'email_pending'].some((k) => u[k] !== me?.[k])) me = { ...me, ...u };
       if (u.must_change_password) screen = 'force-password';
     } catch { /* 401 -> expired session handled by api.js */ }
   }
@@ -272,6 +273,12 @@
       <div class="band err" role="alert">
         <span>{$t('band.offline')}{$offline.auto ? ` ${$t('band.offline_auto')}` : ''}</span>
         {#if !$offline.auto}<button class="btn" onclick={retryNow}>{$t('action.retry')}</button>{/if}
+      </div>
+    {/if}
+    {#if me?.email_pending}
+      <div class="band info" role="status">
+        <span>{$t('band.email_pending', { email: me.email_pending })}</span>
+        <button class="btn" onclick={() => openAccount('email')}>{$t('band.email_confirm')}</button>
       </div>
     {/if}
     {#if idleLeft <= 5 * 60000}

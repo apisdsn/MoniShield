@@ -172,12 +172,14 @@ def test_user_email_unique_editable_and_migrated(make, outbox, auth_url):
     assert r.status_code == 409 and r.json()['error']['code'] == 'email_taken'
     assert tc.post('/api/admin/users', json=dict(username='budi', role='user', password='sandi-awal-budi-123', email='bukan email'), headers=X).json()['error']['code'] == 'invalid_email'
     rid = next(u['user_id'] for u in tc.get('/api/admin/users').json()['users'] if u['username'] == 'rina')
-    assert tc.patch(f'/api/admin/users/{rid}', json=dict(email='rina.baru@contoh.go.id'), headers=X).json()['email'] == 'rina.baru@contoh.go.id'
-    assert tc.patch(f'/api/admin/users/{rid}', json=dict(email=''), headers=X).json()['email'] is None
+    r = tc.patch(f'/api/admin/users/{rid}', json=dict(email='rina.baru@contoh.go.id'), headers=X)   # a new address needs the code flow
+    assert r.status_code == 400 and r.json()['error']['code'] == 'email_needs_code'
+    assert tc.patch(f'/api/admin/users/{rid}', json=dict(email=''), headers=X).json()['email'] is None   # removing needs no code
     # an account database from before emails existed gets the column on start
     a = tc.app.state.auth
     with a.engine.begin() as c:
         c.execute(text('DROP INDEX ux_app_user_email')); c.execute(text('ALTER TABLE app_user DROP COLUMN email'))
+        c.execute(text('ALTER TABLE email_change DROP COLUMN requested_by'))
     b = authmod.Auth(auth_url, JWT_SECRET)
     assert all('email' in u for u in b.list_users())
     b.close()
@@ -220,7 +222,7 @@ def test_own_email_change_needs_password_and_both_codes(make, outbox):
     r = tc.post('/api/me/email/start', json=dict(new_email='Rina.Baru@contoh.go.id', password='sandi-rina-sendiri-01'), headers=X)
     assert r.status_code == 200, r.text
     v = r.json()
-    assert v['pending'] == dict(new_email='rina.baru@contoh.go.id', needs_old=True, expires_at=v['pending']['expires_at'])
+    assert v['pending'] == dict(new_email='rina.baru@contoh.go.id', needs_old=True, expires_at=v['pending']['expires_at'], by_admin=None)
     assert v['sent_old'] == 'ri***@contoh.go.id' and v['sent_new'] == 'rina.baru@contoh.go.id'
     to = {m['To']: m for m in outbox}
     assert set(to) == {'rina@contoh.go.id', 'rina.baru@contoh.go.id'} and outbox[0]['Subject'] == 'Kode verifikasi MoniShield Anda'
@@ -275,3 +277,44 @@ def test_port_and_security_mismatch_is_explained(monkeypatch):
     s = dict(host='smtp.contoh.go.id', port=587, security='ssl', username='', password='', sender='a@contoh.go.id')
     with pytest.raises(mailer.MailFail) as e: mailer.deliver(s, None)
     assert 'use 465 with SSL/TLS or 587 with STARTTLS' in e.value.message
+
+
+def test_admin_enters_email_and_the_user_confirms_it(make, outbox):
+    """Option B (owner decision 2026-10-12): an admin's new address for a user waits for the user's code."""
+    tc = make()
+    tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X)
+    users = {u['username']: u for u in tc.get('/api/admin/users').json()['users']}
+    rid, aid = users['rina']['user_id'], users['admin']['user_id']
+    body = dict(email='rina.baru@contoh.go.id', password='salah-sandi-admin', lang='id')
+    r = tc.post(f'/api/admin/users/{rid}/email', json=body, headers=X)
+    assert r.status_code == 403 and r.json()['error']['code'] == 'wrong_password' and not outbox
+    r = tc.post(f'/api/admin/users/{aid}/email', json=dict(body, password=PW2), headers=X)
+    assert r.status_code == 409 and r.json()['error']['code'] == 'own_email'          # own email: Account email, with codes
+    r = tc.post(f'/api/admin/users/{rid}/email', json=dict(body, password=PW2), headers=X)
+    assert r.status_code == 200, r.text
+    u = r.json()
+    assert (u['email'], u['email_pending'], u['email_pending_by']) == ('rina@contoh.go.id', 'rina.baru@contoh.go.id', 'admin')
+    assert [m['To'] for m in outbox] == ['rina.baru@contoh.go.id', 'rina@contoh.go.id']   # code to the new, notice to the old
+    code = code_from(outbox[0])
+    assert 'Berlaku selama 24 jam' in outbox[0].get_body(('plain',)).get_content()
+    assert code not in outbox[1].get_body(('plain',)).get_content() and 'ri***@contoh.go.id' in outbox[1].get_body(('plain',)).get_content()
+    # the old address keeps working until the user confirms
+    tc.post('/api/auth/logout', headers=X)
+    as_rina(tc)
+    me = tc.get('/api/me').json()
+    assert me['email'] == 'rina@contoh.go.id' and me['email_pending'] == 'rina.baru@contoh.go.id'
+    p = tc.get('/api/me/email').json()['pending']
+    assert p['needs_old'] is False and p['by_admin'] == 'admin'
+    assert tc.post('/api/me/email/confirm', json=dict(new_code='000000'), headers=X).json()['error']['code'] == 'wrong_code'
+    r = tc.post('/api/me/email/confirm', json=dict(new_code=code), headers=X)
+    assert r.status_code == 200 and r.json()['email'] == 'rina.baru@contoh.go.id'
+    assert outbox[-1]['To'] == 'rina@contoh.go.id'                                       # changed: notice to the old address
+    assert tc.get('/api/me').json()['email_pending'] is None
+    # an admin can withdraw a waiting address
+    tc.post('/api/auth/logout', headers=X)
+    tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X)
+    assert tc.post(f'/api/admin/users/{rid}/email', json=dict(body, email='rina.lain@contoh.go.id', password=PW2), headers=X).status_code == 200
+    r = tc.delete(f'/api/admin/users/{rid}/email', headers=X)
+    assert r.status_code == 200 and r.json()['email_pending'] is None and r.json()['email'] == 'rina.baru@contoh.go.id'
+    log = [x['detail'] or '' for x in tc.get('/api/admin/audit').json()['rows']]
+    assert any('entered by an admin' in d for d in log) and any('cancelled by admin admin' in d for d in log)

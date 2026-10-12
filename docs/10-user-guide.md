@@ -118,7 +118,17 @@ pop-up over the current page. It needs the mail server.
 
 Codes are valid 10 minutes; after 5 wrong codes the request ends and you start again. Changing the email also cancels a
 pending temporary password. A hijacked session alone cannot change the email: it needs the password and access to the
-old mailbox. Admins can still set any user's email in Manage users.
+old mailbox.
+
+**Admins and emails** (Manage users → Edit):
+
+- An admin's **own** email is read-only there; it changes only under *Account email*, with codes.
+- A **new** address for another user needs the admin's own password. MoniShield emails a code to the new address
+  (valid 24 hours) and a notice to the current one. The address is shown as *Waiting for confirmation* and only becomes
+  the account's email when the user signs in and enters the code (a banner and *Account email* ask for it); until then
+  the current email keeps working. The admin can withdraw the request.
+- **Removing** an email needs no code. A **new account** gets the email entered when it is created (the admin sets its
+  first password anyway).
 
 ### Spike thresholds
 

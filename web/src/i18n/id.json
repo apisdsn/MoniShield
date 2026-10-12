@@ -1156,5 +1156,22 @@
  "cf.st.sk": "Kunci akses rahasia",
  "cf.st.st": "Token sesi (opsional)",
  "cf.st.new_keys": "Penyedia diganti: isi juga kunci akses untuk penyedia ini sebelum menyimpan.",
- "cf.st.region_eg": "mis. {r}"
+ "cf.st.region_eg": "mis. {r}",
+ "adm.email_pending": "Menunggu konfirmasi: {email}",
+ "adm.email_pending_by": "dimasukkan oleh {admin}",
+ "adm.email_cancel": "Batalkan permintaan",
+ "adm.email_own": "Email akun Anda sendiri diganti lewat menu profil → Email akun, dengan kode verifikasi ke alamat lama dan baru.",
+ "adm.email_own_btn": "Buka Email akun",
+ "adm.apw": "Kata sandi Anda (admin)",
+ "adm.email_flow": "Alamat baru belum langsung dipakai: kode konfirmasi dikirim ke alamat itu (berlaku 24 jam) dan {user} memasukkannya di menu Email akun. Sampai saat itu email lama tetap berlaku dan menerima pemberitahuan.",
+ "adm.err.apw": "Kata sandi Anda salah.",
+ "adm.err.apw_needed": "Masukkan kata sandi Anda untuk mengganti email user lain.",
+ "adm.err.email_same": "Ini sudah email akun tersebut.",
+ "adm.done.email_sent": "Kode konfirmasi dikirim ke {email}. Email baru berlaku setelah {user} memasukkannya.",
+ "adm.done.email_cancel": "Permintaan email untuk {user} dibatalkan",
+ "em.by_admin": "Admin {admin} memasukkan {email} sebagai email akun Anda. Masukkan kode yang dikirim ke alamat itu (berlaku 24 jam). Sampai dikonfirmasi, email lama tetap dipakai.",
+ "band.email_pending": "Admin memasukkan email baru untuk akun Anda ({email}). Konfirmasi dengan kode yang dikirim ke alamat itu.",
+ "band.email_confirm": "Konfirmasi",
+ "err.own_email": "Email akun Anda sendiri diganti lewat menu profil → Email akun.",
+ "err.email_needs_code": "Email baru harus dikonfirmasi dengan kode."
 }
