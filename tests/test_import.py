@@ -498,3 +498,60 @@ def test_user_biasa_tidak_boleh_mengatur_sinkron(plain):
         u.post('/api/auth/login', json=dict(username='rina', password='sandi-awal-rina-123'), headers=X)
         u.post('/api/me/password', json=dict(old_password='sandi-awal-rina-123', new_password='sandi-baru-rina-123'), headers=X)
         assert u.put('/api/admin/import/watch', json=dict(url=WATCH, minutes=60, enabled=True), headers=X).status_code == 403
+
+
+@pytest.fixture
+def kclient(cfg, auth_url, monkeypatch, s3):
+    """Kafka filled inbox folder 2026-01-06 (om-be-appsmanager, the same lines S3 has, and om-be-report, which only Kafka
+    has) and is already writing the next folder; S3 has 2026-01-06 too."""
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
+    from monishield.infrastructure import inbox
+    s3.buckets['simpel4-backup'][obj('om-be-appsmanager', 'pod-a', folder='2026-01-06')] = APPS
+    k = os.path.join(cfg.inbox_dir, '2026-01-06', 'ombudsman')
+    for svc, pod in (('om-be-appsmanager', 'pod-a'), ('om-be-report', 'pod-r')):
+        os.makedirs(os.path.join(k, svc), exist_ok=True)
+        with open(os.path.join(k, svc, f'log_{svc}_{pod}_2026-01-06-00-00.log'), 'w', encoding='utf-8') as fh: fh.write(logs_mini.lines(svc))
+    with open(os.path.join(cfg.inbox_dir, '2026-01-06', inbox.MARK), 'w') as fh: fh.write('{"lines": 1}')
+    c = dataclasses.replace(cfg, auth_database_url=auth_url, s3_watch=WATCH, s3_watch_days=0, s3_watch_max_folders=5, s3_watch_recheck_days=0, s3_watch_minutes=0)
+    con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
+    with TestClient(appmod.create_app(c)) as tc:
+        assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
+        assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+        yield tc
+
+
+def test_kafka_folder_is_completed_from_s3(kclient, cfg):
+    """Bug 2026-10-12: with Kafka streaming, the S3 folder of a date Kafka had filled was never synced."""
+    lines = lambda: {f['folder']: f['lines'] for f in kclient.get('/api/meta').json()['folders']}
+    before = lines()['2026-01-06']
+    r = sinkron(kclient)
+    assert '2026-01-06' in r['imported'] and r['errors'] == [] and r['failed'] == [], r
+    base = os.path.join(cfg.inbox_dir, '2026-01-06', 'ombudsman')
+    assert sorted(os.listdir(os.path.join(base, 'om-be-appsmanager'))) == ['log_om-be-appsmanager_pod-a_2026-01-06-00-00.log']   # S3 copy (same name)
+    assert os.listdir(os.path.join(base, 'om-be-report'))                       # only Kafka had it: kept
+    assert os.path.exists(os.path.join(cfg.inbox_dir, '2026-01-06', importer.MANIFEST))
+    assert lines()['2026-01-06'] == before                                       # replaced, not counted twice
+    r = sinkron(kclient)
+    assert '2026-01-06' not in r['imported']                                     # synced once
+
+
+def test_kafka_lines_for_a_date_s3_completed_are_dropped(tmp_path):
+    from monishield.infrastructure import inbox
+    import datetime
+    t = datetime.datetime(2026, 1, 5, 3, 0, tzinfo=datetime.timezone.utc)
+    rec = dict(ns='ombudsman', svc='om-be-report', pod='pod-r', line='x', t=t)
+    sp = inbox.Spool(str(tmp_path))
+    f = sp.add(rec)
+    os.makedirs(tmp_path / f); (tmp_path / f / importer.MANIFEST).write_text('{}')
+    assert sp.flush() == {} and not (tmp_path / f / 'ombudsman').exists()
+
+
+def test_drop_kafka_keeps_other_services_and_removes_the_mark(tmp_path):
+    from monishield.infrastructure import inbox
+    d = tmp_path / 'f'
+    for svc in ('a', 'b'):
+        (d / 'ns' / svc).mkdir(parents=True); (d / 'ns' / svc / f'{svc}.log').write_text('k')
+    (d / inbox.MARK).write_text('{}')
+    assert importer._drop_kafka(str(d), [dict(rel='ns/a/s3.log')]) == 1
+    assert not (d / 'ns' / 'a' / 'a.log').exists() and (d / 'ns' / 'b' / 'b.log').exists() and (d / inbox.MARK).exists()
+    assert importer._drop_kafka(str(d), [dict(rel='ns/b/s3.log')]) == 1 and not (d / inbox.MARK).exists()   # nothing from Kafka left

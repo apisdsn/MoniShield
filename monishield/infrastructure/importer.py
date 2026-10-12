@@ -13,6 +13,7 @@ printed, logged, or returned.
 import datetime, gzip, json, os, re, shutil, threading, time, uuid, zlib
 
 from monishield.domain import rules, s3_import, storage
+from monishield.infrastructure.inbox import MARK as KAFKA_MARK
 from monishield.domain.s3_import import CONTROL, NO_CREDENTIALS, ImportFail, allowed_examples, parse_url, parse_watch, pick   # noqa: F401
 
 ENDPOINT = None   # tests only (local fake S3); the server always uses the official endpoint of region `import_region`
@@ -269,10 +270,33 @@ def run(cfg, url, creds_store, dry_run=False, progress=None):
     return res
 
 
+def _drop_kafka(dst, take):
+    """The folder was filled by the Kafka consumer and S3 now has the complete copy of that date: Kafka's files of the
+    services S3 brings are removed (the same lines would otherwise be counted twice); services only Kafka has stay.
+    The Kafka mark goes when no Kafka file is left. -> number of files removed. Ingest then drops their rows."""
+    if not os.path.exists(os.path.join(dst, KAFKA_MARK)): return 0
+    try:
+        with open(os.path.join(dst, MANIFEST), encoding='utf-8') as fh: man = json.load(fh)
+    except (OSError, ValueError): man = {}
+    from_s3 = {r['rel'] for r in take} | {r.get('stored', r['rel']) for r in take} | set(man) | {m.get('stored', k) for k, m in man.items()}
+    services = {'/'.join(r['rel'].split('/')[:2]) for r in take if r['rel'].count('/') >= 2}
+    removed, left = 0, 0
+    for root, _, files in os.walk(dst):
+        for name in files:
+            rel = os.path.relpath(os.path.join(root, name), dst).replace(os.sep, '/')
+            if rel in (KAFKA_MARK, MANIFEST) or rel in from_s3: continue
+            if '/'.join(rel.split('/')[:2]) in services: os.remove(os.path.join(root, name)); removed += 1
+            else: left += 1
+    if not left: _rm(os.path.join(dst, KAFKA_MARK))
+    return removed
+
+
 def _move_into_inbox(cfg, src, folder, take):
-    """New folder: one rename (atomic). Existing folder: each file is replaced by a rename (atomic per file). Then the manifest."""
+    """New folder: one rename (atomic). Existing folder: each file is replaced by a rename (atomic per file), after the
+    Kafka copy of the same services is removed (_drop_kafka). Then the manifest."""
     dst = os.path.join(cfg.inbox_dir, folder)
     os.makedirs(cfg.inbox_dir, exist_ok=True)
+    if os.path.exists(dst): _drop_kafka(dst, take)
     if not os.path.exists(dst):
         try: os.replace(src, dst)
         except OSError: shutil.copytree(src, dst + '.part'); os.replace(dst + '.part', dst)   # different file system

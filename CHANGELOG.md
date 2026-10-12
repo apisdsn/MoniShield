@@ -38,6 +38,9 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 
 ### Changed
+- With Kafka streaming on, the automatic S3 sync now fetches and ingests the S3 folder of a date Kafka has filled (it
+  was skipped as "already known"): the S3 files replace Kafka's files of the same services, so lines are not counted
+  twice; the folder Kafka is still writing is left alone.
 - `S4_IMPORT_REGION` has no default any more and is free text (any region name without spaces); set it for AWS buckets
   outside `us-east-1`.
 - Every placeholder in the UI uses `example.com` / `example` values.

@@ -4,7 +4,7 @@ import datetime, threading
 
 from monishield.application import settings_service
 from monishield.application.ingest_service import now
-from monishield.domain import retention, s3_import
+from monishield.domain import kafka_message, retention, s3_import
 from monishield.domain.errors import Busy, Fail
 from monishield.domain.s3_import import ImportFail
 
@@ -122,12 +122,19 @@ class ImportService:
         self.thread.start()
 
     def _known(self):
-        """Folders already known (database, ignored, log folder, inbox) and inbox folders that came from S3."""
+        """Folders already known (database, ignored, log folder, inbox) and inbox folders that came from S3.
+
+        A folder the Kafka consumer filled is NOT known to the sync (bug fixed 2026-10-12: with Kafka on, the S3 copy of
+        that date was skipped forever): once Kafka has moved on to the next folder, the complete S3 folder of that date
+        is fetched and replaces the Kafka lines of the services it contains (importer._drop_kafka). The folder Kafka
+        is still writing is left alone."""
         w, lf = self.ctx.warehouse, self.ctx.logfolders
         known, ign = w.known_folders(), w.ignored()
         in_log, in_inbox = lf.dates()
         from_s3 = lf.from_s3(in_inbox) - ign - in_log
-        return known | ign | in_log | in_inbox, from_s3
+        live = kafka_message.folder_of(datetime.datetime.now(datetime.timezone.utc))
+        kafka_only = lf.from_kafka(in_inbox) - ign - in_log - {live}
+        return (known | ign | in_log | in_inbox) - kafka_only, from_s3
 
     def _sync(self, sources, by):
         cfg, auth, s3 = self.ctx.cfg, self.ctx.auth, self.ctx.s3

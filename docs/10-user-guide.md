@@ -25,6 +25,9 @@ the sync the dashboard switches to the newest folder. Only new or changed files 
 `s3://nama-bucket/k8s-logs` → **Save & enable**. The first check runs a few seconds later, then at every
 chosen interval (default 1 hour); new date folders are downloaded and ingested. The **Sync data** button in the page
 header also checks S3 first, then the local log folder. (Alternative without the UI: `S4_S3_WATCH` in `.env`.)
+With Kafka streaming on as well, a date folder Kafka has filled is still synced from S3 once Kafka has moved on to the
+next folder: the S3 files replace Kafka's files of the same services (no double counting), services only Kafka has are
+kept.
 
 ### Configuration
 

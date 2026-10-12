@@ -44,6 +44,13 @@ class LogFolders:
         """Inbox folders holding S3 import results (manifest present)."""
         return {d for d in folders if os.path.exists(os.path.join(self.cfg.inbox_dir, d, MANIFEST))}
 
+    def from_kafka(self, folders):
+        """Inbox folders written by the Kafka consumer that no S3 import has completed yet (mark, no manifest)."""
+        def only_kafka(d):
+            p = os.path.join(self.cfg.inbox_dir, d)
+            return os.path.exists(os.path.join(p, KAFKA_MARK)) and not os.path.exists(os.path.join(p, MANIFEST))
+        return {d for d in folders if only_kafka(d)}
+
     def source(self, folder):
         """Where a folder's logs come from: 'log' (main log folder; it wins when both exist), 'kafka' (written by the
         Kafka consumer), 's3' (S3 import), 'upload' (uploaded from the browser), or None (not on disk)."""

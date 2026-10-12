@@ -12,7 +12,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Version | 2.0.0 + the *Unreleased* changes in `CHANGELOG.md` |
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
-| Tests | pytest: 387 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
+| Tests | pytest: 390 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
 | CI | `.github/workflows/ci.yml` green on `dev`. `stg` and `prd` still point to the commit before the deploy job. |
 | Deploy | Automatic deploy of `prd` built and tested with a stub; **not yet run against the real server** (see next steps). |
 | Server today | Still runs from the old checkout `/srv/dashboard-logging/v2` (compose project `monishield`). The first automatic deploy moves it to `/srv/MoniShield`, reusing the same containers and volumes. |
@@ -90,8 +90,9 @@ Questions answered along the way, recorded so they are not asked again:
 ## Known issues
 
 - `tools/uji_browser.cjs`: two checks fail and did so before the recent changes ("14 IP" count, Tab focus order).
-- The S3 sync skips dates that already have a Kafka folder, so a Kafka folder that misses some services (for example
-  ingress-nginx before step 3 above) is not completed from S3. Offered as an option, not requested yet.
+- Fixed 2026-10-12: the S3 sync used to skip dates that already had a Kafka folder. Now, once Kafka writes the next
+  folder, the S3 copy of that date is fetched and replaces Kafka's files of the same services (services only Kafka has
+  are kept); Kafka lines that arrive later for that date are dropped.
 - Credentials entered on the Configuration page are stored in `.env` in plain text (encrypting them was tried and
   rolled back at the owner's request): protect the file permissions (the app writes it as group 10001, mode 660).
 - Encrypted API bodies need WebCrypto, which browsers only offer on HTTPS or `localhost`; over plain `http://` to a LAN
