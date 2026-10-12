@@ -179,6 +179,7 @@ Command line, Kafka and S3 details, notifications and the block list are in the
 - [x] Tested on a real phone
 - [x] Encrypted API traffic for the web UI, data retention, per-service notification thresholds
 - [x] Forgot password by email, branded email letters, verified email change
+- [x] Configuration in the sidebar; object storage on S3, R2, MinIO, Wasabi, GCS, Spaces or Azure Blob
 - [ ] First automatic deploy to the production server
 - [ ] ingress-nginx logs from Rancher cluster logging
 

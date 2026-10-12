@@ -25,17 +25,45 @@ the sync the dashboard switches to the newest folder. Only new or changed files 
 `s3://nama-bucket/k8s-logs` → **Save & enable**. The first check runs a few seconds later, then at every
 chosen interval (default 1 hour); new date folders are downloaded and ingested. The **Sync data** button in the page
 header also checks S3 first, then the local log folder. (Alternative without the UI: `S4_S3_WATCH` in `.env`.)
+With Kafka streaming on as well, a date folder Kafka has filled is still synced from S3 once Kafka has moved on to the
+next folder: the S3 files replace Kafka's files of the same services (no double counting), services only Kafka has are
+kept.
 
 ### Configuration
 
-User menu → **Configuration**. Contains the AWS S3 access keys + region,
-the automatic S3 parent folder, the MaxMind GeoLite2 key, notifications, and block list exclusions; each section has
-**Save** and (for AWS/MaxMind) **Test connection**. **Save writes directly to the `.env` file** (existing lines are replaced,
+Sidebar → **Configuration** (admins). Every item opens as a pop-up over the current page: **Object storage**
+(provider, keys, region, automatic sync), **Kafka broker**, **GeoIP (MaxMind)**, **Mail server (SMTP)**,
+**Notifications**, **Block list**, **Data retention** and **Server keys (.env)**. Each has **Save** and, where it
+applies, **Test connection**. The sidebar groups (Analysis, Services, Configuration) fold open and closed with the
+arrow next to their name; the choice is kept per browser. The old addresses `#/admin/konfigurasi` and
+`#/admin/notifikasi` open the matching pop-up. **Save writes directly to the `.env` file** (existing lines are replaced,
 comments are kept) and takes effect immediately without a restart; **Remove from .env** disables the line (default value).
 All URLs/addresses of external services and limits that used to be hard-coded are also in `.env` (section 10 of `.env.example`:
 `S4_URL_*`, `S4_TELEGRAM_API`, `S4_*_MAX_AGE_DAYS`, …). The server must be allowed to write `.env`. Credentials are never shown again
 (the Access Key ID is only shown masked, `AKIA…1234`). Settings that remain `.env`-only (the basis of server security: `S4_JWT_SECRET`,
 `S4_JOB_TOKEN`, the account database, `S4_ADMIN_PASSWORD`, `S4_IMPORT_BUCKETS`) only have their status shown.
+
+### Object storage providers
+
+Configuration → **Object storage** → *Provider*: Amazon S3, Cloudflare R2, MinIO, Wasabi, Google Cloud Storage (HMAC
+keys), DigitalOcean Spaces, any other S3-compatible service, or Azure Blob Storage.
+
+| Provider | Endpoint | Region (free text) | Keys |
+|---|---|---|---|
+| Amazon S3 | — | e.g. `ap-southeast-3` | access key ID + secret (+ session token) |
+| Cloudflare R2 | `https://<account-id>.r2.cloudflarestorage.com` (required) | `auto` | R2 API token key pair |
+| MinIO, other S3-compatible | your server, e.g. `https://minio.example.com:9000` (required) | as configured, e.g. `us-east-1` | access key pair |
+| Wasabi, DigitalOcean Spaces | built from the region, or entered | e.g. `ap-southeast-1`, `sgp1` (required without endpoint) | access key pair |
+| Google Cloud Storage | `https://storage.googleapis.com` | `auto` | HMAC key pair |
+| Azure Blob Storage | `https://<account>.blob.core.windows.net` | — | storage account name + key |
+
+The region is never filled in for you: type what the provider uses (the field shows an example). Empty = the storage
+library's default; for AWS buckets outside `us-east-1` fill it in to avoid a redirect on every request. Links keep the
+form `s3://<bucket>/<prefix>/<YYYY-MM-DD>/` for every provider (`az://<container>/…` is accepted too); the allow list
+`S4_IMPORT_BUCKETS` applies to buckets and containers alike. `.env`: `S4_STORAGE_PROVIDER`, `S4_STORAGE_ENDPOINT`,
+`S4_IMPORT_REGION`, `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (every S3-compatible provider),
+`AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_KEY`. Azure needs the `azure` extra (`pip install -e ".[azure]"`; the Docker
+image has it).
 
 ### Notifications
 
@@ -53,6 +81,16 @@ address you enter (default: your own account's email). The same server sends the
 forgot-password emails. Every email uses one MoniShield letter: logo, title, text, an optional code box (temporary
 password, OTP code), an optional list and button, in Indonesian or English; there is also a plain-text part.
 `.env`: `S4_SMTP_HOST`, `S4_SMTP_PORT`, `S4_SMTP_SECURITY`, `S4_SMTP_USERNAME`, `SMTP_PASSWORD`, `S4_SMTP_FROM`.
+
+- **Port and security go together**: 465 with SSL/TLS, 587 with STARTTLS. Choosing the security mode moves a standard
+  port along; a mismatch is reported as such when sending.
+- **Sender domain**: the domain of the sender address must be the one verified at the mail provider (SPF/DKIM records).
+  With an unverified domain, providers such as SumoPod (kirim.email) send from their own address
+  (`…@…sumosender.com`) and put your account email in *Reply-To*. If the provider verified `monishield.example.go.id`,
+  the sender is `MoniShield <noreply@monishield.example.go.id>`, not `…@example.go.id`.
+- **Logo**: with `S4_DASHBOARD_URL` set to the public `https://` address, the logo is loaded from
+  `<address>/mail-logo.png` (public, no data). Without it the logo is attached to the email; some relays rewrite
+  messages and break such attached images.
 
 ### Forgot password
 
@@ -80,7 +118,17 @@ pop-up over the current page. It needs the mail server.
 
 Codes are valid 10 minutes; after 5 wrong codes the request ends and you start again. Changing the email also cancels a
 pending temporary password. A hijacked session alone cannot change the email: it needs the password and access to the
-old mailbox. Admins can still set any user's email in Manage users.
+old mailbox.
+
+**Admins and emails** (Manage users → Edit):
+
+- An admin's **own** email is read-only there; it changes only under *Account email*, with codes.
+- A **new** address for another user needs the admin's own password. MoniShield emails a code to the new address
+  (valid 24 hours) and a notice to the current one. The address is shown as *Waiting for confirmation* and only becomes
+  the account's email when the user signs in and enters the code (a banner and *Account email* ask for it); until then
+  the current email keeps working. The admin can withdraw the request.
+- **Removing** an email needs no code. A **new account** gets the email entered when it is created (the admin sets its
+  first password anyway).
 
 ### Spike thresholds
 

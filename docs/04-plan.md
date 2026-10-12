@@ -1097,6 +1097,54 @@ proportions on every screen; every future one-time code field uses the same comp
 
 ---
 
+## Stage 37 — Configuration in the sidebar, object storage providers (2026-10-08)
+
+**Origin.** Owner request: move every part of the Configuration page into the sidebar as pop-ups ("Kafka broker",
+"Object storage" with a choice of AWS S3, Azure and others), fold the sidebar groups (Analysis, Services,
+Configuration) open and closed with an animation; then: the region is free text with a placeholder only, and every
+placeholder uses `example.com` / `example`.
+
+- **Sidebar** (`lib/Sidebar.svelte`): groups fold with a `grid-template-rows` 0fr↔1fr animation (no fixed heights; off
+  with reduced motion), closed groups are `inert`, the choice is kept in `localStorage` (`nav-groups`). New admin group
+  *Configuration* with eight items; the icon rail keeps every group open.
+- **Pop-ups** (`lib/ConfigDialogs.svelte`, `Dialog wide`): `AdminConfig` renders one part (`only=`) without cards;
+  notifications reuse `AdminAlerts embedded`. The Configuration page route and the user-menu item are gone; the old
+  addresses open the matching pop-up.
+- **Object storage** (`domain/storage.py`, `infrastructure/importer.py`): providers `aws`, `r2`, `minio`, `wasabi`,
+  `gcs`, `spaces`, `s3` (other) through boto3 with the provider's endpoint and addressing style, and `azure` through an
+  `AzureBlob` adapter that offers the two S3 calls the importer uses. New settings `S4_STORAGE_PROVIDER`,
+  `S4_STORAGE_ENDPOINT`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_KEY`; key format checked per provider (AWS keeps its
+  `AKIA…` rule). `S4_IMPORT_REGION` has no default any more and accepts any name without spaces.
+- `.env` override list no longer repeats names that belong to two groups.
+
+**Verification**: `tests/test_storage.py` (provider rules, endpoints, boto3 client per provider, Azure adapter with a
+fake container client, Azure errors, credentials per provider), `tests/test_settings.py` (provider saved from the page,
+Azure key never returned). Browser at 1440 and 390 px: groups fold and are remembered, every pop-up opens, R2 without
+endpoint is refused, provider switch hint, old addresses, placeholders.
+
+---
+
+## Stage 38 — Admin-entered emails are confirmed by the user (2026-10-12)
+
+**Origin.** Owner question: Manage users changed any email without a code while Account email needed codes. Chosen:
+option B.
+
+- `Auth.update_user` no longer sets a new address (`email_needs_code`); removing stays direct.
+- `Auth.email_change_by_admin` + `POST /api/admin/users/{id}/email` (admin password; not for the admin's own account,
+  `own_email`): an `email_change` row with only a new-address code, valid `ADMIN_CODE_MINUTES` (24 h),
+  `requested_by` = the admin (column added on start for older databases). Letters: code to the new address
+  (`letters.email_set_by_admin_code`), notice to the current one (`letters.email_change_requested`).
+  `DELETE /api/admin/users/{id}/email` withdraws it.
+- The user confirms under Account email (one code field); `/api/me` returns `email_pending`, the app shows a banner.
+  `list_users` returns `email_pending` / `email_pending_by` for the table and the edit dialog.
+
+**Verification**: `tests/test_password_reset.py` (wrong admin password, own account refused, letters to the new and the
+old address, 24-hour code, old email kept until confirmed, wrong code, confirm, withdraw, audit, migration of
+`requested_by`). Browser: edit dialog with admin password, waiting state in the table, own row read-only, banner,
+confirm with the code.
+
+---
+
 ## Deviation notes
 
 Filled in whenever a stage is finished: stage number, date, what differs from the plan or from the TRD/DRD, and why.

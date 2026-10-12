@@ -13,6 +13,7 @@ SECRETS = {'admin_password': 'S4_ADMIN_PASSWORD', 'job_token': 'S4_JOB_TOKEN', '
            'auth_database_url': 'S4_AUTH_DATABASE_URL',   # contains the PostgreSQL password
            'maxmind_account_id': 'MAXMIND_ACCOUNT_ID', 'maxmind_license_key': 'MAXMIND_LICENSE_KEY',
            'aws_access_key_id': 'AWS_ACCESS_KEY_ID', 'aws_secret_access_key': 'AWS_SECRET_ACCESS_KEY', 'aws_session_token': 'AWS_SESSION_TOKEN',
+           'azure_storage_account': 'AZURE_STORAGE_ACCOUNT', 'azure_storage_key': 'AZURE_STORAGE_KEY',
            'telegram_bot_token': 'TELEGRAM_BOT_TOKEN', 'discord_webhook_url': 'DISCORD_WEBHOOK_URL', 'smtp_password': 'SMTP_PASSWORD',
            'kafka_password': 'KAFKA_PASSWORD'}
 
@@ -52,7 +53,9 @@ class Config:
     attack_rules: str = 'crs'      # Security view: 'crs' (OWASP CRS + CAPEC, Stage 21) or 'lama' (old system rules; parity test)
     attack_paranoia: int = 1       # CRS paranoia level 1..4 (ASSUMPTION S1: 1, fewest false positives)
     import_buckets: dict = dataclasses.field(default_factory=dict)  # bucket -> [allowed prefixes]; empty = import off
-    import_region: str = 'ap-southeast-3'
+    storage_provider: str = 'aws'   # object storage: aws | r2 | minio | wasabi | gcs | spaces | azure | s3 (monishield/domain/storage.py)
+    storage_endpoint: str = ''      # S3 endpoint for providers other than AWS (e.g. https://<account>.r2.cloudflarestorage.com)
+    import_region: str = ''         # free text, e.g. ap-southeast-3 (AWS), auto (R2, GCS), sgp1 (Spaces); empty = the SDK default
     import_max_objects: int = 500
     import_max_object_mb: int = 1024
     import_max_total_mb: int = 5120
@@ -70,6 +73,8 @@ class Config:
     aws_access_key_id: str = ''
     aws_secret_access_key: str = ''
     aws_session_token: str = ''
+    azure_storage_account: str = ''   # Azure Blob Storage (storage_provider = azure)
+    azure_storage_key: str = ''
     # notifications (the Configuration page -> Notifications writes here; monishield/alerts.py)
     alert_telegram: bool = False
     telegram_bot_token: str = ''

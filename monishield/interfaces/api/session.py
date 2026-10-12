@@ -69,7 +69,9 @@ def logout(request: Request, response: Response, user=Depends(require_user)):
 @router.get('/me')
 def me(request: Request, user=Depends(require_user)):
     # the idle limit is sent so the UI can warn 5 minutes before the session expires (DRD §6.9)
-    return dict(_me(user), session_idle_minutes=request.app.state.auth.idle)
+    p = request.app.state.auth.email_change_pending(user)   # an address an admin entered, waiting for this user's code
+    return dict(_me(user), session_idle_minutes=request.app.state.auth.idle,
+                email_pending=p['new_email'] if p and p.get('by_admin') else None)
 
 
 @router.post('/me/password')

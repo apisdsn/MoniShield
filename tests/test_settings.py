@@ -98,7 +98,7 @@ def test_lihat_awal_tanpa_rahasia(client, envp):
     assert a['aws_access_key_id'] == dict(set=True, source='file', env='AWS_ACCESS_KEY_ID', masked=f'{KEY_OK[:4]}…{KEY_OK[-4:]}')
     assert a['aws_secret_access_key'] == dict(set=True, source='file', env='AWS_SECRET_ACCESS_KEY')
     assert a['aws_session_token'] == dict(set=False, source=None, env='AWS_SESSION_TOKEN')
-    assert a['import_region'] == dict(value='ap-southeast-3', source=None, env='S4_IMPORT_REGION')
+    assert a['import_region'] == dict(value='', source=None, env='S4_IMPORT_REGION')   # no built-in region: free text
     assert v['maxmind']['maxmind_license_key'] == dict(set=False, source='file', env='MAXMIND_LICENSE_KEY')
     assert v['blocklist']['blocklist_exclude_org']['value'] == 'OMBUDSMAN'
     assert v['server']['jwt_secret'] is True and v['server']['job_token'] is False
@@ -129,7 +129,7 @@ def test_simpan_ke_env_langsung_berlaku(client, envp):
     # delete -> line disabled, default value
     r = client.put('/api/admin/config', json=dict(clear=['aws_session_token', 'import_region', 'maxmind_account_id', 'maxmind_license_key']), headers=X)
     assert r.status_code == 200
-    assert cfg.import_region == 'ap-southeast-3' and cfg.maxmind_license_key == ''
+    assert cfg.import_region == '' and cfg.maxmind_license_key == ''
     t = open(envp).read()
     assert '# S4_IMPORT_REGION=\n' in t and MM_KEY not in t
 
@@ -150,7 +150,7 @@ def test_variabel_lingkungan_mengalahkan_env_ditandai(client, monkeypatch):
     dict(aws_access_key_id='akia-kecil', aws_secret_access_key=SECRET_UI),
     dict(aws_access_key_id=KEY_UI, aws_secret_access_key='pendek'),
     dict(aws_access_key_id='', clear=['aws_secret_access_key']),                       # incomplete pair
-    dict(import_region='jakarta'),
+    dict(import_region='ap southeast 3'),                                         # free text, but no spaces
     dict(maxmind_account_id='abc', maxmind_license_key=MM_KEY),
     dict(maxmind_license_key=MM_KEY),
     dict(blocklist_exclude='10.0.0.0/8, bukan-ip'),
@@ -170,7 +170,7 @@ def test_env_tidak_bisa_ditulis(client, envp, monkeypatch):
     assert client.get('/api/admin/config', headers=X).json()['file']['writable'] is False
     r = client.put('/api/admin/config', json=dict(import_region='ap-southeast-1'), headers=X)
     assert r.status_code == 400 and r.json()['error']['code'] == 'env_not_writable' and open(envp).read() == before
-    assert client.app.state.cfg.import_region == 'ap-southeast-3'
+    assert client.app.state.cfg.import_region == ''
 
 
 def test_pindahan_dari_basis_data_ke_env(cfg, envp, monkeypatch, s3):
@@ -205,7 +205,7 @@ def test_uji_aws(client):
     assert r.json() == dict(ok=True, kind='aws', target='s3://simpel4-backup/k8s-logs/', source='environment')
     assert client.put('/api/admin/config', json=dict(aws_access_key_id='AKIASALAHSALAHSALAH1', aws_secret_access_key=SECRET_UI), headers=X).status_code == 200
     r = client.post('/api/admin/config/test', json=dict(kind='aws'), headers=X)
-    assert r.status_code == 502 and r.json()['error']['code'] == 's3_denied'
+    assert r.status_code == 424 and r.json()['error']['code'] == 's3_denied'
     bersih(r.text)
     assert client.post('/api/admin/config/test', json=dict(kind='lain'), headers=X).status_code == 400
 
@@ -221,7 +221,7 @@ def test_uji_maxmind(client, monkeypatch):
         def open(self, req, timeout=None):
             seen.append((req.get_method(), req.full_url, req.get_header('Authorization')))
             raise urllib.error.HTTPError(req.full_url, self.code, 'x', {}, None)
-    for code, status, err in ((302, 200, None), (401, 502, 'maxmind_denied'), (500, 502, 'maxmind_error')):
+    for code, status, err in ((302, 200, None), (401, 424, 'maxmind_denied'), (500, 424, 'maxmind_error')):
         monkeypatch.setattr(refdata.urllib.request, 'build_opener', lambda *a, c=code: Opener(c))
         r = client.post('/api/admin/config/test', json=dict(kind='maxmind'), headers=X)
         assert r.status_code == status, (code, r.text)
@@ -285,3 +285,22 @@ def test_bad_value_elsewhere_does_not_block_other_sections(client, envp):
     assert r.status_code == 400 and r.json()['error']['code'] == 'invalid_config'
     assert 'Access Key ID' in r.json()['error']['message']
     bersih(r.text)
+
+
+def test_object_storage_provider_from_the_page(client, envp):
+    """Sidebar → Object storage: another provider with its endpoint and its own key format, then Azure."""
+    r = client.put('/api/admin/config', json=dict(storage_provider='r2', aws_access_key_id='3f2a9c0e7b6d4a1f8e5c2b9a7d4e1f0a',
+                                                  aws_secret_access_key='c0ffee1234567890abcdef0123456789', import_region='auto'), headers=X)
+    assert r.status_code == 400 and 'endpoint' in r.json()['error']['message']   # R2 needs its endpoint
+    r = client.put('/api/admin/config', json=dict(storage_provider='r2', storage_endpoint='https://acc.r2.cloudflarestorage.com',
+                                                  aws_access_key_id='3f2a9c0e7b6d4a1f8e5c2b9a7d4e1f0a',
+                                                  aws_secret_access_key='c0ffee1234567890abcdef0123456789', import_region='auto'), headers=X)
+    assert r.status_code == 200, r.text
+    f = config.read_dotenv(envp)
+    assert (f['S4_STORAGE_PROVIDER'], f['S4_STORAGE_ENDPOINT'], f['S4_IMPORT_REGION']) == ('r2', 'https://acc.r2.cloudflarestorage.com', 'auto')
+    v = client.get('/api/admin/config', headers=X).json()['aws']
+    assert v['storage_provider']['value'] == 'r2' and v['azure_storage_key'] == dict(set=False, source=None, env='AZURE_STORAGE_KEY')
+    key = 'bm90LWEtcmVhbC1rZXktanVzdC1hLXRlc3Q=' * 2
+    r = client.put('/api/admin/config', json=dict(storage_provider='azure', azure_storage_account='monishieldlogs', azure_storage_key=key), headers=X)
+    assert r.status_code == 200, r.text
+    assert key not in r.text and client.app.state.s3.creds.get()[0] == dict(account='monishieldlogs', key=key)

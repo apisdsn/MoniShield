@@ -6,7 +6,10 @@ password" to take it over):
   3. a code sent to the NEW email (the address works and belongs to the user).
 Codes: 6 digits, valid 10 minutes, 5 wrong tries (monishield/domain/accounts.py). After the change the old address gets
 a notice. Every step is audited (`email.change_start`, `email.change_fail`, `email.change`, `email.change_cancel`).
-Admins can still set any user's email in Manage users.
+Admins (owner decision 2026-10-12, option B): in Manage users an admin may enter a new address for ANOTHER user, with
+the admin's own password. It only becomes the account's email when the user, signed in, enters the code sent to it
+(Account email; valid 24 hours); the current email keeps working until then and gets a notice. An admin's own email is
+changed only here, with codes. Removing an email (admin) needs no code. New accounts get their email directly.
 """
 from monishield.domain import accounts, letters
 from monishield.domain.errors import Fail
@@ -42,6 +45,29 @@ class EmailChanges:
                                                        accounts.mask_email(u['email']), ctx.cfg.dashboard_url), old)
             except Fail: pass
         return dict(email=u['email'], pending=None, mail_ready=ctx.mailer.ready())
+
+    def admin_set(self, user_id, admin, password, new_email, ip=None, lang='id'):
+        ctx = self.ctx
+        if not ctx.mailer.ready():
+            raise Fail('mail_not_configured', 'Email cannot be changed here yet: the mail server is not set up. Ask an admin.', 503)
+        r = ctx.auth.email_change_by_admin(user_id, admin, password, new_email, ip)
+        lang, u, who = lang if lang in ('id', 'en') else 'id', r['user'], admin.get('display_name') or admin['username']
+        try:
+            ctx.mailer.send(letters.email_set_by_admin_code(lang, u['display_name'], u['username'], r['new_code'], accounts.ADMIN_CODE_MINUTES,
+                                                            who, ctx.cfg.dashboard_url), r['new_email'])
+        except Fail as e:
+            ctx.auth.email_change_cancel(u, ip, f'email not sent: {e.message}'[:300])
+            raise
+        if r['old_email']:   # the current address is told; a failure here does not stop the request
+            try: ctx.mailer.send(letters.email_change_requested(lang, u['display_name'], u['username'], accounts.mask_email(r['new_email']),
+                                                                who, ctx.cfg.dashboard_url), r['old_email'])
+            except Fail: pass
+        return next(x for x in ctx.auth.list_users() if x['user_id'] == user_id)
+
+    def admin_cancel(self, user_id, admin, ip=None):
+        u = self.ctx.auth.get_user(user_id)
+        self.ctx.auth.email_change_cancel(u, ip, f'cancelled by admin {admin["username"]}')
+        return next(x for x in self.ctx.auth.list_users() if x['user_id'] == user_id)
 
     def cancel(self, user, ip=None):
         self.ctx.auth.email_change_cancel(user, ip, 'cancelled by the user')

@@ -75,7 +75,7 @@ translates informational server text (warnings, job summaries, audit details) wi
 
 ```
 monishield/
-  domain/          accounts.py alerts.py config_model.py detect.py errors.py kafka_message.py letters.py parse.py retention.py rules.py
+  domain/          accounts.py alerts.py config_model.py detect.py errors.py kafka_message.py letters.py parse.py retention.py rules.py storage.py
                    s3_import.py settings.py uploads.py  (+ crs_rules.json, capec.json, CRS-LICENSE.txt)
   application/     ports.py ingest_service.py import_service.py alert_service.py settings_service.py
                    kafka_service.py password_service.py retention_service.py upload_service.py account_service.py

@@ -18,12 +18,13 @@ RUN npm run build
 FROM python:3.13.9-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
-# dependencies first (cache layer): the list comes from pyproject.toml, including boto3 (S3 import) and kafka-python (logs from Kafka)
+# dependencies first (cache layer): the list comes from pyproject.toml, including boto3 (S3-compatible storage),
+# azure-storage-blob (Azure Blob Storage) and kafka-python (logs from Kafka)
 COPY pyproject.toml ./
 RUN --mount=type=secret,id=ca_bundle,required=false \
     if [ -s /run/secrets/ca_bundle ]; then export PIP_CERT=/run/secrets/ca_bundle; fi; \
     python -c "import tomllib; p = tomllib.load(open('pyproject.toml', 'rb'))['project']; \
-print('\n'.join(p['dependencies'] + p['optional-dependencies']['s3'] + p['optional-dependencies']['kafka']))" > /tmp/req.txt \
+print('\n'.join(p['dependencies'] + p['optional-dependencies']['s3'] + p['optional-dependencies']['azure'] + p['optional-dependencies']['kafka']))" > /tmp/req.txt \
  && pip install -r /tmp/req.txt && rm /tmp/req.txt
 COPY monishield/ monishield/
 COPY --from=web /src/web/dist web/dist

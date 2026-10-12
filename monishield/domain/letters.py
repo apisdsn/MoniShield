@@ -29,7 +29,12 @@ T = dict(
         change_new='memverifikasi alamat email baru akun MoniShield Anda ({username})',
         changed_subject='Email akun MoniShield Anda telah diganti', changed_title='Email akun diganti',
         changed_intro='Email akun MoniShield Anda ({username}) baru saja diganti menjadi {new}. Email berikutnya, termasuk kata sandi sementara, dikirim ke alamat baru tersebut.',
-        changed_note='Jika Anda tidak melakukan perubahan ini, segera hubungi admin MoniShield.'),
+        changed_note='Jika Anda tidak melakukan perubahan ini, segera hubungi admin MoniShield.',
+        admin_new='mengonfirmasi alamat ini sebagai email akun MoniShield Anda ({username}). Admin {admin} yang memasukkannya. Masuk ke MoniShield, buka menu profil → Email akun, lalu masukkan kode ini',
+        hours='{n} jam', minutes='{n} menit',
+        requested_subject='Permintaan penggantian email akun MoniShield Anda', requested_title='Permintaan penggantian email',
+        requested_intro='Admin {admin} meminta email akun MoniShield Anda ({username}) diganti menjadi {new}. Email ini tetap dipakai sampai pemilik alamat baru mengonfirmasinya dengan kode.',
+        requested_note='Jika permintaan ini tidak sesuai, segera hubungi admin MoniShield.'),
     en=dict(
         hello='Hello {name},', footer='This email was sent automatically by MoniShield. Please do not reply.',
         ignore='If you did not request a password reset, you can ignore this email. Your current password still works.',
@@ -50,7 +55,12 @@ T = dict(
         change_new='verify the new email address of your MoniShield account ({username})',
         changed_subject='The email of your MoniShield account was changed', changed_title='Account email changed',
         changed_intro='The email of your MoniShield account ({username}) was just changed to {new}. Future emails, including temporary passwords, go to that address.',
-        changed_note='If you did not make this change, contact your MoniShield admin right away.'),
+        changed_note='If you did not make this change, contact your MoniShield admin right away.',
+        admin_new='confirm this address as the email of your MoniShield account ({username}). Admin {admin} entered it. Sign in to MoniShield, open the profile menu → Account email and enter this code',
+        hours='{n} hours', minutes='{n} minutes',
+        requested_subject='Request to change the email of your MoniShield account', requested_title='Email change requested',
+        requested_intro='Admin {admin} asked to change the email of your MoniShield account ({username}) to {new}. This address stays in use until the owner of the new address confirms it with a code.',
+        requested_note='If this request is not expected, contact your MoniShield admin right away.'),
 )
 
 
@@ -76,9 +86,14 @@ def password_reset(lang, name, username, temp, minutes, url=''):
 def otp(lang, name, code, minutes, purpose, url=''):
     """One-time code letter (ready for e-mail OTP; `purpose` completes the sentence "Use the code below to …")."""
     t = _t(lang)
-    return letter(lang, t['otp_subject'], t['otp_title'], t['otp_note'].format(minutes=minutes),
+    note = t['otp_note'].format(minutes=minutes).replace(f'{minutes} menit', _span(t, minutes)).replace(f'{minutes} minutes', _span(t, minutes))
+    return letter(lang, t['otp_subject'], t['otp_title'], note,
                   paragraphs=[t['hello'].format(name=name), t['otp_intro'].format(purpose=purpose)],
-                  code=dict(label=t['otp_label'], value=code, note=t['otp_note'].format(minutes=minutes)), button=_button(t, url), notes=[t['otp_ignore']])
+                  code=dict(label=t['otp_label'], value=code, note=note), button=_button(t, url), notes=[t['otp_ignore']])
+
+
+def _span(t, minutes):
+    return t['hours'].format(n=minutes // 60) if minutes >= 120 and minutes % 60 == 0 else t['minutes'].format(n=minutes)
 
 
 def notification(lang, title, text, url=''):
@@ -107,6 +122,20 @@ def email_change_code(lang, name, username, value, minutes, to_old, new_email):
     t = _t(lang)
     purpose = (t['change_old'] if to_old else t['change_new']).format(username=username, new=new_email)
     return otp(lang, name or username, value, minutes, purpose)
+
+
+def email_set_by_admin_code(lang, name, username, value, minutes, admin, url=''):
+    """Code to the NEW address an admin entered for a user (owner decision 2026-10-12): the owner confirms it while signed in."""
+    t = _t(lang)
+    return otp(lang, name or username, value, minutes, t['admin_new'].format(username=username, admin=admin), url)
+
+
+def email_change_requested(lang, name, username, new_masked, admin, url=''):
+    """Notice to the CURRENT address when an admin entered a new one (nothing changes until it is confirmed)."""
+    t = _t(lang)
+    return letter(lang, t['requested_subject'], t['requested_title'], t['requested_note'],
+                  paragraphs=[t['hello'].format(name=name or username), t['requested_intro'].format(username=username, new=new_masked, admin=admin)],
+                  button=_button(t, url), notes=[t['requested_note']])
 
 
 def email_changed(lang, name, username, new_masked, url=''):
