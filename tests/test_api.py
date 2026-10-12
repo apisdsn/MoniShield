@@ -15,7 +15,7 @@ A, B = '2026-01-01', '2026-01-02'
 X = {'X-Requested-With': 'uji'}
 TOKEN = 'token-mesin-untuk-uji'
 NG, SL = 'nginx-ingress-controller', 'om-be-simpel-loop'
-HALAMAN = ('overview', 'map', 'security', 'rootcause', 'availability', 'pods', 'business', 'tracing')
+HALAMAN = ('overview', 'map', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing')
 
 
 @pytest.fixture(scope='module')
@@ -480,7 +480,7 @@ def test_bentuk_respons_halaman(user):
     assert set(j('availability')['kpi']) == {'requests', 'n5xx', 'incidents', 'retries', 'upstream_errors', 'uptime_checks', 'uptime_failed'}
     assert set(j('pods')['kpi']) == {'files', 'files_without_log', 'backend_pods', 'pods_with_retry', 'restarts'}
     assert {'biz', 'biz_prev', 'pdf', 'login', 'mail', 'login_ok_by_hour', 'tables'} <= set(j('business'))
-    assert {'jwt', 'jwt_total', 'refresh_expired', 'pdf', 'upstream_error_kinds', 'tables'} <= set(j('rootcause'))
+    assert {'jwt', 'jwt_total', 'refresh_expired', 'pdf', 'upstream_error_kinds', 'tables'} <= set(j('root-causes'))
     n = user.get(f'/api/folders/{B}/services/{NG}').json()
     assert n['available'] and n['kpi']['requests'] == sum(x for _, x in n['status']) and 'endpoints' in n['tables']
     assert n['kpi']['err'] == n['kpi']['err_http'] + n['kpi']['err_log'] == sum(e for _, _, e in n['hour'])   # TRD §4.4 item 2
@@ -615,7 +615,7 @@ def test_command_center_kemarin_per_jam_dan_butir_baru(user):
         if a['key'] == 'svc_jump': assert a['n'] >= 2 * a['prev'] and a['service'] and a['tab'] == 'service'
     if c['prev']:
         assert set(c['prev']['kpi']) == set(c['kpi']) and set(c['prev']['comparable']) == {'nginx', 'all'}
-        lalu = user.get(f"/api/folders/{c['prev']['folder']}/command").json()
+        lalu = user.get(f"/api/folders/{c['prev']['folder']}/command-center").json()
         assert lalu['kpi'] == c['prev']['kpi']
 
 
@@ -747,14 +747,18 @@ def test_daftar_blokir_format_dan_pengecualian(client, monkeypatch):
     assert g(format='exe').status_code == 400 and g(days=0).status_code == 400
 
 
-def test_old_api_paths_still_work_and_are_marked_deprecated(client):
-    """API paths renamed 2026-10-12 (English REST names): the old ones answer for one release, marked deprecated."""
+
+def test_old_api_paths_are_gone_and_app_paths_serve_the_web_app(client):
+    """English REST paths only (owner request 2026-10-12): the old ones no longer exist."""
     admin(client)
-    for old, new in (('/api/admin/ingest/status', '/api/admin/ingest'), (f'/api/folders/{B}/rootcause', f'/api/folders/{B}/root-causes'),
-                     (f'/api/folders/{B}/command', f'/api/folders/{B}/command-center'), ('/api/admin/import', '/api/admin/imports')):
-        r, n = client.get(old, headers=X), client.get(new, headers=X)
-        assert r.status_code == n.status_code == 200, (old, r.status_code)
-        assert r.headers['deprecation'] == 'true' and r.headers['link'] == f'<{new}>; rel="successor-version"' and 'deprecation' not in n.headers
-    assert client.post('/api/admin/folders/2030-01-01/delete', json={}, headers=X).status_code == 404   # old POST form still routed
+    for method, old in (('GET', '/api/admin/ingest/status'), ('GET', f'/api/folders/{B}/rootcause'), ('GET', f'/api/folders/{B}/command'),
+                        ('GET', '/api/admin/import'), ('POST', '/api/admin/folders/2030-01-01/delete')):
+        assert client.request(method, old, headers=X).status_code in (404, 405), old
     paths = client.get('/api/openapi.json', headers=X).json()['paths']
-    assert '/api/admin/imports' in paths and '/api/admin/import' not in paths and '/api/admin/folders/{folder}/delete' not in paths
+    assert '/api/admin/imports' in paths and '/api/folders/{folder}/command-center' in paths
+    if os.path.isdir(os.path.join(config.V2_DIR, 'web', 'dist')):   # built web app: app addresses are plain paths
+        for page in ('/security?folder=2026-01-05', '/services/coredns', '/admin/users', '/command-center'):
+            r = client.get(page)
+            assert r.status_code == 200 and r.headers['content-type'].startswith('text/html') and '<div id="app"' in r.text, page
+        assert client.get('/assets/not-there.js').status_code == 404 and client.get('/api/not-there', headers=X).status_code == 404
+        assert client.get('/etc/passwd').status_code == 404 and client.get('/peta').status_code == 404   # not app pages

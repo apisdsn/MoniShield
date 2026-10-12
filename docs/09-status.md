@@ -51,7 +51,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 26 | Users change their own email, verified through the old address | User menu → *Account email*; password + code to the old email + code to the new email | plan stage 36, [`10-user-guide.md`](10-user-guide.md) |
 | 27 | Configuration in the sidebar as pop-ups, folding sidebar groups, object storage with a choice of providers (S3, R2, MinIO, Wasabi, GCS, Spaces, Azure), free-text region, `example.com` placeholders | Sidebar → *Configuration* | plan stage 37, [`10-user-guide.md`](10-user-guide.md) |
 | 28 | Manage users must not change emails without a code (option B) | Admin enters a new address with own password; it counts once the user confirms the code; own email only via Account email | plan stage 38, [`10-user-guide.md`](10-user-guide.md) |
-| 29 | English endpoints and web addresses, REST best practices | Renamed API paths (old ones deprecated for one release), English `#/…` addresses with old ones rewritten | [`03-trd.md`](03-trd.md) §5 |
+| 29 | English endpoints and web addresses, REST best practices, no `#` in web addresses | Renamed API paths (old ones removed), plain web paths served by the server; old `#/…` links converted | [`03-trd.md`](03-trd.md) §5 |
 
 Questions answered along the way, recorded so they are not asked again:
 
@@ -86,8 +86,8 @@ Questions answered along the way, recorded so they are not asked again:
 5. **Before the next deploy to `prd`**: `S4_IMPORT_REGION` no longer defaults to `ap-southeast-3`. If the server's
    `.env` does not set it, fill in the region under Configuration → Object storage (or add
    `S4_IMPORT_REGION=ap-southeast-3` to `.env`) so S3 requests go straight to the bucket's region.
-6. **Cron jobs and scripts**: move calls to the new API paths (e.g. `/api/admin/imports/sync`); the old paths are
-   deprecated and will be removed in a later release.
+6. **Cron jobs and scripts, before the next deploy to `prd`**: the old API paths are removed. Change calls such as
+   `/api/admin/import/sync` to `/api/admin/imports/sync` (full list: [`03-trd.md`](03-trd.md) §5).
 7. After the server runs from `/srv/MoniShield`: the old checkout `/srv/dashboard-logging/v2` can be removed and the
    old repo archived (the old repo's `build_dashboard.py`, `dashboard_template.html` and log folders are never edited).
 

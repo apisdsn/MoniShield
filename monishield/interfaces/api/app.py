@@ -18,7 +18,6 @@ from monishield.infrastructure import auth as authmod, config, db, envfile, impo
 from monishield.domain.errors import Fail
 from monishield.interfaces.api import admin, config_api, docs, kafka, meta, notify, pages, session, upload, users, wire as payload
 from .common import ROLE_DEPS
-from .legacy import LegacyPaths
 
 WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
@@ -26,6 +25,20 @@ CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:;
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
 ROUTERS = (meta.router, session.router, payload.router, users.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
 
+
+
+class SpaFiles(StaticFiles):
+    """The built web app. App addresses are plain paths (/security?folder=…, owner request 2026-10-12): a path whose
+    first segment is an app page (web/src/state.js) gets index.html and the app reads the path; anything else that is
+    not a file stays 404."""
+    PAGES = {'overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing',
+             'services', 'ips', 'admin', 'password', 'email'}
+
+    async def get_response(self, path, scope):
+        try: return await super().get_response(path, scope)
+        except StarletteHTTPException as e:
+            if e.status_code != 404 or path.split('/', 1)[0] not in self.PAGES: raise
+            return await super().get_response('index.html', scope)
 
 def _deps(dependant):
     for d in dependant.dependencies:
@@ -117,7 +130,6 @@ def create_app(cfg=None, env_path=None):
         if request.url.path.startswith('/api'): response.headers.setdefault('Cache-Control', 'no-store')
         return response
 
-    app.add_middleware(LegacyPaths)   # old API paths -> new ones (inside PayloadCrypto, which signs the path the browser used)
     app.add_middleware(payload.PayloadCrypto, state=app.state)   # encrypted bodies for the web UI (X-MS-Enc)
 
     @app.exception_handler(StarletteHTTPException)
@@ -144,5 +156,5 @@ def create_app(cfg=None, env_path=None):
     os.makedirs(os.path.join(cfg.data_dir, 'map'), exist_ok=True)
     app.mount('/map', StaticFiles(directory=os.path.join(cfg.data_dir, 'map')), name='map')
     dist = os.path.join(config.V2_DIR, 'web', 'dist')
-    if os.path.isdir(dist): app.mount('/', StaticFiles(directory=dist, html=True), name='web')
+    if os.path.isdir(dist): app.mount('/', SpaFiles(directory=dist, html=True), name='web')
     return app

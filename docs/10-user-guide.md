@@ -35,8 +35,8 @@ Sidebar → **Configuration** (admins). Every item opens as a pop-up over the cu
 (provider, keys, region, automatic sync), **Kafka broker**, **GeoIP (MaxMind)**, **Mail server (SMTP)**,
 **Notifications**, **Block list**, **Data retention** and **Server keys (.env)**. Each has **Save** and, where it
 applies, **Test connection**. The sidebar groups (Analysis, Services, Configuration) fold open and closed with the
-arrow next to their name; the choice is kept per browser. The addresses `#/admin/configuration` and
-`#/admin/notifications` (and the old Indonesian ones) open the matching pop-up. **Save writes directly to the `.env` file** (existing lines are replaced,
+arrow next to their name; the choice is kept per browser. The addresses `/admin/configuration` and
+`/admin/notifications` (and the old `#/…` ones) open the matching pop-up. **Save writes directly to the `.env` file** (existing lines are replaced,
 comments are kept) and takes effect immediately without a restart; **Remove from .env** disables the line (default value).
 All URLs/addresses of external services and limits that used to be hard-coded are also in `.env` (section 10 of `.env.example`:
 `S4_URL_*`, `S4_TELEGRAM_API`, `S4_*_MAX_AGE_DAYS`, …). The server must be allowed to write `.env`. Credentials are never shown again

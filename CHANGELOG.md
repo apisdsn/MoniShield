@@ -38,14 +38,14 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   Configuration → Notifications; the Command Center uses the same per-service thresholds.
 
 ### Changed
-- English web addresses: `#/command-center`, `#/trends`, `#/security`, `#/root-causes`, `#/availability`, `#/pods`,
-  `#/business`, `#/tracing`, `#/services/<name>`, `#/ips/<ip>`, `#/admin/users`, `?module=`, `?search=`. Old Indonesian
-  addresses (`#/peta`, `#/keamanan`, `#/layanan/…`, `#/sandi`, …) are rewritten, so old notification links still work;
-  notifications now link to the new addresses.
+- Web addresses are plain English paths without `#`: `/command-center`, `/trends`, `/security`, `/root-causes`,
+  `/availability`, `/pods`, `/business`, `/tracing`, `/services/<name>`, `/ips/<ip>`, `/admin/users`, `?module=`,
+  `?search=`; the server answers them with the web app. Old `#/…` links (notifications, bookmarks) are turned into the
+  new paths; new notifications link to the new paths.
 - REST-style English API paths: `/api/admin/imports…`, `/api/admin/uploads…`, `GET /api/admin/ingest`,
   `DELETE /api/admin/folders/{folder}`, `/command-center`, `/root-causes`, `/api/me/email/change…`,
-  `/api/admin/users/{id}/email/change`. The old paths answer for one release with `Deprecation` and `Link` headers
-  (docs/03-trd.md §5); update cron jobs that call `/api/admin/import/sync` to `/api/admin/imports/sync`.
+  `/api/admin/users/{id}/email/change`. **The old paths are removed** (docs/03-trd.md §5): scripts and cron jobs must
+  use the new ones, e.g. `/api/admin/imports/sync`.
 - Manage users no longer sets a new email directly: the admin confirms with their own password, a code goes to the new
   address (valid 24 hours) and a notice to the current one, and the address counts once the user enters the code
   (banner + Account email). An admin's own email changes only under Account email; removing an email stays direct.

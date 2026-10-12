@@ -667,11 +667,10 @@ parser for it.
 **Naming (owner request 2026-10-12).** Paths are English, lower case, kebab-case nouns; collections are plural
 (`/api/admin/imports`, `/api/admin/uploads`, `/api/admin/users`); the HTTP method says what happens (`DELETE
 /api/admin/folders/{folder}`, not `POST …/delete`); an action that is not create/read/update/delete is a verb
-sub-resource with `POST` (`…/restore`, `…/sync`, `…/confirm`, `…/reset-password`). Renamed on 2026-10-12, the old
-paths still answer for one release with `Deprecation: true` and `Link: <new>; rel="successor-version"`
-(`interfaces/api/legacy.py`):
+sub-resource with `POST` (`…/restore`, `…/sync`, `…/confirm`, `…/reset-password`). The old paths were removed on
+2026-10-12 (no aliases):
 
-| Old | New |
+| Old (removed) | New |
 |---|---|
 | `GET /api/admin/ingest/status` | `GET /api/admin/ingest` |
 | `POST /api/admin/folders/{folder}/delete` (body `delete_inbox`) | `DELETE /api/admin/folders/{folder}?delete_inbox=` |
@@ -682,11 +681,13 @@ paths still answer for one release with `Deprecation: true` and `Link: <new>; re
 | `POST`/`DELETE /api/me/email/start`, `POST /api/me/email/confirm` | `/api/me/email/change`, `/api/me/email/change/confirm` |
 | `POST`/`DELETE /api/admin/users/{id}/email` | `/api/admin/users/{id}/email/change` |
 
-Web addresses follow the same rule: `#/overview`, `#/command-center`, `#/trends`, `#/security`, `#/root-causes`,
-`#/availability`, `#/pods`, `#/business`, `#/tracing`, `#/services/<name>`, `#/ips/<ip>`, `#/admin/users`,
-`#/admin/ingest`; query `?folder=`, `?module=`, `?search=`. Old Indonesian addresses (`#/peta`, `#/keamanan`,
-`#/layanan/<name>`, `?modul=`, `?cari=`, `#/sandi`, `#/admin/konfigurasi`) are rewritten to the new ones in the
-address bar (`web/src/state.js`), so links in old notifications keep working.
+**Web addresses** are plain paths, without `#` (History API): `/overview`, `/command-center`, `/trends`, `/security`,
+`/root-causes`, `/availability`, `/pods`, `/business`, `/tracing`, `/services/<name>`, `/ips/<ip>`, `/admin/users`,
+`/admin/ingest`, `/password`, `/email`, `/admin/configuration`, `/admin/notifications`; query `?folder=`, `?module=`,
+`?search=`. The server answers those first segments with the web app (`SpaFiles` in `interfaces/api/app.py`); any other
+unknown path stays 404. Links inside the app change the page without reloading. Links from before 2026-10-12 used
+`#/…` (`#/peta`, `#/keamanan`, `#/layanan/<name>`, `?modul=`, `?cari=`): the browser never sends the part after `#`, so
+the app turns it into the new path itself (`web/src/state.js`) and links in old notifications keep working.
 
 
 ### 5.1 General rules

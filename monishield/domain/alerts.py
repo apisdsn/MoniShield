@@ -267,7 +267,7 @@ def _num(v, lang): return f'{v:,.0f}'.replace(',', '.' if lang == 'id' else ',')
 
 
 def _link(cfg, folder, tab='command-center'):
-    return f"\n{_t(cfg, 'open')}: {cfg['dashboard_url'].rstrip('/')}/#/{tab}?folder={folder}" if cfg['dashboard_url'] else ''
+    return f"\n{_t(cfg, 'open')}: {cfg['dashboard_url'].rstrip('/')}/{tab}?folder={folder}" if cfg['dashboard_url'] else ''
 
 
 # ------------------------------------------------------------------ evaluation

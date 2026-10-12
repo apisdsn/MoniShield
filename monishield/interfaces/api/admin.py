@@ -70,12 +70,6 @@ def folder_delete(folder: str, request: Request, delete_inbox: bool = True, admi
     return r
 
 
-@router.post('/folders/{folder}/delete', include_in_schema=False, deprecated=True)
-def folder_delete_legacy(folder: str, request: Request, body: DeleteBody = DeleteBody(), admin=Depends(require_admin)):
-    """Old form (until 2026-10-12): POST with a body. Use DELETE /api/admin/folders/{folder}?delete_inbox=…."""
-    return folder_delete(folder, request, body.delete_inbox, admin)
-
-
 @router.post('/folders/{folder}/restore')
 def folder_restore(folder: str, request: Request, admin=Depends(require_admin)):
     r = ingest_service.restore_folder(request.app.state, _folder(folder, required=True))
