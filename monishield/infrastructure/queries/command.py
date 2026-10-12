@@ -77,12 +77,12 @@ def command(cur, folder, cfg, module=None):
     use_avg = base['n_all'] >= MIN_FOLDERS   # spikes are judged against the average when there are enough comparable folders
 
     att = []   # order: red first, then yellow; each item links to the page that explains it
-    if a['atk_req']: att.append(dict(key='attack_critical' if a['crit_req'] else 'attack', tone='err' if a['crit_req'] else 'warn', tab='keamanan',
+    if a['atk_req']: att.append(dict(key='attack_critical' if a['crit_req'] else 'attack', tone='err' if a['crit_req'] else 'warn', tab='security',
                                      n=a['crit_req'] or a['atk_req'], ips=a['kpi']['attack_ips']))
-    if a['up']: att.append(dict(key='upstream', tone='err', tab='akar-masalah', n=a['kpi']['upstream_errors'], kind=a['up'][0][0]))
-    if a['kpi']['n5xx']: att.append(dict(key='n5xx', tone='err', tab='ketersediaan', n=a['kpi']['n5xx'],
+    if a['up']: att.append(dict(key='upstream', tone='err', tab='root-causes', n=a['kpi']['upstream_errors'], kind=a['up'][0][0]))
+    if a['kpi']['n5xx']: att.append(dict(key='n5xx', tone='err', tab='availability', n=a['kpi']['n5xx'],
                                          upstream=a['top5'][0] if a['top5'] else None, top=a['top5'][1] if a['top5'] else 0))
-    if a['uk_fail']: att.append(dict(key='uptime', tone='err', tab='ketersediaan', n=a['uk_fail'], total=a['uk_n']))
+    if a['uk_fail']: att.append(dict(key='uptime', tone='err', tab='availability', n=a['uk_fail'], total=a['uk_n']))
     # services whose errors spiked vs the comparable-folder average (or the previous folder when there is not enough data yet);
     # thresholds per service from S4_ALERT_SERVICE_SPIKE, the same ones the notifications use
     th = alerts.parse_service_spike(cfg.alert_service_spike)
@@ -94,16 +94,16 @@ def command(cur, folder, cfg, module=None):
             if pl < 0.5 * ln: pe = None
         if pe is not None and alerts.is_spike(e, pe, alerts.service_threshold(th, s)): naik.append((e - pe, s, e, pe))
     for _, s, e, pe in sorted(naik, reverse=True)[:3]:
-        att.append(dict(key='svc_jump', tone='err', tab='layanan', service=s, n=e, prev=pe, prev_folder=str(prev_f),
+        att.append(dict(key='svc_jump', tone='err', tab='service', service=s, n=e, prev=pe, prev_folder=str(prev_f),
                         basis='avg' if use_avg else 'prev', days=base['n_all']))
-    if a['kpi']['login_fail_ips']: att.append(dict(key='login', tone='warn', tab='keamanan', n=a['kpi']['login_fail_ips'], resets=a['resets']))
-    if a['restarts']: att.append(dict(key='restarts', tone='warn', tab='pod', n=a['restarts']))
-    if a['pdf_fail']: att.append(dict(key='pdf', tone='warn', tab='akar-masalah', n=a['pdf_fail'], templates=a['pdf_tpl']))
+    if a['kpi']['login_fail_ips']: att.append(dict(key='login', tone='warn', tab='security', n=a['kpi']['login_fail_ips'], resets=a['resets']))
+    if a['restarts']: att.append(dict(key='restarts', tone='warn', tab='pods', n=a['restarts']))
+    if a['pdf_fail']: att.append(dict(key='pdf', tone='warn', tab='root-causes', n=a['pdf_fail'], templates=a['pdf_tpl']))
     # expired-JWT spike: only when yesterday's folder is comparable (lines ≥ 50 % of today)
     jb = base['jwt'] if use_avg else (p['jwt'] if p and p['lines'] >= 0.5 * a['lines'] else None)
     if jb is not None and _jump(a['jwt'], jb, JUMP_MIN_JWT):
-        att.append(dict(key='jwt', tone='warn', tab='akar-masalah', n=a['jwt'], prev=jb, prev_folder=str(prev_f), basis='avg' if use_avg else 'prev', days=base['n_all']))
-    if a['corrupt']: att.append(dict(key='files', tone='warn', tab='pod', n=a['corrupt']))
+        att.append(dict(key='jwt', tone='warn', tab='root-causes', n=a['jwt'], prev=jb, prev_folder=str(prev_f), basis='avg' if use_avg else 'prev', days=base['n_all']))
+    if a['corrupt']: att.append(dict(key='files', tone='warn', tab='pods', n=a['corrupt']))
     att.sort(key=lambda x: x['tone'] != 'err')
 
     # per hour (WIB): ingress requests, 5xx (from the raw table like the Availability page), attack requests

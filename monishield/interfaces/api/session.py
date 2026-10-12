@@ -87,17 +87,17 @@ def my_email(request: Request, user=Depends(require_user_ready)):
     return request.app.state.emails.view(user)
 
 
-@router.post('/me/email/start')
+@router.post('/me/email/change')
 def my_email_start(body: EmailStart, request: Request, user=Depends(require_user_ready)):
     """Current password + new address -> codes emailed to the current and the new address."""
     return request.app.state.emails.start(user, body.password, body.new_email[:254], client_ip(request), body.lang)
 
 
-@router.post('/me/email/confirm')
+@router.post('/me/email/change/confirm')
 def my_email_confirm(body: EmailConfirm, request: Request, user=Depends(require_user_ready)):
     return request.app.state.emails.confirm(user, body.old_code[:12], body.new_code[:12], client_ip(request), body.lang)
 
 
-@router.delete('/me/email/start')
+@router.delete('/me/email/change')
 def my_email_cancel(request: Request, user=Depends(require_user_ready)):
     return request.app.state.emails.cancel(user, client_ip(request))

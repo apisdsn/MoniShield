@@ -24,7 +24,7 @@
   async function del() {
     busy = true;
     try {
-      const r = await api.post(`/api/admin/folders/${target.folder}/delete`, { delete_inbox: delInbox });
+      const r = await api.del(`/api/admin/folders/${encodeURIComponent(target.folder)}?delete_inbox=${delInbox}`);
       toast($t(r.ignored ? 'fm.done_ignored' : 'fm.done', { date: dLabel(target.folder, $lang) }));
       open = false; await load(); onchanged?.();
     } catch (e) { toast(e.status === 409 ? $t('fm.busy') : $errText(e)); }

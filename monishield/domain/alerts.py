@@ -266,8 +266,8 @@ def _t(cfg, k, **p): return T[cfg['lang'] if cfg['lang'] in T else 'id'][k].form
 def _num(v, lang): return f'{v:,.0f}'.replace(',', '.' if lang == 'id' else ',') if isinstance(v, (int, float)) else str(v)
 
 
-def _link(cfg, folder, tab='peta'):
-    return f"\n{_t(cfg, 'open')}: {cfg['dashboard_url'].rstrip('/')}/#/{tab}?folder={folder}" if cfg['dashboard_url'] else ''
+def _link(cfg, folder, tab='command-center'):
+    return f"\n{_t(cfg, 'open')}: {cfg['dashboard_url'].rstrip('/')}/{tab}?folder={folder}" if cfg['dashboard_url'] else ''
 
 
 # ------------------------------------------------------------------ evaluation
@@ -298,7 +298,7 @@ def folder_events(cfg, folder, facts):
         out.append(('spike', f'spike:{folder}', _t(cfg, 'spike', d=folder), '\n'.join(lines) + _link(cfg, folder)))
     if a['crit_req'] and cfg['events']['critical']:
         text = _t(cfg, 'crit', n=_num(a['crit_req'], lang), ips=_num(a['kpi']['attack_ips'], lang), cats=', '.join(facts['crit_cats']) or '-')
-        out.append(('critical', f'critical:{folder}', _t(cfg, 'critical', d=folder), text + _link(cfg, folder, 'keamanan')))
+        out.append(('critical', f'critical:{folder}', _t(cfg, 'critical', d=folder), text + _link(cfg, folder, 'security')))
     if cfg['events']['summary']:
         rows = [f"• {_t(cfg, k)}: {_num(vals[k], lang)}" for k in ('requests', 'n5xx', 'errors', 'atk_req', 'attack_ips', 'login_fail_ips') if vals.get(k) is not None]
         out.append(('summary', f'summary:{folder}', _t(cfg, 'summary', d=folder), '\n'.join(rows) + _link(cfg, folder)))

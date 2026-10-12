@@ -25,7 +25,7 @@ def _file(r):
 def overview(folder: str = Depends(folder_param), cur=Depends(cursor)): return q_overview.overview(cur, folder)
 
 
-@router.get('/folders/{folder}/command')
+@router.get('/folders/{folder}/command-center')
 def command(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
     return q_command.command(cur, folder, _cfg(request), request.query_params.get('module'))
 
@@ -65,7 +65,7 @@ def security(request: Request, folder: str = Depends(folder_param), cur=Depends(
     return q_security.security(cur, folder, _cfg(request))
 
 
-@router.get('/folders/{folder}/rootcause')
+@router.get('/folders/{folder}/root-causes')
 def rootcause(folder: str = Depends(folder_param), cur=Depends(cursor)): return q_rootcause.rootcause(cur, folder)
 
 

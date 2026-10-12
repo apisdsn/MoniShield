@@ -66,7 +66,7 @@
       <button role="menuitem" onclick={() => { close(); openAccount('email'); }}><Icon name="mail" />{$t('menu.email')}</button>
       <button role="menuitem" onclick={() => { close(); openAccount('password'); }}><Icon name="key" />{$t('menu.password')}</button>
       {#if me.role === 'admin'}
-        <a role="menuitem" href={link('admin/user')} onclick={() => close(false)}><Icon name="users" />{$t('menu.users')}</a>
+        <a role="menuitem" href={link('admin/users')} onclick={() => close(false)}><Icon name="users" />{$t('menu.users')}</a>
         <a role="menuitem" href={link('admin/ingest')} onclick={() => close(false)}><Icon name="database" />{$t('menu.ingest')}</a>
       {/if}
       <a role="menuitem" href="/api/docs" target="_blank" rel="noopener" onclick={() => close(false)}><Icon name="code" />{$t('menu.api_docs')}</a>

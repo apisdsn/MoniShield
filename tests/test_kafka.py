@@ -114,7 +114,7 @@ def client(tmp_path, auth_url, monkeypatch):
 
 def tunggu_ingest(tc):
     for _ in range(600):
-        s = tc.get('/api/admin/ingest/status', headers=X).json()
+        s = tc.get('/api/admin/ingest', headers=X).json()
         if not s['running']: return s
         time.sleep(0.05)
     raise AssertionError('ingest tidak selesai')
@@ -138,7 +138,7 @@ def test_status_ingest_dan_folder_muncul(client):
     rows = {r['folder']: r for r in client.get('/api/admin/folders', headers=X).json()['rows']}
     assert rows[B]['source'] == 'kafka' and rows[B]['inbox']
     n_ngx = lambda: client.app.state.con.cursor().execute('SELECT count(*) FROM nginx_access').fetchone()[0]
-    before, kpi = n_ngx(), client.get(f'/api/folders/{B}/command', headers=X).json()['kpi']['requests']
+    before, kpi = n_ngx(), client.get(f'/api/folders/{B}/command-center', headers=X).json()['kpi']['requests']
     assert before > 0 and kpi > 0
     assert client.post('/api/admin/kafka/ingest', headers=X).json()['error']['code'] == 'kafka_nothing'
     # lines arriving later: the file grows, the next ingest reprocesses only that file

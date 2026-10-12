@@ -154,11 +154,11 @@ const U = 'rina', PW_U0 = 'sandi-awal-rina-2026', PW_U1 = 'sandi-rina-baru-2026'
   await pa.goto(BASE + '/#/admin/ingest'); await pa.waitForSelector('main .ing'); await pa.waitForLoadState('networkidle');
   const sebelum = await pa.textContent('main .lastline');
   // an ingest without changes can finish in < 0.5 s, between two status reads: proof of completion = new run_id in the status
-  const runAwal = await pa.evaluate(() => fetch('/api/admin/ingest/status').then((r) => r.json()).then((s) => s.last?.run_id ?? null));
+  const runAwal = await pa.evaluate(() => fetch('/api/admin/ingest').then((r) => r.json()).then((s) => s.last?.run_id ?? null));
   const pantau = pa.evaluate(async (awal) => {
     const seen = [], data = [];
     for (let i = 0; i < 600; i++) {
-      const s = await fetch('/api/admin/ingest/status').then((r) => r.json());
+      const s = await fetch('/api/admin/ingest').then((r) => r.json());
       seen.push(s.running);
       data.push((await fetch('/api/folders/2026-10-06/overview')).status);
       if (!s.running && s.last && s.last.run_id !== awal) return { seen, data, s };

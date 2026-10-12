@@ -88,14 +88,14 @@
     const patch = { display_name: f.display_name.trim(), role: f.role, ...(!isMe(u) && !email && u.email ? { email: '' } : {}) };
     act(async () => {
       await api.patch(`/api/admin/users/${u.user_id}`, patch);
-      if (newEmail) await api.post(`/api/admin/users/${u.user_id}/email`, { email, password: f.apw, lang: $lang });
+      if (newEmail) await api.post(`/api/admin/users/${u.user_id}/email/change`, { email, password: f.apw, lang: $lang });
     }, () => {
       open = false;
       toast(newEmail ? $t('adm.done.email_sent', { email, user: u.username }) : $t('adm.done.edit', { user: u.username }));
       if (isMe(u)) onme?.();
     });
   }
-  const withdraw = (u) => act(() => api.del(`/api/admin/users/${u.user_id}/email`),
+  const withdraw = (u) => act(() => api.del(`/api/admin/users/${u.user_id}/email/change`),
     () => { open = false; toast($t('adm.done.email_cancel', { user: u.username })); });
   const reset = (u) => act(async () => { temp = (await api.post(`/api/admin/users/${u.user_id}/reset-password`)).temporary_password; },
     () => { dlg = { kind: 'reset-done', user: u }; });

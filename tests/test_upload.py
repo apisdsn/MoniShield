@@ -79,21 +79,21 @@ def client(cfg, auth_url, monkeypatch):
 
 
 def unggah(tc, files, folder=''):
-    r = tc.post('/api/admin/upload', json=dict(files=[dict(path=x['path'], size=x['size']) for x in files], folder=folder), headers=X)
+    r = tc.post('/api/admin/uploads', json=dict(files=[dict(path=x['path'], size=x['size']) for x in files], folder=folder), headers=X)
     assert r.status_code == 201, r.text
     p = r.json()
     for o in p['files']:
-        assert tc.put(f"/api/admin/upload/{p['upload_id']}/{o['i']}", content=files[o['i']]['data'], headers=X).status_code == 200
+        assert tc.put(f"/api/admin/uploads/{p['upload_id']}/{o['i']}", content=files[o['i']]['data'], headers=X).status_code == 200
     return p
 
 
 def tunggu_ingest(tc):
     for _ in range(400):
-        st = tc.get('/api/admin/ingest/status').json()
+        st = tc.get('/api/admin/ingest').json()
         if not st['running'] and not tc.app.state.uploads.sessions: break
         time.sleep(0.05)
     time.sleep(0.2)
-    while tc.get('/api/admin/ingest/status').json()['running']: time.sleep(0.05)
+    while tc.get('/api/admin/ingest').json()['running']: time.sleep(0.05)
 
 
 def test_unggah_folder_lalu_ingest(client, cfg):
@@ -102,7 +102,7 @@ def test_unggah_folder_lalu_ingest(client, cfg):
              f(f'log-saya/{D}/catatan.txt', b'abaikan')]
     p = unggah(client, files)
     assert (p['folders'], len(p['files']), p['skipped_count']) == ([D], 2, 1)
-    r = client.post(f"/api/admin/upload/{p['upload_id']}/finish", headers=X)
+    r = client.post(f"/api/admin/uploads/{p['upload_id']}/finish", headers=X)
     assert r.status_code == 202 and r.json() == dict(folders=[D], files=2, bytes=len(APPS) + len(gzip.compress(FE)), extracted=1)
     base = os.path.join(cfg.inbox_dir, D, 'ombudsman')
     assert open(os.path.join(base, 'om-fe-inhouse', f'log_om-fe-inhouse_pod-f_{D}-00-00.log'), 'rb').read() == FE      # .gz extracted
@@ -110,11 +110,11 @@ def test_unggah_folder_lalu_ingest(client, cfg):
     assert not [d for d in os.listdir(os.path.join(cfg.data_dir, 'tmp')) if d.startswith('upload-')]
     tunggu_ingest(client)
     assert D in [x['folder'] for x in client.get('/api/meta').json()['folders']]
-    assert client.get('/api/admin/ingest/status').json()['last_run']['status'] == 'ok'
+    assert client.get('/api/admin/ingest').json()['last_run']['status'] == 'ok'
     assert 'upload.finish' in {x['action'] for x in client.get('/api/admin/audit').json()['rows']}
     # re-upload of a changed file: replaces the old one, ingest refreshes only that file
     p = unggah(client, [f(f'{D}/ombudsman/om-be-appsmanager/log_om-be-appsmanager_pod-a_{D}-00-00.log', APPS + APPS)])
-    assert client.post(f"/api/admin/upload/{p['upload_id']}/finish", headers=X).status_code == 202
+    assert client.post(f"/api/admin/uploads/{p['upload_id']}/finish", headers=X).status_code == 202
     tunggu_ingest(client)
     con = client.app.state.con.cursor()
     try: assert con.execute("SELECT lines FROM ingest_file WHERE folder = ? AND service = 'om-be-appsmanager'", [D]).fetchone()[0] == 2 * len(APPS.splitlines())
@@ -123,20 +123,20 @@ def test_unggah_folder_lalu_ingest(client, cfg):
 
 def test_unggah_ditolak_dan_dibatalkan(client, cfg):
     data = APPS
-    r = client.post('/api/admin/upload', json=dict(files=[dict(path=f'{D}/ombudsman/om-be-appsmanager/a.log', size=len(data))]), headers=X)
+    r = client.post('/api/admin/uploads', json=dict(files=[dict(path=f'{D}/ombudsman/om-be-appsmanager/a.log', size=len(data))]), headers=X)
     uid = r.json()['upload_id']
-    put = lambda i, body, h=X: client.put(f'/api/admin/upload/{uid}/{i}', content=body, headers=h)
+    put = lambda i, body, h=X: client.put(f'/api/admin/uploads/{uid}/{i}', content=body, headers=h)
     assert put(0, data + b'x').status_code == 413                         # larger than planned
     assert put(0, data[:-1]).json()['error']['code'] == 'size_mismatch'   # smaller
     assert put(5, data).status_code == 404                                # not part of the plan
     assert put(0, data, {}).status_code == 403                            # without CSRF header
-    fin = client.post(f'/api/admin/upload/{uid}/finish', headers=X)
+    fin = client.post(f'/api/admin/uploads/{uid}/finish', headers=X)
     assert (fin.status_code, fin.json()['error']['code']) == (409, 'incomplete')
-    assert client.put(f'/api/admin/upload/{"0" * 32}/0', content=data, headers=X).status_code == 404
+    assert client.put(f'/api/admin/uploads/{"0" * 32}/0', content=data, headers=X).status_code == 404
     assert put(0, data).status_code == 200
-    assert client.delete(f'/api/admin/upload/{uid}', headers=X).status_code == 200
+    assert client.delete(f'/api/admin/uploads/{uid}', headers=X).status_code == 200
     assert not os.path.exists(os.path.join(cfg.data_dir, 'tmp', f'upload-{uid}')) and not os.path.exists(os.path.join(cfg.inbox_dir, D))
-    r = client.post('/api/admin/upload', json=dict(files=[dict(path='a/b.txt', size=1)]), headers=X)
+    r = client.post('/api/admin/uploads', json=dict(files=[dict(path='a/b.txt', size=1)]), headers=X)
     assert (r.status_code, r.json()['error']['code']) == (400, 'nothing_to_upload')
 
 
@@ -145,5 +145,5 @@ def test_user_biasa_tidak_boleh_unggah(client):
     u = TestClient(client.app)
     assert u.post('/api/auth/login', json=dict(username='rina', password='sandi-awal-rina-123'), headers=X).status_code == 200
     assert u.post('/api/me/password', json=dict(old_password='sandi-awal-rina-123', new_password='sandi-baru-rina-123'), headers=X).status_code == 200
-    assert u.post('/api/admin/upload', json=dict(files=[dict(path=f'{D}/a/b/c.log', size=1)]), headers=X).status_code == 403
-    assert u.post('/api/admin/import/sync', headers=X).status_code == 403
+    assert u.post('/api/admin/uploads', json=dict(files=[dict(path=f'{D}/a/b/c.log', size=1)]), headers=X).status_code == 403
+    assert u.post('/api/admin/imports/sync', headers=X).status_code == 403

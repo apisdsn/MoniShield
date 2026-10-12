@@ -133,9 +133,9 @@ def test_lonjakan_dan_serangan_kritis_tanpa_alamat_ip(app_env, sent):
     finally: con.close()
     assert set(ev) == {'spike', 'critical'}
     _, key, title, text = ev['spike']
-    assert key == 'spike:2026-01-06' and 'Error (semua layanan)' in text and 'rata-rata 4 folder' in text and '#/peta?folder=2026-01-06' in text
+    assert key == 'spike:2026-01-06' and 'Error (semua layanan)' in text and 'rata-rata 4 folder' in text and '/command-center?folder=2026-01-06' in text
     _, key, title, text = ev['critical']
-    assert 'IP' in text and '34.19.127.199' not in text and '#/keamanan?folder=2026-01-06' in text
+    assert 'IP' in text and '34.19.127.199' not in text and '/security?folder=2026-01-06' in text
     # send: all enabled channels, once per key
     cfg = alerts.load(tc.app.state.cfg)
     r = alert_service.deliver(tc.app.state, cfg, ev['spike'][1], 'spike', ev['spike'][2], ev['spike'][3])
