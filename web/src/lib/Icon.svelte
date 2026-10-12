@@ -29,6 +29,12 @@
     'side-close': 'M4 4h16v16H4zM9 4v16M16 9.5L13.5 12l2.5 2.5',   // left panel + arrow: collapse navigation
     'side-open': 'M4 4h16v16H4zM9 4v16M13.5 9.5L16 12l-2.5 2.5',
     mail: 'M4 6h16v12H4zM4 7l8 6 8-6',
+    chevron: 'M6 9l6 6 6-6',
+    bucket: 'M3 6h18M5 6l1.6 13.2a1 1 0 0 0 1 .8h8.8a1 1 0 0 0 1-.8L19 6M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6',   // object storage
+    broker: 'M12 3.5a2 2 0 1 0 0 4a2 2 0 1 0 0-4M5 16.5a2 2 0 1 0 0 4a2 2 0 1 0 0-4M19 16.5a2 2 0 1 0 0 4a2 2 0 1 0 0-4M12 7.5v4.5M12 12l-5.6 4.8M12 12l5.6 4.8',   // Kafka broker
+    bell: 'M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 20.5h4',
+    ban: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M5.6 5.6l12.8 12.8',
+    archive: 'M3 4h18v5H3zM5 9v11h14V9M10 13h4',
     sun: 'M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4',
     moon: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
     settings: 'M4 7h9M17 7h3M15 5v4M4 12h3M11 12h9M9 10v4M4 17h11M19 17h1M17 15v4',   // sliders: configuration

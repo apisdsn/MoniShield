@@ -72,6 +72,7 @@ def temp_password(length=TEMP_LENGTH):
 
 # own email change (owner request 2026-10-08): codes sent to the old and the new address
 CODE_DIGITS, CODE_MINUTES, CODE_ATTEMPTS = 6, 10, 5
+ADMIN_CODE_MINUTES = 24 * 60   # a code for an email an ADMIN entered: the user may only sign in hours later
 
 
 def code(digits=CODE_DIGITS):

@@ -31,6 +31,10 @@ class ConfigBody(BaseModel):
     aws_secret_access_key: str | None = None
     aws_session_token: str | None = None
     import_region: str | None = None
+    storage_provider: str | None = None
+    storage_endpoint: str | None = None
+    azure_storage_account: str | None = None
+    azure_storage_key: str | None = None
     maxmind_account_id: str | None = None
     maxmind_license_key: str | None = None
     blocklist_exclude: str | None = None

@@ -25,6 +25,9 @@ test = [
 s3 = [
     "boto3>=1.34", # import from an S3 prefix (Stage 19); only ListObjectsV2 and GetObject
 ]
+azure = [
+    "azure-storage-blob>=12.19", # object storage on Azure Blob Storage (S4_STORAGE_PROVIDER=azure); list + download only
+]
 kafka = [
     "kafka-python>=2.0.2,<4", # logs from Kafka (Rancher cluster logging); pure Python, supports SASL PLAIN/SCRAM and SSL
 ]

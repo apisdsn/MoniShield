@@ -15,6 +15,7 @@
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
 
+  let { embedded = false } = $props();   // inside the Notifications pop-up (lib/ConfigDialogs.svelte): no card, no heading
   let v = $state.raw(null), error = $state(null), f = $state(null), busy = $state(false), err = $state(null), testing = $state('');
   // secret fields typed anew (empty = unchanged)
   let sec = $state({ tg_token: '', dc_hook: '' });
@@ -75,8 +76,8 @@
   <Skeleton kpis={0} charts={1} />
 {:else}
   <div class="grid">
-    <section class="card wide" aria-labelledby="al-h">
-      <header><h2 id="al-h">{$t('al.title')}</h2></header>
+    <section class="wide" class:card={!embedded} aria-labelledby="al-h">
+      <header><h2 id="al-h" class:sr-only={embedded}>{$t('al.title')}</h2></header>
       <p class="muted small">{$t('al.intro')}</p>
 
       <form onsubmit={(e) => { e.preventDefault(); save(); }} novalidate>
@@ -107,7 +108,7 @@
           <fieldset class="ch">
             <legend><label class="sw"><input type="checkbox" bind:checked={f.em.enabled} /> {$t('al.ch.email')}</label></legend>
             <p class="muted xs">{$t('al.em.uses_server')}</p>
-            <label for="em-to">{$t('al.em.to')}</label><input id="em-to" type="text" autocomplete="off" bind:value={f.em.to} placeholder="tim@contoh.go.id, ketua@contoh.go.id" />
+            <label for="em-to">{$t('al.em.to')}</label><input id="em-to" type="text" autocomplete="off" bind:value={f.em.to} placeholder="team@example.com, lead@example.com" />
             <button type="button" class="btn sm" onclick={() => test('email')} disabled={testing !== '' || !v.channels.email.host}>{testing === 'email' ? $t('al.testing') : $t('al.test')}</button>
           </fieldset>
         </div>
@@ -143,7 +144,7 @@
             {#each th.svc as x, i}
               <div class="svcname">
                 <input type="checkbox" aria-label={$t('al.th.on')} bind:checked={x.on} />
-                <input type="text" list="th-services" autocomplete="off" spellcheck="false" aria-label={$t('al.th.service')} placeholder="om-be-report" bind:value={x.service} />
+                <input type="text" list="th-services" autocomplete="off" spellcheck="false" aria-label={$t('al.th.service')} placeholder="example-service" bind:value={x.service} />
               </div>
               <input class="f" type="number" min="1.1" max="100" step="0.1" aria-label={`${x.service}: ${$t('al.th.factor')}`} bind:value={x.factor} disabled={!x.on} />
               <input type="number" min="0" step="1" aria-label={`${x.service}: ${$t('al.th.min')}`} bind:value={x.min} disabled={!x.on} />

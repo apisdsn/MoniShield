@@ -9,12 +9,12 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { build, route } from '../state.js';
   import { num, bytes, tWIB, utcToWib } from '../format.js';
   import { toast } from './Toast.svelte';
   import DataTable from './DataTable.svelte';
   import Dialog from './Dialog.svelte';
   import Note from './Note.svelte';
+  import { openConfig } from './ConfigDialogs.svelte';
   import SeverityTag from './SeverityTag.svelte';
 
   let { onfinished = null } = $props();
@@ -129,7 +129,7 @@
     {#if !c.available || showCred}
       <form class="credf" onsubmit={saveCred} novalidate aria-labelledby="cred-h">
         <h3 id="cred-h">{$t('imp.cred_form')}</h3>
-        <p class="muted small">{$t('imp.cred_note')} <a href={build({ ...$route, tab: 'admin/konfigurasi', service: null, q: null })}>{$t('imp.cred_more')}</a></p>
+        <p class="muted small">{$t('imp.cred_note')} <button type="button" class="linkbtn" onclick={() => openConfig('storage')}>{$t('imp.cred_more')}</button></p>
         <label for="c-ak">{$t('imp.c.ak')}</label>
         <input id="c-ak" type="password" autocomplete="off" spellcheck="false" bind:value={ak} />
         <label for="c-sk">{$t('imp.c.sk')}</label>
@@ -150,7 +150,7 @@
       <form class="wform" onsubmit={(e) => { e.preventDefault(); saveWatch(true); }} novalidate>
         <div class="wurl">
           <label for="w-url">{$t('imp.w.url')}</label>
-          <input id="w-url" class="url" type="text" autocomplete="off" spellcheck="false" placeholder={ov.allowed[0]?.replace('<YYYY-MM-DD>/', '') || 's3://nama-bucket/k8s-logs/'} bind:value={wUrl} />
+          <input id="w-url" class="url" type="text" autocomplete="off" spellcheck="false" placeholder={ov.allowed[0]?.replace('<YYYY-MM-DD>/', '') || 's3://example-bucket/k8s-logs/'} bind:value={wUrl} />
         </div>
         <div class="wmin">
           <label for="w-min">{$t('imp.w.every')}</label>
@@ -294,4 +294,5 @@
   .wmin select { min-height: var(--touch); border-radius: 12px; }
   .wacts { margin-top: 0; }
   .on { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .linkbtn { background: none; border: 0; padding: 0; color: var(--accent-text); text-decoration: underline; cursor: pointer; font: inherit; }
 </style>

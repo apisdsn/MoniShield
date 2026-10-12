@@ -306,7 +306,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def probe_maxmind(cfg):
-    """HEAD the GeoLite2 download link with the stored key: authorization only, no download. Failure -> Fail (502)."""
+    """HEAD the GeoLite2 download link with the stored key: authorization only, no download. Failure -> Fail (502; answered as 424)."""
     auth = base64.b64encode(f'{cfg.maxmind_account_id}:{cfg.maxmind_license_key}'.encode()).decode()
     req = urllib.request.Request(cfg.url_maxmind.format('GeoLite2-City-CSV'), method='HEAD',
                                  headers={'Authorization': 'Basic ' + auth, 'User-Agent': 'monishield/2.0'})

@@ -5,6 +5,7 @@ import collections, datetime, json, os
 from monishield.domain.kafka_message import folder_of, relpath
 
 MARK = '.kafka-feed.json'          # marks an inbox folder filled by Kafka
+S3_MANIFEST = '.s3-import.json'    # = importer.MANIFEST (not imported: importer imports this module)
 
 
 class Spool:
@@ -19,9 +20,11 @@ class Spool:
         return f
 
     def flush(self):
-        """-> {folder: lines written}."""
+        """-> {folder: lines written}. Lines for a date whose complete S3 copy is already in the inbox (S3 manifest
+        present, see importer.py) are dropped: they are in the S3 files already and would be counted twice."""
         out = collections.Counter()
         for rel, lines in self.buf.items():
+            if os.path.exists(os.path.join(self.inbox, rel.split(os.sep, 1)[0], S3_MANIFEST)): continue
             path = os.path.join(self.inbox, rel)
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'a', encoding='utf-8', newline='\n') as fh: fh.write('\n'.join(lines) + '\n')

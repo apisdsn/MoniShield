@@ -1,5 +1,9 @@
-"""Import a log folder from an S3 prefix (TRD §3.8): link -> list objects -> pick -> download to a temp directory ->
-atomic move into the inbox -> regular ingest (by the caller).
+"""Import a log folder from an object storage prefix (TRD §3.8): link -> list objects -> pick -> download to a temp
+directory -> atomic move into the inbox -> regular ingest (by the caller).
+
+Providers (monishield/domain/storage.py): AWS S3 and the S3-compatible services (Cloudflare R2, MinIO, Wasabi, Google
+Cloud Storage with HMAC keys, DigitalOcean Spaces, others) through boto3 with their endpoint; Azure Blob Storage through
+azure-storage-blob, wrapped in AzureBlob so the rest of this module keeps using the same two S3 calls.
 
 The only barrier between the import page and other buckets is the `import_buckets` allow list in the server
 configuration: the link is checked BEFORE any connection to AWS. Only two S3 operations are used: ListObjectsV2 and
@@ -8,7 +12,8 @@ printed, logged, or returned.
 """
 import datetime, gzip, json, os, re, shutil, threading, time, uuid, zlib
 
-from monishield.domain import rules, s3_import
+from monishield.domain import rules, s3_import, storage
+from monishield.infrastructure.inbox import MARK as KAFKA_MARK
 from monishield.domain.s3_import import CONTROL, NO_CREDENTIALS, ImportFail, allowed_examples, parse_url, parse_watch, pick   # noqa: F401
 
 ENDPOINT = None   # tests only (local fake S3); the server always uses the official endpoint of region `import_region`
@@ -28,8 +33,13 @@ class Credentials:
 
     def set(self, access_key_id, secret_access_key, session_token=''):
         ak, sk, st = (str(x or '').strip() for x in (access_key_id, secret_access_key, session_token))
-        if not re.fullmatch(r'[A-Z0-9]{16,128}', ak) or not 16 <= len(sk) <= 128 or CONTROL.search(sk) or len(st) > 4096 or CONTROL.search(st):
-            raise ImportFail('invalid_credentials', 'The credentials do not look like an AWS access key (key ID upper-case letters/digits, secret key 16–128 characters).')
+        if storage.is_azure(self.cfg.storage_provider):
+            raise ImportFail('invalid_credentials', 'Pasted keys are for S3-compatible storage; set the Azure account and key on the Configuration page.')
+        aws = (self.cfg.storage_provider or 'aws') == 'aws'
+        ok_id = re.fullmatch(r'[A-Z0-9]{16,128}', ak) if aws else storage.KEY_ID.fullmatch(ak)
+        if not ok_id or not (16 if aws else 8) <= len(sk) <= 256 or CONTROL.search(sk) or len(st) > 4096 or CONTROL.search(st):
+            raise ImportFail('invalid_credentials', 'The credentials do not look like an AWS access key (key ID upper-case letters/digits, secret key 16–128 characters).'
+                             if aws else 'The credentials do not look like an access key pair (key ID 3–128 characters, secret key 8–256 characters).')
         with self._lock:
             self._mem = dict(aws_access_key_id=ak, aws_secret_access_key=sk, **({'aws_session_token': st} if st else {}))
             self._set_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)
@@ -42,6 +52,8 @@ class Credentials:
         with self._lock:
             if self._mem: return dict(self._mem), 'pasted'
         c = self.cfg
+        if storage.is_azure(c.storage_provider):
+            return (dict(account=c.azure_storage_account, key=c.azure_storage_key), 'environment') if storage.has_keys(c) else (None, None)
         if c.aws_access_key_id and c.aws_secret_access_key:
             return dict(aws_access_key_id=c.aws_access_key_id, aws_secret_access_key=c.aws_secret_access_key,
                         **({'aws_session_token': c.aws_session_token} if c.aws_session_token else {})), 'environment'
@@ -49,31 +61,108 @@ class Credentials:
 
     def status(self):
         with self._lock: mem, at = bool(self._mem), self._set_at
-        env = bool(self.cfg.aws_access_key_id and self.cfg.aws_secret_access_key)
+        if storage.is_azure(self.cfg.storage_provider): mem, at = False, None   # pasted keys are S3 keys
+        env = storage.has_keys(self.cfg)
         return dict(available=mem or env, source='pasted' if mem else 'environment' if env else None,
                     pasted=mem, pasted_at=str(at) if at else None, environment=env)
 
 
 NO_LIBRARY = ('S3 import needs the boto3 package, which is not installed on the server. Run: .venv/bin/pip install -e ".[s3]" '
               '(or ./run.sh, which now installs it), then restart the server.')
+NO_AZURE_LIBRARY = ('Azure Blob Storage needs the azure-storage-blob package, which is not installed on the server. Run: '
+                    '.venv/bin/pip install -e ".[azure]" (the Docker image has it), then restart the server.')
 
 
-def library_ok():
-    """boto3 + botocore installed? (optional "s3" package; checked before a job is created so it does not fail midway)"""
+def library_ok(provider=None):
+    """Library of the provider installed? (optional "s3" / "azure" packages; checked before a job is created so it
+    does not fail midway)"""
     import importlib.util
-    return all(importlib.util.find_spec(m) is not None for m in ('boto3', 'botocore'))
+    mods = ('azure.storage.blob',) if storage.is_azure(provider) else ('boto3', 'botocore')
+    try: return all(importlib.util.find_spec(m) is not None for m in mods)
+    except ModuleNotFoundError: return False   # parent package (azure) missing
 
 
-# ------------------------------------------------------------------ S3
+# ------------------------------------------------------------------ S3 / Azure
 def _client(cfg, creds):
+    if storage.is_azure(cfg.storage_provider): return AzureBlob(creds['account'], creds['key'], ENDPOINT)
     import boto3
     from botocore.config import Config
+    p = storage.provider(cfg.storage_provider)
+    url = ENDPOINT or storage.endpoint_url(cfg.storage_provider, cfg.storage_endpoint, cfg.import_region)
     conf = Config(connect_timeout=10, read_timeout=60, retries=dict(max_attempts=3, mode='standard'), signature_version='s3v4',
-                  s3=dict(addressing_style='path') if ENDPOINT else None)
-    return boto3.session.Session(region_name=cfg.import_region, **creds).client('s3', endpoint_url=ENDPOINT, config=conf)
+                  s3=dict(addressing_style='path') if ENDPOINT or p['path'] else None)
+    return boto3.session.Session(region_name=cfg.import_region or None, **creds).client('s3', endpoint_url=url, config=conf)
+
+
+class _Pages:
+    def __init__(self, fn): self.fn = fn
+
+    def paginate(self, **kw): return self.fn(**kw)
+
+
+class _Body:
+    def __init__(self, stream): self.stream = stream
+
+    def iter_chunks(self, size):
+        for chunk in self.stream.chunks():
+            for i in range(0, len(chunk), size): yield chunk[i:i + size]
+
+
+class AzureBlob:
+    """Azure Blob Storage with the small part of the boto3 S3 client this module uses: list_objects_v2 (one page),
+    get_paginator('list_objects_v2') (with or without Delimiter) and get_object()['Body'].iter_chunks(). Bucket = container."""
+
+    def __init__(self, account, key, endpoint=None):
+        from azure.storage.blob import BlobServiceClient
+        url = endpoint or f'https://{account}.blob.core.windows.net'
+        self.svc = BlobServiceClient(account_url=url, credential=dict(account_name=account, account_key=key),
+                                     connection_timeout=10, read_timeout=60, retry_total=3)
+
+    def _container(self, bucket): return self.svc.get_container_client(bucket)
+
+    @staticmethod
+    def _obj(b): return dict(Key=b.name, Size=b.size, ETag=str(b.etag or '').strip('"'))
+
+    def get_paginator(self, op):
+        assert op == 'list_objects_v2'
+        return _Pages(self._pages)
+
+    def _pages(self, Bucket, Prefix='', Delimiter=None):
+        c = self._container(Bucket)
+        if Delimiter:
+            items = list(c.walk_blobs(name_starts_with=Prefix, delimiter=Delimiter))
+            yield dict(Contents=[self._obj(b) for b in items if not hasattr(b, 'prefix')],
+                       CommonPrefixes=[dict(Prefix=b.prefix) for b in items if hasattr(b, 'prefix')])
+            return
+        for page in c.list_blobs(name_starts_with=Prefix).by_page():
+            yield dict(Contents=[self._obj(b) for b in page])
+
+    def list_objects_v2(self, Bucket, Prefix='', MaxKeys=1000):
+        out = []
+        for b in self._container(Bucket).list_blobs(name_starts_with=Prefix, results_per_page=MaxKeys):
+            out.append(self._obj(b))
+            if len(out) >= MaxKeys: break
+        return dict(Contents=out)
+
+    def get_object(self, Bucket, Key): return dict(Body=_Body(self._container(Bucket).download_blob(Key)))
+
+
+def _azure_error(e):
+    """Azure SDK exception -> ImportFail, or None when it is not one."""
+    try: from azure.core import exceptions as az
+    except ImportError: return None
+    if isinstance(e, az.ClientAuthenticationError) or getattr(e, 'status_code', None) == 403:
+        return ImportFail('s3_denied', 'Azure denied access (authentication): check the storage account name, key and read permission.', 502)
+    if isinstance(e, az.ResourceNotFoundError):
+        return ImportFail('s3_not_found', 'Azure: container or blob does not exist.', 502)
+    if isinstance(e, az.ServiceRequestError):
+        return ImportFail('s3_unreachable', f'Azure Blob Storage is unreachable from the server ({type(e).__name__}).', 502)
+    if isinstance(e, az.AzureError): return ImportFail('s3_error', f'Azure answered with an error ({type(e).__name__}).', 502)
+    return None
 
 
 def _s3_error(e):
+    if (az := _azure_error(e)) is not None: return az
     from botocore.exceptions import BotoCoreError, ClientError, EndpointConnectionError
     if isinstance(e, ClientError):
         code = e.response.get('Error', {}).get('Code', '?')
@@ -181,10 +270,33 @@ def run(cfg, url, creds_store, dry_run=False, progress=None):
     return res
 
 
+def _drop_kafka(dst, take):
+    """The folder was filled by the Kafka consumer and S3 now has the complete copy of that date: Kafka's files of the
+    services S3 brings are removed (the same lines would otherwise be counted twice); services only Kafka has stay.
+    The Kafka mark goes when no Kafka file is left. -> number of files removed. Ingest then drops their rows."""
+    if not os.path.exists(os.path.join(dst, KAFKA_MARK)): return 0
+    try:
+        with open(os.path.join(dst, MANIFEST), encoding='utf-8') as fh: man = json.load(fh)
+    except (OSError, ValueError): man = {}
+    from_s3 = {r['rel'] for r in take} | {r.get('stored', r['rel']) for r in take} | set(man) | {m.get('stored', k) for k, m in man.items()}
+    services = {'/'.join(r['rel'].split('/')[:2]) for r in take if r['rel'].count('/') >= 2}
+    removed, left = 0, 0
+    for root, _, files in os.walk(dst):
+        for name in files:
+            rel = os.path.relpath(os.path.join(root, name), dst).replace(os.sep, '/')
+            if rel in (KAFKA_MARK, MANIFEST) or rel in from_s3: continue
+            if '/'.join(rel.split('/')[:2]) in services: os.remove(os.path.join(root, name)); removed += 1
+            else: left += 1
+    if not left: _rm(os.path.join(dst, KAFKA_MARK))
+    return removed
+
+
 def _move_into_inbox(cfg, src, folder, take):
-    """New folder: one rename (atomic). Existing folder: each file is replaced by a rename (atomic per file). Then the manifest."""
+    """New folder: one rename (atomic). Existing folder: each file is replaced by a rename (atomic per file), after the
+    Kafka copy of the same services is removed (_drop_kafka). Then the manifest."""
     dst = os.path.join(cfg.inbox_dir, folder)
     os.makedirs(cfg.inbox_dir, exist_ok=True)
+    if os.path.exists(dst): _drop_kafka(dst, take)
     if not os.path.exists(dst):
         try: os.replace(src, dst)
         except OSError: shutil.copytree(src, dst + '.part'); os.replace(dst + '.part', dst)   # different file system
@@ -254,11 +366,12 @@ class S3Gateway:
     def __init__(self, cfg):
         self.cfg, self.creds = cfg, Credentials(cfg)
 
-    def library_ok(self): return library_ok()
+    def library_ok(self): return library_ok(self.cfg.storage_provider)
 
     def ready(self):
         """Library + credentials present; otherwise -> ImportFail (400) with the hint."""
-        if not library_ok(): raise ImportFail('no_s3_library', NO_LIBRARY, 400)
+        if not library_ok(self.cfg.storage_provider):
+            raise ImportFail('no_s3_library', NO_AZURE_LIBRARY if storage.is_azure(self.cfg.storage_provider) else NO_LIBRARY, 400)
         if not self.creds.get()[0]: raise ImportFail('no_credentials', NO_CREDENTIALS, 400)
 
     def run(self, url, dry_run=False, progress=None): return run(self.cfg, url, self.creds, dry_run=dry_run, progress=progress)

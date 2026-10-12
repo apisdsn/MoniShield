@@ -78,6 +78,7 @@ class EmailChange(Base):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     requested_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
     expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    requested_by: Mapped[str | None] = mapped_column(String(64))   # admin who entered the address (2026-10-12); None = the user
 
 
 class Session(Base):
@@ -172,6 +173,8 @@ class Auth:
         with self.engine.begin() as c:
             if 'email' not in cols: c.execute(text('ALTER TABLE app_user ADD COLUMN email VARCHAR(254)'))
             c.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS ux_app_user_email ON app_user (email)'))
+            if 'requested_by' not in {x['name'] for x in inspect(c).get_columns('email_change')}:
+                c.execute(text('ALTER TABLE email_change ADD COLUMN requested_by VARCHAR(64)'))
 
     @contextlib.contextmanager
     def _tx(self):
@@ -285,7 +288,15 @@ class Auth:
         with self._tx() as s: return s.scalar(select(func.count()).select_from(User))
 
     def list_users(self):
-        with self._tx() as s: return [self._public(u) for u in s.scalars(select(User).order_by(User.username))]
+        """Users + the address an email change is waiting on (email_pending, email_pending_by = admin or None)."""
+        with self._tx() as s:
+            wait = {r.user_id: r for r in s.scalars(select(EmailChange).where(EmailChange.expires_at > now()))}
+            out = []
+            for u in s.scalars(select(User).order_by(User.username)):
+                d, r = self._public(u), wait.get(u.user_id)
+                d.update(email_pending=r.new_email if r else None, email_pending_by=r.requested_by if r else None)
+                out.append(d)
+            return out
 
     def get_user(self, user_id):
         with self._tx() as s: return self._public(self._get(s, user_id))
@@ -312,8 +323,10 @@ class Auth:
         return s.scalar(select(func.count()).select_from(User).where(User.role == 'admin', User.active.is_(True), User.user_id != excluding))
 
     def update_user(self, user_id, by, ip=None, display_name=None, role=None, active=None, email=None):
-        """email: None = unchanged, '' = removed."""
+        """email: None = unchanged, '' = removed. A NEW address is never set here (owner decision 2026-10-12): it goes
+        through email_change_by_admin, so it only counts once its owner has confirmed it with a code."""
         new_email = check_email(email) if email is not None else None
+        if new_email: raise AuthError('email_needs_code', 'A new email is set through the email change, which sends a code to it.', 400)
         with self._tx() as s:
             u = self._get(s, user_id, lock=True)
             if role is not None and role not in ROLES: raise AuthError('invalid_role', "Role must be 'admin' or 'user'.")
@@ -326,9 +339,8 @@ class Auth:
             if role is not None and role != u.role:
                 changes.append(f'role {u.role} -> {role}'); u.role = role
             if email is not None and new_email != u.email:
-                if new_email and s.scalar(select(User.user_id).where(User.email == new_email, User.user_id != user_id)):
-                    raise AuthError('email_taken', 'This email address is already used by another account.', 409)
-                u.email = new_email; changes.append('email ' + ('changed' if new_email else 'removed'))
+                u.email = None; changes.append('email removed')
+                s.execute(delete(EmailChange).where(EmailChange.user_id == user_id))
                 s.execute(delete(PasswordReset).where(PasswordReset.user_id == user_id))   # a pending reset went to the old address
             if active is not None and bool(active) != bool(u.active):
                 u.active, u.failed_logins, u.locked_until = bool(active), 0, None
@@ -437,7 +449,35 @@ class Auth:
         with self._tx() as s:
             r = s.get(EmailChange, user['user_id'])
             if not r or r.expires_at <= now(): return None
-            return dict(new_email=r.new_email, needs_old=r.old_hash is not None, expires_at=iso(r.expires_at))
+            return dict(new_email=r.new_email, needs_old=r.old_hash is not None, expires_at=iso(r.expires_at), by_admin=r.requested_by)
+
+    def email_change_by_admin(self, user_id, admin, admin_password, new_email, ip=None):
+        """An admin enters a new address for ANOTHER user (owner decision 2026-10-12, option B): checked with the admin's
+        own password; the address only becomes the account's email when its owner enters the code sent to it (signed in,
+        Account email). The current email keeps working until then. -> dict(user, old_email, new_email, new_code)."""
+        new_email = check_email(new_email)
+        if not new_email: raise AuthError('invalid_email', 'Invalid email address.')
+        with self._tx() as s:
+            a = s.scalar(select(User).where(User.user_id == admin['user_id']))
+            if not a or not isinstance(admin_password, str) or not self._verify(a, admin_password[:PASSWORD_MAX]):
+                self._audit(s, 'email.change_start', admin, f'refused for user #{user_id}: wrong admin password', ip)
+                raise AuthError('wrong_password', 'Your password is wrong.', 403)
+            u = self._get(s, user_id, lock=True)
+            if u.user_id == a.user_id:
+                raise AuthError('own_email', 'Change your own email under Account email: it needs codes sent to the old and the new address.', 409)
+            if new_email == u.email: raise AuthError('email_same', 'This is already the email of this account.')
+            if s.scalar(select(User.user_id).where(User.email == new_email, User.user_id != u.user_id)):
+                raise AuthError('email_taken', 'This email address is already used by another account.', 409)
+            r, t = s.get(EmailChange, u.user_id), now()
+            if r and r.requested_at > t - datetime.timedelta(seconds=RESET_GAP_S):
+                raise AuthError('too_soon', 'New codes can be requested once a minute.', 429)
+            salt, code = secrets.token_bytes(16), accounts.code()
+            if not r: r = EmailChange(user_id=u.user_id); s.add(r)
+            r.new_email, r.salt, r.attempts, r.requested_at, r.requested_by = new_email, salt, 0, t, a.username
+            r.expires_at = t + datetime.timedelta(minutes=accounts.ADMIN_CODE_MINUTES)
+            r.old_hash, r.new_hash = None, accounts.code_hash(salt, code)
+            self._audit(s, 'email.change_start', admin, f'{u.username}: new address entered by an admin, code sent to it', ip)
+            return dict(user=self._public(u), old_email=u.email, new_email=new_email, new_code=code)
 
     def email_change_cancel(self, user, ip=None, reason=None):
         with self._tx() as s:
@@ -462,11 +502,12 @@ class Auth:
                 raise AuthError('wrong_code', 'A code is wrong.' if r.old_hash else 'The code is wrong.', 400)
             if s.scalar(select(User.user_id).where(User.email == r.new_email, User.user_id != u.user_id)):
                 s.delete(r); raise AuthError('email_taken', 'This email address is already used by another account.', 409)
-            old = u.email
+            old, by = u.email, r.requested_by
             u.email = r.new_email
             s.delete(r)
             s.execute(delete(PasswordReset).where(PasswordReset.user_id == u.user_id))   # a pending reset went to the old address
-            self._audit(s, 'email.change', u, 'own email changed (verified)', ip)
+            self._audit(s, 'email.change', u, f'email changed (confirmed by the user; entered by admin {by})' if by
+                        else 'own email changed (verified)', ip)
             s.flush()
             return self._public(u), old
 

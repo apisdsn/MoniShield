@@ -12,7 +12,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Version | 2.0.0 + the *Unreleased* changes in `CHANGELOG.md` |
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
-| Tests | pytest: 364 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
+| Tests | pytest: 391 passed, 62 skipped (the skipped ones need the old repo's `build_dashboard.py`, `dashboard.html` or real log folders). Web: build, `tools/cek_i18n.mjs`, `tests/test_format.mjs`. |
 | CI | `.github/workflows/ci.yml` green on `dev`. `stg` and `prd` still point to the commit before the deploy job. |
 | Deploy | Automatic deploy of `prd` built and tested with a stub; **not yet run against the real server** (see next steps). |
 | Server today | Still runs from the old checkout `/srv/dashboard-logging/v2` (compose project `monishield`). The first automatic deploy moves it to `/srv/MoniShield`, reusing the same containers and volumes. |
@@ -49,6 +49,8 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 24 | Notification thresholds per service | Configuration → Notifications → *Spike thresholds* | plan stage 34 |
 | 25 | Forgot password by email (unique temporary password), user emails, MoniShield letter for every email (also OTP), mail server settings | Sign-in page → *Forgot password?*; Manage users; Configuration → *Mail server (SMTP)* | plan stage 35, [`10-user-guide.md`](10-user-guide.md) |
 | 26 | Users change their own email, verified through the old address | User menu → *Account email*; password + code to the old email + code to the new email | plan stage 36, [`10-user-guide.md`](10-user-guide.md) |
+| 27 | Configuration in the sidebar as pop-ups, folding sidebar groups, object storage with a choice of providers (S3, R2, MinIO, Wasabi, GCS, Spaces, Azure), free-text region, `example.com` placeholders | Sidebar → *Configuration* | plan stage 37, [`10-user-guide.md`](10-user-guide.md) |
+| 28 | Manage users must not change emails without a code (option B) | Admin enters a new address with own password; it counts once the user confirms the code; own email only via Account email | plan stage 38, [`10-user-guide.md`](10-user-guide.md) |
 
 Questions answered along the way, recorded so they are not asked again:
 
@@ -80,14 +82,18 @@ Questions answered along the way, recorded so they are not asked again:
    the cluster-level Kafka output, so that nginx lines (needed for the map and attack detection) arrive.
 4. **Let's Encrypt on the real domain**: checked with Caddy's local certificates only; the first deploy with the
    `https` profile is the real check ([`07-deploy-vps.md`](07-deploy-vps.md) §6–7).
-5. After the server runs from `/srv/MoniShield`: the old checkout `/srv/dashboard-logging/v2` can be removed and the
+5. **Before the next deploy to `prd`**: `S4_IMPORT_REGION` no longer defaults to `ap-southeast-3`. If the server's
+   `.env` does not set it, fill in the region under Configuration → Object storage (or add
+   `S4_IMPORT_REGION=ap-southeast-3` to `.env`) so S3 requests go straight to the bucket's region.
+6. After the server runs from `/srv/MoniShield`: the old checkout `/srv/dashboard-logging/v2` can be removed and the
    old repo archived (the old repo's `build_dashboard.py`, `dashboard_template.html` and log folders are never edited).
 
 ## Known issues
 
 - `tools/uji_browser.cjs`: two checks fail and did so before the recent changes ("14 IP" count, Tab focus order).
-- The S3 sync skips dates that already have a Kafka folder, so a Kafka folder that misses some services (for example
-  ingress-nginx before step 3 above) is not completed from S3. Offered as an option, not requested yet.
+- Fixed 2026-10-12: the S3 sync used to skip dates that already had a Kafka folder. Now, once Kafka writes the next
+  folder, the S3 copy of that date is fetched and replaces Kafka's files of the same services (services only Kafka has
+  are kept); Kafka lines that arrive later for that date are dropped.
 - Credentials entered on the Configuration page are stored in `.env` in plain text (encrypting them was tried and
   rolled back at the owner's request): protect the file permissions (the app writes it as group 10001, mode 660).
 - Encrypted API bodies need WebCrypto, which browsers only offer on HTTPS or `localhost`; over plain `http://` to a LAN
