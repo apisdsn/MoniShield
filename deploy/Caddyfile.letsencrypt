@@ -11,3 +11,28 @@
 	header Strict-Transport-Security "max-age=31536000"
 	reverse_proxy app:8000   # SSE /api/live/map is passed straight through (Caddy does not buffer text/event-stream)
 }
+
+# Portfolio (github.com/apisdsn/web-portofolio) shares this server and this Caddy.
+# Its containers join monishield_default with the aliases portfolio-api / portfolio-web;
+# until they run, these sites answer 502. DNS for both names must point to this server.
+apisdsn.com {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+
+	# revalidation is only called inside Docker (portfolio api -> web)
+	handle /internal/* {
+		respond 404
+	}
+
+	handle /api/* {
+		reverse_proxy portfolio-api:8080
+	}
+
+	handle {
+		reverse_proxy portfolio-web:3000
+	}
+}
+
+www.apisdsn.com {
+	redir https://apisdsn.com{uri} permanent
+}
