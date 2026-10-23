@@ -52,12 +52,13 @@ class LogFolders:
         return {d for d in folders if only_kafka(d)}
 
     def source(self, folder):
-        """Where a folder's logs come from: 'log' (main log folder; it wins when both exist), 'kafka' (written by the
-        Kafka consumer), 's3' (S3 import), 'upload' (uploaded from the browser), or None (not on disk)."""
+        """Where a folder's logs come from: 'log' (main log folder; it wins when both exist), 's3' (S3 import: wins over
+        Kafka, also when files of services only Kafka has are left beside the S3 copy, as in from_kafka), 'kafka' (written
+        by the Kafka consumer, no S3 copy yet), 'upload' (uploaded from the browser), or None (not on disk)."""
         if self._has_logs(self.cfg.log_dir, folder): return 'log'
         d = os.path.join(self.cfg.inbox_dir, folder)
-        if os.path.exists(os.path.join(d, KAFKA_MARK)): return 'kafka'
         if os.path.exists(os.path.join(d, MANIFEST)): return 's3'
+        if os.path.exists(os.path.join(d, KAFKA_MARK)): return 'kafka'
         return 'upload' if self._has_logs(self.cfg.inbox_dir, folder) else None
 
     def inbox_ok(self, folder):

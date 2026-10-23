@@ -557,6 +557,22 @@ def test_drop_kafka_keeps_other_services_and_removes_the_mark(tmp_path):
     assert importer._drop_kafka(str(d), [dict(rel='ns/b/s3.log')]) == 1 and not (d / inbox.MARK).exists()   # nothing from Kafka left
 
 
+def test_folder_with_s3_copy_is_s3_even_when_kafka_only_services_are_left(tmp_path):
+    """Production case (2026-10-23): Kafka carries services the S3 export lacks, so the Kafka mark stays after the S3 copy
+    arrived. The folder is S3 (not labelled "(Kafka)", not offered to the sync again); a folder without the S3 copy is Kafka."""
+    from monishield.infrastructure import inbox
+    from monishield.infrastructure.logfolders import LogFolders
+    c = dataclasses.replace(config.Config(), log_dir=str(tmp_path / 'logs'), inbox_dir=str(tmp_path / 'inbox'))
+    for f, s3 in (('2026-10-14', True), ('2026-10-15', False)):
+        d = tmp_path / 'inbox' / f
+        (d / 'ns' / 'only-kafka').mkdir(parents=True); (d / 'ns' / 'only-kafka' / 'k.log').write_text('k')
+        (d / inbox.MARK).write_text('{}')
+        if s3: (d / importer.MANIFEST).write_text('{}')
+    lf = LogFolders(c)
+    assert (lf.source('2026-10-14'), lf.source('2026-10-15')) == ('s3', 'kafka')
+    assert lf.from_kafka({'2026-10-14', '2026-10-15'}) == {'2026-10-15'}      # same rule as the sync
+
+
 def test_cli_sync_runs_through_the_server(wclient, cfg, monkeypatch, capsys):
     """`python -m monishield sync` (for cron): the server checks the parent folder; no API path to remember."""
     from monishield.interfaces import cli
