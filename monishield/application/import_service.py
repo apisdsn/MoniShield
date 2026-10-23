@@ -126,7 +126,7 @@ class ImportService:
 
         A folder the Kafka consumer filled is NOT known to the sync (bug fixed 2026-10-12: with Kafka on, the S3 copy of
         that date was skipped forever): once Kafka has moved on to the next folder, the complete S3 folder of that date
-        is fetched and replaces the Kafka lines of the services it contains (importer._drop_kafka). The folder Kafka
+        is fetched and replaces the Kafka files of that folder (importer._drop_kafka: one source per folder). The folder Kafka
         is still writing is left alone."""
         w, lf = self.ctx.warehouse, self.ctx.logfolders
         known, ign = w.known_folders(), w.ignored()

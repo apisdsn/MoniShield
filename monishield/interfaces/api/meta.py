@@ -17,7 +17,7 @@ def health(): return dict(ok=True)   # no data, no session
 def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)):
     cfg = request.app.state.cfg
     # derived_at: when the folder's aggregates were last derived (data freshness marker in the UI, DRD §12)
-    # source: where the folder's logs come from (log / kafka / s3 / upload) — Kafka folders are labelled in the UI
+    # source: where the folder's logs come from (log / s3 / kafka / upload) — S3 and Kafka folders are labelled in the UI
     src = request.app.state.logfolders.source
     folders = [dict(folder=str(f), range_start=wib(a), range_end=wib(b), lines=lines, services=svc, files=files, files_empty=empty, files_corrupt=corrupt,
                     derived_at=wib(d), source=src(str(f)))

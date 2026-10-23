@@ -7,6 +7,13 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Changed
+- A folder holds one source: S3 or Kafka, never both. When the S3 copy of a date is imported, every Kafka file left in that
+  folder leaves it: files of services the S3 copy brings are deleted (the same lines), files of services only Kafka sends
+  are moved to `<inbox>/.kafka-superseded/<date>/` (kept, not counted). Folders made before this rule (S3 copy plus Kafka
+  files) are cleaned by the next ingest; their dashboard numbers then follow the S3 export only. The aside copy is deleted
+  with the folder.
+- The folder picker, page title and folder list mark each folder with its source: `(S3)` or `(Kafka)` (the main log folder and
+  uploads have no marker). A folder with an S3 copy is no longer labelled `(Kafka)`.
 - One date per folder everywhere: the folder picker, page title, Trends, IP profile, Command Center, sync and upload
   messages, retention plan and notifications show the day the logs cover (folder `21 Oct` = logs of `20 Oct`), for S3 and
   Kafka folders alike. The old second "· log …" date, taken from the earliest line in the data, is gone. Folder names are

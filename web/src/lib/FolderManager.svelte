@@ -8,7 +8,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, fLabel, tWIB, utcToWib } from '../format.js';
+  import { num, fLabel, folderTag, tWIB, utcToWib } from '../format.js';
   import { toast } from './Toast.svelte';
   import DataTable from './DataTable.svelte';
   import Dialog from './Dialog.svelte';
@@ -38,7 +38,7 @@
 
 {#if rows}
   <DataTable title={$t('fm.title')} {rows} limit={30} columns={[
-    { key: 'folder', label: $t('ipp.col.folder'), fmt: (r) => (r.source === 'kafka' ? $t('folder.kafka', { date: fLabel(r.folder, $lang) }) : fLabel(r.folder, $lang)), cls: () => 'nowrap', sort: true },
+    { key: 'folder', label: $t('ipp.col.folder'), fmt: (r) => (folderTag(r.source) ? $t(`folder.${folderTag(r.source)}`, { date: fLabel(r.folder, $lang) }) : fLabel(r.folder, $lang)), cls: () => 'nowrap', sort: true },
     { key: 'files', label: $t('kpi.files'), type: 'num', sort: true },
     { key: 'lines', label: $t('col.lines'), type: 'num', sort: true },
     { key: 'where', label: $t('fm.col.where'), custom: true, minw: 200 },

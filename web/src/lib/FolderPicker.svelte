@@ -2,7 +2,7 @@
      folders > 60. One date per entry: the day the logs cover (format.js logDay), the same for S3 and Kafka folders. ◀ ▶ arrows for previous/next folder (U14; shortcuts [ ] in App). Disabled in Trends. -->
 <script>
   import { lang, t } from '../i18n.js';
-  import { dLabel, fLabel, logDay } from '../format.js';
+  import { dLabel, fLabel, folderTag, logDay } from '../format.js';
   import { onMount } from 'svelte';
   let { folders = [], value, disabled = false, onchange } = $props();
 
@@ -28,7 +28,8 @@
     return [...g.values()];
   });
   function label(f) {
-    const d = f.source === 'kafka' ? $t('folder.kafka', { date: fLabel(f.folder, $lang) }) : fLabel(f.folder, $lang);   // Kafka folders are labelled
+    const tag = folderTag(f.source), day = fLabel(f.folder, $lang);
+    const d = tag ? $t(`folder.${tag}`, { date: day }) : day;   // S3 / Kafka / both are labelled
     let s = compact ? d : $t('folder.option', { date: d });
     if (!f.lines) s += ` · ${f.files_corrupt ? $t('folder.corrupt') : $t('folder.empty')}`;
     return s;
