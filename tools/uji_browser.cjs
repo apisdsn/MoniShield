@@ -115,7 +115,7 @@ async function login(page, user, pw) {
   await page.waitForSelector('.kpis .kpi');
   const htmlAttr = await page.evaluate(() => [document.documentElement.lang, document.documentElement.dataset.theme]);
   cek('language and theme remembered after reload', htmlAttr[0] === 'en' && htmlAttr[1] === 'light', htmlAttr.join(','));
-  cek('interface text in English', (await page.textContent('aside')).includes('Root Causes') && (await page.textContent('.sub')).includes('Log folder'));
+  cek('interface text in English', (await page.textContent('aside')).includes('Root Causes') && (await page.textContent('.sub')).includes('Logs of'));
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${OUT}/03-overview-terang-en-1440.png`, fullPage: true });
   await page.click('[role=radio]:has-text("ID")');

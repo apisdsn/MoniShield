@@ -6,6 +6,12 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 
 ## [Unreleased]
 
+### Changed
+- One date per folder everywhere: the folder picker, page title, Trends, IP profile, Command Center, sync and upload
+  messages, retention plan and notifications show the day the logs cover (folder `21 Oct` = logs of `20 Oct`), for S3 and
+  Kafka folders alike. The old second "· log …" date, taken from the earliest line in the data, is gone. Folder names are
+  unchanged in addresses, API and on disk.
+
 ### Added
 - Sidebar group *Configuration* (admins): Object storage, Kafka broker, GeoIP (MaxMind), Mail server, Notifications,
   Block list, Data retention and Server keys open as pop-ups; the Configuration page and its user-menu item are gone.

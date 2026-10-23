@@ -13,7 +13,7 @@
   import { api } from '../api.js';
   import { build, route } from '../state.js';
   import { errText, srv } from '../srv.js';
-  import { dLabel, tWIB, utcToWib } from '../format.js';
+  import { fLabel, tWIB, utcToWib } from '../format.js';
   import { toast } from '../lib/Toast.svelte';
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
@@ -478,8 +478,8 @@
           <div class="plan small">
             <b>{$t('cf.rt.next')}</b>
             {#if !rplan.db.length && !rplan.inbox.length}<span class="muted">{$t('cf.rt.none')}</span>{/if}
-            {#if rplan.db.length}<span>{$t('cf.rt.plan_db', { n: rplan.db.length, d: dLabel(rplan.cutoff_db, $lang) })}</span>{/if}
-            {#if rplan.inbox.length}<span>{$t('cf.rt.plan_inbox', { n: rplan.inbox.length, d: dLabel(rplan.cutoff_inbox, $lang) })}</span>{/if}
+            {#if rplan.db.length}<span>{$t('cf.rt.plan_db', { n: rplan.db.length, d: fLabel(rplan.cutoff_db, $lang) })}</span>{/if}
+            {#if rplan.inbox.length}<span>{$t('cf.rt.plan_inbox', { n: rplan.inbox.length, d: fLabel(rplan.cutoff_inbox, $lang) })}</span>{/if}
             {#if rplan.last}<span class="muted xs">{$t('cf.rt.last', { at: tWIB(utcToWib(rplan.last.at), $lang), by: $srv(rplan.last.by), db: rplan.last.db.length, inbox: rplan.last.inbox.length })}</span>{/if}
           </div>
         {/if}
