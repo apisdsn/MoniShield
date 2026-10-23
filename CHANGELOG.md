@@ -6,11 +6,10 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 
 ## [Unreleased]
 
-### Fixed
-- A folder whose S3 copy was imported no longer keeps the "(Kafka)" label when Kafka also sent services that the S3 export
-  lacks (the Kafka mark stays for those). It is shown and counted as an S3 folder, the same rule the sync already used.
-
 ### Changed
+- Every folder in the picker, page title and folder list is marked with where its logs come from: `(S3)`, `(Kafka)` or
+  `(S3 + Kafka)`. The last one is a folder whose S3 copy was imported and that also holds services only Kafka sends
+  (it was labelled `(Kafka)` before, although S3 had been synced). Folders from the main log folder and uploads have no marker.
 - One date per folder everywhere: the folder picker, page title, Trends, IP profile, Command Center, sync and upload
   messages, retention plan and notifications show the day the logs cover (folder `21 Oct` = logs of `20 Oct`), for S3 and
   Kafka folders alike. The old second "· log …" date, taken from the earliest line in the data, is gone. Folder names are

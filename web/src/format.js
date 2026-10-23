@@ -40,6 +40,10 @@ export const folderOfDay = (day) => shift(day, 1);
 /** Folder name -> label of its log day: '2026-10-21' -> '20 Okt 2026'. Anything that is not a date folder is returned as is. */
 export const fLabel = (folder, lang) => (FOLDER.test(folder || '') ? dLabel(logDay(folder), lang) : folder ?? '');
 
+/** Origin of a folder (API `source`) -> the label key suffix: 's3' | 'kafka' | 'both' (S3 copy + services only Kafka sends);
+ *  null for the main log folder and uploads (no marker). */
+export const folderTag = (source) => ({ s3: 's3', kafka: 'kafka', 's3+kafka': 'both' }[source] ?? null);
+
 /** Date without year: '2026-10-05 09:00' -> '5 Okt'. */
 export function dShort(s, lang) {
   const [, m, dd] = s.slice(0, 10).split('-');

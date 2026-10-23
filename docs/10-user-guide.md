@@ -23,10 +23,10 @@ the sync the dashboard switches to the newest folder. Only new or changed files 
 
 Every folder holds exactly one day of logs, from 00:00 to 24:00 WIB, for S3 exports and for Kafka alike. The folder is
 named after the day *after* (the export day), so the folder `2026-10-21` holds the logs of 20 Oct. The dashboard shows
-only the day the logs cover (`Logs of 20 Oct 2026`, with `(Kafka)` for folders filled from Kafka): in the folder picker,
+only the day the logs cover (`Logs of 20 Oct 2026`): in the folder picker,
 the page title, Trends, the IP profile, Command Center, sync and upload messages and notifications. Today's live Kafka
-day is therefore listed as today. A folder is labelled `(Kafka)` only while it has no S3 copy yet; once the S3 copy is imported it is an S3 folder, even if
-files of services that only Kafka sends stay beside it. Folder names stay as they are in web addresses (`?folder=2026-10-21`), the API, on
+day is therefore listed as today. Each day also shows where its logs come from: `(S3)`, `(Kafka)` (no S3 copy yet, e.g. today) or `(S3 + Kafka)` (the S3 copy was
+imported, and files of services that only Kafka sends stay beside it; the sync treats it as done). Folder names stay as they are in web addresses (`?folder=2026-10-21`), the API, on
 disk and in the `monishield sync` output. The exact time range of the data is under the page title.
 
 ### Automatic S3 sync
