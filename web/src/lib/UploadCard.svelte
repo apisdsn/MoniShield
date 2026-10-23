@@ -6,7 +6,7 @@
   import { srv, errText } from '../srv.js';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, bytes } from '../format.js';
+  import { num, bytes, fLabel, folderOfDay } from '../format.js';
   import { toast } from './Toast.svelte';
   import DatePicker from './DatePicker.svelte';
 
@@ -25,7 +25,7 @@
   async function check() {
     err = null; busy = true;
     try {
-      plan = await api.post('/api/admin/uploads', { files: files.map((f) => ({ path: f.webkitRelativePath || f.name, size: f.size })), folder: folder.trim() });
+      plan = await api.post('/api/admin/uploads', { files: files.map((f) => ({ path: f.webkitRelativePath || f.name, size: f.size })), folder: folder.trim() ? folderOfDay(folder.trim()) : '' });
     } catch (e) { plan = null; err = why(e); }
     finally { busy = false; }
   }
@@ -48,7 +48,7 @@
       }));
       const r = await api.post(`/api/admin/uploads/${plan.upload_id}/finish`, {});
       done = r; plan = null; files = []; if (input) input.value = '';
-      toast($t('up.toast', { n: num(r.files, $lang), list: r.folders.join(', ') }));
+      toast($t('up.toast', { n: num(r.files, $lang), list: r.folders.map((x) => fLabel(x, $lang)).join(', ') }));
       onfinished?.();
     } catch (e) {
       if (e.code !== 'aborted') { err = why(e); ctl?.abort(); }
@@ -77,7 +77,7 @@
     {#if busy && !uploading}<p class="muted small">{$t('up.checking', { n: num(files.length, $lang) })}</p>{/if}
     {#if err}<p class="err" role="alert">{err}</p>{/if}
     {#if plan}
-      <p class="sum">{$t('up.plan', { n: num(plan.files.length, $lang), size: MB(plan.bytes), list: plan.folders.join(', ') })}
+      <p class="sum">{$t('up.plan', { n: num(plan.files.length, $lang), size: MB(plan.bytes), list: plan.folders.map((x) => fLabel(x, $lang)).join(', ') })}
         {#if plan.skipped_count}{' '}{$t('up.skipped', { n: num(plan.skipped_count, $lang) })}{/if}</p>
       {#if plan.skipped_count}
         <details class="objs">
@@ -97,7 +97,7 @@
       </div>
     {/if}
     {#if done}
-      <p class="sum ok">{$t('up.done', { n: num(done.files, $lang), size: MB(done.bytes), list: done.folders.join(', ') })}{#if done.extracted}{' '}{$t('imp.res.extracted', { n: num(done.extracted, $lang) })}{/if}</p>
+      <p class="sum ok">{$t('up.done', { n: num(done.files, $lang), size: MB(done.bytes), list: done.folders.map((x) => fLabel(x, $lang)).join(', ') })}{#if done.extracted}{' '}{$t('imp.res.extracted', { n: num(done.extracted, $lang) })}{/if}</p>
     {/if}
   </div>
 </section>

@@ -1,8 +1,8 @@
 <!-- Folder picker (DRD §6.1, ASSUMPTION D1): the browser's built-in select, newest on top, grouped per month when
-     folders > 60. ◀ ▶ arrows for previous/next folder (U14; shortcuts [ ] in App). Disabled in Trends. -->
+     folders > 60. One date per entry: the day the logs cover (format.js logDay), the same for S3 and Kafka folders. ◀ ▶ arrows for previous/next folder (U14; shortcuts [ ] in App). Disabled in Trends. -->
 <script>
   import { lang, t } from '../i18n.js';
-  import { dLabel, dShort } from '../format.js';
+  import { dLabel, fLabel, logDay } from '../format.js';
   import { onMount } from 'svelte';
   let { folders = [], value, disabled = false, onchange } = $props();
 
@@ -21,16 +21,15 @@
     if (folders.length <= 60) return [{ label: null, items: folders }];
     const g = new Map();
     for (const f of folders) {
-      const k = f.folder.slice(0, 7);
+      const k = logDay(f.folder).slice(0, 7);
       if (!g.has(k)) g.set(k, { label: dLabel(`${k}-01`, $lang).replace(/^1 /, ''), items: [] });
       g.get(k).items.push(f);
     }
     return [...g.values()];
   });
   function label(f) {
-    const d = f.source === 'kafka' ? $t('folder.kafka', { date: dLabel(f.folder, $lang) }) : dLabel(f.folder, $lang);   // Kafka folders are labelled
+    const d = f.source === 'kafka' ? $t('folder.kafka', { date: fLabel(f.folder, $lang) }) : fLabel(f.folder, $lang);   // Kafka folders are labelled
     let s = compact ? d : $t('folder.option', { date: d });
-    if (!compact && f.range_start) s += ` · ${$t('folder.log_of', { date: dShort(f.range_start, $lang) })}`;
     if (!f.lines) s += ` · ${f.files_corrupt ? $t('folder.corrupt') : $t('folder.empty')}`;
     return s;
   }

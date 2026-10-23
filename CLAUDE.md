@@ -27,6 +27,11 @@ About 60 tests skip in this repo because they compare against the old system; ev
 - **Branches.** Work on `dev` (or a `feat/…`/`fix/…` branch into `dev`). Promote `dev` → `stg` → `prd` with pull
   requests merged by **Create a merge commit**. A merge into `prd` deploys to production: only do it when the owner
   asks. No force-push, history rewrite or branch deletion without the owner's explicit approval.
+- **No AI attribution anywhere.** Commits, pull requests, merge commits, review replies, code and docs carry no
+  "Generated with/by Claude Code", model names (Opus, Sonnet, …), session links or `Co-Authored-By` lines.
+- **Pull requests.** English title and description: a short list of what changes, nothing else (no test counts). The merge commit title is the PR title plus its number, e.g.
+  `chore(release): promote stg to prd (#9)`, never GitHub's default "Merge pull request #… from …"; its body is the PR
+  description.
 - **Privacy.** User IP addresses are never sent to a third-party service. IP owner and location are matched offline
   from downloaded databases; notifications carry numbers and links only; the live map receives coordinates only.
 - **Secrets.** Never commit `.env`, keys or tokens, and never print credential values. Before a commit, check the staged

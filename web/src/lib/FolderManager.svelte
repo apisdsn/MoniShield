@@ -8,7 +8,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, dLabel, tWIB, utcToWib } from '../format.js';
+  import { num, fLabel, tWIB, utcToWib } from '../format.js';
   import { toast } from './Toast.svelte';
   import DataTable from './DataTable.svelte';
   import Dialog from './Dialog.svelte';
@@ -25,20 +25,20 @@
     busy = true;
     try {
       const r = await api.del(`/api/admin/folders/${encodeURIComponent(target.folder)}?delete_inbox=${delInbox}`);
-      toast($t(r.ignored ? 'fm.done_ignored' : 'fm.done', { date: dLabel(target.folder, $lang) }));
+      toast($t(r.ignored ? 'fm.done_ignored' : 'fm.done', { date: fLabel(target.folder, $lang) }));
       open = false; await load(); onchanged?.();
     } catch (e) { toast(e.status === 409 ? $t('fm.busy') : $errText(e)); }
     finally { busy = false; }
   }
   async function restore(r) {
-    try { await api.post(`/api/admin/folders/${r.folder}/restore`, {}); toast($t('fm.restored', { date: dLabel(r.folder, $lang) })); await load(); onchanged?.(); }
+    try { await api.post(`/api/admin/folders/${r.folder}/restore`, {}); toast($t('fm.restored', { date: fLabel(r.folder, $lang) })); await load(); onchanged?.(); }
     catch (e) { toast($errText(e)); }
   }
 </script>
 
 {#if rows}
   <DataTable title={$t('fm.title')} {rows} limit={30} columns={[
-    { key: 'folder', label: $t('ipp.col.folder'), fmt: (r) => (r.source === 'kafka' ? $t('folder.kafka', { date: dLabel(r.folder, $lang) }) : dLabel(r.folder, $lang)), cls: () => 'nowrap', sort: true },
+    { key: 'folder', label: $t('ipp.col.folder'), fmt: (r) => (r.source === 'kafka' ? $t('folder.kafka', { date: fLabel(r.folder, $lang) }) : fLabel(r.folder, $lang)), cls: () => 'nowrap', sort: true },
     { key: 'files', label: $t('kpi.files'), type: 'num', sort: true },
     { key: 'lines', label: $t('col.lines'), type: 'num', sort: true },
     { key: 'where', label: $t('fm.col.where'), custom: true, minw: 200 },
@@ -55,13 +55,13 @@
       {:else if r.ignored}
         <button class="btn sm" onclick={() => restore(r)}>{$t('fm.restore')}</button>
       {:else if r.in_db || r.inbox}
-        <button class="btn sm danger" onclick={() => ask(r)} aria-label={$t('fm.delete_aria', { date: dLabel(r.folder, $lang) })}>{$t('fm.delete')}</button>
+        <button class="btn sm danger" onclick={() => ask(r)} aria-label={$t('fm.delete_aria', { date: fLabel(r.folder, $lang) })}>{$t('fm.delete')}</button>
       {/if}
     {/snippet}
   </DataTable>
 {/if}
 
-<Dialog bind:open title={target ? $t('fm.confirm_title', { date: dLabel(target.folder, $lang) }) : ''}>
+<Dialog bind:open title={target ? $t('fm.confirm_title', { date: fLabel(target.folder, $lang) }) : ''}>
   {#if target}
     <p>{$t('fm.confirm_text', { files: num(target.files, $lang), lines: num(target.lines, $lang) })}</p>
     {#if target.inbox}

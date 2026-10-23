@@ -6,7 +6,7 @@
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, dLabel, sysName } from '../format.js';
+  import { num, fLabel, sysName } from '../format.js';
   import { load as loadPref, save as savePref } from '../store.js';
   import ChartCard from '../lib/ChartCard.svelte';
   import Skeleton from '../lib/Skeleton.svelte';
@@ -38,7 +38,7 @@
   }
   $effect(() => { void [range, reloadKey]; savePref('trendRange', range); load(); });
 
-  const labels = $derived((data?.folders || []).map((f) => dLabel(f, $lang)));
+  const labels = $derived((data?.folders || []).map((f) => fLabel(f, $lang)));
   const bySvc = (k) => (data?.services || []).map((s, i) => ({ label: sysName(s), data: data[k][s].map((v) => v ?? 0), color: `--c${(i % 10) + 1}` }));
   const slug = (k) => k.toLowerCase().replace(/ /g, '_');   // business metric dictionary keys (labels, translated; DRD §6.3)
   const stack = { scales: { x: { stacked: true }, y: { stacked: true } } };
@@ -84,13 +84,13 @@
         <h2 id="tr-comp-h">{$t('tr.comp.title')}</h2>
         <ul>
           <li class:warn={cmp.missing.length}>
-            {#if cmp.missing.length}<b>{$t('tr.comp.missing', { n: num(cmp.missing.length, $lang) })}</b> {cmp.missing.map((d) => dLabel(d, $lang)).join(', ')}.
+            {#if cmp.missing.length}<b>{$t('tr.comp.missing', { n: num(cmp.missing.length, $lang) })}</b> {cmp.missing.map((d) => fLabel(d, $lang)).join(', ')}.
               <span class="muted">{$t('tr.comp.missing_note')}</span>
             {:else}{$t('tr.comp.no_missing')}{/if}
           </li>
           <li class:warn={problemFolders.length}>
             {#if problemFolders.length}<b>{$t('tr.comp.corrupt', { n: num(problemFolders.length, $lang) })}</b>
-              {#each problemFolders as x, i}{i ? ', ' : ''}<a href={build({ tab: 'pods', service: null, folder: x.f })}>{dLabel(x.f, $lang)}</a> ({$t('tr.comp.n_files', { n: num(x.c, $lang) })}){/each}.
+              {#each problemFolders as x, i}{i ? ', ' : ''}<a href={build({ tab: 'pods', service: null, folder: x.f })}>{fLabel(x.f, $lang)}</a> ({$t('tr.comp.n_files', { n: num(x.c, $lang) })}){/each}.
               <span class="muted">{$t('tr.comp.corrupt_note')}</span>
             {:else}{$t('tr.comp.no_corrupt')}{/if}
           </li>

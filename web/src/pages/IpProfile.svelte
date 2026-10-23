@@ -5,7 +5,7 @@
 <script>
   import { lang, t, countryName } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, dLabel } from '../format.js';
+  import { num, fLabel } from '../format.js';
   import { route, build } from '../state.js';
   import Kpi from '../lib/Kpi.svelte';
   import DataTable from '../lib/DataTable.svelte';
@@ -76,7 +76,7 @@
         { key: 'login_ok', label: $t('ipp.kpi.login_ok'), type: 'num', sort: true },
         { key: 'traced', label: $t('ipp.col.traced'), type: 'num', sort: true },
       ]}>
-        {#snippet cell(r)}{#if r.folder === folder}<b>{dLabel(r.folder, $lang)}</b>{:else}<a href={build({ tab: 'ip', service: ip, folder: r.folder })}>{dLabel(r.folder, $lang)}</a>{/if}{/snippet}
+        {#snippet cell(r)}{#if r.folder === folder}<b>{fLabel(r.folder, $lang)}</b>{:else}<a href={build({ tab: 'ip', service: ip, folder: r.folder })}>{fLabel(r.folder, $lang)}</a>{/if}{/snippet}
       </DataTable>
 
       <DataTable title={$t('ipp.requests')} rows={data.requests} limit={50} maxHeight={640} {search} columns={[

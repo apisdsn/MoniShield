@@ -10,7 +10,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, dLabel } from '../format.js';
+  import { num, fLabel } from '../format.js';
   import { toast } from './Toast.svelte';
   import Icon from './Icon.svelte';
 
@@ -36,7 +36,7 @@
         if (s.error) toast($t('sync.failed', { msg: $srv(s.error) }));
         else {
           const f = s.last?.folders_changed || [];
-          if (f.length) toast($t('sync.done', { n: num(f.length, $lang), list: f.slice(-3).map((x) => dLabel(x, $lang)).join(', ') }));
+          if (f.length) toast($t('sync.done', { n: num(f.length, $lang), list: f.slice(-3).map((x) => fLabel(x, $lang)).join(', ') }));
           else if (!fromS3?.length) toast($t('sync.nothing'));   // folders from S3 already announced
           onsynced?.(s.last);
         }
@@ -65,7 +65,7 @@
     let fromS3 = null;
     await check();   // S3 sync settings may have just been changed on the Ingest & import screen
     try { if (s3on) fromS3 = await syncS3(); } catch { /* handled below: local ingest still runs */ }
-    if (fromS3?.length) toast($t('sync.s3_done', { n: num(fromS3.length, $lang), list: fromS3.slice(-3).map((x) => dLabel(x, $lang)).join(', ') }));
+    if (fromS3?.length) toast($t('sync.s3_done', { n: num(fromS3.length, $lang), list: fromS3.slice(-3).map((x) => fLabel(x, $lang)).join(', ') }));
     running = false;
     try { await api.post('/api/admin/ingest', {}); }
     catch (e) { if (e.status !== 409) { toast($t('sync.failed', { msg: $errText(e) })); return; } }
@@ -80,7 +80,7 @@
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis); window.removeEventListener('monishield:watch-changed', check); };
   });
   const label = $derived(running ? `${$t('sync.running')}${progress ? ` · ${progress}` : ''}`
-    : pending.length ? $t('sync.button_new', { n: num(pending.length, $lang), list: pending.map((d) => dLabel(d, $lang)).join(', ') })
+    : pending.length ? $t('sync.button_new', { n: num(pending.length, $lang), list: pending.map((d) => fLabel(d, $lang)).join(', ') })
     : $t(s3on ? 'sync.button_s3' : 'sync.button'));
 </script>
 

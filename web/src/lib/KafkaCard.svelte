@@ -9,7 +9,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, tWIB, utcToWib } from '../format.js';
+  import { num, fLabel, tWIB, utcToWib } from '../format.js';
   import { errText, srv } from '../srv.js';
   import { toast } from './Toast.svelte';
   import SeverityTag from './SeverityTag.svelte';
@@ -51,7 +51,7 @@
       <div><dt>{$t('kf.skipped')}</dt><dd class:warn={s.skipped}>{num(s.skipped, $lang)}</dd></div>
       <div><dt>{$t('kf.last_msg')}</dt><dd class="sm">{when(s.last_message_at)}</dd></div>
       <div><dt>{$t('kf.last_ingest')}</dt><dd class="sm">{when(s.last_ingest_at)}</dd></div>
-      <div><dt>{$t('kf.live_folder')}</dt><dd class="sm">{s.live_folder}</dd></div>
+      <div><dt>{$t('kf.live_folder')}</dt><dd class="sm">{fLabel(s.live_folder, $lang)}</dd></div>
     </dl>
     <p class="muted xs">{$t('kf.folder_note', { m: s.ingest_minutes })}</p>
     {#if s.last_skip}<p class="warnline xs">{$t('kf.skip_reason', { why: $srv(s.last_skip.reason) })} <code>{s.last_skip.sample}</code></p>{/if}

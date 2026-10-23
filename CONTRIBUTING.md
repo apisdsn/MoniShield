@@ -14,6 +14,9 @@ tests, PR `stg` → `prd`. Production hotfixes: a `fix/…` branch from `prd`, P
 
 Promotions (`dev` → `stg`, `stg` → `prd`) are merged with **Create a merge commit**, never squash or rebase, so the three
 branches keep the same commits; title them `chore(release): promote dev to stg` / `chore(release): promote stg to prd`.
+When merging, replace GitHub's default merge commit title ("Merge pull request #… from …") with the PR title and number,
+e.g. `chore(release): promote stg to prd (#9)`, and use the PR description as the body. The description lists what
+changes, in English.
 Step-by-step guide: `docs/07-deploy-vps.md` §13.
 
 Recommended in GitHub → Settings → Branches: protect `stg` and `prd` (PR + green CI required), and keep `prd` as the default branch (what visitors see).

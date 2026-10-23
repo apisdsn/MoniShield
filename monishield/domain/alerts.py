@@ -22,7 +22,7 @@ Events:
   summary         summary of each new folder (off by default)
 An event is sent once per key (e.g. 'spike:2026-10-06'); recorded in the alert_log table (history on the page).
 """
-import json, re, urllib.parse
+import datetime, json, re, urllib.parse
 
 from monishield.domain.config_model import ALERT_EVENTS
 from monishield.domain.errors import Fail
@@ -242,21 +242,21 @@ def validate(cfg):
 
 # ------------------------------------------------------------------ texts (bilingual; metric names from this small dictionary)
 T = dict(
-    id=dict(spike='Lonjakan di folder {d}', critical='Serangan kritis di folder {d}', ingest_failed='Ingest gagal',
-            sync_failed='Sinkron S3 bermasalah', folder_missing='Folder log {d} belum datang', summary='Ringkasan folder {d}',
+    id=dict(spike='Lonjakan di log {d}', critical='Serangan kritis di log {d}', ingest_failed='Ingest gagal',
+            sync_failed='Sinkron S3 bermasalah', folder_missing='Log tanggal {d} belum datang', summary='Ringkasan log {d}',
             test='Pesan uji MoniShield', test_text='Saluran ini sudah tersambung. Notifikasi berikutnya akan dikirim ke sini.',
-            avg='rata-rata {n} folder: {v}', open='Buka', n5xx='Respons 5xx', errors='Error (semua layanan)', upstream_errors='Error koneksi upstream',
+            avg='rata-rata {n} hari: {v}', open='Buka', n5xx='Respons 5xx', errors='Error (semua layanan)', upstream_errors='Error koneksi upstream',
             atk_req='Request serangan', attack_ips='IP sumber serangan', login_fail_ips='IP dengan login gagal', requests='Request HTTP',
-            crit='{n} request serangan kritis dari {ips} IP. Kategori: {cats}.', newest='Folder terbaru: {d}. Periksa kiriman log / sinkron S3.',
-            failed_files='{n} file gagal di-parse', run='ingest #{id}', folders='Folder: {list}',
+            crit='{n} request serangan kritis dari {ips} IP. Kategori: {cats}.', newest='Log terbaru: {d}. Periksa kiriman log / sinkron S3.',
+            failed_files='{n} file gagal di-parse', run='ingest #{id}', folders='Log tanggal: {list}',
             svc_head='Error per layanan:', svc_more='… dan {n} layanan lain'),
-    en=dict(spike='Spike in folder {d}', critical='Critical attacks in folder {d}', ingest_failed='Ingest failed',
-            sync_failed='S3 sync problem', folder_missing='Log folder {d} has not arrived', summary='Summary of folder {d}',
+    en=dict(spike='Spike in the logs of {d}', critical='Critical attacks in the logs of {d}', ingest_failed='Ingest failed',
+            sync_failed='S3 sync problem', folder_missing='Logs of {d} have not arrived', summary='Summary of the logs of {d}',
             test='MoniShield test message', test_text='This channel is connected. Future notifications will be sent here.',
-            avg='{n}-folder average: {v}', open='Open', n5xx='5xx responses', errors='Errors (all services)', upstream_errors='Upstream connection errors',
+            avg='{n}-day average: {v}', open='Open', n5xx='5xx responses', errors='Errors (all services)', upstream_errors='Upstream connection errors',
             atk_req='Attack requests', attack_ips='Attack source IPs', login_fail_ips='IPs with failed logins', requests='HTTP requests',
-            crit='{n} critical attack requests from {ips} IPs. Categories: {cats}.', newest='Newest folder: {d}. Check log delivery / S3 sync.',
-            failed_files='{n} files failed to parse', run='ingest #{id}', folders='Folders: {list}',
+            crit='{n} critical attack requests from {ips} IPs. Categories: {cats}.', newest='Newest logs: {d}. Check log delivery / S3 sync.',
+            failed_files='{n} files failed to parse', run='ingest #{id}', folders='Log days: {list}',
             svc_head='Errors per service:', svc_more='… and {n} more services'))
 
 
@@ -264,6 +264,13 @@ def _t(cfg, k, **p): return T[cfg['lang'] if cfg['lang'] in T else 'id'][k].form
 
 
 def _num(v, lang): return f'{v:,.0f}'.replace(',', '.' if lang == 'id' else ',') if isinstance(v, (int, float)) else str(v)
+
+
+def _day(folder):
+    """Folder name -> the day its logs cover (an S3/Kafka folder D holds (D-1 00:00, D 00:00] WIB). Messages name that day, like the
+    dashboard; links keep the folder name."""
+    try: return (datetime.date.fromisoformat(str(folder)) - datetime.timedelta(days=1)).isoformat()
+    except ValueError: return str(folder)
 
 
 def _link(cfg, folder, tab='command-center'):
@@ -295,13 +302,13 @@ def folder_events(cfg, folder, facts):
             lines.append(f"• {s}: {_num(e, lang)} ({_t(cfg, 'avg', n=b['n_all'], v=_num(m, lang))}{fac_txt})")
         if len(svc) > MAX_SERVICE_LINES: lines.append(_t(cfg, 'svc_more', n=len(svc) - MAX_SERVICE_LINES))
     if lines and cfg['events']['spike']:
-        out.append(('spike', f'spike:{folder}', _t(cfg, 'spike', d=folder), '\n'.join(lines) + _link(cfg, folder)))
+        out.append(('spike', f'spike:{folder}', _t(cfg, 'spike', d=_day(folder)), '\n'.join(lines) + _link(cfg, folder)))
     if a['crit_req'] and cfg['events']['critical']:
         text = _t(cfg, 'crit', n=_num(a['crit_req'], lang), ips=_num(a['kpi']['attack_ips'], lang), cats=', '.join(facts['crit_cats']) or '-')
-        out.append(('critical', f'critical:{folder}', _t(cfg, 'critical', d=folder), text + _link(cfg, folder, 'security')))
+        out.append(('critical', f'critical:{folder}', _t(cfg, 'critical', d=_day(folder)), text + _link(cfg, folder, 'security')))
     if cfg['events']['summary']:
         rows = [f"• {_t(cfg, k)}: {_num(vals[k], lang)}" for k in ('requests', 'n5xx', 'errors', 'atk_req', 'attack_ips', 'login_fail_ips') if vals.get(k) is not None]
-        out.append(('summary', f'summary:{folder}', _t(cfg, 'summary', d=folder), '\n'.join(rows) + _link(cfg, folder)))
+        out.append(('summary', f'summary:{folder}', _t(cfg, 'summary', d=_day(folder)), '\n'.join(rows) + _link(cfg, folder)))
     return out
 
 
@@ -317,7 +324,7 @@ def sync_failed(cfg, res):
     """S3 sync problem event -> (key, title, text) or None."""
     if not cfg['events']['sync_failed'] or not (res.get('errors') or res.get('failed')): return None
     lines = [f"• {e.get('where') + ': ' if e.get('where') else ''}{e.get('message', '')}" for e in res.get('errors', [])]
-    if res.get('failed'): lines.append(_t(cfg, 'folders', list=', '.join(res['failed'])))
+    if res.get('failed'): lines.append(_t(cfg, 'folders', list=', '.join(_day(f) for f in res['failed'])))
     return f"sync_failed:{res.get('at')}", _t(cfg, 'sync_failed'), '\n'.join(lines)
 
 
@@ -326,7 +333,7 @@ def folder_missing(cfg, now_wib, newest):
     if not cfg['events']['folder_missing'] or now_wib.hour < int(cfg['missing_hour']): return None
     today = now_wib.date().isoformat()
     if newest is None or str(newest) >= today: return None
-    return f'folder_missing:{today}', _t(cfg, 'folder_missing', d=today), _t(cfg, 'newest', d=str(newest))
+    return f'folder_missing:{today}', _t(cfg, 'folder_missing', d=_day(today)), _t(cfg, 'newest', d=_day(newest))
 
 
 def active(cfg): return bool(cfg) and any(c['enabled'] for c in cfg['channels'].values())
