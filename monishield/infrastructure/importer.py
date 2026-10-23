@@ -13,8 +13,6 @@ printed, logged, or returned.
 import datetime, gzip, json, os, re, shutil, threading, time, uuid, zlib
 
 from monishield.domain import rules, s3_import, storage
-from monishield.infrastructure import inbox as inbox_mod
-from monishield.infrastructure.inbox import MARK as KAFKA_MARK
 from monishield.domain.s3_import import CONTROL, NO_CREDENTIALS, ImportFail, allowed_examples, parse_url, parse_watch, pick   # noqa: F401
 
 ENDPOINT = None   # tests only (local fake S3); the server always uses the official endpoint of region `import_region`
@@ -271,23 +269,10 @@ def run(cfg, url, creds_store, dry_run=False, progress=None):
     return res
 
 
-def _drop_kafka(dst, take):
-    """The folder was filled by the Kafka consumer and S3 now has the complete copy of that date: a folder holds one source,
-    so Kafka's files leave it (inbox.supersede): those of the services S3 brings are the same lines (deleted), those of
-    services only Kafka sends are moved aside. Ingest then drops their rows. -> number of files removed or moved."""
-    if not os.path.exists(os.path.join(dst, KAFKA_MARK)): return 0
-    inbox, folder = os.path.split(dst.rstrip(os.sep))
-    s3 = {r['rel'] for r in take} | {r.get('stored', r['rel']) for r in take}
-    services = {'/'.join(r['rel'].split('/')[:2]) for r in take if r['rel'].count('/') >= 2}
-    return inbox_mod.supersede(inbox, folder, s3, services)
-
-
 def _move_into_inbox(cfg, src, folder, take):
-    """New folder: one rename (atomic). Existing folder: each file is replaced by a rename (atomic per file), after the
-    Kafka copy of the same services is removed (_drop_kafka). Then the manifest."""
+    """New folder: one rename (atomic). Existing folder: each file is replaced by a rename (atomic per file). Then the manifest."""
     dst = os.path.join(cfg.inbox_dir, folder)
     os.makedirs(cfg.inbox_dir, exist_ok=True)
-    if os.path.exists(dst): _drop_kafka(dst, take)
     if not os.path.exists(dst):
         try: os.replace(src, dst)
         except OSError: shutil.copytree(src, dst + '.part'); os.replace(dst + '.part', dst)   # different file system

@@ -53,6 +53,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 28 | Manage users must not change emails without a code (option B) | Admin enters a new address with own password; it counts once the user confirms the code; own email only via Account email | plan stage 38, [`10-user-guide.md`](10-user-guide.md) |
 | 29 | English endpoints and web addresses, REST best practices, no `#` in web addresses | Renamed API paths (old ones removed), plain web paths served by the server, `monishield sync` command for scripts | [`03-trd.md`](03-trd.md) §5 |
 | 30 | One date per folder: every screen and notification shows the day the logs cover (S3 and Kafka folders alike), not the folder name; a folder holds one source (S3 or Kafka), marked `(S3)` / `(Kafka)` | Folder picker, Trends, IP profile, Command Center, notifications; `logDay`/`fLabel` in `web/src/format.js` | [`10-user-guide.md`](10-user-guide.md) |
+| 31 | S3 and Kafka are two separate data sources, each with its own database and folders; source switch in the header, `?source=` in the API, notifications from both | Header → *S3 \| Kafka*; `monishield ingest --source kafka` | [`10-user-guide.md`](10-user-guide.md) |
 
 Questions answered along the way, recorded so they are not asked again:
 

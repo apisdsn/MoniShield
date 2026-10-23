@@ -105,12 +105,13 @@ def _ingest_via_api(cfg, args):
     if first is None: return None
     if not cfg.job_token:
         print('server is running but S4_JOB_TOKEN is empty; set it in .env so ingest can be triggered via the API', file=sys.stderr); return 2
-    code, body = _api(cfg, 'POST', '/api/admin/ingest', dict(folder=args.folder, force=args.force))
+    q = '' if getattr(args, 'source', 's3') == 's3' else f'?source={args.source}'   # the Kafka source has its own database
+    code, body = _api(cfg, 'POST', '/api/admin/ingest' + q, dict(folder=args.folder, force=args.force))
     if code not in (202, 409): print(f"failed to trigger ingest: {code} {body.get('error', {}).get('message', '')}", file=sys.stderr); return 2
     if code == 409: print('ingest already running on the server; waiting for it to finish', file=sys.stderr)
     while True:
         time.sleep(1)
-        code, st = _api(cfg, 'GET', '/api/admin/ingest') or (None, None)
+        code, st = _api(cfg, 'GET', '/api/admin/ingest' + q) or (None, None)
         if code != 200: print('server stopped responding while ingest was running', file=sys.stderr); return 2
         if not st['running']: break
     if st['error']: print('ingest failed:', st['error'], file=sys.stderr); return 1
@@ -128,6 +129,9 @@ def cmd_ingest(cfg, args):
     cfg = dataclasses.replace(cfg, offline=cfg.offline or args.offline)
     via = _ingest_via_api(cfg, args)
     if via is not None: return via
+    if getattr(args, 'source', 's3') == 'kafka':
+        from monishield.domain import config_model
+        cfg = config_model.kafka_config(cfg)   # own database, own inbox
 
     def progress(phase, **k):
         if phase == 'parse' and (k['done'] % 20 == 0 or k['done'] == k['total']): print(f"  parse {k['done']}/{k['total']}", file=sys.stderr)
@@ -276,6 +280,7 @@ def main(argv=None):
     p.add_argument('--folder', type=_date, help='details of one folder'); p.add_argument('--checksum', action='store_true', help='row count and checksum of each table')
     p = sub.add_parser('ingest', help='ingest new or changed log folders'); p.set_defaults(fn=cmd_ingest)
     p.add_argument('--folder', type=_date, help='only this folder'); p.add_argument('--force', action='store_true', help='re-parse even if unchanged')
+    p.add_argument('--source', choices=('s3', 'kafka'), default='s3', help='data source to ingest (default s3; kafka has its own database)')
     p.add_argument('--offline', action='store_true', help='do not download IP databases / map files')
     sub.add_parser('serve', help='run the dashboard server (one process, one worker)').set_defaults(fn=cmd_serve)
     p = sub.add_parser('user', help='manage accounts from the command line (e.g. create the first admin)'); p.set_defaults(fn=cmd_user)

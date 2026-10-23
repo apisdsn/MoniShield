@@ -502,45 +502,46 @@ def test_user_biasa_tidak_boleh_mengatur_sinkron(plain):
 
 @pytest.fixture
 def kclient(cfg, auth_url, monkeypatch, s3):
-    """Kafka filled inbox folder 2026-01-06 (om-be-appsmanager, the same lines S3 has, and om-be-report, which only Kafka
-    has) and is already writing the next folder; S3 has 2026-01-06 too."""
+    """Kafka filled ITS OWN inbox with 2026-01-06 (om-be-appsmanager, the same lines S3 has, and om-be-report, which only
+    Kafka has); S3 has 2026-01-06 too. Two sources, two databases: nothing is shared."""
     monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
-    from monishield.infrastructure import inbox
     s3.buckets['simpel4-backup'][obj('om-be-appsmanager', 'pod-a', folder='2026-01-06')] = APPS
-    k = os.path.join(cfg.inbox_dir, '2026-01-06', 'ombudsman')
+    k = os.path.join(cfg.kafka_inbox, '2026-01-06', 'ombudsman')
     for svc, pod in (('om-be-appsmanager', 'pod-a'), ('om-be-report', 'pod-r')):
         os.makedirs(os.path.join(k, svc), exist_ok=True)
         with open(os.path.join(k, svc, f'log_{svc}_{pod}_2026-01-06-00-00.log'), 'w', encoding='utf-8') as fh: fh.write(logs_mini.lines(svc))
-    with open(os.path.join(cfg.inbox_dir, '2026-01-06', inbox.MARK), 'w') as fh: fh.write('{"lines": 1}')
     c = dataclasses.replace(cfg, auth_database_url=auth_url, s3_watch=WATCH, s3_watch_days=0, s3_watch_max_folders=5, s3_watch_recheck_days=0, s3_watch_minutes=0)
-    con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
     with TestClient(appmod.create_app(c)) as tc:
         assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
         assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+        tc.app.state.sources['kafka'].ingest.start(by='test'); tc.app.state.sources['kafka'].ingest.wait(60)
         yield tc
 
 
-def test_kafka_folder_is_completed_from_s3(kclient, cfg):
-    """Bug 2026-10-12: with Kafka streaming, the S3 folder of a date Kafka had filled was never synced.
-    Rule 2026-10-23: a folder holds one source, so Kafka's files leave it once the S3 copy is there."""
-    meta = lambda: {f['folder']: f for f in kclient.get('/api/meta').json()['folders']}
-    assert meta()['2026-01-06']['source'] == 'kafka'
+def meta_of(tc, source):
+    return {f['folder']: f for f in tc.get(f'/api/meta?source={source}').json()['folders']}
+
+
+def test_s3_and_kafka_are_two_sources_that_never_mix(kclient, cfg):
+    """Owner rule 2026-10-23: a day has an S3 version and a Kafka version, each complete, each from one source."""
+    k = meta_of(kclient, 'kafka')['2026-01-06']
+    assert k['source'] == 'kafka' and k['services'] == 2                         # both Kafka services
+    assert '2026-01-06' not in meta_of(kclient, 's3')                            # S3 has not synced it yet
     r = sinkron(kclient)
     assert '2026-01-06' in r['imported'] and r['errors'] == [] and r['failed'] == [], r
-    folder = os.path.join(cfg.inbox_dir, '2026-01-06')
-    base = os.path.join(folder, 'ombudsman')
-    assert sorted(os.listdir(os.path.join(base, 'om-be-appsmanager'))) == ['log_om-be-appsmanager_pod-a_2026-01-06-00-00.log']   # S3 copy (same name)
-    assert not os.path.exists(os.path.join(base, 'om-be-report'))               # only Kafka had it: out of the folder ...
-    moved = os.path.join(cfg.inbox_dir, '.kafka-superseded', '2026-01-06', 'ombudsman', 'om-be-report')
-    assert os.listdir(moved)                                                    # ... but kept aside
-    assert os.path.exists(os.path.join(folder, importer.MANIFEST)) and not os.path.exists(os.path.join(folder, '.kafka-feed.json'))
-    f = meta()['2026-01-06']
-    assert f['source'] == 's3' and f['services'] == 1                           # S3 services only
+    s = meta_of(kclient, 's3')['2026-01-06']
+    assert s['source'] == 's3' and s['services'] == 1                            # S3's service only: no Kafka-only om-be-report
+    k = meta_of(kclient, 'kafka')['2026-01-06']
+    assert k['source'] == 'kafka' and k['services'] == 2                         # Kafka's day is untouched by the S3 import
+    assert not os.path.exists(os.path.join(cfg.inbox_dir, '2026-01-06', 'ombudsman', 'om-be-report'))
+    assert os.listdir(os.path.join(cfg.kafka_inbox, '2026-01-06', 'ombudsman', 'om-be-report'))
+    assert kclient.get('/api/meta?source=nope').status_code == 400
     r = sinkron(kclient)
     assert '2026-01-06' not in r['imported']                                     # synced once
 
 
-def test_kafka_lines_for_a_date_s3_completed_are_dropped(tmp_path):
+def test_kafka_lines_for_a_date_with_an_s3_copy_are_still_kept(tmp_path):
+    """Kafka no longer yields to S3: its lines are written whatever S3 has."""
     from monishield.infrastructure import inbox
     import datetime
     t = datetime.datetime(2026, 1, 5, 3, 0, tzinfo=datetime.timezone.utc)
@@ -548,60 +549,50 @@ def test_kafka_lines_for_a_date_s3_completed_are_dropped(tmp_path):
     sp = inbox.Spool(str(tmp_path))
     f = sp.add(rec)
     os.makedirs(tmp_path / f); (tmp_path / f / importer.MANIFEST).write_text('{}')
-    assert sp.flush() == {} and not (tmp_path / f / 'ombudsman').exists()
+    assert sp.flush() == {f: 1} and (tmp_path / f / 'ombudsman' / 'om-be-report').exists()
 
 
-def test_drop_kafka_deletes_duplicates_moves_other_services_aside_and_removes_the_mark(tmp_path):
+def test_migrate_moves_kafka_files_out_of_the_s3_inbox(tmp_path):
+    """Production case (2026-10-23): before the two-sources layout Kafka's files lived in the S3 inbox (mark file), mixed with
+    the S3 copy, plus an 'aside' folder. They move to the Kafka inbox; S3 files stay."""
     from monishield.infrastructure import inbox
-    d = tmp_path / 'f'
-    for svc in ('a', 'b'):
-        (d / 'ns' / svc).mkdir(parents=True); (d / 'ns' / svc / f'{svc}.log').write_text('k')
-    (d / inbox.MARK).write_text('{}')
-    assert importer._drop_kafka(str(d), [dict(rel='ns/a/s3.log')]) == 2
-    assert not (d / 'ns' / 'a').exists()                                        # same service as the S3 copy: the same lines, deleted
-    assert not (d / 'ns' / 'b').exists() and (tmp_path / inbox.SUPERSEDED / 'f' / 'ns' / 'b' / 'b.log').read_text() == 'k'   # moved aside
-    assert not (d / inbox.MARK).exists()                                        # one source left in the folder
-
-
-def test_ingest_cleans_a_folder_that_mixes_s3_and_kafka(kclient, cfg):
-    """A folder made before the one-source rule (S3 copy + Kafka-only service + Kafka mark): the next ingest moves Kafka's
-    files aside and the dashboard shows the S3 services only."""
-    from monishield.infrastructure import inbox
-    sinkron(kclient)                                                             # S3 copy in, Kafka's files already aside
-    folder = os.path.join(cfg.inbox_dir, '2026-01-06')
-    k = os.path.join(folder, 'ombudsman', 'om-be-report')
-    os.makedirs(k, exist_ok=True)                                                # the old mixed state, rebuilt by hand
-    with open(os.path.join(k, 'log_om-be-report_pod-r_2026-01-06-00-00.log'), 'w', encoding='utf-8') as fh: fh.write(logs_mini.lines('om-be-report'))
-    with open(os.path.join(folder, inbox.MARK), 'w') as fh: fh.write('{"lines": 1}')
-    assert kclient.post('/api/admin/ingest', json={}, headers=X).status_code == 202
-    kclient.app.state.ingest.wait(60)
-    f = {x['folder']: x for x in kclient.get('/api/meta').json()['folders']}['2026-01-06']
-    assert f['services'] == 1 and f['source'] == 's3'                            # om-be-report is no longer part of the folder
-    assert not os.path.exists(k) and not os.path.exists(os.path.join(folder, inbox.MARK))
-    assert os.path.exists(os.path.join(cfg.inbox_dir, inbox.SUPERSEDED, '2026-01-06', 'ombudsman', 'om-be-report'))
-
-
-def test_reconcile_cleans_folders_that_mix_s3_and_kafka(tmp_path):
-    """Production case (2026-10-23): folders made before the one-source rule hold the S3 copy plus Kafka files of services the
-    S3 export lacks. Ingest reconciles them: Kafka's files go aside, the mark goes; Kafka-only folders are untouched."""
-    from monishield.infrastructure import inbox
-    from monishield.infrastructure.logfolders import LogFolders
-    c = dataclasses.replace(config.Config(), log_dir=str(tmp_path / 'logs'), inbox_dir=str(tmp_path / 'inbox'))
-    root = tmp_path / 'inbox'
+    root, kroot = tmp_path / 'inbox', tmp_path / 'inbox' / 'kafka'
     for f in ('2026-10-14', '2026-10-15'):
         (root / f / 'ns' / 'only-kafka').mkdir(parents=True); (root / f / 'ns' / 'only-kafka' / 'k.log').write_text('k')
         (root / f / inbox.MARK).write_text('{}')
     (root / '2026-10-14' / 'ns' / 's3svc').mkdir(); (root / '2026-10-14' / 'ns' / 's3svc' / 's.log').write_text('s')
     (root / '2026-10-14' / importer.MANIFEST).write_text(json.dumps({'ns/s3svc/s.log': dict(key='k', size=1, etag='e')}))
-    lf = LogFolders(c)
-    assert (lf.source('2026-10-14'), lf.source('2026-10-15')) == ('s3', 'kafka')
-    assert inbox.reconcile(str(root)) == ['2026-10-14']
+    (root / inbox.SUPERSEDED / '2026-10-13' / 'ns' / 'aside').mkdir(parents=True); (root / inbox.SUPERSEDED / '2026-10-13' / 'ns' / 'aside' / 'a.log').write_text('a')
+    (root / '2026-10-16').mkdir(); (root / '2026-10-16' / 'plain.log').write_text('s3 only, no mark')
+    kafka_only, split = inbox.migrate(str(root), str(kroot))
+    assert (kafka_only, split) == (['2026-10-15'], ['2026-10-14'])
     assert (root / '2026-10-14' / 'ns' / 's3svc' / 's.log').exists() and not (root / '2026-10-14' / 'ns' / 'only-kafka').exists()
-    assert (root / inbox.SUPERSEDED / '2026-10-14' / 'ns' / 'only-kafka' / 'k.log').exists() and not (root / '2026-10-14' / inbox.MARK).exists()
-    assert (root / '2026-10-15' / 'ns' / 'only-kafka' / 'k.log').exists() and (root / '2026-10-15' / inbox.MARK).exists()   # Kafka only: untouched
-    assert inbox.reconcile(str(root)) == []                                                                             # nothing left to do
-    lf.remove_inbox('2026-10-14')                                                                                       # the aside copy goes with the folder
-    assert not (root / inbox.SUPERSEDED / '2026-10-14').exists()
+    assert not (root / '2026-10-14' / inbox.MARK).exists() and not (root / '2026-10-15').exists()
+    assert (kroot / '2026-10-14' / 'ns' / 'only-kafka' / 'k.log').read_text() == 'k' and (kroot / '2026-10-15' / 'ns' / 'only-kafka' / 'k.log').exists()
+    assert (kroot / '2026-10-13' / 'ns' / 'aside' / 'a.log').read_text() == 'a' and not (root / inbox.SUPERSEDED).exists()
+    assert (root / '2026-10-16' / 'plain.log').exists()                                                      # S3-only folders untouched
+    assert inbox.migrate(str(root), str(kroot)) == ([], [])                                                 # nothing left to do
+
+
+def test_server_start_migrates_the_old_layout_and_the_s3_database_forgets_kafka_days(cfg, auth_url, monkeypatch):
+    """A Kafka-only day was ingested into the S3 database by the old version: after the move the S3 database no longer has it."""
+    from monishield.infrastructure import inbox
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
+    d = os.path.join(cfg.inbox_dir, '2026-01-06', 'ombudsman', 'om-be-report')
+    os.makedirs(d)
+    with open(os.path.join(d, 'log_om-be-report_pod-r_2026-01-06-00-00.log'), 'w', encoding='utf-8') as fh: fh.write(logs_mini.lines('om-be-report'))
+    with open(os.path.join(cfg.inbox_dir, '2026-01-06', inbox.MARK), 'w') as fh: fh.write('{}')
+    c = dataclasses.replace(cfg, auth_database_url=auth_url)
+    con = db.open(c.db_path); ingest.run(c, con, workers=0)                         # the old version put it in the S3 database
+    assert con.execute("SELECT count(*) FROM folder_state WHERE folder = '2026-01-06'").fetchone()[0] == 1
+    con.close()
+    with TestClient(appmod.create_app(c)) as tc:
+        assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
+        assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+        assert '2026-01-06' not in meta_of(tc, 's3')
+        tc.app.state.sources['kafka'].ingest.start(by='test'); tc.app.state.sources['kafka'].ingest.wait(60)
+        assert meta_of(tc, 'kafka')['2026-01-06']['services'] == 1
+    assert os.path.exists(os.path.join(cfg.kafka_inbox, '2026-01-06', 'ombudsman', 'om-be-report'))
 
 
 def test_cli_sync_runs_through_the_server(wclient, cfg, monkeypatch, capsys):

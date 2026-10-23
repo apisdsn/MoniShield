@@ -13,7 +13,7 @@
   import SyncButton from './SyncButton.svelte';
   import Icon from './Icon.svelte';
   import { APP_NAME } from '../brand.js';
-  let { me, route, folders, folder, folderDisabled = false, onfolder, onreload, onlogout, onmenu, drawerOpen = false,
+  let { me, route, folders, folder, folderDisabled = false, sources = [], source = 's3', onsource = null, onfolder, onreload, onlogout, onmenu, drawerOpen = false,
         menuBtn = $bindable(), onsynced = null, title, sysTitle = false, suffix = '', status = [], titleEl = $bindable() } = $props();
 
   function segKey(e, values, current, set) {
@@ -30,8 +30,16 @@
     <button bind:this={menuBtn} class="icon-btn burger" onclick={onmenu} aria-expanded={drawerOpen} aria-controls="side" aria-label={$t('nav.open')}>☰</button>
     <span class="brand" aria-hidden="true"><Logo size={24} />{APP_NAME}</span>
     <div class="tools">
+      {#if sources.length > 1}
+        <div class="seg" role="radiogroup" aria-label={$t('src.label')} tabindex="-1" onkeydown={(e) => segKey(e, sources, source, (v) => onsource?.(v))}>
+          {#each sources as s}
+            <button role="radio" data-v={s} aria-checked={source === s} tabindex={source === s ? 0 : -1} onclick={() => onsource?.(s)}
+              title={$t(`src.${s}.hint`)}>{$t(`src.${s}`)}</button>
+          {/each}
+        </div>
+      {/if}
       {#if folders?.length}
-        <FolderPicker {folders} value={folder} disabled={folderDisabled} onchange={onfolder} />
+        <FolderPicker {folders} {source} value={folder} disabled={folderDisabled} onchange={onfolder} />
         <GlobalSearch {folder} />
       {/if}
       {#if me?.role === 'admin'}<SyncButton {onsynced} />{/if}

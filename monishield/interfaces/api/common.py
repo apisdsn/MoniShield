@@ -3,6 +3,7 @@ import datetime, re
 
 from fastapi import Depends, HTTPException, Request, Response
 
+from monishield.application import sources
 from monishield.infrastructure import auth as authmod
 
 COOKIE = 's4_session'
@@ -72,9 +73,17 @@ ROLE_DEPS = (public, require_user, require_user_ready, require_admin, require_ad
 
 
 # ------------------------------------------------------------------ DuckDB
+def source_ctx(request: Request):
+    """The data source of the request: `?source=s3` (default) or `?source=kafka` (owner request 2026-10-23). Each source has
+    its own database and folders; everything a page reads (and the admin folder tools) goes through the source's ctx."""
+    name = request.query_params.get('source') or sources.S3
+    if not sources.valid(name): raise ApiError(400, 'invalid_parameter', 'source must be s3 or kafka.')
+    return request.app.state.sources[name]
+
+
 def cursor(request: Request):
-    """One cursor per request on this process's single connection (TRD K1). Readers are not blocked by ingest."""
-    cur = request.app.state.con.cursor()
+    """One cursor per request on the source's single connection (TRD K1). Readers are not blocked by ingest."""
+    cur = source_ctx(request).con.cursor()
     try: yield cur
     finally: cur.close()
 
