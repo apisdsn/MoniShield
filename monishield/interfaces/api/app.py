@@ -12,8 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import account_service, alert_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service
-from monishield.domain import detect
+from monishield.application import account_service, alert_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
+from monishield.domain import config_model, detect
 from monishield.infrastructure import auth as authmod, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
 from monishield.interfaces.api import admin, config_api, docs, kafka, meta, notify, pages, session, upload, users, wire as payload
@@ -72,14 +72,29 @@ def wire(state, cfg, env_path):
     state.uploads = uploads.Uploads(cfg)
     state.maxmind = refdata.probe_maxmind
     state.wire = wirecrypto.WireCrypto(ttl_hours=cfg.session_max_hours)
+    state.source = sources.S3   # this ctx is the S3 source; the Kafka source is state.sources['kafka'] (own database, own folders)
     state.ingest = ingest_service.IngestService(state)
     state.imports = import_service.ImportService(state)
     state.alerts = alert_service.Notifier(state)
-    state.kafka = kafka_service.KafkaFeed(state)
     state.retention = retention_service.RetentionService(state)
+    kcfg = config_model.kafka_config(cfg)
+    k = sources.SourceCtx(state, sources.KAFKA, cfg=kcfg)
+    k.warehouse, k.logfolders = warehouse.DuckWarehouse(k), logfolders.LogFolders(kcfg, kind='kafka')
+    k.ingest, k.retention = ingest_service.IngestService(k), retention_service.RetentionService(k)
+    state.sources = {sources.S3: state, sources.KAFKA: k}
+    state.kafka = kafka_service.KafkaFeed(k)   # the consumer belongs to the Kafka source
     state.resets = password_service.PasswordResets(state)
     state.emails = account_service.EmailChanges(state)
     return state
+
+
+def migrate_kafka_layout(state):
+    """Before the one-source-per-folder layout, Kafka's files lived in the S3 inbox (mark file, later also an "aside" folder).
+    Move them into the Kafka inbox, and make the S3 database forget the folders that were Kafka's alone. Safe to repeat."""
+    kafka_only, _ = inbox.migrate(state.cfg.inbox_dir, state.cfg.kafka_inbox)
+    for folder in kafka_only:
+        try: state.warehouse.forget(folder)
+        except Exception: pass   # noqa: BLE001  nothing to forget; the folder is Kafka's from now on
 
 
 def _error(status, code, message): return JSONResponse(dict(error=dict(code=code, message=message)), status_code=status)
@@ -96,26 +111,35 @@ def create_app(cfg=None, env_path=None):
     async def lifespan(app):
         os.makedirs(cfg.state_dir, exist_ok=True)
         app.state.con = db.open(cfg.db_path)
+        kafka = app.state.sources[sources.KAFKA]
+        kafka.con = db.open(cfg.kafka_db_path)
         if len(cfg.jwt_secret) < authmod.JWT_SECRET_MIN:
             raise RuntimeError(f'S4_JWT_SECRET is required (at least {authmod.JWT_SECRET_MIN} random characters); see .env.example')
         app.state.auth = authmod.Auth(cfg.auth_url, cfg.jwt_secret, cfg.session_idle_minutes, cfg.session_max_hours)
         app.state.auth.bootstrap_admin(cfg.admin_user, cfg.admin_password)
         settings_service.migrate(app.state)   # old settings in the account database -> .env (once)
+        migrate_kafka_layout(app.state)   # Kafka's files out of the S3 inbox (old layout), before any ingest
         app.state.ingest.snapshot(missing_only=True)   # DbGate gets a copy right away, without waiting for ingest
-        if cfg.ingest_on_start: app.state.ingest.start(by='(server start)')
+        if cfg.ingest_on_start:
+            app.state.ingest.start(by='(server start)')
+            kafka.ingest.start(by='(server start)')   # waits for the S3 ingest: one ingest at a time
         app.state.imports.start_watch()
         app.state.alerts.start()
         app.state.kafka.start()   # logs from Kafka (when S4_KAFKA_BROKERS + S4_KAFKA_TOPIC are set)
         app.state.retention.start()   # daily cleanup when S4_RETENTION_DAYS / S4_RETENTION_INBOX_DAYS are set
+        kafka.retention.start()       # the same rules for the Kafka source
         yield
         app.state.retention.stop()
+        kafka.retention.stop()
         app.state.imports.stop_watch()
         app.state.alerts.stop()
         app.state.kafka.stop()
         app.state.imports.wait(timeout=600)
         app.state.ingest.wait(timeout=600)
+        kafka.ingest.wait(timeout=600)
         app.state.auth.close()
         app.state.con.close()
+        kafka.con.close()
 
     app = FastAPI(title='MoniShield', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     wire(app.state, cfg, env_path)

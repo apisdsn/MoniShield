@@ -7,7 +7,7 @@ right before being handed to the channel.
 """
 import datetime, threading, time
 
-from monishield.application import settings_service
+from monishield.application import settings_service, sources
 from monishield.domain import alerts
 from monishield.domain.alerts import AlertFail
 from monishield.domain.errors import Fail
@@ -72,21 +72,33 @@ class Notifier:
             try: fn(*a)
             except Exception: pass   # noqa: BLE001  notifications must not bring the server down; send errors are recorded in alert_log
 
-    def after_ingest(self, result, error=None): self._bg(self._after_ingest, result, error)
+    def after_ingest(self, result, error=None, src=None): self._bg(self._after_ingest, result, error, src or self.ctx)
 
-    def _after_ingest(self, result, error):
+    @staticmethod
+    def _named(src, key, title):
+        """Notifications come from both sources (owner request 2026-10-23): the title names the source, and the Kafka key is its
+        own so S3 and Kafka never silence each other. S3 keys stay as they were (no repeats of what was already sent)."""
+        return (key if src.source == sources.S3 else f'{key}@{src.source}'), f'{title} ({sources.LABEL[src.source]})'
+
+    def _after_ingest(self, result, error, src):
         cfg = self._cfg()
         if not alerts.active(cfg): return
-        if ev := alerts.ingest_failed(cfg, result, error): deliver(self.ctx, cfg, ev[0], 'ingest_failed', ev[1], ev[2])
+        if ev := alerts.ingest_failed(cfg, result, error):
+            key, title = self._named(src, ev[0], ev[1])
+            deliver(self.ctx, cfg, key, 'ingest_failed', title, ev[2])
         if error or not result: return
         changed = sorted(result.get('folders_changed') or [])
         if not changed: return
-        w = self.ctx.warehouse
+        w = src.warehouse
         newest = w.newest_folder()
-        floor = (datetime.date.fromisoformat(newest) - datetime.timedelta(days=2)).isoformat()
+        # S3: the newest three folders. Kafka: only the day in progress, so its first ingest does not announce old days
+        floor = newest if src.source != sources.S3 else (datetime.date.fromisoformat(newest) - datetime.timedelta(days=2)).isoformat()
         crs = self.ctx.cfg.attack_rules == 'crs'
         for f in (x for x in changed if x >= floor):   # old folders that are re-ingested do not trigger notifications
-            for ev, key, title, text in alerts.folder_events(cfg, f, w.folder_facts(f, crs)): deliver(self.ctx, cfg, key, ev, title, text)
+            for ev, key, title, text in alerts.folder_events(cfg, f, w.folder_facts(f, crs), src.source):
+                if ev == 'summary' and src.source != sources.S3: continue   # a day still filling up has no summary yet
+                key, title = self._named(src, key, title)
+                deliver(self.ctx, cfg, key, ev, title, text)
 
     def after_sync(self, res): self._bg(self._after_sync, res)
 

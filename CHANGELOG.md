@@ -7,13 +7,19 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Changed
-- A folder holds one source: S3 or Kafka, never both. When the S3 copy of a date is imported, every Kafka file left in that
-  folder leaves it: files of services the S3 copy brings are deleted (the same lines), files of services only Kafka sends
-  are moved to `<inbox>/.kafka-superseded/<date>/` (kept, not counted). Folders made before this rule (S3 copy plus Kafka
-  files) are cleaned by the next ingest; their dashboard numbers then follow the S3 export only. The aside copy is deleted
-  with the folder.
-- The folder picker, page title and folder list mark each folder with its source: `(S3)` or `(Kafka)` (the main log folder and
-  uploads have no marker). A folder with an S3 copy is no longer labelled `(Kafka)`.
+- S3 and Kafka are two data sources, each with its own database and its own folders (`<inbox>/kafka/<date>/`,
+  `<data>/kafka/monishield.duckdb`): a day is never a mix of both. The header has a source switch (`S3 | Kafka`, also
+  `?source=kafka` in the address and in the API); the date list, every page, Trends, search, downloads and the admin folder
+  tools follow the source being shown. The S3 import no longer touches Kafka's files and the Kafka consumer no longer yields
+  to S3. `monishield ingest --source kafka` ingests the Kafka source.
+- Notifications come from both sources: the title names the source (`(S3)` / `(Kafka)`), the link opens that source, and a
+  Kafka notification never silences the S3 one for the same day. Summaries, the "folder not arrived" check and the S3 sync
+  warning stay S3-only.
+- On the first start of this version the old shared layout is moved: Kafka-only folders and the Kafka files that sat beside an
+  S3 copy go to the Kafka inbox, `<inbox>/.kafka-superseded/<date>/` joins the Kafka folder of that date, and the S3 database
+  forgets the days that were Kafka's alone. Nothing is deleted; for days the S3 copy had already replaced, the Kafka source
+  only has the services that S3 does not carry.
+- The folder picker, page title and folder list mark the data source being shown: `(S3)` or `(Kafka)`.
 - One date per folder everywhere: the folder picker, page title, Trends, IP profile, Command Center, sync and upload
   messages, retention plan and notifications show the day the logs cover (folder `21 Oct` = logs of `20 Oct`), for S3 and
   Kafka folders alike. The old second "· log …" date, taken from the earliest line in the data, is gone. Folder names are

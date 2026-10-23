@@ -47,11 +47,11 @@ class IngestService:
             self.state['last'] = {k: r[k] for k in ('run_id', 'status', 'files_seen', 'files_changed', 'files_parsed', 'files_removed', 'files_failed',
                                                     'folders_changed', 'folders_recorrelated', 'warnings', 'seconds')}
             self.snapshot()
-            self.ctx.alerts.after_ingest(r)   # notifications (background thread; does not hold up ingest)
+            self.ctx.alerts.after_ingest(r, src=self.ctx)   # notifications (background thread; does not hold up ingest)
         except Busy: self.state['error'] = 'Another ingest is running.'
         except Exception as e:  # noqa: BLE001  error reported through the status, the server process stays alive
             self.state['error'] = f'{type(e).__name__}: {e}'
-            self.ctx.alerts.after_ingest(None, self.state['error'])
+            self.ctx.alerts.after_ingest(None, self.state['error'], src=self.ctx)
         finally:
             self.state.update(running=False, phase=None)
 
@@ -123,7 +123,7 @@ def delete_folder(ctx, folder, delete_inbox, by):
         n = w.forget(folder)
         inbox_deleted = bool(delete_inbox) and lf.remove_inbox(folder)
         # still on disk, or automatic S3 sync on (the folder would be downloaded again from S3): recorded as "ignored"
-        ignored = any(lf.on_disk(folder)) or ctx.imports.watch_config()['enabled']
+        ignored = any(lf.on_disk(folder)) or (ctx.source == 's3' and ctx.imports.watch_config()['enabled'])
         if ignored: w.ignore(folder, by)
         ctx.ingest.snapshot()
     if not n and not inbox_deleted and not ignored: raise Fail('not_found', 'Folder not found.', 404)

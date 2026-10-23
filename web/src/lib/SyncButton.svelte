@@ -8,6 +8,8 @@
 <script>
   import { srv, errText } from '../srv.js';
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
+  import { route } from '../state.js';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num, fLabel } from '../format.js';
@@ -20,7 +22,7 @@
   async function check() {
     try {
       const s = await api.get('/api/admin/ingest');
-      pending = s.new_folders || []; s3on = !!s.s3?.enabled;
+      pending = s.new_folders || []; s3on = !!s.s3?.enabled && get(route).source === 's3';   // Kafka has no S3 check: its button only ingests
       if (s.running && !running) follow();    // ingest from another screen / schedule: show it here too
     } catch { /* session expired / offline: handled by App */ }
   }

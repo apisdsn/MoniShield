@@ -691,6 +691,10 @@ any more; they open the Overview. Scripts that need a sync use `python -m monish
 
 ### 5.1 General rules
 
+**Data source (2026-10-23).** S3 and Kafka are two sources with their own database and folders. Every data route and the admin
+folder/ingest/retention routes take `?source=s3` (default) or `?source=kafka`; anything else is 400. `/api/meta` answers for the
+chosen source (`source`, and `sources` = the sources the page offers).
+
 - Prefix `/api`. Only `GET`, except for the ingest trigger.
 - Times in responses: WIB text `YYYY-MM-DD HH:MM` (hour: `YYYY-MM-DD HH`), the same as the old data format,
   so the old display formatters (inv. §2.0) are used without changes.

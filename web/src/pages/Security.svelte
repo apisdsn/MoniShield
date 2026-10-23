@@ -6,7 +6,7 @@
 <script>
   import BlocklistDialog from '../lib/BlocklistDialog.svelte';
   import { lang, t } from '../i18n.js';
-  import { api } from '../api.js';
+  import { api, withSource } from '../api.js';
   import { num } from '../format.js';
   import { route } from '../state.js';
   import Kpi from '../lib/Kpi.svelte';
@@ -176,7 +176,7 @@
       </DataTable>
 
       {#if T['attack-ips'].total}
-        <p class="dl wide-row"><a class="btn" href={`/api/folders/${encodeURIComponent(folder)}/security/attack-ips.csv`} download>{$t('sec.csv', { n: num(T['attack-ips'].total, $lang) })}</a>
+        <p class="dl wide-row"><a class="btn" href={withSource(`/api/folders/${encodeURIComponent(folder)}/security/attack-ips.csv`)} download>{$t('sec.csv', { n: num(T['attack-ips'].total, $lang) })}</a>
           <button class="btn" onclick={() => (blOpen = true)}>{$t('bl.open')}</button>
           <span class="muted small">{$t('sec.csv_note')}</span></p>
         <BlocklistDialog {folder} bind:open={blOpen} />

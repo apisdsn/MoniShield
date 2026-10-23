@@ -1,5 +1,6 @@
 // Tab, folder, and map module <-> address (DRD §1.3, U1). Clean English paths (owner request 2026-10-12), no "#":
 //   /<tab>?folder=YYYY-MM-DD&module=<module>&search=<text>   tabs: TABS below
+// ?source=kafka shows the Kafka data source (own database); no ?source = S3. It stays when moving between pages.
 //   /services/<name>?folder=…   one service        /ips/<ip>?folder=…   IP profile (the IP is kept in `service`)
 //   /admin/users, /admin/ingest                       admin screens
 //   /password, /email, /admin/configuration, /admin/notifications   open a pop-up over the Overview (App.svelte)
@@ -8,13 +9,14 @@
 // followed without reloading the page (History API). Unknown paths open the Overview.
 // Language and theme are NOT in the address (per browser).
 import { writable, get } from 'svelte/store';
+import { setSource } from './api.js';
 
 export const TABS = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing'];
 export const ADMIN = ['admin/users', 'admin/ingest'];
 const DIALOGS = ['password', 'email', 'admin/configuration', 'admin/notifications'];
 const SERVER = /^\/(api|map|swagger|assets|fonts)(\/|$)/;   // paths the server answers itself (never app pages)
 
-/** "/security?folder=…" -> {tab, service, folder, module, q}. */
+/** "/security?folder=…" -> {tab, service, folder, module, q, source}. */
 export function parse(address) {
   const h = (address || '').replace(/^\//, '');
   const [path, query = ''] = h.split('?');
@@ -24,15 +26,16 @@ export function parse(address) {
   if (tab.startsWith('ips/')) { service = tab.slice(4); tab = 'ip'; }
   else if (tab.startsWith('services/')) { service = tab.slice(9); tab = 'service'; }
   else if (!TABS.includes(tab) && !ADMIN.includes(tab) && !DIALOGS.includes(tab)) tab = 'overview';   // unknown address
-  return { tab, service, folder: q.get('folder') || null, module: q.get('module') || null, q: q.get('search') || null };
+  return { tab, service, folder: q.get('folder') || null, module: q.get('module') || null, q: q.get('search') || null, source: q.get('source') === 'kafka' ? 'kafka' : 's3' };
 }
 
-export function build({ tab, service, folder, module, q = null }) {
+export function build({ tab, service, folder, module, q = null, source }) {
   const path = tab === 'service' ? `services/${encodeURIComponent(service)}` : tab === 'ip' ? `ips/${encodeURIComponent(service)}` : tab;
   const qs = new URLSearchParams();
   if (folder) qs.set('folder', folder);   // also in Trends and admin screens: the folder is kept when returning to a data page
   if (module && tab === 'command-center') qs.set('module', module);
   if (q) qs.set('search', q);
+  if ((source ?? get(route).source) === 'kafka') qs.set('source', 'kafka');   // links inside the page keep the data source
   const s = qs.toString();
   return `/${path}${s ? '?' + s : ''}`;
 }
@@ -48,6 +51,7 @@ function canonical() {
 }
 canonical();
 export const route = writable(parse(here()));
+route.subscribe((r) => setSource(r.source));   // the API client follows the address (before any page asks for data)
 
 /** Navigate: adds to history (the back button works). replace=true for automatic corrections (missing folder, etc.). */
 export function go(patch, { replace = false } = {}) {

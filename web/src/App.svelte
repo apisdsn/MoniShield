@@ -101,13 +101,16 @@
   });
 
   // ---------------------------------------------------------------- folders and tabs
-  const folders = $derived(meta?.folders || []);
+  // the folder list of the data source in the address (S3 or Kafka); until the list of the new source arrives there is none
+  const folders = $derived(meta && meta.source === $route.source ? meta.folders : []);
+  $effect(() => { if (screen === 'app' && meta && meta.source !== $route.source) untrack(loadMeta); });   // source switched: its own folders
+  function setSource(s) { go({ source: s, folder: null }); }
   const folder = $derived(folders.some((f) => f.folder === $route.folder) ? $route.folder : folders[0]?.folder ?? null);
   const folderInfo = $derived(folders.find((f) => f.folder === folder) || null);
-  // the day the folder's logs cover (one date, S3 and Kafka alike); S3, Kafka and mixed folders are labelled "(S3)", "(Kafka)", "(S3 + Kafka)"
+  // the day the folder's logs cover (one date, S3 and Kafka alike); marked with the data source being shown: "(S3)" or "(Kafka)"
   const folderName = $derived.by(() => {
     if (!folder) return '';
-    const tag = folderTag(folderInfo?.source);
+    const tag = folderTag($route.source);
     return tag ? $t(`folder.${tag}`, { date: fLabel(folder, $lang) }) : fLabel(folder, $lang);
   });
   const isAdminTab = $derived(ADMIN.includes($route.tab));
@@ -176,7 +179,7 @@
   async function onsynced() {
     const before = new Set(folders.map((f) => f.folder));
     await loadMeta(); refreshMe(); reloadKey++;
-    const baru = (meta?.folders || []).map((f) => f.folder).filter((f) => !before.has(f)).sort();
+    const baru = folders.map((f) => f.folder).filter((f) => !before.has(f)).sort();
     if (baru.length) go({ folder: baru[baru.length - 1] });
   }
 
@@ -269,7 +272,7 @@
 
   <div class="wrap" class:collapsed inert={drawer || undefined}>
     <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'trends' || !isDataTab}
-      onfolder={setFolder} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
+      sources={meta?.sources || []} source={$route.source} onsource={setSource} onfolder={setFolder} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
       {title} sysTitle={$route.tab === 'service'} {suffix} {status} bind:titleEl={h1} />
     {#if subtitle}<p class="sub"><span class="dot ok" aria-hidden="true"></span>{subtitle}</p>{/if}
 

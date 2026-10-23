@@ -21,7 +21,7 @@ class DuckWarehouse:
     def ingest(self, folder=None, force=False, progress=None):
         """-> ingest summary. Another ingest running -> Busy."""
         with self._cur() as cur:
-            try: return ingest.run(self.ctx.cfg, cur, folder=folder, force=force, progress=progress)
+            try: return ingest.run(self.ctx.cfg, cur, folder=folder, force=force, progress=progress, wait=1800)
             except ingest.Busy: raise Busy('Another ingest is running.') from None
 
     def snapshot_wanted(self, missing_only=False):

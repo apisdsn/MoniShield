@@ -1,24 +1,25 @@
-"""Log folders on disk (LogFolders port adapter): the main log folder (S4_LOG_DIR, read-only) and the inbox
-(S4_INBOX_DIR: S3 imports, uploads, Kafka). Directory listings only; file contents are read by ingest."""
+"""Log folders on disk (LogFolders port adapter) of one data source: for S3 the main log folder (S4_LOG_DIR, read-only) and
+the inbox (S4_INBOX_DIR: S3 imports, uploads); for Kafka its own inbox (<inbox>/kafka, written by the consumer). Directory
+listings only; file contents are read by ingest."""
 import os, shutil
 
 from monishield.domain import rules
 from monishield.infrastructure.importer import MANIFEST
-from monishield.infrastructure.inbox import MARK as KAFKA_MARK, SUPERSEDED
 
 
 class LogFolders:
-    def __init__(self, cfg): self.cfg = cfg
-
-    def _roots(self): return (self.cfg.log_dir, self.cfg.inbox_dir)
+    def __init__(self, cfg, kind='s3'):
+        self.cfg, self.kind = cfg, kind
 
     @staticmethod
     def _dates(root):
+        if not root: return set()
         try: return {d for d in os.listdir(root) if rules.DATE_DIR.fullmatch(d)}
         except OSError: return set()
 
     @staticmethod
     def _has_logs(root, folder):
+        if not root: return False   # no main log folder for this source
         p = os.path.join(root, folder)
         return os.path.isdir(p) and any(n.endswith(('.log', '.log.gz')) for _, _, names in os.walk(p) for n in names)
 
@@ -30,12 +31,12 @@ class LogFolders:
         """-> (has log files in the main log folder, has log files in the inbox)."""
         return self._has_logs(self.cfg.log_dir, folder), self._has_logs(self.cfg.inbox_dir, folder)
 
-    def in_log_dir(self, folder): return os.path.isdir(os.path.join(self.cfg.log_dir, folder))
+    def in_log_dir(self, folder): return bool(self.cfg.log_dir) and os.path.isdir(os.path.join(self.cfg.log_dir, folder))
 
     def new_folders(self, known):
         """Date folders with log files that are not yet `known`. Cheap: only the top directory listing + candidate folders."""
         baru = set()
-        for root in self._roots():
+        for root in (self.cfg.log_dir, self.cfg.inbox_dir):
             for d in sorted(self._dates(root) - set(known) - baru):
                 if self._has_logs(root, d): baru.add(d)
         return sorted(baru)
@@ -44,21 +45,12 @@ class LogFolders:
         """Inbox folders holding S3 import results (manifest present)."""
         return {d for d in folders if os.path.exists(os.path.join(self.cfg.inbox_dir, d, MANIFEST))}
 
-    def from_kafka(self, folders):
-        """Inbox folders written by the Kafka consumer that no S3 import has completed yet (mark, no manifest)."""
-        def only_kafka(d):
-            p = os.path.join(self.cfg.inbox_dir, d)
-            return os.path.exists(os.path.join(p, KAFKA_MARK)) and not os.path.exists(os.path.join(p, MANIFEST))
-        return {d for d in folders if only_kafka(d)}
-
     def source(self, folder):
-        """Where a folder's logs come from: 'log' (main log folder; it wins when both exist), 's3' (S3 import; a folder holds
-        one source, Kafka's files leave it once the S3 copy is there, inbox.supersede), 'kafka' (written by the Kafka
-        consumer, no S3 copy yet), 'upload' (uploaded from the browser), or None (not on disk)."""
+        """Where a folder's logs come from: 'kafka' for the Kafka source; for S3: 'log' (main log folder; it wins when both
+        exist), 's3' (S3 import), 'upload' (uploaded from the browser), or None (not on disk)."""
+        if self.kind == 'kafka': return 'kafka' if self._has_logs(self.cfg.inbox_dir, folder) else None
         if self._has_logs(self.cfg.log_dir, folder): return 'log'
-        d = os.path.join(self.cfg.inbox_dir, folder)
-        if os.path.exists(os.path.join(d, MANIFEST)): return 's3'
-        if os.path.exists(os.path.join(d, KAFKA_MARK)): return 'kafka'
+        if os.path.exists(os.path.join(self.cfg.inbox_dir, folder, MANIFEST)): return 's3'
         return 'upload' if self._has_logs(self.cfg.inbox_dir, folder) else None
 
     def inbox_ok(self, folder):
@@ -70,5 +62,4 @@ class LogFolders:
         p = os.path.realpath(os.path.join(self.cfg.inbox_dir, folder))
         if not self.inbox_ok(folder) or not os.path.isdir(p): return False
         shutil.rmtree(p)
-        shutil.rmtree(os.path.join(self.cfg.inbox_dir, SUPERSEDED, folder), ignore_errors=True)   # Kafka files an S3 copy replaced
         return True

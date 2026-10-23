@@ -7,6 +7,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
+  import { route } from '../state.js';
   import { num, tWIB, utcToWib } from '../format.js';
   import { toast } from '../lib/Toast.svelte';
   import DataTable from '../lib/DataTable.svelte';
@@ -93,11 +94,15 @@
       <p class="muted small">{$t('ing.hint')}</p>
     </section>
 
-    <ImportCard onfinished={() => { loadStatus(); loadAudit(); onfinished?.(); fmKey++; }} />
+    {#if $route.source === 's3'}   <!-- S3 import and upload belong to the S3 source; Kafka has its own consumer card -->
+      <ImportCard onfinished={() => { loadStatus(); loadAudit(); onfinished?.(); fmKey++; }} />
+    {/if}
 
     <KafkaCard />
 
-    <UploadCard onfinished={() => { watching = true; setTimeout(loadStatus, 700); loadAudit(); }} />
+    {#if $route.source === 's3'}
+      <UploadCard onfinished={() => { watching = true; setTimeout(loadStatus, 700); loadAudit(); }} />
+    {/if}
 
     {#key fmKey}<FolderManager onchanged={() => { loadStatus(); loadAudit(); onfinished?.(); }} />{/key}
 

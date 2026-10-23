@@ -18,6 +18,17 @@ export const lastActivity = writable(Date.now());
 
 let retryTimer = null;
 
+// Data source of the page (owner request 2026-10-23): S3 and Kafka each have their own database, one is shown at a time.
+// state.js keeps this in step with the address (?source=kafka); every data request carries it.
+let source = 's3';
+export function setSource(s) { source = s === 'kafka' ? 'kafka' : 's3'; }
+const OWN = /^\/api\/(auth|me|crypto|health)(\/|\?|$)/;   // not about the data of a source
+/** An /api path with the current data source (S3 is the default and is not written). Use it for links the browser follows itself. */
+export function withSource(path) {
+  if (source !== 'kafka' || !path.startsWith('/api/') || OWN.test(path)) return path;
+  return path + (path.includes('?') ? '&' : '?') + 'source=kafka';
+}
+
 async function request(method, path, body, retried = false) {
   const headers = { Accept: 'application/json' };
   if (method !== 'GET') headers['X-Requested-With'] = 'monishield-web';
@@ -70,11 +81,11 @@ function putFile(path, blob, onprogress = null, signal = null) {
 
 export const api = {
   putFile,
-  get: (path) => request('GET', path),
-  post: (path, body = {}) => request('POST', path, body),
-  patch: (path, body = {}) => request('PATCH', path, body),
-  put: (path, body = {}) => request('PUT', path, body),
-  del: (path) => request('DELETE', path),
+  get: (path) => request('GET', withSource(path)),
+  post: (path, body = {}) => request('POST', withSource(path), body),
+  patch: (path, body = {}) => request('PATCH', withSource(path), body),
+  put: (path, body = {}) => request('PUT', withSource(path), body),
+  del: (path) => request('DELETE', withSource(path)),
 };
 
 /** Path to the table endpoint (TRD §5.4); empty parameters are not sent. */

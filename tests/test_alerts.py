@@ -161,7 +161,7 @@ def test_sesudah_ingest_dan_sinkron_gagal_terkirim(app_env, sent):
         time.sleep(0.05)
     time.sleep(0.3)
     titles = [x[2]['text'].split('\n')[0] for x in sent if x[0] == 'http' and 'sendMessage' in x[1]]
-    assert 'Serangan kritis di log 2026-01-06' in titles and 'Ringkasan log 2026-01-06' in titles
+    assert 'Serangan kritis di log 2026-01-06 (S3)' in titles and 'Ringkasan log 2026-01-06 (S3)' in titles
     n = len(sent)
     tc.app.state.alerts._after_sync(dict(at='2026-10-07 01:00:00', errors=[dict(code='s3_denied', where='s3://b/k8s-logs/', message='S3 menolak akses')], failed=['2026-01-08']))
     assert any('Sinkron S3 bermasalah' in json.dumps(x) and 'Log tanggal: 2026-01-07' in json.dumps(x) for x in sent[n:])
@@ -258,3 +258,15 @@ def test_thresholds_saved_from_the_page(app_env):
     assert env['S4_ALERT_SPIKE'] == 'n5xx=3:50,errors=off' and env['S4_ALERT_SERVICE_SPIKE'] == 'default=2:80,coredns=off,om-be-report=4:300'
     r = tc.put('/api/admin/alerts', json=dict(service_spike=dict(services={'om-be-report': dict(factor=1, min=5)})), headers=X)
     assert r.status_code == 400 and 'factor' in r.json()['error']['message']
+
+
+def test_notifications_name_their_source_and_link_to_it():
+    """Owner request 2026-10-23: notifications come from S3 and from Kafka; the title says which, the Kafka key is its own."""
+    import types
+    from monishield.application import alert_service
+    s3, kafka = types.SimpleNamespace(source='s3'), types.SimpleNamespace(source='kafka')
+    assert alert_service.Notifier._named(s3, 'spike:2026-01-06', 'Spike') == ('spike:2026-01-06', 'Spike (S3)')       # S3 keys unchanged
+    assert alert_service.Notifier._named(kafka, 'spike:2026-01-06', 'Spike') == ('spike:2026-01-06@kafka', 'Spike (Kafka)')
+    cfg = dict(lang='en', dashboard_url='https://monishield.example.com')
+    assert alerts._link(cfg, '2026-01-06') .endswith('/command-center?folder=2026-01-06')
+    assert alerts._link(cfg, '2026-01-06', 'security', 'kafka').endswith('/security?folder=2026-01-06&source=kafka')
