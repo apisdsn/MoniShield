@@ -133,7 +133,7 @@ def test_lonjakan_dan_serangan_kritis_tanpa_alamat_ip(app_env, sent):
     finally: con.close()
     assert set(ev) == {'spike', 'critical'}
     _, key, title, text = ev['spike']
-    assert key == 'spike:2026-01-06' and 'Error (semua layanan)' in text and 'rata-rata 4 folder' in text and '/command-center?folder=2026-01-06' in text
+    assert key == 'spike:2026-01-06' and 'Error (semua layanan)' in text and 'rata-rata 4 hari' in text and '/command-center?folder=2026-01-06' in text
     _, key, title, text = ev['critical']
     assert 'IP' in text and '34.19.127.199' not in text and '/security?folder=2026-01-06' in text
     # send: all enabled channels, once per key
@@ -147,7 +147,7 @@ def test_lonjakan_dan_serangan_kritis_tanpa_alamat_ip(app_env, sent):
     con = tc.app.state.con.cursor()
     try: ev = {e[0]: e for e in alerts.folder_events(alerts.load(tc.app.state.cfg), '2026-01-06', tc.app.state.warehouse.folder_facts('2026-01-06', True))}
     finally: con.close()
-    assert ev['spike'][2] == 'Spike in folder 2026-01-06' and 'Errors (all services)' in ev['spike'][3]
+    assert ev['spike'][2] == 'Spike in the logs of 2026-01-05' and 'Errors (all services)' in ev['spike'][3]
 
 
 def test_sesudah_ingest_dan_sinkron_gagal_terkirim(app_env, sent):
@@ -161,10 +161,10 @@ def test_sesudah_ingest_dan_sinkron_gagal_terkirim(app_env, sent):
         time.sleep(0.05)
     time.sleep(0.3)
     titles = [x[2]['text'].split('\n')[0] for x in sent if x[0] == 'http' and 'sendMessage' in x[1]]
-    assert 'Serangan kritis di folder 2026-01-07' in titles and 'Ringkasan folder 2026-01-07' in titles
+    assert 'Serangan kritis di log 2026-01-06' in titles and 'Ringkasan log 2026-01-06' in titles
     n = len(sent)
     tc.app.state.alerts._after_sync(dict(at='2026-10-07 01:00:00', errors=[dict(code='s3_denied', where='s3://b/k8s-logs/', message='S3 menolak akses')], failed=['2026-01-08']))
-    assert any('Sinkron S3 bermasalah' in json.dumps(x) and '2026-01-08' in json.dumps(x) for x in sent[n:])
+    assert any('Sinkron S3 bermasalah' in json.dumps(x) and 'Log tanggal: 2026-01-07' in json.dumps(x) for x in sent[n:])
 
 
 def test_folder_hari_ini_belum_datang(app_env, sent):
@@ -175,7 +175,7 @@ def test_folder_hari_ini_belum_datang(app_env, sent):
     assert n.check_missing(pagi) is None
     siang = datetime.datetime(2026, 10, 7, 4, 0, tzinfo=datetime.timezone.utc)     # 11:00 WIB
     assert n.check_missing(siang) == dict(telegram=None, discord=None, email=None)
-    assert any('Folder log 2026-10-07 belum datang' in json.dumps(x) for x in sent)
+    assert any('Log tanggal 2026-10-06 belum datang' in json.dumps(x) for x in sent)
     assert n.check_missing(siang) == {}                                            # once per day
 
 

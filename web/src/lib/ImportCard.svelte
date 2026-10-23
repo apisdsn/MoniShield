@@ -9,7 +9,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, bytes, tWIB, utcToWib } from '../format.js';
+  import { num, bytes, fLabel, tWIB, utcToWib } from '../format.js';
   import { toast } from './Toast.svelte';
   import DataTable from './DataTable.svelte';
   import Dialog from './Dialog.svelte';
@@ -80,7 +80,7 @@
       if (j.running || (j.status === 'running') || (!j.result && j.status !== 'failed')) { timer = setTimeout(() => poll(id), 1000); return; }
       busy = false; timer = null;
       if (j.status === 'failed') fail = whyJob(j);
-      else if (j.status === 'done') { toast($t('imp.toast_done', { n: num(j.result.downloaded, $lang), folder: j.folder })); onfinished?.(); }
+      else if (j.status === 'done') { toast($t('imp.toast_done', { n: num(j.result.downloaded, $lang), folder: fLabel(j.folder, $lang) })); onfinished?.(); }
       load();
     } catch (e) { busy = false; fail = why(e); }
   }
@@ -216,7 +216,7 @@
       {#if res && !busy}
         <p class="sum">
           {#if res.dry_run}{$t('imp.res.dry', { n: num(res.take, $lang), size: MB(res.bytes), m: num(res.skipped, $lang) })}
-          {:else}{$t('imp.res.done', { n: num(res.downloaded, $lang), size: MB(res.downloaded_bytes), m: num(res.skipped, $lang), folder: res.folder })}{#if res.extracted}{' '}{$t('imp.res.extracted', { n: num(res.extracted, $lang) })}{/if}{#if res.ingest}{' '}{$t('imp.res.ingest', { n: num(res.ingest.files_changed, $lang) })}{/if}{/if}
+          {:else}{$t('imp.res.done', { n: num(res.downloaded, $lang), size: MB(res.downloaded_bytes), m: num(res.skipped, $lang), folder: fLabel(res.folder, $lang) })}{#if res.extracted}{' '}{$t('imp.res.extracted', { n: num(res.extracted, $lang) })}{/if}{#if res.ingest}{' '}{$t('imp.res.ingest', { n: num(res.ingest.files_changed, $lang) })}{/if}{/if}
         </p>
         {#each res.warnings || [] as w}<p class="warnline small">{$srv(w)}</p>{/each}
         <details class="objs">

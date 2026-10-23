@@ -52,6 +52,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 27 | Configuration in the sidebar as pop-ups, folding sidebar groups, object storage with a choice of providers (S3, R2, MinIO, Wasabi, GCS, Spaces, Azure), free-text region, `example.com` placeholders | Sidebar → *Configuration* | plan stage 37, [`10-user-guide.md`](10-user-guide.md) |
 | 28 | Manage users must not change emails without a code (option B) | Admin enters a new address with own password; it counts once the user confirms the code; own email only via Account email | plan stage 38, [`10-user-guide.md`](10-user-guide.md) |
 | 29 | English endpoints and web addresses, REST best practices, no `#` in web addresses | Renamed API paths (old ones removed), plain web paths served by the server, `monishield sync` command for scripts | [`03-trd.md`](03-trd.md) §5 |
+| 30 | One date per folder: every screen and notification shows the day the logs cover (S3 and Kafka folders alike), not the folder name | Folder picker, Trends, IP profile, Command Center, notifications; `logDay`/`fLabel` in `web/src/format.js` | [`10-user-guide.md`](10-user-guide.md) |
 
 Questions answered along the way, recorded so they are not asked again:
 

@@ -12,7 +12,7 @@
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { theme } from '../theme.js';
-  import { num, delta, dLabel, sysName } from '../format.js';
+  import { num, delta, fLabel, sysName } from '../format.js';
   import { APP_NAME } from '../brand.js';
   import { load as loadPref, save as savePref } from '../store.js';
   import { route, go, build } from '../state.js';
@@ -68,7 +68,7 @@
   const items = $derived((data?.attention || []).map((a) => {
     const p = { n: num(a.n, $lang), ips: num(a.ips ?? 0, $lang), resets: num(a.resets ?? 0, $lang), kind: a.kind ?? '', upstream: a.upstream ?? '',
                 top: num(a.top ?? 0, $lang), total: num(a.total ?? 0, $lang), templates: num(a.templates ?? 0, $lang), prev: num(a.prev ?? 0, $lang),
-                date: a.prev_folder ? dLabel(a.prev_folder, $lang) : '', service: sysName(a.service ?? '') };
+                date: a.prev_folder ? fLabel(a.prev_folder, $lang) : '', service: sysName(a.service ?? '') };
     if (a.basis === 'avg') p.days = num(a.days ?? 0, $lang);
     const text = a.key === 'n5xx' && !a.upstream ? $t('cc.a.n5xx.text_plain') : a.key === 'login' && !a.resets ? $t('cc.a.login.text_none')
       : a.basis === 'avg' ? $t(`cc.a.${a.key}.text_avg`, p) : $t(`cc.a.${a.key}.text`, p);
@@ -107,7 +107,7 @@
   <div class="content" class:dim={busy} class:printing>
     <div class="print-only phead">
       <b>{APP_NAME} — {$t('cc.print.title')}</b>
-      <span>{$t('cc.print.sub', { date: dLabel(folder, $lang), at: printedAt })}</span>
+      <span>{$t('cc.print.sub', { date: fLabel(folder, $lang), at: printedAt })}</span>
     </div>
     <div class="ccbar no-print">
       <button class="btn" onclick={printSummary} disabled={printing}><Icon name="file" size={16} /> {$t('cc.print.button')}</button>

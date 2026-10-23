@@ -6,7 +6,7 @@
   import { lang, t } from './i18n.js';
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
   import { route, go, build, ADMIN } from './state.js';
-  import { dLabel, logRange, num, sysName, tWIB } from './format.js';
+  import { fLabel, logRange, num, sysName, tWIB } from './format.js';
   import { APP_NAME } from './brand.js';
   import { load, save } from './store.js';
   import Sidebar from './lib/Sidebar.svelte';
@@ -104,8 +104,8 @@
   const folders = $derived(meta?.folders || []);
   const folder = $derived(folders.some((f) => f.folder === $route.folder) ? $route.folder : folders[0]?.folder ?? null);
   const folderInfo = $derived(folders.find((f) => f.folder === folder) || null);
-  // folder date as shown; folders filled by the Kafka consumer are labelled "(Kafka)"
-  const folderName = $derived(folder ? (folderInfo?.source === 'kafka' ? $t('folder.kafka', { date: dLabel(folder, $lang) }) : dLabel(folder, $lang)) : '');
+  // the day the folder's logs cover (one date, S3 and Kafka alike); folders filled by the Kafka consumer are labelled "(Kafka)"
+  const folderName = $derived(folder ? (folderInfo?.source === 'kafka' ? $t('folder.kafka', { date: fLabel(folder, $lang) }) : fLabel(folder, $lang)) : '');
   const isAdminTab = $derived(ADMIN.includes($route.tab));
   const isDataTab = $derived(!isAdminTab);
   // #/password and #/email (old #/sandi): open the account pop-up over the Overview (lib/AccountDialogs.svelte)
@@ -124,7 +124,7 @@
   // folder in the address does not exist -> newest folder + notice (DRD §1.3); no folder -> newest folder in the address
   $effect(() => {
     if (screen !== 'app' || !folder || $route.folder === folder) return;
-    if ($route.folder) toast(get(t)('folder.not_found', { date: $route.folder }));
+    if ($route.folder) toast(get(t)('folder.not_found', { date: fLabel($route.folder, get(lang)) }));
     go({ folder }, { replace: true });
   });
 

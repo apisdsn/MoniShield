@@ -2,7 +2,7 @@
 // v2 formatters vs the examples in inventory §2.0 and the output of the old functions in dashboard_template.html.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tWIB, dur, durMs, tRange, dLabel, num, logRange, delta, bytes, pct, sysName, cut, utcToWib } from '../web/src/format.js';
+import { tWIB, dur, durMs, tRange, dLabel, logDay, folderOfDay, fLabel, num, logRange, delta, bytes, pct, sysName, cut, utcToWib } from '../web/src/format.js';
 
 test('waktu WIB seperti lama', () => {
   assert.equal(tWIB('2026-09-28 06:03', 'id'), '28 Sep 2026 06.03 WIB');
@@ -86,4 +86,16 @@ test('waktu UTC akun/ingest -> WIB (lewat tengah malam)', () => {
   assert.equal(tWIB(utcToWib('2026-12-31 20:00:00'), 'id'), '1 Jan 2027 03.00 WIB');
   assert.equal(utcToWib(null), null);
   assert.equal(utcToWib('bukan waktu'), null);
+});
+
+test('folder name -> log day (S3 and Kafka folders both hold the previous day)', () => {
+  assert.equal(logDay('2026-10-21'), '2026-10-20');
+  assert.equal(logDay('2026-03-01'), '2026-02-28');                 // month boundary
+  assert.equal(logDay('2027-01-01'), '2026-12-31');                 // year boundary
+  assert.equal(folderOfDay('2026-10-20'), '2026-10-21');
+  assert.equal(folderOfDay(logDay('2026-10-21')), '2026-10-21');
+  assert.equal(fLabel('2026-10-21', 'id'), '20 Okt 2026');
+  assert.equal(fLabel('2026-10-21', 'en'), '20 Oct 2026');
+  assert.equal(fLabel('not-a-date', 'en'), 'not-a-date');         // not a date folder: shown unchanged
+  assert.equal(fLabel(null, 'en'), '');
 });
