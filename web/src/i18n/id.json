@@ -544,6 +544,7 @@
  "folder.not_found": "Log tanggal {date} tidak ada; menampilkan log terbaru.",
  "folder.option": "Log tanggal {date}",
  "folder.kafka": "{date} (Kafka)",
+ "folder.s3": "{date} (S3)",
  "folder.prev": "Folder sebelumnya",
  "gs.acc": "{fail} gagal · {ok} sukses",
  "gs.hint": "Minimal 2 karakter. ↑ ↓ memilih, Enter membuka.",

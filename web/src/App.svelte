@@ -6,7 +6,7 @@
   import { lang, t } from './i18n.js';
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
   import { route, go, build, ADMIN } from './state.js';
-  import { fLabel, logRange, num, sysName, tWIB } from './format.js';
+  import { fLabel, folderTag, logRange, num, sysName, tWIB } from './format.js';
   import { APP_NAME } from './brand.js';
   import { load, save } from './store.js';
   import Sidebar from './lib/Sidebar.svelte';
@@ -104,8 +104,12 @@
   const folders = $derived(meta?.folders || []);
   const folder = $derived(folders.some((f) => f.folder === $route.folder) ? $route.folder : folders[0]?.folder ?? null);
   const folderInfo = $derived(folders.find((f) => f.folder === folder) || null);
-  // the day the folder's logs cover (one date, S3 and Kafka alike); folders filled by the Kafka consumer are labelled "(Kafka)"
-  const folderName = $derived(folder ? (folderInfo?.source === 'kafka' ? $t('folder.kafka', { date: fLabel(folder, $lang) }) : fLabel(folder, $lang)) : '');
+  // the day the folder's logs cover (one date, S3 and Kafka alike); S3, Kafka and mixed folders are labelled "(S3)", "(Kafka)", "(S3 + Kafka)"
+  const folderName = $derived.by(() => {
+    if (!folder) return '';
+    const tag = folderTag(folderInfo?.source);
+    return tag ? $t(`folder.${tag}`, { date: fLabel(folder, $lang) }) : fLabel(folder, $lang);
+  });
   const isAdminTab = $derived(ADMIN.includes($route.tab));
   const isDataTab = $derived(!isAdminTab);
   // #/password and #/email (old #/sandi): open the account pop-up over the Overview (lib/AccountDialogs.svelte)

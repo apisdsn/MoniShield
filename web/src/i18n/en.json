@@ -544,6 +544,7 @@
  "folder.not_found": "No logs of {date}; showing the latest logs.",
  "folder.option": "Logs of {date}",
  "folder.kafka": "{date} (Kafka)",
+ "folder.s3": "{date} (S3)",
  "folder.prev": "Previous folder",
  "gs.acc": "{fail} failed · {ok} succeeded",
  "gs.hint": "At least 2 characters. ↑ ↓ to choose, Enter to open.",

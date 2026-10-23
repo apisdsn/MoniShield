@@ -5,7 +5,7 @@ Aggregates are derived via derive_folder(), filled in by a later stage.
 """
 import concurrent.futures, datetime, json, multiprocessing, os, shutil, threading, time
 
-from monishield.infrastructure import db, derive, logfiles, refdata
+from monishield.infrastructure import db, derive, inbox, logfiles, refdata
 from monishield.domain import detect, parse, retention, rules
 
 RAW_TABLES = list(parse.TABLES)
@@ -128,6 +128,7 @@ def _cleanup_killed(cfg, con):
 def _run(cfg, con, only_folder, force, workers, progress):
     t0 = time.time()
     _cleanup_killed(cfg, con)
+    inbox.reconcile(cfg.inbox_dir)   # folders with an S3 copy hold no Kafka files (one source per folder)
     run_id = _next_id(con, 'seq_run_id', 'ingest_run', 'run_id')
     con.execute("INSERT INTO ingest_run VALUES (?, ?, NULL, 'running', NULL, NULL, NULL)", [run_id, utcnow()])
     tmp = os.path.join(cfg.data_dir, 'tmp', f'run-{run_id}')

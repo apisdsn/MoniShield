@@ -2,7 +2,7 @@
 // v2 formatters vs the examples in inventory §2.0 and the output of the old functions in dashboard_template.html.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tWIB, dur, durMs, tRange, dLabel, logDay, folderOfDay, fLabel, num, logRange, delta, bytes, pct, sysName, cut, utcToWib } from '../web/src/format.js';
+import { tWIB, dur, durMs, tRange, dLabel, logDay, folderOfDay, fLabel, folderTag, num, logRange, delta, bytes, pct, sysName, cut, utcToWib } from '../web/src/format.js';
 
 test('waktu WIB seperti lama', () => {
   assert.equal(tWIB('2026-09-28 06:03', 'id'), '28 Sep 2026 06.03 WIB');
@@ -98,4 +98,5 @@ test('folder name -> log day (S3 and Kafka folders both hold the previous day)',
   assert.equal(fLabel('2026-10-21', 'en'), '20 Oct 2026');
   assert.equal(fLabel('not-a-date', 'en'), 'not-a-date');         // not a date folder: shown unchanged
   assert.equal(fLabel(null, 'en'), '');
+  assert.deepEqual(['s3', 'kafka', 'log', 'upload', undefined].map(folderTag), ['s3', 'kafka', null, null, null]);
 });
