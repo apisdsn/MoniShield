@@ -25,11 +25,24 @@ Every folder holds exactly one day of logs, from 00:00 to 24:00 WIB, for S3 expo
 named after the day *after* (the export day), so the folder `2026-10-21` holds the logs of 20 Oct. The dashboard shows
 only the day the logs cover (`Logs of 20 Oct 2026`): in the folder picker,
 the page title, Trends, the IP profile, Command Center, sync and upload messages and notifications. Today's live Kafka
-day is therefore listed as today. Each day also shows where its logs come from: `(S3)` or `(Kafka)` (no S3 copy yet, e.g. today). A folder holds one source,
-never both: when the S3 copy of a date is imported, Kafka's files leave the folder (the same services are deleted; services
-only Kafka sends are moved to `<inbox>/.kafka-superseded/<date>/`, kept but not counted), so the numbers of a day always
-follow one source. Folder names stay as they are in web addresses (`?folder=2026-10-21`), the API, on
+day is therefore listed as today. Folder names stay as they are in web addresses (`?folder=2026-10-21`), the API, on
 disk and in the `monishield sync` output. The exact time range of the data is under the page title.
+
+### Two data sources: S3 and Kafka
+
+S3 and Kafka are two separate sources. Each has its own database and its own folders (`<inbox>/<date>/` for S3 imports and
+uploads, `<inbox>/kafka/<date>/` for Kafka), so a day is never a mix of both. The page header has a switch **S3 | Kafka**
+(it appears once Kafka is set up or already holds days): the date list, every page, Trends, search, downloads and the admin
+folder tools show the source you chose, and the address carries it (`?source=kafka`). Both sources can hold the same day, each
+complete on its own: S3's with the services of the export, Kafka's with everything the cluster logging sent, so the Kafka
+view also has the services the S3 export lacks. The S3 sync and import never touch Kafka's files, and Kafka does not stop
+writing when S3 has the day.
+
+Notifications (Telegram, Discord, email) come from both sources: the title names it (`(S3)` or `(Kafka)`) and the link opens
+that source. Spike and critical alerts fire for the day in progress on Kafka, so you learn early; the daily summary, the "folder
+has not arrived" check and the S3 sync warning are S3 only. Retention days apply to both sources.
+
+`monishield ingest --source kafka` ingests the Kafka source from the command line.
 
 ### Automatic S3 sync
 

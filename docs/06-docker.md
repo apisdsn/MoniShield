@@ -184,6 +184,10 @@ At build time only: `registry-1.docker.io` / `production.cloudflare.docker.com` 
 
 ### Kafka for Rancher logs (`kafka` profile, optional)
 
+Kafka is its own data source (since 2026-10-23): its files go to `/inbox/kafka/<date>/` (volume `s4-inbox`) and its database
+is `/data/kafka/monishield.duckdb` (volume `s4-data`); the S3 sources are untouched. Nothing to configure: the same volumes
+hold both, and the first start of this version moves Kafka's files out of the old shared layout.
+
 If there is no Kafka yet, compose provides a single-node broker (Apache Kafka 3.9, KRaft, without Zookeeper):
 
 ```sh

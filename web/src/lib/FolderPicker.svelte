@@ -4,7 +4,7 @@
   import { lang, t } from '../i18n.js';
   import { dLabel, fLabel, folderTag, logDay } from '../format.js';
   import { onMount } from 'svelte';
-  let { folders = [], value, disabled = false, onchange } = $props();
+  let { folders = [], source = 's3', value, disabled = false, onchange } = $props();
 
   // narrow screen: short label (date only) so it is not cut off; the name "Folder log" stays in a hidden <label>
   let compact = $state(false);
@@ -28,7 +28,7 @@
     return [...g.values()];
   });
   function label(f) {
-    const tag = folderTag(f.source), day = fLabel(f.folder, $lang);
+    const tag = folderTag(source), day = fLabel(f.folder, $lang);
     const d = tag ? $t(`folder.${tag}`, { date: day }) : day;   // S3 / Kafka / both are labelled
     let s = compact ? d : $t('folder.option', { date: d });
     if (!f.lines) s += ` · ${f.files_corrupt ? $t('folder.corrupt') : $t('folder.empty')}`;

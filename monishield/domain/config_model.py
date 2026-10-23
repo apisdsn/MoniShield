@@ -130,6 +130,12 @@ class Config:
     def db_path(self): return os.path.join(self.data_dir, 'monishield.duckdb')
 
     @property
+    def kafka_inbox(self): return os.path.join(self.inbox_dir, 'kafka')   # Kafka's own folders: <inbox>/kafka/<date>/…
+
+    @property
+    def kafka_db_path(self): return os.path.join(self.data_dir, 'kafka', 'monishield.duckdb')
+
+    @property
     def auth_url(self):
         """SQLAlchemy URL of the account database: PostgreSQL when configured, otherwise an SQLite file through the same ORM."""
         return self.auth_database_url or 'sqlite:///' + os.path.join(self.state_dir, 'auth.db')
@@ -155,3 +161,24 @@ def cast(value, default):
         if not isinstance(v, type(default)): raise ValueError(f'must be JSON of type {type(default).__name__}')
         return v
     return value
+
+
+class SourceConfig:
+    """The configuration seen by one data source (owner request 2026-10-23: S3 and Kafka each have their own database and
+    folders, nothing is mixed). A LIVE view of the one Config: every setting (also those changed from the page) is the same
+    object's, only the paths of the source are its own. Assigning writes through to the Config."""
+
+    def __init__(self, base, **own):
+        object.__setattr__(self, '_base', base)
+        object.__setattr__(self, '_own', own)
+
+    def __getattr__(self, name):
+        own = object.__getattribute__(self, '_own')
+        return own[name] if name in own else getattr(object.__getattribute__(self, '_base'), name)
+
+    def __setattr__(self, name, value): setattr(object.__getattribute__(self, '_base'), name, value)
+
+
+def kafka_config(cfg):
+    """Config for the Kafka source: own database and own inbox, no main log folder, no DbGate copy."""
+    return SourceConfig(cfg, log_dir='', inbox_dir=cfg.kafka_inbox, db_path=cfg.kafka_db_path, duckdb_snapshot=False)

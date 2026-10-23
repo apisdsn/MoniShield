@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, Request
 from monishield import __version__
 from monishield.infrastructure import refdata
 from monishield.infrastructure.queries.sql import wib
-from .common import cursor, folder_param, public, require_user_ready
+from monishield.application import sources
+from monishield.domain.kafka_message import configured as kafka_configured
+from .common import cursor, folder_param, public, require_user_ready, source_ctx
 
 router = APIRouter(prefix='/api')
 
@@ -18,7 +20,8 @@ def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)
     cfg = request.app.state.cfg
     # derived_at: when the folder's aggregates were last derived (data freshness marker in the UI, DRD §12)
     # source: where the folder's logs come from (log / s3 / kafka / upload) — S3 and Kafka folders are labelled in the UI
-    src = request.app.state.logfolders.source
+    ctx = source_ctx(request)   # the source being viewed: its folders, its database
+    src = ctx.logfolders.source
     folders = [dict(folder=str(f), range_start=wib(a), range_end=wib(b), lines=lines, services=svc, files=files, files_empty=empty, files_corrupt=corrupt,
                     derived_at=wib(d), source=src(str(f)))
                for f, a, b, lines, files, empty, corrupt, d, svc in cur.execute(
@@ -30,8 +33,11 @@ def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)
     if g and g[3] is not None:   # GeoLite2 often gives coordinates without a city name for the server IP: name from server_fallback
         kota, prov, cc, lat, lon = g[0] or kota, g[1] or prov, g[2] or cc, g[3], g[4]
     owner, located = cur.execute('SELECT count(*) FILTER (WHERE org IS NOT NULL), count(*) FILTER (WHERE lat IS NOT NULL) FROM ip_info').fetchone()
-    st = request.app.state.ingest.state
-    return dict(version=__version__, folders=folders, hosts=cfg.hosts,
+    st = ctx.ingest.state
+    kafka = request.app.state.sources[sources.KAFKA]
+    # which sources the page offers: Kafka when it is set up or already holds days
+    offered = [sources.S3] + ([sources.KAFKA] if kafka_configured(cfg) or kafka.warehouse.known_folders() else [])
+    return dict(version=__version__, source=ctx.source, sources=offered, folders=folders, hosts=cfg.hosts,
                 server=dict(ip=cfg.server_ip, city=kota, region=prov, cc=cc, lat=lat, lon=lon), dns_upstream=cfg.dns_upstream,
                 ip_data=dict(owner=owner > 0, location=located > 0, map=refdata.map_ready(cfg)), attribution=refdata.ATTRIBUTION,
                 ingest=dict(running=st['running'], phase=st['phase'], last_status=(st['last'] or {}).get('status'), error=st['error']),

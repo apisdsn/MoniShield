@@ -13,8 +13,11 @@ names are taken from `kubernetes.*`. This consumer rewrites the messages into th
 then periodic ingest (S4_KAFKA_INGEST_MINUTES) processes the grown files — every dashboard page works right away.
 
 Folder date follows the existing S3 export: folder D holds logs from (D-1 00:00, D 00:00] WIB, so today's events land in
-the folder dated TOMORROW (that folder is "filling up" until midnight). Folders already filled by Kafka are not fetched again
-by S3 sync (the folder is already known), so there are no duplicates; do not import S3 manually for the same date.
+the folder dated TOMORROW (that folder is "filling up" until midnight).
+
+Kafka is its own data source (owner request 2026-10-23): this feed runs in the context of the Kafka source, so it writes to
+<inbox>/kafka and its periodic ingest fills the Kafka database. S3 has its own folders and database: a date is never a mix
+of both, and the dashboard shows one source at a time.
 
 Delivery: offsets are committed AFTER the lines are written to disk (at-least-once). If the server dies in between, some
 lines may be written twice; rare and small.

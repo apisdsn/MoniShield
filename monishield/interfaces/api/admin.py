@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
 from monishield.application import ingest_service
-from .common import DATE, ApiError, client_ip, require_admin, require_admin_or_job
+from .common import DATE, ApiError, client_ip, require_admin, require_admin_or_job, source_ctx
 
 router = APIRouter(prefix='/api/admin')
 
@@ -34,20 +34,21 @@ def _audit(request, who, action, detail):
 @router.post('/ingest', status_code=202)
 def start_ingest(request: Request, body: IngestBody = IngestBody(), who=Depends(require_admin_or_job)):
     folder = _folder(body.folder)
-    request.app.state.ingest.start(folder, body.force, who['username'])
-    _audit(request, who, 'ingest.start', f"folder={folder or 'all'} force={body.force}")
+    ctx = source_ctx(request)   # ?source=kafka: ingest the Kafka source
+    ctx.ingest.start(folder, body.force, who['username'])
+    _audit(request, who, 'ingest.start', f"folder={folder or 'all'} force={body.force} source={ctx.source}")
     return dict(started=True)
 
 
 @router.get('/ingest')
 def ingest_status(request: Request, who=Depends(require_admin_or_job)):
-    return request.app.state.ingest.status()
+    return source_ctx(request).ingest.status()
 
 
 @router.post('/derive')
 def derive(request: Request, body: FolderBody = FolderBody(), admin=Depends(require_admin)):
     folder = _folder(body.folder)
-    done = ingest_service.derive(request.app.state, folder)
+    done = ingest_service.derive(source_ctx(request), folder)
     _audit(request, admin, 'derive', f"folder={folder or 'all'}")
     return dict(folders=done)
 
@@ -59,20 +60,20 @@ class DeleteBody(BaseModel):
 @router.get('/folders')
 def folders_list(request: Request, admin=Depends(require_admin)):
     """Folder management (owner request 2026-10-07): every folder known to the dashboard, on disk, or ignored."""
-    return ingest_service.folders(request.app.state)
+    return ingest_service.folders(source_ctx(request))
 
 
 @router.delete('/folders/{folder}')
 def folder_delete(folder: str, request: Request, delete_inbox: bool = True, admin=Depends(require_admin)):
     """Remove a folder from the dashboard; ?delete_inbox=false keeps its inbox files (the main log folder is never deleted)."""
-    r = ingest_service.delete_folder(request.app.state, _folder(folder, required=True), delete_inbox, admin['username'])
+    r = ingest_service.delete_folder(source_ctx(request), _folder(folder, required=True), delete_inbox, admin['username'])
     _audit(request, admin, 'folder.delete', f"folder={folder} ({r['files']} data files{'; inbox deleted' if r['inbox_deleted'] else ''}{'; ignored' if r['ignored'] else ''})")
     return r
 
 
 @router.post('/folders/{folder}/restore')
 def folder_restore(folder: str, request: Request, admin=Depends(require_admin)):
-    r = ingest_service.restore_folder(request.app.state, _folder(folder, required=True))
+    r = ingest_service.restore_folder(source_ctx(request), _folder(folder, required=True))
     _audit(request, admin, 'folder.restore', f'folder={folder}')
     return r
 
@@ -80,20 +81,21 @@ def folder_restore(folder: str, request: Request, admin=Depends(require_admin)):
 @router.get('/retention')
 def retention_view(request: Request, admin=Depends(require_admin)):
     """Data retention (S4_RETENTION_DAYS / S4_RETENTION_INBOX_DAYS): what the next cleanup removes + the last cleanup."""
-    return request.app.state.retention.view()
+    return source_ctx(request).retention.view()
 
 
 @router.post('/retention/run')
 def retention_run(request: Request, admin=Depends(require_admin)):
     """Run the cleanup now (otherwise once a day). Audited by the service."""
-    request.app.state.retention.run(admin['username'])
-    return request.app.state.retention.view()
+    ctx = source_ctx(request)
+    ctx.retention.run(admin['username'])
+    return ctx.retention.view()
 
 
 @router.post('/forget')
 def forget(body: FolderBody, request: Request, admin=Depends(require_admin)):
     folder = _folder(body.folder, required=True)
-    n = ingest_service.forget(request.app.state, folder)
+    n = ingest_service.forget(source_ctx(request), folder)
     _audit(request, admin, 'forget', f'folder={folder} ({n} files)')
     return dict(folder=folder, files=n)
 

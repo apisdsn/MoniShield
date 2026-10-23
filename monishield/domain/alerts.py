@@ -273,12 +273,13 @@ def _day(folder):
     except ValueError: return str(folder)
 
 
-def _link(cfg, folder, tab='command-center'):
-    return f"\n{_t(cfg, 'open')}: {cfg['dashboard_url'].rstrip('/')}/{tab}?folder={folder}" if cfg['dashboard_url'] else ''
+def _link(cfg, folder, tab='command-center', source='s3'):
+    src = '' if source == 's3' else f'&source={source}'   # the link opens the same data source as the message
+    return f"\n{_t(cfg, 'open')}: {cfg['dashboard_url'].rstrip('/')}/{tab}?folder={folder}{src}" if cfg['dashboard_url'] else ''
 
 
 # ------------------------------------------------------------------ evaluation
-def folder_events(cfg, folder, facts):
+def folder_events(cfg, folder, facts, source='s3'):
     """Events for one folder: [(event, key, title, text)]. facts = the folder's aggregate numbers (no IPs), from the warehouse:
     dict(kpi=<Command Center KPI>, base=<average baseline>, ngx_keys=<ingress KPI keys>, crit_cats=[top categories])."""
     a, b, ngx_keys = facts['kpi'], facts['base'], facts['ngx_keys']
@@ -302,13 +303,13 @@ def folder_events(cfg, folder, facts):
             lines.append(f"• {s}: {_num(e, lang)} ({_t(cfg, 'avg', n=b['n_all'], v=_num(m, lang))}{fac_txt})")
         if len(svc) > MAX_SERVICE_LINES: lines.append(_t(cfg, 'svc_more', n=len(svc) - MAX_SERVICE_LINES))
     if lines and cfg['events']['spike']:
-        out.append(('spike', f'spike:{folder}', _t(cfg, 'spike', d=_day(folder)), '\n'.join(lines) + _link(cfg, folder)))
+        out.append(('spike', f'spike:{folder}', _t(cfg, 'spike', d=_day(folder)), '\n'.join(lines) + _link(cfg, folder, source=source)))
     if a['crit_req'] and cfg['events']['critical']:
         text = _t(cfg, 'crit', n=_num(a['crit_req'], lang), ips=_num(a['kpi']['attack_ips'], lang), cats=', '.join(facts['crit_cats']) or '-')
-        out.append(('critical', f'critical:{folder}', _t(cfg, 'critical', d=_day(folder)), text + _link(cfg, folder, 'security')))
+        out.append(('critical', f'critical:{folder}', _t(cfg, 'critical', d=_day(folder)), text + _link(cfg, folder, 'security', source)))
     if cfg['events']['summary']:
         rows = [f"• {_t(cfg, k)}: {_num(vals[k], lang)}" for k in ('requests', 'n5xx', 'errors', 'atk_req', 'attack_ips', 'login_fail_ips') if vals.get(k) is not None]
-        out.append(('summary', f'summary:{folder}', _t(cfg, 'summary', d=_day(folder)), '\n'.join(rows) + _link(cfg, folder)))
+        out.append(('summary', f'summary:{folder}', _t(cfg, 'summary', d=_day(folder)), '\n'.join(rows) + _link(cfg, folder, source=source)))
     return out
 
 
