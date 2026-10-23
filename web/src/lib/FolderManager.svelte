@@ -49,7 +49,7 @@
         <div class="tags">
           {#if r.ignored}<SeverityTag level={2} text={$t('fm.tag.ignored')} />{:else if !r.in_db}<SeverityTag level={1} text={$t('fm.tag.new')} />{/if}
           {#if r.log}<SeverityTag level="ok" text={$t('fm.tag.log')} />{/if}
-          {#if r.inbox}<SeverityTag level="ok" text={r.source === 'kafka' ? $t('fm.tag.kafka') : r.source === 's3+kafka' ? $t('fm.tag.both') : $t('fm.tag.inbox')} />{/if}
+          {#if r.inbox}<SeverityTag level="ok" text={r.source === 'kafka' ? $t('fm.tag.kafka') : $t('fm.tag.inbox')} />{/if}
         </div>
         {#if r.ignored && r.ignored_by}<div class="muted small">{$t('fm.ignored_by', { user: r.ignored_by, time: r.ignored_at ? tWIB(utcToWib(r.ignored_at), $lang) : '' })}</div>{/if}
       {:else if r.ignored}

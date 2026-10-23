@@ -931,7 +931,7 @@ CLI output in English; GitHub Actions in English too.
 **Origin.** Owner request: folders filled by Kafka must be told apart from S3 folders.
 
 - The Kafka consumer marks the folders it writes (`.kafka-feed.json`); `/api/meta` and the admin folder list return
-  `source` (`log`, `kafka`, `s3`, `s3+kafka`, `upload`).
+  `source` (`log`, `kafka`, `s3`, `upload`).
 - The folder picker, page title and folder management show "YYYY-MM-DD (Kafka)" (i18n `folder.kafka`, `fm.tag.kafka`).
 - Folder date D holds the logs of (D-1 00:00, D 00:00] WIB, like the S3 export, so today's Kafka lines go into the folder
   dated tomorrow.

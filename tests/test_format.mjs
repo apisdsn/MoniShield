@@ -98,5 +98,5 @@ test('folder name -> log day (S3 and Kafka folders both hold the previous day)',
   assert.equal(fLabel('2026-10-21', 'en'), '20 Oct 2026');
   assert.equal(fLabel('not-a-date', 'en'), 'not-a-date');         // not a date folder: shown unchanged
   assert.equal(fLabel(null, 'en'), '');
-  assert.deepEqual(['s3', 'kafka', 's3+kafka', 'log', 'upload', undefined].map(folderTag), ['s3', 'kafka', 'both', null, null, null]);
+  assert.deepEqual(['s3', 'kafka', 'log', 'upload', undefined].map(folderTag), ['s3', 'kafka', null, null, null]);
 });
