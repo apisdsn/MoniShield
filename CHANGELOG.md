@@ -23,6 +23,9 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   (`lama` still accepted). The sidebar now names a failed last ingest instead of showing a raw dictionary key.
 
 ### Security
+- Behind Cloudflare the visitor's own address is used for the audit log and the login limits per IP: `S4_TRUST_CLOUDFLARE=true`
+  reads `CF-Connecting-IP`, believed only from Cloudflare's ranges (`S4_CLOUDFLARE_IPS`, built-in list), so a request sent
+  straight to the server cannot pick its own address.
 - HSTS on the `https` profile includes subdomains (`max-age=31536000; includeSubDomains`, no `preload`); the extra sites in
   `deploy/sites/*.caddy` use the same header. Every subdomain must then work over https; `docs/07-deploy-vps.md` explains
   the `max-age=0` way back.

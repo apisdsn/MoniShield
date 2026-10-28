@@ -8,7 +8,7 @@ import dataclasses, os, re, tomllib
 
 from monishield.domain.config_model import SECRETS, Config, env_name   # noqa: F401  (re-exported through this module)
 from monishield.domain.config_model import cast as _cast
-from monishield.domain import alerts, retention, services
+from monishield.domain import alerts, client_address, retention, services
 
 V2_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # project root (formerly the v2/ folder in the dashboard-logging repo)
 DOTENV = os.path.join(V2_DIR, '.env')   # read by load(); the Configuration page writes here (monishield/envfile.py)
@@ -75,6 +75,9 @@ def load(env=None, dotenv=None):
     if not 5 <= cfg.password_reset_minutes <= 1440: raise SystemExit('S4_PASSWORD_RESET_MINUTES must be 5..1440')
     if not 1 <= cfg.geo_max_age_days <= 30: raise SystemExit('S4_GEO_MAX_AGE_DAYS must be 1..30 (GeoLite2 license)')
     if cfg.url_maxmind.count('{}') != 1: raise SystemExit('S4_URL_MAXMIND must contain exactly one {} (edition name)')
+    cfg.cloudflare_ips = cfg.cloudflare_ips.strip() or client_address.CLOUDFLARE_IPS   # empty = the built-in list
+    try: client_address.networks(cfg.cloudflare_ips)
+    except ValueError: raise SystemExit('S4_CLOUDFLARE_IPS must be comma-separated IP ranges (CIDR)') from None
     if cfg.source_url and not re.match(r'https?://', cfg.source_url): raise SystemExit('S4_SOURCE_URL must start with http:// or https://')
     for k in ('url_maxmind', 'url_ip2asn', 'url_land', 'url_borders', 'url_provinces', 'url_countries', 'url_geonames', 'telegram_api'):
         if not re.match(r'https?://', getattr(cfg, k)): raise SystemExit(f'{env_name(k)} must start with http:// or https://')

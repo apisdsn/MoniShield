@@ -179,6 +179,9 @@ A browser that has seen it opens the domain **and every subdomain** only over ht
 - If a subdomain has a problem, change the header temporarily to `"max-age=0"` in the affected files and deploy: the
   next time a browser opens `apisdsn.com` (or the MoniShield domain) it forgets the HSTS rule. Put the year back once
   the subdomain works over https.
+- **Behind Cloudflare** (orange cloud): set `S4_TRUST_CLOUDFLARE=true` in `.env`. The app then takes the visitor's address
+  from `CF-Connecting-IP`, but only when the request came from one of Cloudflare's ranges (`S4_CLOUDFLARE_IPS`, built-in
+  list from cloudflare.com/ips); otherwise every visitor is recorded as a Cloudflare server and shares one login limit.
 - The header has no `preload` on purpose, and the domain is not registered at hstspreload.org (that list is hard to
   leave). TLS settings are Caddy's defaults (TLS 1.2 and newer).
 

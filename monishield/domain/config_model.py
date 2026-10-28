@@ -6,7 +6,7 @@ exception: third-party credentials use their standard names (MAXMIND_*, AWS_*, T
 """
 import dataclasses, json, os
 
-from monishield.domain import rules
+from monishield.domain import client_address, rules
 
 # secret -> its environment variable name
 SECRETS = {'admin_password': 'S4_ADMIN_PASSWORD', 'job_token': 'S4_JOB_TOKEN', 'jwt_secret': 'S4_JWT_SECRET',
@@ -34,6 +34,8 @@ class Config:
     offline: bool = False  # never download anything (IP databases, map files); use what is already in the cache
     cookie_secure: bool = True
     trust_proxy: bool = False  # true when a reverse proxy is in front: client IP is taken from X-Forwarded-For
+    trust_cloudflare: bool = False   # true behind Cloudflare: the visitor's IP is CF-Connecting-IP, only from Cloudflare addresses
+    cloudflare_ips: str = client_address.CLOUDFLARE_IPS   # Cloudflare's ranges (comma-separated CIDRs)
     admin_user: str = ''
     admin_password: str = ''
     job_token: str = ''

@@ -84,9 +84,11 @@ Questions answered along the way, recorded so they are not asked again:
    (or turn Actions off) so nothing deploys from it, and keep it private. `apisdsn/dashboard-logging` private too.
 2. **Rancher → Kafka for ingress-nginx**: ask a cluster owner to grant the `clusterloggings` permission, or to create
    the cluster-level Kafka output, so that nginx lines (needed for the map and attack detection) arrive.
-3. **Check `S4_IMPORT_REGION`** on the server: it no longer defaults to `ap-southeast-3`; set it in Configuration →
+3. **Next release**: add `S4_TRUST_CLOUDFLARE=true` to the server's `.env` right before the release reaches `prd` (the
+   running version refuses unknown keys), so the audit log and login limits see visitors instead of Cloudflare servers.
+4. **Check `S4_IMPORT_REGION`** on the server: it no longer defaults to `ap-southeast-3`; set it in Configuration →
    Object storage if S3 requests should go straight to the bucket's region.
-4. The old checkout `/srv/dashboard-logging/v2` on the server can be removed once nothing points to it.
+5. The old checkout `/srv/dashboard-logging/v2` on the server can be removed once nothing points to it.
 
 ## Known issues
 
