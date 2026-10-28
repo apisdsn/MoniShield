@@ -8,14 +8,14 @@ on a local computer). Update this file whenever an item below changes. The stage
 
 | Area | State |
 |---|---|
-| Repository | `apisdsn/MoniShield` (public). Branches `dev` → `stg` → `prd`; `prd` is the default branch. |
+| Repository | `apisdsn/MoniShield` (public since 2026-10-28, started from one clean commit). Branches `dev` → `stg` → `prd`; `dev` is the default branch. Daily work happens here. The history before the public release, which still holds the client's data, is the private archive `apisdsn/MoniShield-internal`: read it if needed, never push to it or copy its history here. |
 | Version | 2.0.0 + the *Unreleased* changes in `CHANGELOG.md` |
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
 | Tests | pytest: every test passes on the sample lines in `tests/fixtures/` (2 skip without optional services). Web: build, `tools/check_i18n.mjs`, `tests/test_format.mjs`. |
 | CI | `.github/workflows/ci.yml`: commit messages, pytest, web build, browser smoke test (`tools/smoke_browser.cjs`, every page for both sources and languages); all four must pass before the deploy job on `prd`. |
-| Deploy | Automatic deploy of `prd` built and tested with a stub; **not yet run against the real server** (see next steps). |
-| Server today | Still runs from the old checkout `/srv/dashboard-logging/v2` (compose project `monishield`). The first automatic deploy moves it to `/srv/MoniShield`, reusing the same containers and volumes. |
+| Deploy | Automatic deploy of `prd` from this repository, first run 2026-10-28 (`2e564e4`, app healthy). Secrets in the GitHub environment `production`. |
+| Server today | `/srv/MoniShield`, a checkout of this repository (compose project `monishield`, profiles `https,kafka`). The site's own values are in its `.env`; the portfolio site is `deploy/sites/portfolio.caddy` there (not in git). |
 
 ## What the owner asked for, and where it is
 
@@ -80,26 +80,13 @@ Questions answered along the way, recorded so they are not asked again:
 
 0. **Before relying on forgot password in production**: fill in Configuration → Mail server (SMTP), send the test email,
    and give every user an email address in Manage users (or let users set their own under *Account email*). Users without an email still need an admin to reset them.
-
-1. **First automatic deploy.**
-   - In the GitHub environment `production`: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`,
-     `DEPLOY_PORT` are set (2026-10-08). Add `DEPLOY_MIGRATE_FROM` = `/srv/dashboard-logging/v2` and check that
-     `DEPLOY_PROFILES` = `https,kafka`.
-   - From your own computer: `ssh -i ~/monishield-deploy deploy@SERVER_IP 'id && docker ps'` must work without a password.
-   - Promote: pull request `dev` → `stg` (open as #1 at the time of writing), merge with **Create a merge commit**;
-     then `stg` → `prd`. The merge into `prd` deploys. Follow [`07-deploy-vps.md`](07-deploy-vps.md) §13.
-   - After `==> deployed …: app is healthy`: open the site, then delete `DEPLOY_MIGRATE_FROM`.
-2. **Delete the `master` branch** in the GitHub UI (Branches page). Deleting it from a cloud session was refused by
-   the git proxy.
-3. **Rancher → Kafka for ingress-nginx**: ask a cluster owner to grant the `clusterloggings` permission, or to create
+1. **Archive the internal repository**: in `apisdsn/MoniShield-internal`, delete the `production` environment secrets
+   (or turn Actions off) so nothing deploys from it, and keep it private. `apisdsn/dashboard-logging` private too.
+2. **Rancher → Kafka for ingress-nginx**: ask a cluster owner to grant the `clusterloggings` permission, or to create
    the cluster-level Kafka output, so that nginx lines (needed for the map and attack detection) arrive.
-4. **Let's Encrypt on the real domain**: checked with Caddy's local certificates only; the first deploy with the
-   `https` profile is the real check ([`07-deploy-vps.md`](07-deploy-vps.md) §6–7).
-5. **Before the next deploy to `prd`**: `S4_IMPORT_REGION` no longer defaults to `ap-southeast-3`. If the server's
-   `.env` does not set it, fill in the region under Configuration → Object storage (or add
-   `S4_IMPORT_REGION=ap-southeast-3` to `.env`) so S3 requests go straight to the bucket's region.
-6. After the server runs from `/srv/MoniShield`: the old checkout `/srv/dashboard-logging/v2` can be removed and the
-   old repo archived (the old repo's `build_dashboard.py`, `dashboard_template.html` and log folders are never edited).
+3. **Check `S4_IMPORT_REGION`** on the server: it no longer defaults to `ap-southeast-3`; set it in Configuration →
+   Object storage if S3 requests should go straight to the bucket's region.
+4. The old checkout `/srv/dashboard-logging/v2` on the server can be removed once nothing points to it.
 
 ## Known issues
 

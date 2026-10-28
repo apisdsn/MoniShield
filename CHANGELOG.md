@@ -38,6 +38,8 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   cannot be dodged with a forged header; `?next=` of the sign-in page also refuses `/\…`.
 
 ### Maintenance
+- The public repository `apisdsn/MoniShield` is where work happens; `apisdsn/MoniShield-internal` keeps the earlier history
+  privately. `CLAUDE.md` and `docs/09-status.md` describe the layout, the owner's commit identity and the current deploy.
 - Unused code removed: the `SplitBar` component, 31 dictionary entries no screen uses, dead Python helpers
   (`detect.capec_name`, `rules.geo_scan`, `rules.DBIP_URL`, `rules.NGX_ERR_TS`, `alerts.DEFAULT`, two in `tools/kesetaraan.py`),
   unused imports and re-exports (callers now import from the domain module), and the 12 old browser scripts `tools/uji_*.cjs`
