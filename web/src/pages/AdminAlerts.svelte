@@ -1,0 +1,261 @@
+<!-- Notifications (owner request 2026-10-07; API /api/admin/alerts, monishield/alerts.py), admin only.
+     Three channels (Telegram, Discord, email): on/off + credentials + "Kirim uji" (send test). Secret fields (bot token, webhook URL,
+     SMTP password) are never refilled from the server: shown as "sudah diisi"; left empty on save = not
+     changed; "Hapus" removes them. Events sent, message language, dashboard address for links, daily folder check
+     time, daily report hour, and sending the daily report of any folder now (also the ones not sent yet). History of the last 30 sends. Messages never contain IP addresses (project rule). -->
+<script>
+  import { onMount } from 'svelte';
+  import { lang, t } from '../i18n.js';
+  import { api } from '../api.js';
+  import { fLabel, tWIB, utcToWib } from '../format.js';
+  import { errText } from '../srv.js';
+  import { toast } from '../lib/Toast.svelte';
+  import DataTable from '../lib/DataTable.svelte';
+  import SeverityTag from '../lib/SeverityTag.svelte';
+  import Skeleton from '../lib/Skeleton.svelte';
+  import ErrorState from '../lib/ErrorState.svelte';
+
+  let { embedded = false } = $props();   // inside the Notifications pop-up (lib/ConfigDialogs.svelte): no card, no heading
+  let v = $state.raw(null), error = $state(null), f = $state(null), busy = $state(false), err = $state(null), testing = $state('');
+  // secret fields typed anew (empty = unchanged)
+  let sec = $state({ tg_token: '', dc_hook: '' });
+  // daily report on request: chosen "source|folder", which button is sending
+  let repSel = $state(''), sending = $state('');
+  const repKey = (x) => `${x.source}|${x.folder}`;
+  const repName = (x) => `${fLabel(x.folder, $lang)}${x.source === 'kafka' ? ' (Kafka)' : ''}`;
+  // "not sent yet" counts the latest 7 folders of the main source (S3 when it has data), like the server
+  const repMain = $derived(v?.report_folders?.some((x) => x.source === 's3') ? 's3' : 'kafka');
+  const repPending = $derived((v?.report_folders || []).filter((x) => x.source === repMain).slice(0, 7).filter((x) => !x.sent).length);
+
+  function fill(r) {
+    v = r;
+    const c = r.channels;
+    f = {
+      tg: { enabled: c.telegram.enabled, chat_id: c.telegram.chat_id },
+      dc: { enabled: c.discord.enabled },
+      em: { enabled: c.email.enabled, host: c.email.host, port: c.email.port, security: c.email.security, username: c.email.username, sender: c.email.sender, to: c.email.to },
+      events: { ...r.events }, lang: r.lang, dashboard_url: r.dashboard_url || location.origin, missing_hour: r.missing_hour, summary_hour: r.summary_hour,
+    };
+    if (!r.report_folders.some((x) => repKey(x) === repSel)) repSel = r.report_folders[0] ? repKey(r.report_folders[0]) : '';
+    sec = { tg_token: '', dc_hook: '' };
+    const row = (p) => ({ on: p !== null, factor: p?.factor ?? 2, min: p?.min ?? 0 });
+    th = {
+      spike: Object.fromEntries(r.spike_all.map((k) => [k, row(r.spike[k])])),
+      def: row(r.service_spike.default),
+      svc: Object.entries(r.service_spike.services).map(([service, p]) => ({ service, ...row(p) })),
+    };
+  }
+  let th = $state(null);   // thresholds: {spike: {number: {on, factor, min}}, def: {...}, svc: [{service, on, factor, min}]}
+  const pair = (x) => (x.on ? { factor: Number(x.factor), min: Number(x.min) } : null);
+  const thBody = () => ({
+    spike: Object.fromEntries(Object.entries(th.spike).map(([k, x]) => [k, pair(x)])),
+    service_spike: { default: pair(th.def), services: Object.fromEntries(th.svc.filter((x) => x.service.trim()).map((x) => [x.service.trim().toLowerCase(), pair(x)])) },
+  });
+  function addSvc() { th.svc = [...th.svc, { service: '', on: true, factor: 3, min: 100 }]; }
+  async function load() { try { fill(await api.get('/api/admin/alerts')); error = null; } catch (e) { error = e; } }
+  onMount(load);
+
+  const body = (clear = []) => ({
+    channels: {
+      telegram: { enabled: f.tg.enabled, chat_id: f.tg.chat_id, bot_token: sec.tg_token },
+      discord: { enabled: f.dc.enabled, webhook_url: sec.dc_hook },
+      email: { enabled: f.em.enabled, to: f.em.to },   // server, account and sender: Configuration → Mail server
+    },
+    events: f.events, lang: f.lang, dashboard_url: f.dashboard_url, missing_hour: Number(f.missing_hour), summary_hour: Number(f.summary_hour), clear, ...thBody(),
+  });
+  async function save(clear = []) {
+    err = null; busy = true;
+    try { fill(await api.put('/api/admin/alerts', body(clear))); toast($t('al.saved')); }
+    catch (e) { err = $errText(e); } finally { busy = false; }
+  }
+  async function test(ch) {
+    err = null; testing = ch;
+    await save();                     // the test uses the SAVED settings: save the form first
+    if (err) { testing = ''; return; }
+    try {
+      const r = await api.post('/api/admin/alerts/test', { channel: ch });
+      toast($t(r.note ? 'al.test_note' : 'al.test_ok', { ch: $t(`al.ch.${ch}`) }));
+    }
+    catch (e) { err = $errText(e); } finally { testing = ''; await load(); }
+  }
+  async function sendReport(pending) {
+    err = null; sending = pending ? 'pending' : 'one';
+    await save();                     // the report uses the SAVED channels: save the form first
+    if (err) { sending = ''; return; }
+    const [source, folder] = repSel.split('|');
+    try {
+      const r = await api.post('/api/admin/alerts/report', pending ? { pending: true } : { folder, source });
+      if (r.failed.length) err = $t('al.rep.fail', { list: r.failed.map(repName).join(', ') });
+      if (r.sent.length) toast($t('al.rep.ok', { list: r.sent.map(repName).join(', ') }));
+      else if (!r.failed.length) toast($t('al.rep.none'));
+    } catch (e) { err = $errText(e); } finally { sending = ''; await load(); }
+  }
+  const has = (ch, k) => v?.channels[ch][k] === true;
+</script>
+
+{#if error && !v}
+  <ErrorState {error} onretry={load} />
+{:else if !f}
+  <Skeleton kpis={0} charts={1} />
+{:else}
+  <div class="grid">
+    <section class="wide" class:card={!embedded} aria-labelledby="al-h">
+      <header><h2 id="al-h" class:sr-only={embedded}>{$t('al.title')}</h2></header>
+      <p class="muted small">{$t('al.intro')}</p>
+
+      <form onsubmit={(e) => { e.preventDefault(); save(); }} novalidate>
+        <div class="chs">
+          <!-- Telegram -->
+          <fieldset class="ch">
+            <legend><label class="sw"><input type="checkbox" bind:checked={f.tg.enabled} /> {$t('al.ch.telegram')}</label></legend>
+            <label for="tg-token">{$t('al.tg.token')}</label>
+            <input id="tg-token" type="password" autocomplete="off" spellcheck="false" bind:value={sec.tg_token}
+              placeholder={has('telegram', 'bot_token') ? $t('al.secret_set') : '123456789:AA…'} />
+            {#if has('telegram', 'bot_token')}<button type="button" class="link" onclick={() => save(['telegram.bot_token'])}>{$t('al.clear')}</button>{/if}
+            <label for="tg-chat">{$t('al.tg.chat')}</label>
+            <input id="tg-chat" type="text" autocomplete="off" bind:value={f.tg.chat_id} placeholder="-1001234567890" />
+            <p class="muted xs">{$t('al.tg.help')}</p>
+            <button type="button" class="btn sm" onclick={() => test('telegram')} disabled={testing !== '' || !(has('telegram', 'bot_token') || sec.tg_token)}>{testing === 'telegram' ? $t('al.testing') : $t('al.test')}</button>
+          </fieldset>
+          <!-- Discord -->
+          <fieldset class="ch">
+            <legend><label class="sw"><input type="checkbox" bind:checked={f.dc.enabled} /> {$t('al.ch.discord')}</label></legend>
+            <label for="dc-hook">{$t('al.dc.hook')}</label>
+            <input id="dc-hook" type="password" autocomplete="off" spellcheck="false" bind:value={sec.dc_hook}
+              placeholder={has('discord', 'webhook_url') ? $t('al.secret_set') : 'https://discord.com/api/webhooks/…'} />
+            {#if has('discord', 'webhook_url')}<button type="button" class="link" onclick={() => save(['discord.webhook_url'])}>{$t('al.clear')}</button>{/if}
+            <p class="muted xs">{$t('al.dc.help')}</p>
+            <button type="button" class="btn sm" onclick={() => test('discord')} disabled={testing !== '' || !(has('discord', 'webhook_url') || sec.dc_hook)}>{testing === 'discord' ? $t('al.testing') : $t('al.test')}</button>
+          </fieldset>
+          <!-- Email -->
+          <fieldset class="ch">
+            <legend><label class="sw"><input type="checkbox" bind:checked={f.em.enabled} /> {$t('al.ch.email')}</label></legend>
+            <p class="muted xs">{$t('al.em.uses_server')}</p>
+            <label for="em-to">{$t('al.em.to')}</label><input id="em-to" type="text" autocomplete="off" bind:value={f.em.to} placeholder="team@example.com, lead@example.com" />
+            <button type="button" class="btn sm" onclick={() => test('email')} disabled={testing !== '' || !v.channels.email.host}>{testing === 'email' ? $t('al.testing') : $t('al.test')}</button>
+          </fieldset>
+        </div>
+
+        <fieldset class="ev">
+          <legend>{$t('al.events')}</legend>
+          {#each v.events_all as e}
+            <label class="sw"><input type="checkbox" bind:checked={f.events[e]} /> <span><b>{$t(`al.ev.${e}`)}</b> <span class="muted xs">{$t(`al.ev.${e}.d`)}</span></span></label>
+          {/each}
+        </fieldset>
+
+        <fieldset class="th">
+          <legend>{$t('al.th.title')}</legend>
+          <p class="muted xs">{$t('al.th.intro')}</p>
+          <div class="thgrid" role="group" aria-label={$t('al.th.title')}>
+            <span class="hd">{$t('al.th.number')}</span><span class="hd">{$t('al.th.factor')}</span><span class="hd">{$t('al.th.min')}</span><span></span>
+            {#each Object.keys(th.spike) as k}
+              <label class="sw nm" for={`th-${k}`}><input id={`th-${k}`} type="checkbox" bind:checked={th.spike[k].on} /> {$t(`al.m.${k}`)}</label>
+              <input type="number" min="1.1" max="100" step="0.1" aria-label={`${$t(`al.m.${k}`)}: ${$t('al.th.factor')}`} bind:value={th.spike[k].factor} disabled={!th.spike[k].on} />
+              <input type="number" min="0" step="1" aria-label={`${$t(`al.m.${k}`)}: ${$t('al.th.min')}`} bind:value={th.spike[k].min} disabled={!th.spike[k].on} />
+              <span></span>
+            {/each}
+          </div>
+          <p class="sub">{$t('al.th.svc_title')}</p>
+          <p class="muted xs">{$t('al.th.svc_intro')}</p>
+          <datalist id="th-services">{#each v.services as s}<option value={s}></option>{/each}</datalist>
+          <div class="thgrid">
+            <span class="hd">{$t('al.th.service')}</span><span class="hd">{$t('al.th.factor')}</span><span class="hd">{$t('al.th.min')}</span><span></span>
+            <label class="sw nm" for="th-def"><input id="th-def" type="checkbox" bind:checked={th.def.on} /> {$t('al.th.default')}</label>
+            <input type="number" min="1.1" max="100" step="0.1" aria-label={`${$t('al.th.default')}: ${$t('al.th.factor')}`} bind:value={th.def.factor} disabled={!th.def.on} />
+            <input type="number" min="0" step="1" aria-label={`${$t('al.th.default')}: ${$t('al.th.min')}`} bind:value={th.def.min} disabled={!th.def.on} />
+            <span></span>
+            {#each th.svc as x, i}
+              <div class="svcname">
+                <input type="checkbox" aria-label={$t('al.th.on')} bind:checked={x.on} />
+                <input type="text" list="th-services" autocomplete="off" spellcheck="false" aria-label={$t('al.th.service')} placeholder="example-service" bind:value={x.service} />
+              </div>
+              <input class="f" type="number" min="1.1" max="100" step="0.1" aria-label={`${x.service}: ${$t('al.th.factor')}`} bind:value={x.factor} disabled={!x.on} />
+              <input type="number" min="0" step="1" aria-label={`${x.service}: ${$t('al.th.min')}`} bind:value={x.min} disabled={!x.on} />
+              <button type="button" class="link" onclick={() => (th.svc = th.svc.filter((_, j) => j !== i))}>{$t('al.th.remove')}</button>
+            {/each}
+          </div>
+          <button type="button" class="btn sm add" onclick={addSvc}>{$t('al.th.add')}</button>
+          <p class="muted xs">{$t('al.th.off_help')}</p>
+        </fieldset>
+
+        <div class="opts">
+          <div><label for="al-lang">{$t('al.lang')}</label>
+            <select id="al-lang" bind:value={f.lang}><option value="id">Bahasa Indonesia</option><option value="en">English</option></select></div>
+          <div class="grow"><label for="al-url">{$t('al.url')}</label><input id="al-url" type="text" autocomplete="off" bind:value={f.dashboard_url} /></div>
+          <div><label for="al-hour">{$t('al.hour')}</label><input id="al-hour" type="number" min="0" max="23" bind:value={f.missing_hour} /></div>
+          <div><label for="al-rhour">{$t('al.rep.hour')}</label><input id="al-rhour" type="number" min="0" max="23" bind:value={f.summary_hour} /></div>
+        </div>
+        <p class="muted xs">{$t('al.privacy')}</p>
+
+        <fieldset class="rep">
+          <legend>{$t('al.rep.title')}</legend>
+          <p class="muted xs">{$t('al.rep.intro')}</p>
+          {#if v.report_folders.length}
+            <div class="reprow">
+              <div class="grow"><label for="rep-folder">{$t('al.rep.folder')}</label>
+                <select id="rep-folder" bind:value={repSel}>
+                  {#each v.report_folders as x}<option value={repKey(x)}>{repName(x)}{x.sent ? ` · ✓ ${$t('al.rep.sent_mark')}` : ''}</option>{/each}
+                </select></div>
+              <button type="button" class="btn sm" onclick={() => sendReport(false)} disabled={sending !== '' || !repSel}>{sending === 'one' ? $t('al.rep.sending') : $t('al.rep.send')}</button>
+              <button type="button" class="btn sm" onclick={() => sendReport(true)} disabled={sending !== '' || !repPending}>{sending === 'pending' ? $t('al.rep.sending') : $t('al.rep.pending', { n: repPending })}</button>
+            </div>
+          {:else}<p class="muted xs">{$t('al.rep.empty')}</p>{/if}
+        </fieldset>
+        {#if err}<p class="err" role="alert">{err}</p>{/if}
+        <div class="acts"><button class="btn primary" type="submit" disabled={busy}>{busy ? $t('action.saving') : $t('action.save')}</button></div>
+      </form>
+    </section>
+
+    <DataTable title={$t('al.history')} rows={v.history} limit={30} columns={[
+      { key: 'at', label: $t('col.time'), fmt: (r) => tWIB(utcToWib(r.at), $lang), cls: () => 'nowrap' },
+      { key: 'channel', label: $t('al.col.channel'), fmt: (r) => $t(`al.ch.${r.channel}`) },
+      { key: 'event', label: $t('al.col.event'), fmt: (r) => (r.event === 'test' ? $t('al.test') : $t(`al.ev.${r.event}`)) },
+      { key: 'summary', label: $t('al.col.summary'), fmt: (r) => r.summary || '', minw: 220 },
+      { key: 'ok', label: $t('col.status'), custom: true },
+    ]}>
+      {#snippet cell(r)}<SeverityTag level={r.ok ? (r.error ? 2 : 'ok') : 3} text={r.ok ? $t(r.error ? 'al.unconfirmed' : 'al.ok') : $t('al.fail')} />{#if r.error}<div class="muted xs">{$errText(r.error)}</div>{/if}{/snippet}
+    </DataTable>
+  </div>
+{/if}
+
+<style>
+  header { margin-bottom: 6px; }
+  h2 { font-size: 1rem; font-weight: 600; color: var(--heading); }
+  .small { font-size: 0.8125rem; } .xs { font-size: 0.75rem; margin-top: 4px; }
+  .chs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 14px; margin-top: 14px; }
+  fieldset { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0; }
+  legend { padding: 0 6px; font-weight: 600; }
+  label { font-size: 0.8125rem; color: var(--kpi-label); margin-top: 6px; }
+  .sw { display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 0.875rem; margin-top: 4px; }
+  .sw input { width: auto; min-height: 0; }
+  input:not([type='checkbox']), select { min-height: var(--touch); border-radius: 12px; width: 100%; }
+  .two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 10px; }
+  .two > div { display: flex; flex-direction: column; min-width: 0; }
+  .ch .btn { margin-top: 10px; align-self: flex-start; }
+  .btn.sm { min-height: 34px; padding: 0.3rem 0.9rem; font-size: 0.8125rem; }
+  .link { align-self: flex-start; background: none; border: 0; color: var(--err); font-size: 0.75rem; cursor: pointer; padding: 2px 0; }
+  .ev { margin-top: 14px; gap: 6px; }
+  .th { margin-top: 14px; }
+  .thgrid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(70px, 1fr) minmax(80px, 1fr) max-content; gap: 6px 10px; align-items: center; margin-top: 6px; }
+  .thgrid .hd { font-size: 0.75rem; color: var(--kpi-label); }
+  .thgrid .nm { margin-top: 0; }
+  .thgrid .link { align-self: center; }
+  .svcname { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .svcname input[type='checkbox'] { width: auto; min-height: 0; }
+  .sub { font-weight: 600; margin-top: 12px; font-size: 0.875rem; }
+  .th .add { align-self: flex-start; margin-top: 8px; }
+  .opts { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+  .opts > div { display: flex; flex-direction: column; min-width: 140px; }
+  .opts .grow { flex: 1 1 260px; }
+  .rep { margin-top: 14px; }
+  .reprow { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .reprow .grow { flex: 1 1 220px; display: flex; flex-direction: column; min-width: 0; }
+  .reprow .btn { min-height: var(--touch); }
+  .err { color: var(--err); font-size: 0.875rem; margin-top: 10px; }
+  .acts { margin-top: 14px; } .acts .btn { min-height: var(--touch); }
+  @media (max-width: 420px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 560px) {   /* phone: the service name gets its own line, its numbers go under the column headings */
+    .svcname { grid-column: 1 / -1; }
+    .thgrid .f { grid-column: 2; }
+  }
+</style>

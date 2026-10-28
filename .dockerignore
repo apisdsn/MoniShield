@@ -1,0 +1,23 @@
+# Only pyproject.toml, monishield/ and web/ (without node_modules/dist) are needed by the build.
+# Secrets, data and logs MUST NOT go into the image.
+.env
+.env.*
+!.env.example
+config.toml
+data/
+.venv/
+**/__pycache__/
+*.egg-info/
+.pytest_cache/
+web/node_modules/
+web/dist/
+tests/
+tools/
+docs/
+deploy/
+*.log
+*.log.gz
+*.duckdb
+*.db
+# dated log folders (if ever copied into v2/ to try things): they contain user IPs and emails
+[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/

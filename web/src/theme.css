@@ -1,0 +1,282 @@
+/* Design tokens (DRD §5) and shared base styles. Token names match dashboard_template.html; new or
+   named values are marked in DRD §5.1–§5.2. Sizes use rem (1rem = 16px) so text can be
+   enlarged to 200 % (DRD §9.5). Bundled fonts (B09), no Google Fonts. */
+@import '@fontsource/outfit/latin-400.css';
+@import '@fontsource/outfit/latin-500.css';
+@import '@fontsource/outfit/latin-600.css';
+@import '@fontsource/outfit/latin-700.css';
+@import '@fontsource/jetbrains-mono/latin-400.css';
+
+/* ------------------------------------------------------------------ dark theme (default, ASSUMPTION D2)
+   Palette C "Grafit netral" (owner choice 2026-10-27): neutral graphite background, flat cards a few steps lighter, teal
+   brand used sparingly; red, amber and green mean status only, so the chart series (--c1..--c10) never use them. Contrast checked by tools/check_contrast.mjs (DRD §5.6). */
+:root {
+  --bg: #0f1115;
+  --bg2: #14171c;
+  --card: #181b21;
+  --card2: #14171c;
+  --fg: #e8eaed;
+  --muted: #9aa3ad;
+  --line: #2a2f38;
+  --line-strong: #68717c;
+  --accent: #2dd4bf;
+  --accent2: #22d3ee;
+  --accent-text: #2dd4bf;
+  --violet: #a78bfa;
+  --err: #f43f5e;
+  --warn: #f59e0b;
+  --ok: #4ade80;
+  --ok-text: #86efac;
+  --neutral: #8a939e;
+  --land: #1d2127;
+  --coast: #68717c;
+  --glow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 30px rgba(0, 0, 0, 0.35);
+
+  /* derived */
+  --side-bg: #13161b;
+  --nav-fg: #b6bdc6;
+  --nav-hover: rgba(255, 255, 255, 0.05);
+  --nav-dot: #2f343c;
+  --kpi-label: #c9ced5;
+  --heading: #e8eaed;
+  --th-fg: #9aa3ad;
+  --th-bg: #181b21;
+  --code-fg: #cfd4da;
+  --pre-bg: #0c0e11;
+  --row-hover: rgba(45, 212, 191, 0.04);
+  --row-line: rgba(255, 255, 255, 0.06);
+  --badge-fg: #fda4af;
+  --badge-bg: rgba(244, 63, 94, 0.14);
+  --title-grad: linear-gradient(var(--fg), var(--fg));
+  --kpi-grad: linear-gradient(var(--fg), var(--fg));
+  --card-bg: #181b21;
+  --card-border: rgba(255, 255, 255, 0.08);
+  --page-bg: var(--bg);
+  --tooltip-bg: rgba(15, 17, 21, 0.96);
+  --tooltip-line: rgba(45, 212, 191, 0.3);
+  --grid: rgba(255, 255, 255, 0.06);
+  --scroll-thumb: #2f343c;
+  --seg-on: rgba(45, 212, 191, 0.14);
+  --focus: var(--accent);
+  --icon-bg: rgba(255, 255, 255, 0.04);
+  --icon-border: rgba(255, 255, 255, 0.09);
+  --chip-bg: rgba(255, 255, 255, 0.04);
+  --brand-bg: linear-gradient(135deg, #2dd4bf, #14b8a6);
+  --brand-fg: #04201c;
+  /* select arrow drawn by us: fixed position in every browser/OS */
+  --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%239aa3ad' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --chev-accent: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%232dd4bf' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* tag (§4.5) */
+  --sev3-fg: #fda4af;
+  --sev2-fg: #fcd34d;
+  --sev1-fg: #d0d5db;
+  --sevok-fg: #86efac;
+
+  /* chart series palette (§5.4) */
+  --c1: #2dd4bf; --c2: #60a5fa; --c3: #a78bfa; --c4: #f472b6; --c5: #9aa3ad;
+  --c6: #22d3ee; --c7: #818cf8; --c8: #e879f9; --c9: #93c5fd; --c10: #c4b5fd;
+
+  /* typography and shapes (§5.5) */
+  --font: 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --r-card: 16px;
+  --r-box: 12px;
+  --side-w: 236px;
+  --side-w-c: 68px;   /* left navigation collapsed into an icon rail */
+  --touch: 44px;
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ light theme */
+:root[data-theme='light'] {
+  --bg: #f6f7f9;
+  --bg2: #ffffff;
+  --card: #ffffff;
+  --card2: #f0f2f5;
+  --fg: #14181f;
+  --muted: #5a6470;
+  --line: #e2e5ea;
+  --line-strong: #7a838e;
+  --accent: #0f766e;
+  --accent2: #0891b2;
+  --accent-text: #0f766e;
+  --violet: #7c3aed;
+  --err: #be123c;
+  --warn: #b45309;
+  --ok: #047857;
+  --ok-text: #047857;
+  --land: #dfe3e8;
+  --coast: #7a838e;
+  --glow: 0 1px 2px rgba(15, 23, 32, 0.05), 0 8px 24px rgba(15, 23, 32, 0.06);
+
+  --side-bg: #ffffff;
+  --nav-fg: #3d4651;
+  --nav-hover: rgba(20, 24, 31, 0.05);
+  --nav-dot: #c9cfd6;
+  --kpi-label: #3d4651;
+  --heading: var(--fg);
+  --th-fg: #5a6470;
+  --th-bg: #ffffff;
+  --code-fg: #3d4651;
+  --pre-bg: #f6f7f9;
+  --row-line: rgba(20, 24, 31, 0.07);
+  --badge-fg: #9f1239;
+  --card-bg: #ffffff;
+  --card-border: #e2e5ea;
+  --page-bg: var(--bg);
+  --grid: rgba(20, 24, 31, 0.07);
+  --scroll-thumb: #c9cfd6;
+  --seg-on: rgba(15, 118, 110, 0.10);
+  --focus: var(--accent-text);
+  --icon-bg: #f6f7f9;
+  --icon-border: #e2e5ea;
+  --chip-bg: #f6f7f9;
+  --brand-bg: linear-gradient(135deg, #0d9488, #0f766e);
+  --brand-fg: #ffffff;
+  --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%235a6470' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --chev-accent: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%230f766e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  --sev3-fg: #9f1239;
+  --sev2-fg: #92400e;
+  --sev1-fg: #3d4651;
+  --sevok-fg: #047857;
+
+  --c1: #0d9488; --c2: #2563eb; --c3: #7c3aed; --c4: #db2777; --c5: #64748b;
+  --c6: #0891b2; --c7: #4f46e5; --c8: #c026d3; --c9: #3b82f6; --c10: #8b5cf6;
+  color-scheme: light;
+}
+
+/* ------------------------------------------------------------------ base */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--page-bg);
+  background-attachment: fixed;
+  color: var(--fg);
+  font: 0.875rem/1.5 var(--font);
+  overflow-x: hidden;
+}
+h1, h2, h3 { margin: 0; }
+a { color: var(--accent-text); }
+code, pre, .mono { font-family: var(--mono); font-size: 0.75rem; }
+code { color: var(--code-fg); }
+.muted { color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+.cap { text-transform: capitalize; }
+.sys { text-transform: lowercase; }
+.nowrap { white-space: nowrap; word-break: normal !important; }   /* system names in tables: not broken mid-word */   /* system names stay lowercase even when the parent is capitalized */
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Focus always visible (DRD §9.3, U21) */
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+:focus:not(:focus-visible) { outline: none; }
+
+/* Controls (DRD §4.8) */
+button, input, select, textarea { font: inherit; color: inherit; }
+select, input[type='text'], input[type='search'], input[type='password'], input[type='number'], input[type='email'], input[type='url'] {
+  font-size: 0.8125rem;
+  padding: 0.5625rem 0.875rem;
+  min-height: 2.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background-color: var(--bg2);
+  color: var(--fg);
+}
+select {
+  appearance: none; -webkit-appearance: none;
+  background-image: var(--chev); background-repeat: no-repeat; background-position: right 14px center; background-size: 12px 12px;
+  padding-right: 38px; line-height: 1.25;
+}
+select:disabled { opacity: 0.6; }
+/* the open list of a select: Chrome/Edge on Windows draw it with the select's background, and a transparent one falls back
+   to white while the text keeps the theme colour (light text on white in the dark theme), so the colours are set here */
+select option, select optgroup { background-color: var(--bg2); color: var(--fg); }
+select option:disabled { color: var(--muted); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  min-height: 2.5rem; padding: 0.45rem 1.1rem;
+  border: 1px solid var(--line-strong); border-radius: 999px;
+  background: transparent; color: var(--fg); font-size: 0.8125rem; font-weight: 500; cursor: pointer;
+  text-decoration: none;
+}
+.btn:hover { background: var(--nav-hover); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #04201c; font-weight: 600; }
+:root[data-theme='light'] .btn.primary { background: var(--accent-text); border-color: var(--accent-text); color: #fff; }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+/* accented action button (reference "Open Incident Report →") */
+.btn.accent { border-color: color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent-text); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.btn.accent:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.icon-btn {
+  display: inline-grid; place-items: center; width: var(--touch); height: var(--touch);
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg2); color: var(--fg); cursor: pointer;
+  font-size: 1rem; flex: none;
+}
+.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Pill button group (language, theme) */
+.seg { display: inline-flex; padding: 3px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg2); }
+.seg button {
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em;
+  padding: 0.375rem 0.875rem; border-radius: 999px; min-height: 2rem; min-width: 2.5rem;
+}
+.seg button[aria-checked='true'], .seg button[aria-pressed='true'] { background: var(--seg-on); color: var(--accent-text); }
+
+/* Cards and grid (DRD §2.1, §4) */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 18px; }
+.card, .kpi, .alert {
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-card); box-shadow: var(--glow);
+}
+.card { padding: 18px 20px; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card > header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; }
+.card h2 { font-size: 0.9375rem; font-weight: 600; color: var(--heading); text-transform: capitalize; }
+
+/* Context chip to the right of the card title (e.g. "per jam", "top 20") like the reference */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 8px; font-size: 0.71875rem;
+  color: var(--muted); background: var(--chip-bg); border: 1px solid var(--card-border); white-space: nowrap;
+}
+/* Small status dot inside a compact sentence (● 2 gagal) */
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); vertical-align: middle; margin-right: 5px; flex: none; }
+.dot.ok { background: var(--ok); } .dot.err { background: var(--err); } .dot.warn { background: var(--warn); } .dot.accent { background: var(--accent); }
+
+/* Status codes and levels (DRD §5.3) */
+.s2 { color: var(--ok-text); }
+.s3 { color: var(--neutral); }
+.s4, .WARN { color: var(--warn); font-weight: 600; }
+.s5, .ERROR, .EXC { color: var(--err); font-weight: 600; }
+.INFO { color: var(--accent-text); }
+.PERFORMANCE { color: var(--ok-text); }
+.DEBUG { color: var(--muted); }
+td.ERROR, td.EXC, td.WARN, td.INFO, td.PERFORMANCE, td.DEBUG { white-space: nowrap; }
+
+.scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+
+/* Narrow screen (DRD §8.2; redesign 2026-10-27): KPIs are one list in one card (label left, number right, lib/Kpi.svelte);
+   card grid 1 column */
+@media (max-width: 900px) {
+  .kpis {
+    grid-template-columns: minmax(0, 1fr); gap: 0; padding: 2px 0;
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-card); box-shadow: var(--glow);
+  }
+  .kpis > .kpi { background: none; border: 0; border-radius: 0; box-shadow: none; }
+  .kpis > .kpi + .kpi { border-top: 1px solid var(--row-line); }
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .card { padding: 16px; }
+}
+/* KPIs 4 + 4 / 4 + 3 without orphan rows on wide screens (DRD U5) */
+@media (min-width: 901px) { .kpis.four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

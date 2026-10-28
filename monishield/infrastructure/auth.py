@@ -1,0 +1,605 @@
+"""Accounts, sessions, roles, and audit (TRD §2.6, §8.2–§8.3).
+
+Owner decision 2026-10-06: account database = **PostgreSQL** via an **ORM** (SQLAlchemy), session token = **JWT**.
+DuckDB stays for log analytics only and must be rebuildable without losing accounts (TRD K11).
+
+- ORM: models below; database URL from `S4_AUTH_DATABASE_URL`. Empty = a SQLite file via the same ORM
+  (only for tests and local runs without a database server).
+- JWT (HS256, `S4_JWT_SECRET`) carries `sub` (user id) and `sid` (session id). Signature and expiry are
+  checked first, **then the session row is checked in the database**: so logout, password reset, deactivation,
+  and role changes take effect immediately, which pure JWT without server-side state cannot do.
+- Passwords: per-account salted scrypt (standard library). Passwords and tokens are never stored or logged.
+
+Two roles: 'admin' and 'user'. Per-module restrictions are deferred (TRD §8.3).
+"""
+import contextlib, datetime, hmac, re, secrets, threading, time
+
+import jwt
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, create_engine, delete, func, inspect, select, text, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+
+from monishield.domain import accounts
+from monishield.domain.accounts import PASSWORD_MAX, ROLES, AuthError, check_email, check_password, check_username, hash_password
+
+MAX_FAILED, LOCK_MINUTES = 5, 15
+RESET_GAP_S = 60   # forgot password: at most one temporary password per account per minute
+JOB_STATUS = {'berjalan': 'running', 'selesai': 'done', 'gagal': 'failed', 'coba': 'dry_run'}   # old -> current
+IP_MAX_FAILED, IP_WINDOW_S = 20, 15 * 60   # per-IP limiter, in memory
+JWT_ALG, JWT_ISS, JWT_SECRET_MIN = 'HS256', 'monishield', 32
+
+
+# ------------------------------------------------------------------ model ORM
+class Base(DeclarativeBase):
+    pass
+
+
+class User(Base):
+    __tablename__ = 'app_user'   # 'user' is a keyword in PostgreSQL
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    role: Mapped[str] = mapped_column(String(8), nullable=False)
+    password_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    password_salt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    hash_params: Mapped[str] = mapped_column(String(16), nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    failed_logins: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    locked_until: Mapped[datetime.datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    created_by: Mapped[str | None] = mapped_column(String(32))
+    last_login_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
+    email: Mapped[str | None] = mapped_column(String(254))   # lower case; unique index ux_app_user_email (created in Auth.__init__)
+
+
+class PasswordReset(Base):
+    """Pending temporary password from "forgot password" (owner request 2026-10-08). The old password keeps working until the
+    temporary one is used (so nobody can lock a user out by asking for resets); it expires, and is used at most once."""
+    __tablename__ = 'password_reset'
+    user_id: Mapped[int] = mapped_column(ForeignKey('app_user.user_id', ondelete='CASCADE'), primary_key=True)
+    password_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    password_salt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    hash_params: Mapped[str] = mapped_column(String(16), nullable=False)
+    requested_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    ip: Mapped[str | None] = mapped_column(String(64))
+
+
+class EmailChange(Base):
+    """Pending own email change (owner request 2026-10-08): codes sent to the old address (when there is one) and to the
+    new one, stored as keyed hashes; expires after CODE_MINUTES, at most CODE_ATTEMPTS wrong tries."""
+    __tablename__ = 'email_change'
+    user_id: Mapped[int] = mapped_column(ForeignKey('app_user.user_id', ondelete='CASCADE'), primary_key=True)
+    new_email: Mapped[str] = mapped_column(String(254), nullable=False)
+    old_hash: Mapped[bytes | None] = mapped_column(LargeBinary)
+    new_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    salt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    requested_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    requested_by: Mapped[str | None] = mapped_column(String(64))   # admin who entered the address (2026-10-12); None = the user
+
+
+class Session(Base):
+    __tablename__ = 'app_session'
+    sid: Mapped[str] = mapped_column(String(32), primary_key=True)   # the `sid` claim in the JWT
+    user_id: Mapped[int] = mapped_column(ForeignKey('app_user.user_id', ondelete='CASCADE'), nullable=False, index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    last_seen_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(200))
+
+
+class AuditLog(Base):
+    __tablename__ = 'audit_log'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    username: Mapped[str | None] = mapped_column(String(40))
+    action: Mapped[str] = mapped_column(String(40), nullable=False)
+    detail: Mapped[str | None] = mapped_column(Text)
+    ip: Mapped[str | None] = mapped_column(String(64))
+
+
+class ImportJob(Base):
+    __tablename__ = 'import_job'   # filled by Stage 19 (S3 import)
+    job_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    requested_by: Mapped[str | None] = mapped_column(String(40))
+    bucket: Mapped[str | None] = mapped_column(String(80))
+    prefix: Mapped[str | None] = mapped_column(String(300))
+    folder: Mapped[str | None] = mapped_column(String(10))
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    bytes: Mapped[int | None] = mapped_column(BigInteger)
+    files: Mapped[int | None] = mapped_column(Integer)
+    skipped: Mapped[int | None] = mapped_column(Integer)
+    message: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    finished_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
+
+
+class AppSetting(Base):
+    """Settings an admin changes from the UI (e.g. automatic S3 sync). JSON values; not secrets."""
+    __tablename__ = 'app_setting'
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    updated_by: Mapped[str | None] = mapped_column(String(40))
+
+
+class AlertLog(Base):
+    """Notifications sent / failed (monishield/alerts.py). `key` prevents duplicate sends for the same event."""
+    __tablename__ = 'alert_log'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    event: Mapped[str] = mapped_column(String(40), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+def now(): return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)   # all times UTC
+def iso(dt): return dt.isoformat(sep=' ') if dt else None
+
+
+def redact_url(url):
+    """Database URL without the password, for printing."""
+    return re.sub(r'(://[^:/@]+):[^@]*@', r'\1:***@', url or '')
+
+
+class Auth:
+    def __init__(self, url, jwt_secret=None, idle_minutes=60, max_hours=12):
+        """url = SQLAlchemy URL (postgresql+psycopg://… or sqlite:///…). jwt_secret is required for login/session verification."""
+        if jwt_secret is not None and len(jwt_secret) < JWT_SECRET_MIN:
+            raise ValueError(f'S4_JWT_SECRET must be at least {JWT_SECRET_MIN} characters')
+        self.url, self.secret, self.idle, self.max_hours = url, jwt_secret, idle_minutes, max_hours
+        sqlite = url.startswith('sqlite')
+        self.engine = create_engine(url, pool_pre_ping=True, **(dict(connect_args={'check_same_thread': False}) if sqlite else dict(pool_size=5, max_overflow=5)))
+        self._Session = sessionmaker(self.engine, expire_on_commit=False)
+        self._ip_fail, self._lock = {}, threading.Lock()
+        # dummy salt: verification is still computed for nonexistent users, so response time does not leak whether a user exists
+        self._dummy_salt = secrets.token_bytes(16)
+        Base.metadata.create_all(self.engine)   # ponytail: no migration tool; add Alembic when the account schema first changes
+        self._migrate()
+        with self.engine.begin() as c:   # import job status was Indonesian before 2026-10-08
+            for a, b in JOB_STATUS.items(): c.execute(update(ImportJob).where(ImportJob.status == a).values(status=b))
+
+    def _migrate(self):
+        """Columns added after the first release (create_all does not alter existing tables)."""
+        cols = {c['name'] for c in inspect(self.engine).get_columns('app_user')}
+        with self.engine.begin() as c:
+            if 'email' not in cols: c.execute(text('ALTER TABLE app_user ADD COLUMN email VARCHAR(254)'))
+            c.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS ux_app_user_email ON app_user (email)'))
+            if 'requested_by' not in {x['name'] for x in inspect(c).get_columns('email_change')}:
+                c.execute(text('ALTER TABLE email_change ADD COLUMN requested_by VARCHAR(64)'))
+
+    @contextlib.contextmanager
+    def _tx(self):
+        """One ORM transaction. AuthError = deliberate rejection: failure counters and audit are STILL saved."""
+        s = self._Session()
+        try:
+            yield s
+            s.commit()
+        except AuthError:
+            s.commit(); raise
+        except BaseException:
+            s.rollback(); raise
+        finally:
+            s.close()
+
+    def close(self): self.engine.dispose()
+
+    # ---------------------------------------------------------------- audit
+    def _audit(self, s, action, user=None, detail=None, ip=None):
+        """Trail of actions that change access or data. Never contains passwords or tokens."""
+        uid = user.get('user_id') if isinstance(user, dict) else getattr(user, 'user_id', None)
+        name = user.get('username') if isinstance(user, dict) else getattr(user, 'username', None)
+        s.add(AuditLog(at=now(), user_id=uid, username=name, action=action, detail=detail, ip=ip))
+
+    def audit(self, action, user=None, detail=None, ip=None):
+        with self._tx() as s: self._audit(s, action, user, detail, ip)
+
+    def audit_list(self, limit=50, offset=0):
+        with self._tx() as s:
+            total = s.scalar(select(func.count()).select_from(AuditLog))
+            rows = [dict(id=r.id, at=iso(r.at), username=r.username, action=r.action, detail=r.detail, ip=r.ip)
+                    for r in s.scalars(select(AuditLog).order_by(AuditLog.id.desc()).limit(limit).offset(offset))]
+        return total, rows
+
+    # ---------------------------------------------------------------- import_job (Stage 19)
+    @staticmethod
+    def _job(j):
+        return dict(job_id=j.job_id, requested_by=j.requested_by, bucket=j.bucket, prefix=j.prefix, folder=j.folder, status=j.status,
+                    bytes=j.bytes, files=j.files, skipped=j.skipped, message=j.message, started_at=iso(j.started_at), finished_at=iso(j.finished_at))
+
+    def job_create(self, by, bucket, prefix, folder, status='running'):
+        with self._tx() as s:
+            j = ImportJob(requested_by=(by or '')[:40] or None, bucket=bucket, prefix=prefix, folder=folder, status=status, started_at=now())
+            s.add(j); s.flush()
+            return j.job_id
+
+    def job_finish(self, job_id, status, bytes=None, files=None, skipped=None, message=None):
+        with self._tx() as s:
+            j = s.get(ImportJob, job_id)
+            if j: j.status, j.bytes, j.files, j.skipped, j.message, j.finished_at = status, bytes, files, skipped, (message or '')[:2000] or None, now()
+
+    def job_get(self, job_id):
+        with self._tx() as s:
+            j = s.get(ImportJob, job_id)
+            return self._job(j) if j else None
+
+    def job_list(self, limit=20):
+        with self._tx() as s: return [self._job(j) for j in s.scalars(select(ImportJob).order_by(ImportJob.job_id.desc()).limit(limit))]
+
+    # ---------------------------------------------------------------- settings from the UI
+    def setting_get(self, key):
+        """-> value (json.loads result) or None if never saved."""
+        import json
+        with self._tx() as s:
+            r = s.get(AppSetting, key)
+            return dict(value=json.loads(r.value), updated_at=iso(r.updated_at), updated_by=r.updated_by) if r else None
+
+    def setting_set(self, key, value, by=None):
+        import json
+        with self._tx() as s:
+            r = s.get(AppSetting, key)
+            if r is None: r = AppSetting(key=key); s.add(r)
+            r.value, r.updated_at, r.updated_by = json.dumps(value, ensure_ascii=False), now(), (by or '')[:40] or None
+
+    def setting_delete(self, key):
+        """Delete an old setting (moved to .env; settings.migrate)."""
+        with self._tx() as s:
+            r = s.get(AppSetting, key)
+            if r is not None: s.delete(r)
+
+    # ---------------------------------------------------------------- notification history
+    def alert_seen(self, key):
+        """Is there already a SUCCESSFUL send for this key (to any channel)?"""
+        with self._tx() as s:
+            return s.scalar(select(func.count()).select_from(AlertLog).where(AlertLog.key == key, AlertLog.ok.is_(True))) > 0
+
+    def alert_add(self, key, event, channel, ok, summary=None, error=None):
+        with self._tx() as s:
+            s.add(AlertLog(at=now(), key=key[:120], event=event[:40], channel=channel[:20], ok=bool(ok), summary=(summary or '')[:500] or None,
+                           error=(error or '')[:500] or None))
+
+    def alert_list(self, limit=30):
+        with self._tx() as s:
+            return [dict(at=iso(a.at), event=a.event, channel=a.channel, ok=a.ok, summary=a.summary, error=a.error)
+                    for a in s.scalars(select(AlertLog).order_by(AlertLog.id.desc()).limit(limit))]
+
+    # ---------------------------------------------------------------- user
+    @staticmethod
+    def _public(u):
+        return dict(user_id=u.user_id, username=u.username, display_name=u.display_name, email=u.email, role=u.role, active=bool(u.active),
+                    must_change_password=bool(u.must_change_password), created_at=iso(u.created_at), last_login_at=iso(u.last_login_at),
+                    locked=bool(u.locked_until and u.locked_until > now()))
+
+    def _get(self, s, user_id, lock=False):
+        q = select(User).where(User.user_id == user_id)
+        u = s.scalar(q.with_for_update() if lock else q)
+        if not u: raise AuthError('not_found', 'User not found.', 404)
+        return u
+
+    def count_users(self):
+        with self._tx() as s: return s.scalar(select(func.count()).select_from(User))
+
+    def list_users(self):
+        """Users + the address an email change is waiting on (email_pending, email_pending_by = admin or None)."""
+        with self._tx() as s:
+            wait = {r.user_id: r for r in s.scalars(select(EmailChange).where(EmailChange.expires_at > now()))}
+            out = []
+            for u in s.scalars(select(User).order_by(User.username)):
+                d, r = self._public(u), wait.get(u.user_id)
+                d.update(email_pending=r.new_email if r else None, email_pending_by=r.requested_by if r else None)
+                out.append(d)
+            return out
+
+    def get_user(self, user_id):
+        with self._tx() as s: return self._public(self._get(s, user_id))
+
+    def create_user(self, username, display_name, role, password, by=None, ip=None, must_change=True, email=None):
+        username = check_username(username.strip().lower() if isinstance(username, str) else username)
+        email = check_email(email)
+        if role not in ROLES: raise AuthError('invalid_role', "Role must be 'admin' or 'user'.")
+        display_name = (display_name or username).strip()[:80] or username
+        h, salt = hash_password(check_password(password, username))
+        with self._tx() as s:
+            if email and s.scalar(select(User.user_id).where(User.email == email)): raise AuthError('email_taken', 'This email address is already used by another account.', 409)
+            u = User(username=username, display_name=display_name, role=role, password_hash=h, password_salt=salt, hash_params=':'.join(map(str, accounts.SCRYPT)),
+                     must_change_password=must_change, active=True, failed_logins=0, created_at=now(), created_by=by['username'] if by else None, email=email)
+            s.add(u)
+            try: s.flush()
+            except IntegrityError:
+                s.rollback(); raise AuthError('username_taken', 'Username already taken.', 409) from None
+            self._audit(s, 'user.create', by, f'{username} ({role})', ip)
+            return self._public(u)
+
+    @staticmethod
+    def _admins_left(s, excluding):
+        return s.scalar(select(func.count()).select_from(User).where(User.role == 'admin', User.active.is_(True), User.user_id != excluding))
+
+    def update_user(self, user_id, by, ip=None, display_name=None, role=None, active=None, email=None):
+        """email: None = unchanged, '' = removed. A NEW address is never set here (owner decision 2026-10-12): it goes
+        through email_change_by_admin, so it only counts once its owner has confirmed it with a code."""
+        new_email = check_email(email) if email is not None else None
+        if new_email: raise AuthError('email_needs_code', 'A new email is set through the email change, which sends a code to it.', 400)
+        with self._tx() as s:
+            u = self._get(s, user_id, lock=True)
+            if role is not None and role not in ROLES: raise AuthError('invalid_role', "Role must be 'admin' or 'user'.")
+            loses_admin = u.role == 'admin' and u.active and ((role is not None and role != 'admin') or active is False)
+            if loses_admin and not self._admins_left(s, user_id):
+                raise AuthError('last_admin', 'The last admin cannot be demoted or deactivated.', 409)
+            changes = []
+            if display_name is not None:
+                u.display_name = display_name.strip()[:80] or u.username; changes.append('name')
+            if role is not None and role != u.role:
+                changes.append(f'role {u.role} -> {role}'); u.role = role
+            if email is not None and new_email != u.email:
+                u.email = None; changes.append('email removed')
+                s.execute(delete(EmailChange).where(EmailChange.user_id == user_id))
+                s.execute(delete(PasswordReset).where(PasswordReset.user_id == user_id))   # a pending reset went to the old address
+            if active is not None and bool(active) != bool(u.active):
+                u.active, u.failed_logins, u.locked_until = bool(active), 0, None
+                changes.append('activated' if active else 'deactivated')
+                if not active: s.execute(delete(Session).where(Session.user_id == user_id))
+            if changes: self._audit(s, 'user.update', by, f"{u.username}: {', '.join(changes)}", ip)
+            s.flush()
+            return self._public(u)
+
+    def delete_user(self, user_id, by, ip=None):
+        with self._tx() as s:
+            u = self._get(s, user_id, lock=True)
+            if by and by['user_id'] == user_id: raise AuthError('self_delete', 'You cannot delete your own account.', 409)
+            if u.role == 'admin' and u.active and not self._admins_left(s, user_id):
+                raise AuthError('last_admin', 'The last admin cannot be deleted.', 409)
+            s.execute(delete(Session).where(Session.user_id == user_id))   # explicit: SQLite does not always run ON DELETE CASCADE
+            self._audit(s, 'user.delete', by, u.username, ip)
+            s.delete(u)
+
+    @staticmethod
+    def _set_password(u, password, must_change):
+        u.password_hash, u.password_salt = hash_password(password)
+        u.hash_params, u.must_change_password, u.failed_logins, u.locked_until = ':'.join(map(str, accounts.SCRYPT)), must_change, 0, None
+
+    def reset_password(self, user_id, by, ip=None):
+        """New temporary password (returned ONCE); all the user's sessions are revoked; must be changed at login."""
+        temp = accounts.temp_password()
+        with self._tx() as s:
+            u = self._get(s, user_id, lock=True)
+            self._set_password(u, temp, True)
+            s.execute(delete(Session).where(Session.user_id == user_id))
+            s.execute(delete(PasswordReset).where(PasswordReset.user_id == user_id))
+            self._audit(s, 'user.reset_password', by, u.username, ip)
+        return temp
+
+    def change_password(self, user, old, new, keep_token=None, ip=None):
+        keep = (self._claims(keep_token, verify_exp=False) or {}).get('sid') if keep_token else None
+        with self._tx() as s:
+            u = s.scalar(select(User).where(User.user_id == user['user_id']).with_for_update())
+            if not u or not isinstance(old, str) or not self._verify(u, old): raise AuthError('wrong_password', 'Current password is wrong.', 403)
+            check_password(new, u.username)
+            if hmac.compare_digest(old, new): raise AuthError('invalid_password', 'The new password must differ from the current password.')
+            self._set_password(u, new, False)
+            s.execute(delete(Session).where(Session.user_id == u.user_id, Session.sid != (keep or '')))   # other sessions revoked
+            s.execute(delete(PasswordReset).where(PasswordReset.user_id == u.user_id))
+            self._audit(s, 'user.change_password', user, None, ip)
+
+    # ---------------------------------------------------------------- forgot password (owner request 2026-10-08)
+    def request_reset(self, login, minutes, ip=None):
+        """Issue a temporary password for the account with this username or email. -> (user, temporary password) to be
+        emailed, or None when there is nothing to send (unknown account, no email, deactivated, asked less than a minute
+        ago). Never says which: the caller answers the same in every case."""
+        login = login.strip().lower()[:254] if isinstance(login, str) else ''
+        with self._tx() as s:
+            u = s.scalar(select(User).where(User.email == login if '@' in login else User.username == login).with_for_update()) if login else None
+            if not u or not u.active or not u.email:
+                self._audit(s, 'password.forgot', u, 'nothing sent: ' + ('no email on the account' if u and not u.email else 'account inactive' if u else f'unknown login {login[:40]}'), ip)
+                return None
+            r = s.get(PasswordReset, u.user_id)
+            t = now()
+            if r and r.requested_at > t - datetime.timedelta(seconds=RESET_GAP_S):
+                self._audit(s, 'password.forgot', u, 'nothing sent: asked again within a minute', ip); return None
+            temp = accounts.temp_password()
+            h, salt = hash_password(temp)
+            if not r: r = PasswordReset(user_id=u.user_id); s.add(r)
+            r.password_hash, r.password_salt, r.hash_params = h, salt, ':'.join(map(str, accounts.SCRYPT))
+            r.requested_at, r.expires_at, r.ip = t, t + datetime.timedelta(minutes=minutes), ip
+            self._audit(s, 'password.forgot', u, f'temporary password issued, valid {minutes} minutes', ip)
+            return self._public(u), temp
+
+    def cancel_reset(self, user_id, reason, ip=None):
+        """The email could not be sent: drop the temporary password and record why (never the password itself)."""
+        with self._tx() as s:
+            s.execute(delete(PasswordReset).where(PasswordReset.user_id == user_id))
+            u = s.get(User, user_id)
+            self._audit(s, 'password.forgot', u, f'email not sent: {reason}'[:300], ip)
+
+    # ---------------------------------------------------------------- own email change (owner request 2026-10-08)
+    def email_change_start(self, user, password, new_email, ip=None):
+        """Check the current password, then create the codes. -> dict(user, old_email, new_email, old_code | None, new_code).
+        The codes leave this method only to be emailed."""
+        new_email = check_email(new_email)
+        if not new_email: raise AuthError('invalid_email', 'Invalid email address.')
+        with self._tx() as s:
+            u = s.scalar(select(User).where(User.user_id == user['user_id']).with_for_update())
+            if not u or not isinstance(password, str) or not self._verify(u, password[:PASSWORD_MAX]):
+                self._audit(s, 'email.change_start', u, 'refused: wrong password', ip)
+                raise AuthError('wrong_password', 'Current password is wrong.', 403)
+            if new_email == u.email: raise AuthError('email_same', 'This is already the email of your account.')
+            if s.scalar(select(User.user_id).where(User.email == new_email, User.user_id != u.user_id)):
+                raise AuthError('email_taken', 'This email address is already used by another account.', 409)
+            r, t = s.get(EmailChange, u.user_id), now()
+            if r and r.requested_at > t - datetime.timedelta(seconds=RESET_GAP_S):
+                raise AuthError('too_soon', 'New codes can be requested once a minute.', 429)
+            salt = secrets.token_bytes(16)
+            old_code, new_code = (accounts.code() if u.email else None), accounts.code()
+            if not r: r = EmailChange(user_id=u.user_id); s.add(r)
+            r.new_email, r.salt, r.attempts, r.requested_at = new_email, salt, 0, t
+            r.expires_at = t + datetime.timedelta(minutes=accounts.CODE_MINUTES)
+            r.old_hash = accounts.code_hash(salt, old_code) if old_code else None
+            r.new_hash = accounts.code_hash(salt, new_code)
+            self._audit(s, 'email.change_start', u, 'codes sent to the ' + ('old and new addresses' if old_code else 'new address'), ip)
+            return dict(user=self._public(u), old_email=u.email, new_email=new_email, old_code=old_code, new_code=new_code)
+
+    def email_change_pending(self, user):
+        with self._tx() as s:
+            r = s.get(EmailChange, user['user_id'])
+            if not r or r.expires_at <= now(): return None
+            return dict(new_email=r.new_email, needs_old=r.old_hash is not None, expires_at=iso(r.expires_at), by_admin=r.requested_by)
+
+    def email_change_by_admin(self, user_id, admin, admin_password, new_email, ip=None):
+        """An admin enters a new address for ANOTHER user (owner decision 2026-10-12, option B): checked with the admin's
+        own password; the address only becomes the account's email when its owner enters the code sent to it (signed in,
+        Account email). The current email keeps working until then. -> dict(user, old_email, new_email, new_code)."""
+        new_email = check_email(new_email)
+        if not new_email: raise AuthError('invalid_email', 'Invalid email address.')
+        with self._tx() as s:
+            a = s.scalar(select(User).where(User.user_id == admin['user_id']))
+            if not a or not isinstance(admin_password, str) or not self._verify(a, admin_password[:PASSWORD_MAX]):
+                self._audit(s, 'email.change_start', admin, f'refused for user #{user_id}: wrong admin password', ip)
+                raise AuthError('wrong_password', 'Your password is wrong.', 403)
+            u = self._get(s, user_id, lock=True)
+            if u.user_id == a.user_id:
+                raise AuthError('own_email', 'Change your own email under Account email: it needs codes sent to the old and the new address.', 409)
+            if new_email == u.email: raise AuthError('email_same', 'This is already the email of this account.')
+            if s.scalar(select(User.user_id).where(User.email == new_email, User.user_id != u.user_id)):
+                raise AuthError('email_taken', 'This email address is already used by another account.', 409)
+            r, t = s.get(EmailChange, u.user_id), now()
+            if r and r.requested_at > t - datetime.timedelta(seconds=RESET_GAP_S):
+                raise AuthError('too_soon', 'New codes can be requested once a minute.', 429)
+            salt, code = secrets.token_bytes(16), accounts.code()
+            if not r: r = EmailChange(user_id=u.user_id); s.add(r)
+            r.new_email, r.salt, r.attempts, r.requested_at, r.requested_by = new_email, salt, 0, t, a.username
+            r.expires_at = t + datetime.timedelta(minutes=accounts.ADMIN_CODE_MINUTES)
+            r.old_hash, r.new_hash = None, accounts.code_hash(salt, code)
+            self._audit(s, 'email.change_start', admin, f'{u.username}: new address entered by an admin, code sent to it', ip)
+            return dict(user=self._public(u), old_email=u.email, new_email=new_email, new_code=code)
+
+    def email_change_cancel(self, user, ip=None, reason=None):
+        with self._tx() as s:
+            n = s.execute(delete(EmailChange).where(EmailChange.user_id == user['user_id'])).rowcount
+            if n: self._audit(s, 'email.change_cancel', user, reason, ip)
+
+    def email_change_confirm(self, user, old_code, new_code, ip=None):
+        """Both codes right -> the email is changed. -> (user, previous email)."""
+        with self._tx() as s:
+            u = s.scalar(select(User).where(User.user_id == user['user_id']).with_for_update())
+            r = s.get(EmailChange, user['user_id'])
+            if not u or not r or r.expires_at <= now():
+                if r: s.delete(r)
+                raise AuthError('email_change_missing', 'No email change is waiting, or its codes expired. Start again.', 400)
+            if r.attempts >= accounts.CODE_ATTEMPTS:
+                s.delete(r); raise AuthError('too_many_attempts', 'Too many wrong codes. Start again.', 429)
+            ok_new = hmac.compare_digest(accounts.code_hash(r.salt, new_code or ''), r.new_hash)
+            ok_old = r.old_hash is None or hmac.compare_digest(accounts.code_hash(r.salt, old_code or ''), r.old_hash)
+            if not (ok_new and ok_old):
+                r.attempts += 1
+                self._audit(s, 'email.change_fail', u, f'wrong code ({r.attempts}/{accounts.CODE_ATTEMPTS})', ip)
+                raise AuthError('wrong_code', 'A code is wrong.' if r.old_hash else 'The code is wrong.', 400)
+            if s.scalar(select(User.user_id).where(User.email == r.new_email, User.user_id != u.user_id)):
+                s.delete(r); raise AuthError('email_taken', 'This email address is already used by another account.', 409)
+            old, by = u.email, r.requested_by
+            u.email = r.new_email
+            s.delete(r)
+            s.execute(delete(PasswordReset).where(PasswordReset.user_id == u.user_id))   # a pending reset went to the old address
+            self._audit(s, 'email.change', u, f'email changed (confirmed by the user; entered by admin {by})' if by
+                        else 'own email changed (verified)', ip)
+            s.flush()
+            return self._public(u), old
+
+    # ---------------------------------------------------------------- JWT
+    def _encode(self, user_id, sid, issued, expires):
+        if not self.secret: raise RuntimeError('S4_JWT_SECRET not set')
+        aware = lambda d: d.replace(tzinfo=datetime.timezone.utc)
+        return jwt.encode(dict(iss=JWT_ISS, sub=str(user_id), sid=sid, iat=aware(issued), exp=aware(expires)), self.secret, algorithm=JWT_ALG)
+
+    def _claims(self, token, verify_exp=True):
+        """Valid JWT claims, or None. Only HS256 with the server secret is accepted (alg 'none' and others are rejected)."""
+        if not token or not self.secret or not isinstance(token, str): return None
+        try:
+            return jwt.decode(token, self.secret, algorithms=[JWT_ALG], issuer=JWT_ISS,
+                              options=dict(require=['exp', 'iat', 'sub', 'sid', 'iss'], verify_exp=verify_exp))
+        except jwt.InvalidTokenError:
+            return None
+
+    # ---------------------------------------------------------------- login & session
+    @staticmethod
+    def _verify(u, password):
+        n, r, p = map(int, u.hash_params.split(':'))
+        return hmac.compare_digest(hash_password(password, u.password_salt, (n, r, p))[0], u.password_hash)
+
+    def _ip_blocked(self, ip):
+        with self._lock:
+            t = [x for x in self._ip_fail.get(ip, []) if x > time.time() - IP_WINDOW_S]
+            self._ip_fail[ip] = t
+            return len(t) >= IP_MAX_FAILED
+
+    def _ip_failed(self, ip):
+        with self._lock: self._ip_fail.setdefault(ip, []).append(time.time())
+
+    def login(self, username, password, ip=None, user_agent=None):
+        """Returns (JWT, user). Same error message for 'no such user' and 'wrong password'."""
+        wrong_credentials = AuthError('invalid_credentials', 'Wrong username or password.', 401)
+        if self._ip_blocked(ip): raise AuthError('too_many_attempts', 'Too many attempts. Try again in a few minutes.', 429)
+        username = username.strip().lower() if isinstance(username, str) else ''
+        if not isinstance(password, str) or len(password) > PASSWORD_MAX: password = ''
+        with self._tx() as s:
+            u = s.scalar(select(User).where(User.username == username).with_for_update())
+            if not u:
+                hash_password(password, self._dummy_salt)          # same cost as for a real user
+                self._ip_failed(ip); self._audit(s, 'login.fail', None, username[:40], ip)
+                raise wrong_credentials
+            if u.locked_until and u.locked_until > now():
+                self._audit(s, 'login.locked', u, None, ip)
+                raise AuthError('too_many_attempts', f'Too many attempts. Try again in {LOCK_MINUTES} minutes.', 429)
+            ok, reset = self._verify(u, password), s.get(PasswordReset, u.user_id)
+            # temporary password from "forgot password": becomes the password and must be changed right away
+            via_reset = bool(u.active and not ok and reset and reset.expires_at > now() and self._verify(reset, password))
+            if not via_reset and (not ok or not u.active):
+                failed = u.failed_logins + 1
+                lock_now = failed >= MAX_FAILED
+                u.failed_logins, u.locked_until = (0, now() + datetime.timedelta(minutes=LOCK_MINUTES)) if lock_now else (failed, None)
+                self._ip_failed(ip); self._audit(s, 'login.fail', u, 'account locked' if lock_now else None, ip)
+                raise wrong_credentials
+            if via_reset:
+                self._set_password(u, password, True)
+                s.execute(delete(Session).where(Session.user_id == u.user_id))
+                self._audit(s, 'password.reset_used', u, None, ip)
+            if reset: s.delete(reset)   # used, or no longer needed: the user knows a valid password
+            t = now(); session_expires = t + datetime.timedelta(hours=self.max_hours)
+            sid = secrets.token_urlsafe(16)
+            s.add(Session(sid=sid, user_id=u.user_id, created_at=t, last_seen_at=t, expires_at=session_expires, ip=ip, user_agent=(user_agent or '')[:200]))
+            u.failed_logins, u.locked_until, u.last_login_at = 0, None, t
+            s.execute(delete(Session).where(Session.expires_at < t))   # drop expired sessions
+            self._audit(s, 'login.ok', u, None, ip)
+            s.flush()
+            return self._encode(u.user_id, sid, t, session_expires), self._public(u)
+
+    def session_user(self, token):
+        """The session's user, or None. JWT signature + expiry, THEN the session row in the database (no cache)."""
+        c = self._claims(token)
+        if not c: return None
+        t = now()
+        with self._tx() as s:
+            row = s.execute(select(Session, User).join(User, User.user_id == Session.user_id).where(Session.sid == c['sid'])).first()
+            if not row or str(row[1].user_id) != c['sub']: return None
+            ses, u = row
+            if ses.expires_at <= t or ses.last_seen_at + datetime.timedelta(minutes=self.idle) <= t or not u.active:
+                s.delete(ses); return None
+            if (t - ses.last_seen_at).total_seconds() >= 60: ses.last_seen_at = t   # record activity at most once a minute
+            return self._public(u)
+
+    def logout(self, token, user=None, ip=None):
+        c = self._claims(token, verify_exp=False)
+        with self._tx() as s:
+            if c: s.execute(delete(Session).where(Session.sid == c['sid']))
+            if user: self._audit(s, 'logout', user, None, ip)
+
+    def bootstrap_admin(self, username, password):
+        """Create the first admin ONLY when there are no users yet. The password must be changed at first login."""
+        if not username or not password or self.count_users(): return None
+        return self.create_user(username, 'Administrator', 'admin', password)

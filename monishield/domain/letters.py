@@ -1,0 +1,169 @@
+"""Email letters (pure; owner request 2026-10-08): ONE layout for every email MoniShield sends, so a password reset, an
+OTP code, a notification or a test message all look the same (MoniShield logo, title, text, optional code box,
+optional list, optional button, footer). This module only decides the CONTENT, in two languages; the HTML/text
+rendering with the logo is monishield/infrastructure/letter.py and sending is monishield/infrastructure/mailer.py.
+
+A letter is a plain dict:
+  subject, preheader (the grey preview line in mail clients), title, lang,
+  paragraphs [text], code {label, value, note} | None, items [text], sections [{title, items}], button {label, url} | None,
+  notes [text], status {level: ok|check|crit, text} | None (the coloured line at the top of a daily report)
+"""
+import re
+
+T = dict(
+    id=dict(
+        hello='Halo {name},', footer='Email ini dikirim otomatis oleh MoniShield. Mohon tidak membalas email ini.',
+        ignore='Jika Anda tidak merasa meminta pengaturan ulang kata sandi, abaikan email ini. Kata sandi Anda saat ini tetap berlaku.',
+        reset_subject='Kata sandi sementara akun MoniShield Anda', reset_title='Kata sandi sementara',
+        reset_intro='Kami menerima permintaan untuk mengatur ulang kata sandi akun MoniShield Anda ({username}). Gunakan kata sandi sementara berikut untuk masuk.',
+        reset_label='Kata sandi sementara', reset_note='Berlaku selama {minutes} menit dan hanya dapat digunakan satu kali.',
+        reset_steps=['Buka halaman masuk MoniShield.', 'Masuk menggunakan nama pengguna {username} dan kata sandi sementara di atas.',
+                     'Buat kata sandi baru saat diminta.'],
+        open='Buka MoniShield',
+        otp_subject='Kode verifikasi MoniShield Anda', otp_title='Kode verifikasi',
+        otp_intro='Gunakan kode berikut untuk {purpose}.', otp_label='Kode verifikasi',
+        otp_note='Berlaku selama {minutes} menit. Jangan bagikan kode ini kepada siapa pun, termasuk pihak yang mengaku dari MoniShield.',
+        otp_ignore='Jika Anda tidak sedang melakukan permintaan ini, abaikan email ini.',
+        test_subject='Uji pengiriman email MoniShield', test_title='Server email berhasil terhubung',
+        test_intro='Pengaturan server email (SMTP) MoniShield sudah benar. Email berikutnya, seperti kata sandi sementara dan notifikasi, akan dikirim melalui server ini.',
+        notif_preheader='Notifikasi dari MoniShield',
+        change_old='mengonfirmasi bahwa Anda ingin mengganti email akun MoniShield Anda ({username}) menjadi {new}',
+        change_new='memverifikasi alamat email baru akun MoniShield Anda ({username})',
+        changed_subject='Email akun MoniShield Anda telah diganti', changed_title='Email akun diganti',
+        changed_intro='Email akun MoniShield Anda ({username}) baru saja diganti menjadi {new}. Email berikutnya, termasuk kata sandi sementara, dikirim ke alamat baru tersebut.',
+        changed_note='Jika Anda tidak melakukan perubahan ini, segera hubungi admin MoniShield.',
+        admin_new='mengonfirmasi alamat ini sebagai email akun MoniShield Anda ({username}). Admin {admin} yang memasukkannya. Masuk ke MoniShield, buka menu profil → Email akun, lalu masukkan kode ini',
+        hours='{n} jam', minutes='{n} menit',
+        requested_subject='Permintaan penggantian email akun MoniShield Anda', requested_title='Permintaan penggantian email',
+        requested_intro='Admin {admin} meminta email akun MoniShield Anda ({username}) diganti menjadi {new}. Email ini tetap dipakai sampai pemilik alamat baru mengonfirmasinya dengan kode.',
+        requested_note='Jika permintaan ini tidak sesuai, segera hubungi admin MoniShield.'),
+    en=dict(
+        hello='Hello {name},', footer='This email was sent automatically by MoniShield. Please do not reply.',
+        ignore='If you did not request a password reset, you can ignore this email. Your current password still works.',
+        reset_subject='Your MoniShield temporary password', reset_title='Temporary password',
+        reset_intro='We received a request to reset the password of your MoniShield account ({username}). Use the temporary password below to sign in.',
+        reset_label='Temporary password', reset_note='Valid for {minutes} minutes and can be used only once.',
+        reset_steps=['Open the MoniShield sign-in page.', 'Sign in with the username {username} and the temporary password above.',
+                     'Choose a new password when asked.'],
+        open='Open MoniShield',
+        otp_subject='Your MoniShield verification code', otp_title='Verification code',
+        otp_intro='Use the code below to {purpose}.', otp_label='Verification code',
+        otp_note='Valid for {minutes} minutes. Never share this code with anyone, including people who claim to be from MoniShield.',
+        otp_ignore='If you are not making this request right now, you can ignore this email.',
+        test_subject='MoniShield email test', test_title='Mail server connected',
+        test_intro='The MoniShield mail server (SMTP) settings work. Future emails, such as temporary passwords and notifications, will be sent through this server.',
+        notif_preheader='Notification from MoniShield',
+        change_old='confirm that you want to change the email of your MoniShield account ({username}) to {new}',
+        change_new='verify the new email address of your MoniShield account ({username})',
+        changed_subject='The email of your MoniShield account was changed', changed_title='Account email changed',
+        changed_intro='The email of your MoniShield account ({username}) was just changed to {new}. Future emails, including temporary passwords, go to that address.',
+        changed_note='If you did not make this change, contact your MoniShield admin right away.',
+        admin_new='confirm this address as the email of your MoniShield account ({username}). Admin {admin} entered it. Sign in to MoniShield, open the profile menu → Account email and enter this code',
+        hours='{n} hours', minutes='{n} minutes',
+        requested_subject='Request to change the email of your MoniShield account', requested_title='Email change requested',
+        requested_intro='Admin {admin} asked to change the email of your MoniShield account ({username}) to {new}. This address stays in use until the owner of the new address confirms it with a code.',
+        requested_note='If this request is not expected, contact your MoniShield admin right away.'),
+)
+
+
+def _t(lang): return T[lang if lang in T else 'id']
+
+
+def letter(lang, subject, title, preheader='', paragraphs=(), code=None, items=(), button=None, notes=(), sections=(), status=None):
+    return dict(lang=lang if lang in T else 'id', subject=subject, title=title, preheader=preheader or title, paragraphs=list(paragraphs),
+                code=code, items=list(items), sections=list(sections), button=button, notes=list(notes), footer=_t(lang)['footer'],
+                status=status)
+
+
+def _button(t, url): return dict(label=t['open'], url=url) if url else None
+
+
+def password_reset(lang, name, username, temp, minutes, url=''):
+    t = _t(lang)
+    return letter(lang, t['reset_subject'], t['reset_title'], t['reset_note'].format(minutes=minutes),
+                  paragraphs=[t['hello'].format(name=name or username), t['reset_intro'].format(username=username)],
+                  code=dict(label=t['reset_label'], value=temp, note=t['reset_note'].format(minutes=minutes)),
+                  items=[s.format(username=username) for s in t['reset_steps']], button=_button(t, url), notes=[t['ignore']])
+
+
+def otp(lang, name, code, minutes, purpose, url=''):
+    """One-time code letter (ready for e-mail OTP; `purpose` completes the sentence "Use the code below to …")."""
+    t = _t(lang)
+    note = t['otp_note'].format(minutes=minutes).replace(f'{minutes} menit', _span(t, minutes)).replace(f'{minutes} minutes', _span(t, minutes))
+    return letter(lang, t['otp_subject'], t['otp_title'], note,
+                  paragraphs=[t['hello'].format(name=name), t['otp_intro'].format(purpose=purpose)],
+                  code=dict(label=t['otp_label'], value=code, note=note), button=_button(t, url), notes=[t['otp_ignore']])
+
+
+def _span(t, minutes):
+    return t['hours'].format(n=minutes // 60) if minutes >= 120 and minutes % 60 == 0 else t['minutes'].format(n=minutes)
+
+
+# Emoji are for chat channels (Telegram, Discord): letters drop them; keycap numbers 1️⃣ become "1."
+_KEYCAP = re.compile(r'(\d)\uFE0F?\u20E3')
+_EMOJI = re.compile('[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200D]+ ?')
+_STATUS = {'\U0001F7E2': 'ok', '\U0001F7E1': 'check', '\U0001F534': 'crit'}   # 🟢 🟡 🔴 at the start of a report's status line
+
+
+def plain(line):
+    """A chat line without emoji (status ▲▼≈ and · stay)."""
+    return _EMOJI.sub('', _KEYCAP.sub(r'\1.', line)).strip()
+
+
+def notification(lang, title, text, url=''):
+    """A notification (monishield/domain/alerts.py texts): a first line starting with 🟢/🟡/🔴 becomes the status;
+    lines starting with "• " become a list, the rest paragraphs;
+    a "**Title**" line starts a section whose lines become its list; emoji are removed; an "Open: <url>" / "Buka: <url>"
+    line becomes the button."""
+    t, paras, items, sections, status = _t(lang), [], [], [], None
+    for line in str(text).split('\n'):
+        if status is None and line[:1] in _STATUS:
+            status = dict(level=_STATUS[line[:1]], text=plain(line).replace('**', '')); continue
+        line = plain(line)
+        if not line: continue
+        head, sep, rest = line.partition(': ')
+        if sep and head in (T['id']['open'].split()[0], T['en']['open'].split()[0]) and rest.startswith(('http://', 'https://')):
+            url = url or rest; continue
+        m = re.fullmatch(r'\*\*(.+?)\*\*(.*)', line)
+        if m: sections.append(dict(title=(m.group(1) + m.group(2)).strip(), items=[])); continue
+        line = line.replace('**', '')
+        if sections: sections[-1]['items'].append(line[2:] if line.startswith('• ') else line)
+        elif line.startswith('• '): items.append(line[2:])
+        else: paras.append(line)
+    return letter(lang, title, title, status['text'] if status else t['notif_preheader'], paragraphs=paras, items=items,
+                  button=_button(t, url), sections=sections, status=status)
+
+
+def smtp_test(lang, url=''):
+    t = _t(lang)
+    return letter(lang, t['test_subject'], t['test_title'], paragraphs=[t['test_intro']], button=_button(t, url))
+
+
+def email_change_code(lang, name, username, value, minutes, to_old, new_email):
+    """The code for an own email change: one letter to the OLD address (proves the owner agrees), one to the NEW one
+    (proves the address works). Built on the OTP letter."""
+    t = _t(lang)
+    purpose = (t['change_old'] if to_old else t['change_new']).format(username=username, new=new_email)
+    return otp(lang, name or username, value, minutes, purpose)
+
+
+def email_set_by_admin_code(lang, name, username, value, minutes, admin, url=''):
+    """Code to the NEW address an admin entered for a user (owner decision 2026-10-12): the owner confirms it while signed in."""
+    t = _t(lang)
+    return otp(lang, name or username, value, minutes, t['admin_new'].format(username=username, admin=admin), url)
+
+
+def email_change_requested(lang, name, username, new_masked, admin, url=''):
+    """Notice to the CURRENT address when an admin entered a new one (nothing changes until it is confirmed)."""
+    t = _t(lang)
+    return letter(lang, t['requested_subject'], t['requested_title'], t['requested_note'],
+                  paragraphs=[t['hello'].format(name=name or username), t['requested_intro'].format(username=username, new=new_masked, admin=admin)],
+                  button=_button(t, url), notes=[t['requested_note']])
+
+
+def email_changed(lang, name, username, new_masked, url=''):
+    """Security notice to the OLD address after the change."""
+    t = _t(lang)
+    return letter(lang, t['changed_subject'], t['changed_title'], t['changed_note'],
+                  paragraphs=[t['hello'].format(name=name or username), t['changed_intro'].format(username=username, new=new_masked)],
+                  button=_button(t, url), notes=[t['changed_note']])

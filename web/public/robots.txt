@@ -1,0 +1,20 @@
+# MoniShield: only the public home page is meant for search engines. The dashboard pages need a sign-in and the API
+# answers 401 without one; they are listed so crawlers do not try them.
+User-agent: *
+Allow: /$
+Disallow: /api/
+Disallow: /login
+Disallow: /overview
+Disallow: /command-center
+Disallow: /trends
+Disallow: /security
+Disallow: /root-causes
+Disallow: /availability
+Disallow: /pods
+Disallow: /business
+Disallow: /tracing
+Disallow: /services/
+Disallow: /ips/
+Disallow: /admin/
+Disallow: /password
+Disallow: /email

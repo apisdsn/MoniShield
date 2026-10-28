@@ -1,0 +1,31 @@
+{
+ "_sumber": "MITRE CAPEC (https://capec.mitre.org), nama mengikuti katalog; hanya ID yang dipakai tag aturan CRS di crs_rules.json. Nama Indonesia terjemahan bebas.",
+ "capec": {
+  "6": {"id": "Injeksi argumen", "en": "Argument Injection"},
+  "63": {"id": "Cross-site scripting (XSS)", "en": "Cross-Site Scripting (XSS)"},
+  "66": {"id": "Injeksi SQL", "en": "SQL Injection"},
+  "77": {"id": "Manipulasi variabel kendali pengguna", "en": "Manipulating User-Controlled Variables"},
+  "88": {"id": "Injeksi perintah sistem operasi", "en": "OS Command Injection"},
+  "109": {"id": "Injeksi ORM", "en": "Object Relational Mapping Injection"},
+  "126": {"id": "Path traversal", "en": "Path Traversal"},
+  "134": {"id": "Injeksi email", "en": "Email Injection"},
+  "242": {"id": "Injeksi kode", "en": "Code Injection"},
+  "248": {"id": "Injeksi perintah", "en": "Command Injection"},
+  "253": {"id": "Penyertaan kode jarak jauh", "en": "Remote Code Inclusion"},
+  "310": {"id": "Pemindaian perangkat lunak rentan", "en": "Scanning for Vulnerable Software"},
+  "664": {"id": "Server-side request forgery (SSRF)", "en": "Server Side Request Forgery"}
+ },
+ "_keluarga": "Tag keluarga serangan CRS (attack-*), ditampilkan sebagai keterangan karena beberapa aturan hanya membawa CAPEC umum (mis. XSS = CAPEC-242).",
+ "attack": {
+  "sqli": {"id": "SQLi", "en": "SQLi"},
+  "xss": {"id": "XSS", "en": "XSS"},
+  "rce": {"id": "RCE", "en": "RCE"},
+  "lfi": {"id": "LFI", "en": "LFI"},
+  "rfi": {"id": "RFI", "en": "RFI"},
+  "ssrf": {"id": "SSRF", "en": "SSRF"},
+  "ssti": {"id": "SSTI", "en": "SSTI"},
+  "injection-php": {"id": "PHP", "en": "PHP"},
+  "injection-generic": {"id": "injeksi umum", "en": "generic injection"},
+  "reputation-scanner": {"id": "pemindai", "en": "scanner"}
+ }
+}

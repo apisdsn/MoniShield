@@ -1,0 +1,17 @@
+# HTTPS proxy with AUTOMATIC certificates from Let's Encrypt ("https" profile; docs/07-deploy-vps.md).
+# Requirements: DOCKER_DOMAIN's DNS already points to this server's IP, and ports 80 + 443 are open from the internet
+# (port 80 is used by Let's Encrypt for verification and to redirect http -> https).
+{
+	email {$DOCKER_ACME_EMAIL}
+	admin off
+}
+
+{$DOCKER_DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	reverse_proxy app:8000   # SSE /api/live/map is passed straight through (Caddy does not buffer text/event-stream)
+}
+
+# Other sites served by this Caddy (e.g. a portfolio on the same server): one file per site in deploy/sites/*.caddy on the
+# server. That folder is not in git (it holds a site's own domains); no files = only MoniShield is served.
+import /etc/caddy/sites/*.caddy

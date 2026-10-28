@@ -1,0 +1,3 @@
+#!/bin/sh
+# Set up once per clone: git config core.hooksPath .githooks
+exec "$(git rev-parse --show-toplevel)/tools/check_commit.sh" --file "$1"

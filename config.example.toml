@@ -1,0 +1,53 @@
+# Copy to config.toml (optional). Every key has a default. S4_* environment variables and .env override this file.
+# Secrets (admin password, tokens, access keys) ONLY through environment variables / .env, never here.
+# Every value below is an example: replace it with your own.
+
+# log_dir   = "/path/to/logs"         # S4_LOG_DIR; default: logs/ in the project folder
+# data_dir  = "data"                  # S4_DATA_DIR
+# cache_dir = "/path/to/.cache"       # S4_CACHE_DIR; default: <log_dir>/.cache
+# state_dir = "data"                  # S4_STATE_DIR (auth.db)
+# inbox_dir = "data/inbox"            # S4_INBOX_DIR
+# bind = "127.0.0.1:8000"             # S4_BIND
+# ingest_on_start = true              # S4_INGEST_ON_START
+# cookie_secure = true                # S4_COOKIE_SECURE; false only for local use without HTTPS
+
+# Site profile: the values of the system you monitor (docs/10-user-guide.md, "Site profile").
+# server_ip = "203.0.113.10"          # public IP of the monitored server = destination point on the map
+# server_fallback = ["Jakarta", "Jakarta", "ID", -6.2, 106.82]
+# dns_upstream = "10.0.0.10"          # cluster DNS upstream watched in the coredns log
+# upstream_prefix = "example-example-"   # namespace prefix of ingress upstream names (stripped)
+# event_tag = "APP"                   # tag of the events service lines: [APP-INFO] {...}
+
+# session_idle_minutes = 60
+# session_max_hours = 12
+
+# Attack detection: "crs" = OWASP CRS + CAPEC, "legacy" = the old system's rules.
+# attack_rules = "crs"                # S4_ATTACK_RULES
+# attack_paranoia = 1                 # S4_ATTACK_PARANOIA, 1..4
+
+# Object storage import: empty = feature off. Form: bucket -> list of allowed prefixes.
+# import_region = "ap-southeast-3"
+# import_max_objects = 500
+# import_max_object_mb = 1024
+# import_max_total_mb = 5120
+# import_timeout_minutes = 30
+# [import_buckets]
+# example-log-bucket = ["k8s-logs/"]
+
+# Service folder name of each role (missing roles keep the default name).
+# [service_names]
+# frontend = "web-frontend"
+# events = "event-api"
+# auth = "auth-service"
+# report = "report-service"
+# reference = "reference-service"
+
+# Events-service endpoint -> business metric (counted on 2xx responses).
+# [business_endpoints]
+# "POST /orders" = "reports_created"
+# "POST /orders/verify-otp" = "otp_verified"
+
+# Public base URL per ingress upstream (to show full URLs).
+# [hosts]
+# event-api-3000 = "https://api.example.com"
+# web-frontend-3000 = "https://app.example.com"

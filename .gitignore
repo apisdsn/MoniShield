@@ -1,0 +1,14 @@
+data/
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+web/node_modules/
+web/dist/
+config.toml
+logs/
+.env
+.translate/
+
+# extra Caddy sites of a server (their own domains)
+deploy/sites/*.caddy

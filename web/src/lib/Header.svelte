@@ -1,0 +1,96 @@
+<!-- Page header (DRD §2.1 U3, §8.2; redesign 2026-10-27, mockup "Overview — sebelum & sesudah"). Wide screen: one sticky
+     row: title + compact status line (left), then source switch, date picker (◀ date ▶, details in its tooltip), search,
+     Sync (admin) and the avatar menu holding language, theme, reload and the account items (right). The date is shown once,
+     in the picker. ≤ 900 px: sticky bar [☰] [search] [sync] [avatar] with a second row [S3 | Kafka] [◀ date ▶]; the title
+     flows below it. DOM order = Tab order: tools first, title (h1, tabindex -1) after; visual placement set by the grid. -->
+<script>
+  import Logo from './Logo.svelte';
+  import { lang, t } from '../i18n.js';
+  import FolderPicker from './FolderPicker.svelte';
+  import UserMenu from './UserMenu.svelte';
+  import GlobalSearch from './GlobalSearch.svelte';
+  import SyncButton from './SyncButton.svelte';
+  import { APP_NAME } from '../brand.js';
+  let { me, route, folders, folder, folderDisabled = false, sources = [], source = 's3', onsource = null, onfolder, folderInfo = '', onreload, onlogout, onmenu, drawerOpen = false,
+        menuBtn = $bindable(), onsynced = null, title, sysTitle = false, status = [], titleEl = $bindable() } = $props();
+
+  function segKey(e, values, current, set) {
+    if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    e.preventDefault();
+    const i = values.indexOf(current), n = values[(i + (e.key === 'ArrowRight' ? 1 : values.length - 1)) % values.length];
+    set(n);
+    e.currentTarget.querySelector(`[data-v="${n}"]`)?.focus();
+  }
+</script>
+
+<header class="top">
+  <div class="bar">
+    <button bind:this={menuBtn} class="icon-btn burger" onclick={onmenu} aria-expanded={drawerOpen} aria-controls="side" aria-label={$t('nav.open')}>☰</button>
+    <span class="brand" aria-hidden="true"><Logo size={24} />{APP_NAME}</span>
+    <div class="tools">
+      <div class="where">
+        {#if sources.length > 1}
+          <div class="seg" role="radiogroup" aria-label={$t('src.label')} tabindex="-1" onkeydown={(e) => segKey(e, sources, source, (v) => onsource?.(v))}>
+            {#each sources as s}
+              <button role="radio" data-v={s} aria-checked={source === s} tabindex={source === s ? 0 : -1} onclick={() => onsource?.(s)}
+                title={$t(`src.${s}.hint`)}>{$t(`src.${s}`)}</button>
+            {/each}
+          </div>
+        {/if}
+        {#if folders?.length}<FolderPicker {folders} value={folder} info={folderInfo} disabled={folderDisabled} onchange={onfolder} />{/if}
+      </div>
+      {#if folders?.length}<GlobalSearch {folder} />{/if}
+      {#if me?.role === 'admin'}<SyncButton {onsynced} />{/if}
+      <UserMenu {me} {route} {onlogout} {onreload} />
+    </div>
+  </div>
+  <div class="ttl">
+    <h1 bind:this={titleEl} tabindex="-1"><span class:sys={sysTitle}>{title}</span></h1>
+    {#if status.length}
+      <p class="status">
+        {#each status as s, i}{#if i}<span class="sep" aria-hidden="true">·</span>{/if}<span class="it"><span class="dot {s.tone || ''}" aria-hidden="true"></span>{#if s.n !== undefined}<b>{s.n}</b>&nbsp;{/if}{s.text}</span>{/each}
+      </p>
+    {/if}
+  </div>
+</header>
+
+<style>
+  .top {
+    position: sticky; top: 10px; z-index: 20; margin: 14px 0 10px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px;
+    padding: 14px 18px; border-radius: var(--r-card); border: 1px solid var(--card-border);
+    background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(10px); box-shadow: var(--glow);
+  }
+  .bar { display: contents; }
+  /* the title keeps at least ~22rem; when the tools do not fit next to it they move to their own line (right-aligned)
+     instead of squeezing the title into one word per line (owner report 2026-10-08, 1280 px in English) */
+  .tools { order: 1; flex: 0 1 auto; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px; min-width: 0; }
+  .ttl { order: 0; flex: 1 1 22rem; min-width: 0; }
+  h1 { font-size: 1.375rem; font-weight: 600; line-height: 1.25; color: var(--heading); text-transform: capitalize; overflow-wrap: break-word; text-wrap: balance; }
+  h1:focus { outline: none; }
+  h1:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .status { margin: 4px 0 0; font-size: 0.78rem; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+  .it { display: inline-flex; align-items: center; white-space: nowrap; }
+  .status .it :global(b) { color: var(--fg); font-weight: 600; }
+  .sep { color: var(--line-strong); }
+  .where { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .burger, .brand { display: none; }
+  .seg button { min-width: 2.5rem; }
+  @media (max-width: 900px) {
+    .top { display: contents; }
+    .bar {
+      display: flex; flex-wrap: wrap; position: sticky; top: 0; z-index: 20; align-items: center; gap: 8px;
+      padding: 6px 16px 8px; margin: 0 -16px 8px; border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(8px);
+    }
+    .burger { display: inline-grid; }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; white-space: nowrap; flex: 1; min-width: 0; }
+    .tools { display: contents; }
+    /* second row: source switch + date picker, full width, so neither covers the other */
+    .where { order: 10; flex: 1 1 100%; }
+    .where :global(.fp) { flex: 1; min-width: 0; }
+    .ttl { margin: 6px 0 12px; }
+    h1 { font-size: 1.5rem; }
+  }
+  @media (max-width: 420px) { .brand { visibility: hidden; } }
+</style>

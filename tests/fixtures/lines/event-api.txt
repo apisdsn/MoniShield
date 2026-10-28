@@ -1,0 +1,9 @@
+[APP-INFO] {"requestId":"b822909ecd30abd7322cb20867352854","event":"http.request.completed","method":"GET","path":"/uploads","statusCode":200,"ipAddress":"66.66.66.213","durationMs":48}
+[APP-INFO] {"requestId":"b01894fd9e1e681baa01b138c526eb14","event":"http.request.completed","method":"PATCH","path":"/regenerate-document","statusCode":200,"ipAddress":"66.66.66.126","durationMs":3243}
+[APP-ERROR] {"event":"http.request.failed","requestId":"69dda3958192b7ac11f28e3e2dc2f10c","method":"GET","path":"/reports/count","statusCode":401,"durationMs":1,"error":{"name":"UnauthorizedError","message":"Unauthorized"}}
+[APP-ERROR] {"event":"http.request.failed","requestId":"fd9017c9a138fdc7c70dbf2c8c158159","method":"POST","path":"/files","statusCode":200,"durationMs":88,"error":{"name":"MulterError","message":"File too large"}}
+[APP-INFO] Email sent successfully
+[APP-INFO] Notification email sent successfully sendNotificationMailToSupervisor {
+[APP-PERFORMANCE] GET /monitoring { totalMs: 92 }
+  recipient: {
+Server is running at http://127.0.0.1:3000

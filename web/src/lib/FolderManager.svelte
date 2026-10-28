@@ -1,0 +1,87 @@
+<!-- Manage log folders (owner request 2026-10-07; admin, Ingest & import page). GET /api/admin/folders: folders in the
+     dashboard, on disk, and ignored ones. "Hapus" -> confirmation dialog -> POST /api/admin/folders/{f}/delete:
+     the folder's data is removed from the dashboard; files in the inbox (S3 import results) are deleted too when checked; files in the main
+     log folder are NEVER deleted (read-only) — that folder is marked "ignored" so sync does not
+     ingest it again. "Pulihkan" -> POST …/restore, then sync ingests it again. -->
+<script>
+  import { srv, errText } from '../srv.js';
+  import { onMount } from 'svelte';
+  import { lang, t } from '../i18n.js';
+  import { api } from '../api.js';
+  import { num, fLabel, folderTag, tWIB, utcToWib } from '../format.js';
+  import { route } from '../state.js';
+  import { toast } from './Toast.svelte';
+  import DataTable from './DataTable.svelte';
+  import Dialog from './Dialog.svelte';
+  import SeverityTag from './SeverityTag.svelte';
+
+  let { onchanged = null } = $props();
+  let rows = $state.raw(null), target = $state(null), open = $state(false), delInbox = $state(true), busy = $state(false);
+
+  async function load() { try { rows = (await api.get('/api/admin/folders')).rows; } catch (e) { toast($errText(e)); } }
+  onMount(load);
+
+  function ask(r) { target = r; delInbox = true; open = true; }
+  async function del() {
+    busy = true;
+    try {
+      const r = await api.del(`/api/admin/folders/${encodeURIComponent(target.folder)}?delete_inbox=${delInbox}`);
+      toast($t(r.ignored ? 'fm.done_ignored' : 'fm.done', { date: fLabel(target.folder, $lang) }));
+      open = false; await load(); onchanged?.();
+    } catch (e) { toast(e.status === 409 ? $t('fm.busy') : $errText(e)); }
+    finally { busy = false; }
+  }
+  async function restore(r) {
+    try { await api.post(`/api/admin/folders/${r.folder}/restore`, {}); toast($t('fm.restored', { date: fLabel(r.folder, $lang) })); await load(); onchanged?.(); }
+    catch (e) { toast($errText(e)); }
+  }
+</script>
+
+{#if rows}
+  <DataTable title={$t('fm.title')} {rows} limit={30} columns={[
+    { key: 'folder', label: $t('ipp.col.folder'), fmt: (r) => $t(`folder.${folderTag($route.source)}`, { date: fLabel(r.folder, $lang) }), cls: () => 'nowrap', sort: true },
+    { key: 'files', label: $t('kpi.files'), type: 'num', sort: true },
+    { key: 'lines', label: $t('col.lines'), type: 'num', sort: true },
+    { key: 'where', label: $t('fm.col.where'), custom: true, minw: 200 },
+    { key: 'act', label: $t('fm.col.action'), custom: true },
+  ]}>
+    {#snippet cell(r, c)}
+      {#if c.key === 'where'}
+        <div class="tags">
+          {#if r.ignored}<SeverityTag level={2} text={$t('fm.tag.ignored')} />{:else if !r.in_db}<SeverityTag level={1} text={$t('fm.tag.new')} />{/if}
+          {#if r.log}<SeverityTag level="ok" text={$t('fm.tag.log')} />{/if}
+          {#if r.inbox}<SeverityTag level="ok" text={$route.source === 'kafka' ? $t('fm.tag.kafka') : $t('fm.tag.inbox')} />{/if}
+        </div>
+        {#if r.ignored && r.ignored_by}<div class="muted small">{$t('fm.ignored_by', { user: r.ignored_by, time: r.ignored_at ? tWIB(utcToWib(r.ignored_at), $lang) : '' })}</div>{/if}
+      {:else if r.ignored}
+        <button class="btn sm" onclick={() => restore(r)}>{$t('fm.restore')}</button>
+      {:else if r.in_db || r.inbox}
+        <button class="btn sm danger" onclick={() => ask(r)} aria-label={$t('fm.delete_aria', { date: fLabel(r.folder, $lang) })}>{$t('fm.delete')}</button>
+      {/if}
+    {/snippet}
+  </DataTable>
+{/if}
+
+<Dialog bind:open title={target ? $t('fm.confirm_title', { date: fLabel(target.folder, $lang) }) : ''}>
+  {#if target}
+    <p>{$t('fm.confirm_text', { files: num(target.files, $lang), lines: num(target.lines, $lang) })}</p>
+    {#if target.inbox}
+      <label class="chk"><input type="checkbox" bind:checked={delInbox} /> {$t('fm.del_inbox')}</label>
+    {/if}
+    {#if target.log}<p class="muted small">{$t('fm.log_note')}</p>{/if}
+  {/if}
+  {#snippet footer()}
+    <button class="btn" onclick={() => (open = false)}>{$t('action.cancel')}</button>
+    <button class="btn danger primary" onclick={del} disabled={busy}>{$t('fm.delete')}</button>
+  {/snippet}
+</Dialog>
+
+<style>
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .small { font-size: 0.75rem; }
+  .chk { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 0.875rem; }
+  .chk input { width: auto; min-height: 0; }
+  .btn.sm { min-height: 32px; padding: 0.3rem 0.8rem; font-size: 0.8125rem; }
+  .btn.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, transparent); }
+  .btn.danger.primary { background: var(--err); color: #fff; border-color: var(--err); }
+</style>

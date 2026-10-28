@@ -1,0 +1,240 @@
+# MoniShield (v2, log & security dashboard) — `docker compose up -d` (see docs/06-docker.md, TRD §7).
+# Secrets are NOT written here: everything comes from .env (which is in neither git nor the image).
+#
+#   app       API + UI + in-process ingest. The ONLY process that opens DuckDB (TRD K1, §7.2).
+#   postgres  accounts, sessions, audit (TRD K11); no external port.
+#   ingest    "job" profile, one-shot: triggers ingest in app over HTTP (machine token), waits, then exits.
+#             No volumes: never opens DuckDB itself.   docker compose run --rm ingest
+#   https     "https" profile, optional: automatic Let's Encrypt HTTPS (Caddy) for a server with a public domain — new VPS:
+#             docker compose --profile https up -d      (DOCKER_DOMAIN, DOCKER_ACME_EMAIL; docs/07-deploy-vps.md)
+#   proxy     "proxy" profile, optional: HTTPS (Caddy) when the server has no reverse proxy yet (TRD §7.1 ASSUMPTION T5).
+#   pgadmin   "pgadmin" profile, optional: browse PostgreSQL (accounts, sessions, audit, import history) at http://127.0.0.1:5050.
+#             docker compose --profile pgadmin up -d        (LOG data lives in DuckDB, not PostgreSQL; see docs/06-docker.md)
+#   kafka     "kafka" profile, optional: single-node Kafka broker (KRaft, no Zookeeper) to receive logs from Rancher
+#             (Cluster -> Tools -> Logging -> Kafka) when you have no Kafka of your own. docker compose --profile kafka up -d
+#             Rancher uses the address ${DOCKER_KAFKA_HOST}:${DOCKER_KAFKA_PORT}; app uses kafka:9092 (set S4_KAFKA_BROKERS=kafka:9092).
+#   dbgate    "dbgate" profile, optional: browse the LOG data (DuckDB) at http://127.0.0.1:5051. Opens a READ-ONLY copy
+#             (/data/snapshot, refreshed by app after every ingest), not app's own file — DuckDB may only be opened by one process.
+#             docker compose --profile dbgate up -d
+name: monishield
+
+x-image: &image monishield:2.0.0
+
+services:
+  app:
+    build:
+      context: .
+      secrets: [ca_bundle]   # office proxy CA (optional) for downloading packages at build time; not put into the image
+    image: *image
+    restart: unless-stopped
+    # .env is MOUNTED as a file (not env_file): the server reads it itself at start and the Configuration page writes to
+    # it (takes effect immediately, survives restarts). Write permission for the container user (uid 10001):
+    #   sudo chgrp 10001 .env && chmod 660 .env        (see docs/06-docker.md)
+    environment:   # overrides .env: paths inside the container are always these, even if .env holds laptop paths
+      S4_BIND: 0.0.0.0:8000
+      S4_LOG_DIR: /logs
+      S4_DATA_DIR: /data
+      S4_CACHE_DIR: /cache
+      S4_INBOX_DIR: /inbox
+      S4_STATE_DIR: /data/state
+      S4_API_URL: ""
+      S4_AUTH_DATABASE_URL: postgresql+psycopg://monishield:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/monishield
+      S4_TRUST_PROXY: "true"          # only reachable from the proxy (port bound to the host's 127.0.0.1 / the compose network)
+      S4_DUCKDB_SNAPSHOT: ${S4_DUCKDB_SNAPSHOT:-true}   # read-only copy for DbGate; "false" when DbGate is not used (saves ±50 % disk)
+    volumes:
+      - ${DOCKER_LOG_DIR:?set DOCKER_LOG_DIR in .env (log folder on the host)}:/logs:ro
+      - s4-data:/data
+      - s4-cache:/cache
+      - s4-inbox:/inbox
+      - ./.env:/app/.env          # read by the server + written by the Configuration page (written in place, safe for a bind mount)
+    ports:
+      - "127.0.0.1:${DOCKER_PORT:-8000}:8000"   # host only (for a proxy on the server); not a public port
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8000/api/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+
+  postgres:
+    image: postgres:17.6-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: monishield
+      POSTGRES_DB: monishield
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - s4-pgdata:/var/lib/postgresql/data
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monishield -d monishield"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:3.9.1
+    profiles: [kafka]
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:9094,CONTROLLER://:9093
+      # EXTERNAL = the address entered in Rancher; must be an address of this server reachable from the cluster nodes
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://${DOCKER_KAFKA_HOST:-127.0.0.1}:${DOCKER_KAFKA_PORT:-9094}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 1                 # one partition: per-pod line order is preserved (small log volume)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true" # topic is created when Rancher first sends
+      KAFKA_LOG_RETENTION_HOURS: ${DOCKER_KAFKA_RETENTION_HOURS:-168}
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xmx512m -Xms512m
+    volumes:
+      - s4-kafka:/var/lib/kafka/data
+    ports:
+      # default is this host only; for Rancher set DOCKER_KAFKA_BIND=0.0.0.0 and RESTRICT it with a firewall to the cluster node IPs
+      # (this listener has no password)
+      - "${DOCKER_KAFKA_BIND:-127.0.0.1}:${DOCKER_KAFKA_PORT:-9094}:9094"
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      start_period: 40s
+      retries: 5
+
+  ingest:
+    image: *image
+    profiles: [job]
+    restart: "no"
+    environment:
+      S4_API_URL: http://app:8000     # set -> the command never opens DuckDB itself (fails when app is unreachable)
+    volumes:
+      - ./.env:/app/.env:ro           # S4_JOB_TOKEN etc. read from the same file as app
+    command: ["python", "-m", "monishield", "ingest"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      app: { condition: service_healthy }
+
+  proxy:
+    image: caddy:2.10.2-alpine
+    profiles: [proxy]
+    restart: unless-stopped
+    environment:
+      DOCKER_DOMAIN: ${DOCKER_DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DOCKER_CERT_DIR:-./deploy/certs}:/certs:ro
+    ports:
+      - "443:443"
+    depends_on:
+      app: { condition: service_healthy }
+
+  https:
+    image: caddy:2.10.2-alpine
+    profiles: [https]
+    restart: unless-stopped
+    # without a domain/email Caddy cannot request a certificate -> refuse to start with a clear message (not ${VAR:?}, so
+    # `docker compose up` without this profile does not fail too)
+    entrypoint: ["sh", "-c", "[ -n \"$$DOCKER_DOMAIN\" ] && [ -n \"$$DOCKER_ACME_EMAIL\" ] || { echo 'set DOCKER_DOMAIN and DOCKER_ACME_EMAIL in .env' >&2; exit 1; }; exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile"]
+    environment:
+      DOCKER_DOMAIN: ${DOCKER_DOMAIN:-}
+      DOCKER_ACME_EMAIL: ${DOCKER_ACME_EMAIL:-}
+    volumes:
+      - ./deploy/Caddyfile.letsencrypt:/etc/caddy/Caddyfile:ro
+      - ./deploy/sites:/etc/caddy/sites:ro   # optional extra sites (*.caddy, not in git)
+      - s4-caddy:/data          # Let's Encrypt certificates + keys (do not delete: Let's Encrypt re-issue limits)
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"           # HTTP/3
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      app: { condition: service_healthy }
+
+  pgadmin:
+    image: dpage/pgadmin4:9.8
+    profiles: [pgadmin]
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-}   # required; pgAdmin refuses to start when empty
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-}
+      PGADMIN_CONFIG_SERVER_MODE: "True"                 # sign-in required with the email/password above
+      PGADMIN_CONFIG_UPGRADE_CHECK_ENABLED: "False"      # does not contact the internet for version checks
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
+      PGADMIN_DISABLE_POSTFIX: "true"
+      PGADMIN_LISTEN_ADDRESS: 0.0.0.0                    # default is [::]; fails on docker networks without IPv6
+      PGADMIN_CONFIG_ALLOW_SPECIAL_EMAIL_DOMAINS: "['local', 'internal', 'lan', 'test']"   # login email may be admin@server.local
+    volumes:
+      - ./deploy/pgadmin/servers.json:/pgadmin4/servers.json:ro   # MoniShield server registered automatically
+      - s4-pgadmin:/var/lib/pgadmin
+    ports:
+      - "127.0.0.1:${DOCKER_PGADMIN_PORT:-5050}:80"     # from this host only (use an SSH tunnel from other computers)
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  dbgate:
+    image: dbgate/dbgate:6.6.4
+    profiles: [dbgate]
+    restart: unless-stopped
+    # Without LOGIN/PASSWORD DbGate is open WITHOUT sign-in -> refuse to start. (Not ${VAR:?}, so `docker compose up` without
+    # this profile still works when DBGATE_* is empty.)
+    entrypoint: ["sh", "-c", "[ -n \"$$LOGIN\" ] && [ $${#PASSWORD} -ge 12 ] || { echo 'set DBGATE_LOGIN and DBGATE_PASSWORD (min. 12 characters) in .env' >&2; exit 1; }; exec docker-entrypoint.sh /home/dbgate-docker/entrypoint.sh"]
+    environment:
+      LOGIN: ${DBGATE_LOGIN:-}
+      PASSWORD: ${DBGATE_PASSWORD:-}
+      CONNECTIONS: duckdb,postgres
+      LABEL_duckdb: MoniShield — log data (DuckDB, read-only copy)
+      ENGINE_duckdb: duckdb@dbgate-plugin-duckdb
+      FILE_duckdb: /snapshot/monishield.duckdb
+      READONLY_duckdb: "1"
+      LABEL_postgres: MoniShield — accounts & audit (PostgreSQL)
+      ENGINE_postgres: postgres@dbgate-plugin-postgres
+      SERVER_postgres: postgres
+      PORT_postgres: "5432"
+      USER_postgres: monishield
+      PASSWORD_postgres: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      DATABASE_postgres: monishield
+      READONLY_postgres: "1"
+    volumes:
+      # Only the copy folder (subpath): app's own DuckDB file is not visible from here. Cannot be read-only: the DbGate 6.6
+      # DuckDB plugin always opens the file in write mode (ignoring READONLY_), so it fails on a :ro mount. READONLY_duckdb
+      # blocks editing from the UI; anything written only affects the copy, which is replaced whole after every ingest.
+      - type: volume
+        source: s4-data
+        target: /snapshot
+        volume: { subpath: snapshot }
+      - s4-dbgate:/root/.dbgate
+    ports:
+      - "127.0.0.1:${DOCKER_DBGATE_PORT:-5051}:3000"    # from this host only (use an SSH tunnel from other computers)
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      app: { condition: service_healthy }              # app creates the first copy at start
+
+secrets:
+  ca_bundle:
+    file: ${DOCKER_BUILD_CA:-/dev/null}   # empty = no extra CA
+
+volumes:
+  s4-data:     # monishield.duckdb, read-only copy snapshot/, map files, temporary CSVs — can be rebuilt from the logs
+  s4-cache:    # ip2asn, GeoLite2, Natural Earth, GeoNames downloads (±190 MB) — can be downloaded again
+  s4-inbox:    # log folders from S3 import — raw logs, back them up
+  s4-pgdata:   # accounts, sessions, audit — NOT replaceable, must be backed up (pg_dump)
+  s4-pgadmin:  # pgAdmin settings (saved server passwords, preferences) — may be lost
+  s4-dbgate:   # DbGate settings (query history, preferences) — may be lost
+  s4-caddy:    # Let's Encrypt certificates (https profile) — may be lost, but Let's Encrypt limits re-issuing
+  s4-kafka:    # Kafka messages (kafka profile), kept DOCKER_KAFKA_RETENTION_HOURS; what is already written to s4-inbox does not depend on it

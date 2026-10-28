@@ -1,0 +1,87 @@
+# Contributing to MoniShield
+
+## Branches
+
+| Branch | For | Merged from |
+|---|---|---|
+| `dev` | day-to-day development; always runnable | feature branches (`feat/…`, `fix/…`) via pull request |
+| `stg` | shared testing / staging before release | `dev` via pull request |
+| `prd` | production: every push that passes CI is deployed to the VPS automatically (`docs/07-deploy-vps.md` §13) | `stg` via pull request |
+
+Flow: create a branch from `dev` → pull request to `dev` → after testing on `dev`, PR `dev` → `stg` → after passing staging
+tests, PR `stg` → `prd`. Production hotfixes: a `fix/…` branch from `prd`, PR to `prd`, then merge back into
+`stg` and `dev`.
+
+Promotions (`dev` → `stg`, `stg` → `prd`) are merged with **Create a merge commit**, never squash or rebase, so the three
+branches keep the same commits; title them `chore(release): promote dev to stg` / `chore(release): promote stg to prd`.
+When merging, replace GitHub's default merge commit title ("Merge pull request #… from …") with the PR title and number,
+e.g. `chore(release): promote stg to prd (#9)`, and use the PR description as the body. The description lists what
+changes, in English.
+Step-by-step guide: `docs/07-deploy-vps.md` §13.
+
+Recommended in GitHub → Settings → Branches: protect `stg` and `prd` (PR + green CI required), and keep `prd` as the default branch (what visitors see).
+
+## Language
+
+Commit messages (Conventional Commits, below), code comments, documentation, server error messages and API responses are
+written in **English**. The web UI stays bilingual (Indonesian/English) via `web/src/i18n` (`id.json`, `en.json`).
+
+## Commit messages: Conventional Commits
+
+Every commit uses [Conventional Commits 1.0](https://www.conventionalcommits.org/id/v1.0.0/):
+
+```
+<type>[(<scope>)][!]: <short summary>
+
+[body: what and why, may be several paragraphs]
+
+[BREAKING CHANGE: … if it breaks compatibility]
+```
+
+| Type | When |
+|---|---|
+| `feat` | new feature for users |
+| `fix` | bug fix |
+| `docs` | documentation only |
+| `style` | code formatting without changing behavior |
+| `refactor` | code change without a new feature/fix |
+| `perf` | speed-up |
+| `test` | adding/fixing tests |
+| `build` | build system, dependencies, Docker |
+| `ci` | GitHub Actions |
+| `chore` | other maintenance |
+| `revert` | reverting a commit |
+
+Common scopes (lowercase): `api`, `ingest`, `kafka`, `s3`, `peta`, `ui`, `config`, `auth`, `alerts`, `docker`,
+`deps`, `i18n`. Examples:
+
+```
+feat(kafka): write Rancher messages into folders like the S3 export
+fix(peta): particles stop when the tab is hidden
+docs: VPS deploy guide
+build(deps)!: bump DuckDB to 2.x
+
+BREAKING CHANGE: old database files must be re-ingested.
+```
+
+Automatic checks:
+
+```sh
+git config core.hooksPath .githooks          # once per clone: non-conforming commits are rejected on your computer
+tools/check_commit.sh origin/dev..HEAD          # check commits before pushing
+```
+
+CI (`.github/workflows/ci.yml`) checks the commit messages on every pull request and push to `dev`/`stg`/`prd`, then
+runs the Python tests and the UI build. On `prd` a final **Deploy** job ships the tested commit to the server.
+
+## Before opening a pull request
+
+```sh
+.venv/bin/pip install -e ".[test,s3,kafka]"
+.venv/bin/python -m pytest -q                 # all tests
+(cd web && npm ci && npm run build) && node tools/check_i18n.mjs   # UI build + complete ID/EN dictionaries
+```
+
+Every test must pass; the tests use small sample log lines in `tests/fixtures/` and need no real log folders.
+
+Never commit `.env` (it contains secrets; it is already in `.gitignore`).

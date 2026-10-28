@@ -1,0 +1,317 @@
+"""Forgot password by email, user emails, the shared MoniShield letter and the mail server settings (owner request
+2026-10-08). No network: smtplib.SMTP is replaced by a recorder."""
+import dataclasses, re, smtplib
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import text
+
+from monishield.domain import accounts, letters
+from monishield.infrastructure import auth as authmod, config, letter, mailer
+from monishield.interfaces.api import app as appmod
+from conftest import JWT_SECRET
+
+X = {'X-Requested-With': 'uji'}
+PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
+RINA_PW = 'sandi-awal-rina-123'
+
+
+# ------------------------------------------------------------------ rules and letter
+def test_temporary_password_mixes_all_kinds():
+    seen = set()
+    for _ in range(300):
+        p = accounts.temp_password()
+        assert len(p) == accounts.TEMP_LENGTH and p not in seen
+        seen.add(p)
+        for chars in (accounts.TEMP_UPPER, accounts.TEMP_LOWER, accounts.TEMP_DIGIT, accounts.TEMP_SPECIAL):
+            assert sum(c in chars for c in p) >= 2
+        assert not set(p) & set('0O1lI')
+        accounts.check_password(p)
+
+
+def test_email_rules():
+    assert accounts.check_email(' Rina@Example.COM ') == 'rina@example.com'
+    assert accounts.check_email('') is None and accounts.check_email(None) is None
+    for bad in ('rina', 'rina@', 'a b@x.id', 'rina@x', '<rina@x.id>'):
+        with pytest.raises(accounts.AuthError): accounts.check_email(bad)
+
+
+def test_one_letter_layout_for_every_email():
+    lt = letters.password_reset('id', 'Rina <b>', 'rina', 'Ab3$Xy7!kQ2#mN9@', 30, 'https://monishield.example.com')
+    html, body = letter.render_html(lt), letter.render_text(lt)
+    assert 'MoniShield' in html and 'Ab3$Xy7!kQ2#mN9@' in html and 'Rina &lt;b&gt;' in html and '<img' not in html   # escaped; no image
+    assert 'Kata sandi sementara: Ab3$Xy7!kQ2#mN9@' in body and 'Berlaku selama 30 menit' in body and 'https://monishield.example.com' in body
+    m = letter.message(lt, 'MoniShield <noreply@example.com>', 'rina@example.com')
+    assert [p.get_content_type() for p in m.walk()] == ['multipart/alternative', 'text/plain', 'text/html']   # nothing attached
+    assert m['Auto-Submitted'] == 'auto-generated'
+    url = letter.logo_url('https://monishield.example.com/')
+    assert url == 'https://monishield.example.com/mail-logo.png' and letter.logo_url('http://10.0.0.5:8000') == ''
+    m = letter.message(lt, 'MoniShield <noreply@example.com>', 'rina@example.com', url)
+    assert f'src="{url}"' in m.get_body(('html',)).get_content() and len(list(m.walk())) == 3   # linked, not attached
+    # the same layout for an OTP code and a notification
+    otp = letters.otp('en', 'Rina', '483920', 10, 'confirm your sign-in')
+    assert otp['code']['value'] == '483920' and 'confirm your sign-in' in letter.render_text(otp)
+    n = letters.notification('id', 'Lonjakan di folder 2026-01-06', '• Respons 5xx: 120\nBuka: https://x.id/#/peta?folder=2026-01-06')
+    assert n['items'] == ['Respons 5xx: 120'] and n['button']['url'] == 'https://x.id/#/peta?folder=2026-01-06'
+
+
+# ------------------------------------------------------------------ API
+class Outbox(list):
+    pass
+
+
+@pytest.fixture
+def outbox(monkeypatch):
+    box = Outbox()
+    box.fail = None
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout=None, **kw): box.host = (host, port)
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def starttls(self, context=None): pass
+        def login(self, u, p): pass
+        def send_message(self, m):
+            if box.fail: raise box.fail
+            box.append(m)
+    monkeypatch.setattr(smtplib, 'SMTP', FakeSMTP)
+    return box
+
+
+@pytest.fixture
+def make(tmp_path, auth_url, monkeypatch):
+    monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
+    monkeypatch.setattr(authmod, 'RESET_GAP_S', 0)
+
+    def build(**over):
+        base = dict(log_dir=str(tmp_path / 'logs'), data_dir=str(tmp_path / 'data'), state_dir=str(tmp_path / 'state'),
+                    inbox_dir=str(tmp_path / 'inbox'), cache_dir=str(tmp_path / 'cache'), offline=True, ingest_on_start=False, cookie_secure=False,
+                    admin_user='admin', admin_password=PW, jwt_secret=JWT_SECRET, auth_database_url=auth_url,
+                    smtp_host='smtp.example.com', smtp_port=587, smtp_from='MoniShield <noreply@example.com>', dashboard_url='https://ms.example.com')
+        c = dataclasses.replace(config.Config(), **dict(base, **over))
+        tc = TestClient(appmod.create_app(c))
+        tc.__enter__()
+        assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
+        assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+        r = tc.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password=RINA_PW, email='Rina@Example.com'), headers=X)
+        assert r.status_code == 201 and r.json()['email'] == 'rina@example.com'
+        tc.post('/api/auth/logout', headers=X)
+        return tc
+    yield build
+
+
+def temp_from(m):
+    return re.search(r'(?:Kata sandi sementara|Temporary password): (\S+)', m.get_body(('plain',)).get_content()).group(1)
+
+
+def test_forgot_password_flow(make, outbox):
+    tc = make()
+    assert tc.get('/api/auth/options').json() == dict(forgot_password=True)
+    r = tc.post('/api/auth/forgot', json=dict(login='rina', lang='id'), headers=X)
+    assert r.status_code == 200 and r.json() == dict(sent=True, minutes=30)
+    tc.app.state.resets.wait()
+    assert len(outbox) == 1 and outbox[0]['To'] == 'rina@example.com' and outbox[0]['Subject'] == 'Kata sandi sementara akun MoniShield Anda'
+    temp = temp_from(outbox[0])
+    assert temp not in r.text and temp not in tc.app.state.auth.audit_list(50)[1].__repr__()
+    # the old password still works and cancels the pending reset: asking for resets cannot lock anyone out
+    assert tc.post('/api/auth/login', json=dict(username='rina', password=RINA_PW), headers=X).status_code == 200
+    tc.post('/api/auth/logout', headers=X)
+    assert tc.post('/api/auth/login', json=dict(username='rina', password=temp), headers=X).status_code == 401
+    # a new request by email address; the temporary password signs in once and forces a new password
+    tc.post('/api/auth/forgot', json=dict(login='RINA@example.com', lang='en'), headers=X); tc.app.state.resets.wait()
+    assert outbox[-1]['Subject'] == 'Your MoniShield temporary password'
+    temp = temp_from(outbox[-1])
+    r = tc.post('/api/auth/login', json=dict(username='rina', password=temp), headers=X)
+    assert r.status_code == 200 and r.json()['must_change_password'] is True
+    assert tc.post('/api/me/password', json=dict(old_password=temp, new_password='sandi-baru-rina-milik-sendiri'), headers=X).status_code == 200
+    tc.post('/api/auth/logout', headers=X)
+    assert tc.post('/api/auth/login', json=dict(username='rina', password=RINA_PW), headers=X).status_code == 401
+    audit = repr(tc.app.state.auth.audit_list(100))
+    assert 'password.forgot' in audit and 'password.reset_used' in audit and temp not in audit
+
+
+def test_same_answer_for_unknown_accounts_and_limits(make, outbox):
+    tc = make()
+    for login in ('tidak-ada', 'orang@lain.id', 'admin'):   # admin has no email
+        r = tc.post('/api/auth/forgot', json=dict(login=login), headers=X)
+        assert r.status_code == 200 and r.json()['sent'] is True
+    tc.app.state.resets.wait()
+    assert len(outbox) == 0
+    for _ in range(2): assert tc.post('/api/auth/forgot', json=dict(login='rina'), headers=X).status_code == 200
+    r = tc.post('/api/auth/forgot', json=dict(login='rina'), headers=X)   # the 6th request from one address within 15 minutes
+    assert r.status_code == 429 and r.json()['error']['code'] == 'too_many_attempts'
+    assert tc.post('/api/auth/forgot', json=dict(login='rina')).status_code == 403   # CSRF header required
+
+
+def test_expired_and_failed_email(make, outbox):
+    tc = make()
+    tc.post('/api/auth/forgot', json=dict(login='rina'), headers=X); tc.app.state.resets.wait()
+    temp = temp_from(outbox[-1])
+    with tc.app.state.auth.engine.begin() as c: c.execute(text("UPDATE password_reset SET expires_at = '2000-01-01 00:00:00'"))
+    assert tc.post('/api/auth/login', json=dict(username='rina', password=temp), headers=X).status_code == 401
+    outbox.fail = smtplib.SMTPAuthenticationError(535, b'no')
+    tc.post('/api/auth/forgot', json=dict(login='rina'), headers=X); tc.app.state.resets.wait()
+    with tc.app.state.auth.engine.begin() as c: assert c.execute(text('SELECT count(*) FROM password_reset')).scalar() == 0   # withdrawn
+    assert 'email not sent: The mail server rejected the username or password.' in repr(tc.app.state.auth.audit_list(20))
+
+
+def test_without_mail_server(make, outbox):
+    tc = make(smtp_host='')
+    assert tc.get('/api/auth/options').json() == dict(forgot_password=False)
+    r = tc.post('/api/auth/forgot', json=dict(login='rina'), headers=X)
+    assert r.status_code == 503 and r.json()['error']['code'] == 'mail_not_configured'
+
+
+def test_user_email_unique_editable_and_migrated(make, outbox, auth_url):
+    tc = make()
+    tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X)
+    r = tc.post('/api/admin/users', json=dict(username='budi', role='user', password='sandi-awal-budi-123', email='rina@example.com'), headers=X)
+    assert r.status_code == 409 and r.json()['error']['code'] == 'email_taken'
+    assert tc.post('/api/admin/users', json=dict(username='budi', role='user', password='sandi-awal-budi-123', email='bukan email'), headers=X).json()['error']['code'] == 'invalid_email'
+    rid = next(u['user_id'] for u in tc.get('/api/admin/users').json()['users'] if u['username'] == 'rina')
+    r = tc.patch(f'/api/admin/users/{rid}', json=dict(email='rina.baru@example.com'), headers=X)   # a new address needs the code flow
+    assert r.status_code == 400 and r.json()['error']['code'] == 'email_needs_code'
+    assert tc.patch(f'/api/admin/users/{rid}', json=dict(email=''), headers=X).json()['email'] is None   # removing needs no code
+    # an account database from before emails existed gets the column on start
+    a = tc.app.state.auth
+    with a.engine.begin() as c:
+        c.execute(text('DROP INDEX ux_app_user_email')); c.execute(text('ALTER TABLE app_user DROP COLUMN email'))
+        c.execute(text('ALTER TABLE email_change DROP COLUMN requested_by'))
+    b = authmod.Auth(auth_url, JWT_SECRET)
+    assert all('email' in u for u in b.list_users())
+    b.close()
+
+
+def test_mail_server_settings_and_test_email(make, outbox):
+    tc = make(smtp_host='')
+    tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X)
+    r = tc.put('/api/admin/config', json=dict(smtp_host='mail.example.com', smtp_port='465', smtp_security='ssl', smtp_username='ms',
+                                              smtp_password='rahasia-smtp-01', smtp_from='MoniShield <ms@example.com>'), headers=X)
+    assert r.status_code == 200, r.text
+    v = r.json()['smtp']
+    assert v['smtp_host']['value'] == 'mail.example.com' and v['smtp_password'] == dict(set=True, source='file', env='SMTP_PASSWORD')
+    assert 'rahasia-smtp-01' not in r.text
+    assert tc.put('/api/admin/config', json=dict(smtp_from='bukan alamat'), headers=X).status_code == 400
+    r = tc.post('/api/admin/config/test', json=dict(kind='smtp'), headers=X)   # admin has no email yet
+    assert r.status_code == 400 and r.json()['error']['code'] == 'mail_no_recipient'
+    tc.app.state.cfg.smtp_security = 'starttls'   # the recorder speaks plain SMTP only
+    r = tc.post('/api/admin/config/test', json=dict(kind='smtp', to='ops@example.com', lang='en'), headers=X)
+    assert r.status_code == 200 and outbox[-1]['Subject'] == 'MoniShield email test' and outbox[-1]['To'] == 'ops@example.com'
+    assert tc.get('/api/auth/options').json() == dict(forgot_password=True)
+
+
+# ------------------------------------------------------------------ own email change with verification (owner request 2026-10-08)
+def code_from(m):
+    return re.search(r'(?:Kode verifikasi|Verification code): (\d{6})', m.get_body(('plain',)).get_content()).group(1)
+
+
+def as_rina(tc):
+    assert tc.post('/api/auth/login', json=dict(username='rina', password=RINA_PW), headers=X).status_code == 200
+    assert tc.post('/api/me/password', json=dict(old_password=RINA_PW, new_password='sandi-rina-sendiri-01'), headers=X).status_code == 200
+
+
+def test_own_email_change_needs_password_and_both_codes(make, outbox):
+    tc = make()
+    as_rina(tc)
+    assert tc.get('/api/me/email').json() == dict(email='rina@example.com', pending=None, mail_ready=True)
+    r = tc.post('/api/me/email/change', json=dict(new_email='rina.baru@example.com', password='salah'), headers=X)
+    assert r.status_code == 403 and r.json()['error']['code'] == 'wrong_password' and not outbox
+    r = tc.post('/api/me/email/change', json=dict(new_email='Rina.Baru@example.com', password='sandi-rina-sendiri-01'), headers=X)
+    assert r.status_code == 200, r.text
+    v = r.json()
+    assert v['pending'] == dict(new_email='rina.baru@example.com', needs_old=True, expires_at=v['pending']['expires_at'], by_admin=None)
+    assert v['sent_old'] == 'ri***@example.com' and v['sent_new'] == 'rina.baru@example.com'
+    to = {m['To']: m for m in outbox}
+    assert set(to) == {'rina@example.com', 'rina.baru@example.com'} and outbox[0]['Subject'] == 'Kode verifikasi MoniShield Anda'
+    old, new = code_from(to['rina@example.com']), code_from(to['rina.baru@example.com'])
+    assert old != new and old not in r.text and new not in r.text
+    r = tc.post('/api/me/email/change/confirm', json=dict(old_code=old, new_code='000000'), headers=X)
+    assert r.status_code == 400 and r.json()['error']['code'] == 'wrong_code'
+    r = tc.post('/api/me/email/change/confirm', json=dict(old_code=old, new_code=new), headers=X)
+    assert r.status_code == 200 and r.json()['email'] == 'rina.baru@example.com'
+    notice = outbox[-1]
+    assert notice['To'] == 'rina@example.com' and notice['Subject'] == 'Email akun MoniShield Anda telah diganti'
+    assert 'ri***@example.com' in notice.get_body(('plain',)).get_content()
+    assert tc.get('/api/me').json()['email'] == 'rina.baru@example.com'
+    audit = repr(tc.app.state.auth.audit_list(50))
+    assert 'email.change_start' in audit and 'email.change_fail' in audit and "'email.change'" in audit and old not in audit and new not in audit
+
+
+def test_first_email_and_limits(make, outbox):
+    tc = make()
+    assert tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X).status_code == 200
+    r = tc.post('/api/me/email/change', json=dict(new_email='rina@example.com', password=PW2), headers=X)
+    assert r.status_code == 409 and r.json()['error']['code'] == 'email_taken'
+    r = tc.post('/api/me/email/change', json=dict(new_email='admin@example.com', password=PW2), headers=X)
+    assert r.status_code == 200 and r.json()['pending']['needs_old'] is False and len(outbox) == 1   # no old address yet
+    new = code_from(outbox[-1])
+    for i in range(5):
+        assert tc.post('/api/me/email/change/confirm', json=dict(new_code='999999' if new != '999999' else '111111'), headers=X).status_code == 400
+    r = tc.post('/api/me/email/change/confirm', json=dict(new_code=new), headers=X)
+    assert r.status_code == 429 and r.json()['error']['code'] == 'too_many_attempts'
+    assert tc.get('/api/me/email').json()['pending'] is None
+    # mail server refuses: nothing stays pending
+    outbox.fail = smtplib.SMTPRecipientsRefused({'admin@example.com': (550, b'no')})
+    r = tc.post('/api/me/email/change', json=dict(new_email='admin@example.com', password=PW2), headers=X)
+    assert r.status_code == 424 and r.json()['error']['code'] == 'mail_failed'
+    assert tc.get('/api/me/email').json()['pending'] is None
+    outbox.fail = None
+    tc.post('/api/me/email/change', json=dict(new_email='admin@example.com', password=PW2), headers=X)
+    assert tc.delete('/api/me/email/change', headers=X).json()['pending'] is None
+
+
+def test_mail_logo_is_public(make, outbox):
+    tc = make()
+    tc.cookies.clear()
+    r = tc.get('/mail-logo.png')   # signed out: email clients fetch it without a session
+    assert r.status_code == 200 and r.headers['content-type'] == 'image/png' and r.content[:8] == b'\x89PNG\r\n\x1a\n'
+
+
+def test_port_and_security_mismatch_is_explained(monkeypatch):
+    import ssl
+    def boom(*a, **k): raise ssl.SSLError('wrong version number')
+    monkeypatch.setattr(smtplib, 'SMTP_SSL', boom)
+    s = dict(host='smtp.example.com', port=587, security='ssl', username='', password='', sender='a@example.com')
+    with pytest.raises(mailer.MailFail) as e: mailer.deliver(s, None)
+    assert 'use 465 with SSL/TLS or 587 with STARTTLS' in e.value.message
+
+
+def test_admin_enters_email_and_the_user_confirms_it(make, outbox):
+    """Option B (owner decision 2026-10-12): an admin's new address for a user waits for the user's code."""
+    tc = make()
+    tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X)
+    users = {u['username']: u for u in tc.get('/api/admin/users').json()['users']}
+    rid, aid = users['rina']['user_id'], users['admin']['user_id']
+    body = dict(email='rina.baru@example.com', password='salah-sandi-admin', lang='id')
+    r = tc.post(f'/api/admin/users/{rid}/email/change', json=body, headers=X)
+    assert r.status_code == 403 and r.json()['error']['code'] == 'wrong_password' and not outbox
+    r = tc.post(f'/api/admin/users/{aid}/email/change', json=dict(body, password=PW2), headers=X)
+    assert r.status_code == 409 and r.json()['error']['code'] == 'own_email'          # own email: Account email, with codes
+    r = tc.post(f'/api/admin/users/{rid}/email/change', json=dict(body, password=PW2), headers=X)
+    assert r.status_code == 200, r.text
+    u = r.json()
+    assert (u['email'], u['email_pending'], u['email_pending_by']) == ('rina@example.com', 'rina.baru@example.com', 'admin')
+    assert [m['To'] for m in outbox] == ['rina.baru@example.com', 'rina@example.com']   # code to the new, notice to the old
+    code = code_from(outbox[0])
+    assert 'Berlaku selama 24 jam' in outbox[0].get_body(('plain',)).get_content()
+    assert code not in outbox[1].get_body(('plain',)).get_content() and 'ri***@example.com' in outbox[1].get_body(('plain',)).get_content()
+    # the old address keeps working until the user confirms
+    tc.post('/api/auth/logout', headers=X)
+    as_rina(tc)
+    me = tc.get('/api/me').json()
+    assert me['email'] == 'rina@example.com' and me['email_pending'] == 'rina.baru@example.com'
+    p = tc.get('/api/me/email').json()['pending']
+    assert p['needs_old'] is False and p['by_admin'] == 'admin'
+    assert tc.post('/api/me/email/change/confirm', json=dict(new_code='000000'), headers=X).json()['error']['code'] == 'wrong_code'
+    r = tc.post('/api/me/email/change/confirm', json=dict(new_code=code), headers=X)
+    assert r.status_code == 200 and r.json()['email'] == 'rina.baru@example.com'
+    assert outbox[-1]['To'] == 'rina@example.com'                                       # changed: notice to the old address
+    assert tc.get('/api/me').json()['email_pending'] is None
+    # an admin can withdraw a waiting address
+    tc.post('/api/auth/logout', headers=X)
+    tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X)
+    assert tc.post(f'/api/admin/users/{rid}/email/change', json=dict(body, email='rina.lain@example.com', password=PW2), headers=X).status_code == 200
+    r = tc.delete(f'/api/admin/users/{rid}/email/change', headers=X)
+    assert r.status_code == 200 and r.json()['email_pending'] is None and r.json()['email'] == 'rina.baru@example.com'
+    log = [x['detail'] or '' for x in tc.get('/api/admin/audit').json()['rows']]
+    assert any('entered by an admin' in d for d in log) and any('cancelled by admin admin' in d for d in log)
