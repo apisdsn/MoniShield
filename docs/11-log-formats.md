@@ -1,6 +1,7 @@
 # Plan — configurable log formats (stage 1 of "any log")
 
-Status: **proposal, waiting for the owner's approval** (2026-10-29). Nothing here is built yet.
+Status: approved by the owner 2026-10-29 (public sample formats; rules in a file **and** on the Configuration page).
+Step 1a is built (rules model, file, validation, built-in rules); 1b–1e follow.
 
 ## 1. Goal
 
@@ -26,6 +27,7 @@ configurable folder layout (stage 3).
    | `format` | Reads |
    |---|---|
    | `ingress-nginx` | ingress-nginx access + error log (today's parser) |
+| `nginx-frontend` | today's frontend parser: nginx-style access log, client = first `X-Forwarded-For` entry |
    | `nginx-combined`, `apache-combined` | standard access logs, optional upstream time / request id at the end |
    | `json` | one JSON object per line (pino, winston, zap, logrus, Serilog, …); `fields` maps keys, dotted paths allowed |
    | `logfmt` | `key=value key="quoted value"` lines (Go, Heroku style) |
@@ -150,7 +152,7 @@ patterns longer than 2,000 characters or with nested quantifiers (`(a+)+`) are r
 ## 7. The current site
 
 `S4_SERVICE_NAMES`, `S4_EVENT_TAG` and the business endpoints keep working: without `log-formats.toml` they become the
-rules of today (ingress-nginx, coredns, frontend `nginx` style, events `events-json`, auth `spring-boot` + logins, report
+rules of today (ingress-nginx, coredns, frontend `nginx-frontend`, events `events-json`, auth `spring-boot` + logins, report
 `spring-boot` + pdf, everything else `spring-boot`). An admin can export them to a file from the Log formats page and
 edit from there. No re-parse is needed after the upgrade.
 
@@ -165,7 +167,7 @@ edit from there. No re-parse is needed after the upgrade.
 
 | Step | Delivers |
 |---|---|
-| 1a | Rules model + loader + validation (domain, pure), today's rules built from the site profile; tests |
+| 1a | **Done.** Rules model + loader + validation (`domain/log_formats.py`, `config.log_format_rules`, `S4_LOG_FORMATS_FILE`, `log-formats.example.toml`), today's rules built from the site profile; tests |
 | 1b | Presets `nginx-combined`, `apache-combined`, `json`, `logfmt`, `regex`, `plain`, `syslog`, multiline; `http_access` / `app_line`; tests with sample lines per preset |
 | 1c | Derive and pages read the new tables; CRS detection and map on `http_access`; unread-line rate |
 | 1d | `auto` detection; per-file `format_key` re-parse; CLI `formats list/test` |

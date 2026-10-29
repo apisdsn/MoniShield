@@ -91,8 +91,8 @@ Questions answered along the way, recorded so they are not asked again:
    Object storage if S3 requests should go straight to the bucket's region.
 5. The old checkout `/srv/dashboard-logging/v2` on the server can be removed once nothing points to it.
 
-6. **Configurable log formats** (stage 52, [`11-log-formats.md`](11-log-formats.md)): proposal waiting for the owner's
-   approval and answers to its questions.
+6. **Configurable log formats** (stage 52, [`11-log-formats.md`](11-log-formats.md)): approved; step 1a (rules model,
+   file, validation) done, next 1b (presets and the two common tables).
 
 ## Known issues
 

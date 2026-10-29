@@ -3,7 +3,7 @@ import argparse, os, sys
 
 from monishield import __version__
 from monishield.infrastructure import config
-from monishield.domain import rules, services, timezone
+from monishield.domain import log_formats, rules, services, timezone
 
 RAW = ('nginx_access', 'nginx_error', 'fe_access', 'sl_event', 'spring_line', 'coredns_error', 'log_message')
 
@@ -351,4 +351,5 @@ def main(argv=None):
     cfg = config.load()
     services.use(services.from_config(cfg))   # the site's service names for parsers and queries
     timezone.use(timezone.from_config(cfg))   # the site's local time
+    log_formats.use(config.log_format_rules(cfg))   # how each service logs
     return args.fn(cfg, args)

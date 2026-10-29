@@ -55,6 +55,7 @@ class Config:
     upstream_prefix: str = ''       # namespace prefix of nginx upstream names, e.g. "example-example-" (stripped)
     service_names: dict = dataclasses.field(default_factory=dict)   # role -> service folder name, e.g. {"events": "orders-api"}
     event_tag: str = 'APP'          # tag of the events service lines: [APP-INFO] {...}
+    log_formats_file: str = ''      # rules of how each service logs (docs/11-log-formats.md); default: <state_dir>/log-formats.toml
     business_endpoints: dict = dataclasses.field(default_factory=dict)   # "POST /path" -> business metric; empty = the generic set
     maxmind_account_id: str = ''
     maxmind_license_key: str = ''

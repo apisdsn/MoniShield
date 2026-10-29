@@ -99,6 +99,12 @@ applies in full, including wide tables becoming row cards.
 designs the new screens in TRD §8.4, so that the UI stages do not read assumptions that have been dropped.
 Documents only; no code.
 
+Approved 2026-10-29: public sample formats; rules in a file and on the Configuration page. **Step 1a done**:
+`domain/log_formats.py` (rules, first match wins, validation with the rule's position, regex length and nested-repeat
+checks, stable rule key), `config.log_format_rules` (reads `S4_LOG_FORMATS_FILE`, default `<state dir>/log-formats.toml`;
+without it the built-in rules of the site profile), set at start like the profile; `log-formats.example.toml`. The
+parsers do not use the rules yet (step 1b).
+
 **Files changed**
 
 - `docs/01-prd.md`: A1, A2, A3, A5 become decisions; T01 withdrawn; T03 and part of T05 move into scope;
