@@ -280,12 +280,13 @@ def test_ingest_through_the_api_and_the_dashboard_stays_open(client):
     admin(client)
     r = client.post('/api/admin/ingest', json=dict(force=True), headers=X)
     assert r.status_code == 202
-    during = []
-    for _ in range(200):
+    during, deadline = [], time.monotonic() + 60   # a slow CI runner can need more than a few seconds for the forced re-parse
+    while True:
         st = client.get('/api/admin/ingest').json()
         during.append(client.get(f'/api/folders/{B}').status_code)                # read while ingest is running
-        if not st['running']: break
+        if not st['running'] or time.monotonic() > deadline: break
         time.sleep(0.02)
+    assert not st['running'], 'ingest did not finish within 60 s'
     assert set(during) == {200} and st['error'] is None
     assert (st['last']['status'], st['last']['files_parsed'], st['last']['files_failed']) == ('ok', 9, 0)
     lr = st['last_run']                                                         # from ingest_run: survives a server restart
