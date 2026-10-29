@@ -177,7 +177,8 @@ def test_role_matrix_covers_every_route(client):
             res = getattr(tc, method)(path, **kw)
             accepted = error_code(res) not in rejected if res.status_code >= 400 else True
             assert accepted == bool(expected[dep][i]), f'{method.upper()} {r.path} sebagai {("anonim", "user", "admin", "token mesin")[i]}: {res.status_code} {res.text[:80]}'
-        if r.path == '/api/admin/ingest': client.app.state.ingest.wait(30)
+        for job in (client.app.state.ingest, client.app.state.imports): job.wait(60)   # ingest, S3 import and sync run in the
+        # background; one still running would finish after a later test's ingest and become the newest ingest_run row
 
 
 def test_machine_token_only_for_ingest(client):
