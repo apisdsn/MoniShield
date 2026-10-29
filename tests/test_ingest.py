@@ -40,7 +40,7 @@ def test_first_ingest(env):
     assert sorted(r_[0] for r_ in q(con, "SELECT status FROM ingest_file WHERE service = 'auth-service'")) == ['empty', 'ok']
     assert f['unknown-service'][5] == 'ok' and any("unknown service 'unknown-service'" in w for w in r['warnings'])  # A10
     n = {t: q(con, f'SELECT count(*) FROM {t}')[0][0] for t in ingest.RAW_TABLES}
-    assert n == dict(nginx_access=7, nginx_error=4, fe_access=2, sl_event=4, spring_line=18, coredns_error=1, log_message=19)
+    assert n == dict(nginx_access=7, nginx_error=4, fe_access=2, sl_event=4, spring_line=18, coredns_error=1, log_message=19, http_access=0, app_line=0)   # built-in rules: the new tables stay empty
     assert q(con, "SELECT len(up_addrs), len(up_statuses), pod_final = up_addrs[2] FROM nginx_access WHERE len(up_addrs) > 1") == [(2, 2, True)]  # retry line
     assert q(con, "SELECT folder::VARCHAR, status, is_uptime_kuma, ts_utc::VARCHAR FROM nginx_access WHERE line_no = 2") == [(B, 200, True, '2026-09-27 17:02:58')]
     assert q(con, "SELECT kind, key, n FROM file_counter c JOIN ingest_file f USING (file_id) WHERE service = 'event-api' AND kind <> 'level' ORDER BY 1") == \

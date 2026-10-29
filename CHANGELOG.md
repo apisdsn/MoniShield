@@ -10,7 +10,11 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 - Log format rules per service (step 1a of `docs/11-log-formats.md`): `log-formats.toml` (`S4_LOG_FORMATS_FILE`, example
   `log-formats.example.toml`) lists, first match wins, which preset or format (`json`, `logfmt`, `regex`, …) reads each
   service; a file that cannot be used stops the start with the rule's position. Without the file the built-in rules
-  equal today's parsers. The parsers use the rules from step 1b on.
+  equal today's parsers.
+- Common log formats (step 1b): services whose rule names `nginx-combined`, `apache-combined`, `json`, `logfmt`, `syslog`,
+  `regex` or `plain` are read into the new tables `http_access` and `app_line` (multiline stack traces, level words, time
+  formats); lines a format cannot read are counted per file (`lines_unmatched`). The pages read these tables from step 1c on;
+  sites without `log-formats.toml` are read exactly as before.
 - Time zone of the site as configuration: `S4_TIMEZONE_OFFSET` (default `+07:00`) and `S4_TIMEZONE_LABEL` (default `WIB`) set the
   local time of pages, hours, folder dates and the daily jobs, and the label shown in the UI. Folders derived with another
   offset are derived again on the next ingest; existing data counts as +07:00, so nothing changes for current sites.

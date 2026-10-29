@@ -168,7 +168,7 @@ _current = None
 
 def use(rules):
     global _current
-    _current = tuple(rules)
+    _current = None if rules is None else tuple(rules)
 
 
 def current():

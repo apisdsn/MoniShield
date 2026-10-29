@@ -9,7 +9,7 @@ fingerprints, and CSV writing are in monishield/infrastructure/logfiles.py.
 """
 import collections, json
 
-from monishield.domain import rules, services
+from monishield.domain import formats, log_formats, rules, services
 
 # CSV columns per table, WITHOUT file_id and folder. Order = column order in schema.sql after those two.
 TABLES = {
@@ -23,6 +23,11 @@ TABLES = {
                     'jwt_expired_ms', 'refresh_expired', 'pdf_template', 'pdf_failed', 'login_kind', 'login_account', 'login_ip'],
     'coredns_error': ['line_no', 'level', 'domain', 'rtype', 'message'],
     'log_message': ['line_no', 'service', 'level', 'msg_key', 'raw'],
+    # common formats of log-formats.toml (domain/formats.py, docs/11-log-formats.md): access logs and application logs
+    'http_access': ['line_no', 'service', 'ts_utc', 'ip', 'method', 'path', 'path_key', 'status', 'bytes', 'duration_ms',
+                    'request_id', 'user_name', 'ua', 'referer', 'upstream'],
+    'app_line': ['line_no', 'service', 'ts_utc', 'level', 'logger', 'message', 'msg_key', 'request_id', 'method', 'path_key',
+                 'status', 'duration_ms', 'user_name'],
 }
 LIST_COLS = {'up_addrs', 'up_statuses'}  # written as 'a,b'; ingest splits it into VARCHAR[]
 
@@ -38,8 +43,10 @@ class Out:
     """Output of one file: raw table rows + counters. By default rows are kept in memory (`data`); the CSV writer is in
     monishield/infrastructure/logfiles.py (CsvOut), which only replaces `_emit`."""
 
-    def __init__(self, service, profile=None):
+    def __init__(self, service, profile=None, namespace=None, format_rules=None):
         self.profile = profile or services.current()
+        self.namespace, self.format_rules = namespace, format_rules   # log-formats.toml rules; None = by role (today)
+        self.unmatched = 0   # entries the service's format could not read
         self.service, self.prefix = service, self.profile.upstream_prefix
         self.sl_line = rules.sl_line(self.profile.event_tag)
         self.n = 0  # number of the line being processed (from 1)
@@ -64,7 +71,7 @@ class Out:
     def close(self): pass
 
     def summary(self):
-        return dict(lines=self.lines, err=self.err, warn=self.warn, corrupt_lines=self.corrupt,
+        return dict(lines=self.lines, err=self.err, warn=self.warn, corrupt_lines=self.corrupt, unmatched_lines=self.unmatched,
                     counters=[[k, key, n] for (k, key), n in sorted(self.counter.items())], rows=dict(self.rows))
 
 
@@ -185,11 +192,58 @@ def known_services(profile=None):
 def known_service(service, profile=None): return service in known_services(profile)
 
 
+LEGACY = {'ingress-nginx': parse_nginx, 'nginx-frontend': parse_fe, 'events-json': parse_sl, 'coredns': parse_coredns,
+          'spring-boot': parse_spring}
+
+
+def _common(entry, rule, read, o):
+    """One entry of a common format (domain/formats.py) -> http_access or app_line, counters and messages."""
+    d = read(entry)
+    if d is None or (rule.kind == 'http' and not (d.get('time') and d.get('ip') and d.get('path'))):
+        o.unmatched += 1
+        return
+    path_key = rules.path_key(d['path']) if d.get('path') else None
+    if rule.kind == 'http':
+        st = d.get('status')
+        if st is not None and 500 <= st <= 599: o.err += 1
+        o.row('http_access', o.service, d['time'], d['ip'], d.get('method'), d['path'], path_key, st, d.get('bytes'),
+              d.get('duration_ms'), d.get('request_id'), d.get('user'), (d.get('ua') or '')[:500] or None, d.get('referer'), d.get('upstream'))
+        return
+    lvl = d.get('level') or formats.guess_level(d.get('message', ''))
+    o.counter['level', lvl] += 1
+    msg = (d.get('message') or '').split('\n', 1)[0]
+    if lvl == 'ERROR': o.err += 1
+    if lvl == 'WARN': o.warn += 1
+    if lvl in ('ERROR', 'WARN'): o.msg(lvl, f"{d['logger'].split('.')[-1]}: {msg}" if d.get('logger') else msg, entry)
+    o.row('app_line', o.service, d.get('time'), lvl, d.get('logger'), (d.get('message') or '')[:2000], f'{lvl} | {rules.norm(msg)}'[:300],
+          d.get('request_id'), d.get('method'), path_key, d.get('status'), d.get('duration_ms'), d.get('user'))
+
+
 def parse_lines(lines, out):
-    """Lines of one file -> `out` (Out). Pure: file reading is in monishield/infrastructure/logfiles.py."""
-    fn = parsers(out.profile).get(out.service, parse_spring)
-    for out.n, line in enumerate(lines, 1):
-        if line.startswith(CORRUPT_PREFIX): out.corrupt += 1
-        fn(line, out)
-    out.lines = out.n
-    return dict(out.summary(), service=out.service, known_service=known_service(out.service, out.profile))
+    """Lines of one file -> `out` (Out). Pure: file reading is in monishield/infrastructure/logfiles.py.
+    With log-formats.toml rules (out.format_rules) the service's first matching rule decides the reader; the legacy presets
+    are today's parsers. Without rules: by role, as before."""
+    rule = log_formats.match(out.format_rules, out.namespace, out.service) if out.format_rules else None
+    if rule is None or rule.format in LEGACY:
+        fn = LEGACY[rule.format] if rule else parsers(out.profile).get(out.service, parse_spring)
+        if rule and rule.format == 'events-json' and rule.tag: out.sl_line = rules.sl_line(rule.tag)
+        for out.n, line in enumerate(lines, 1):
+            if line.startswith(CORRUPT_PREFIX): out.corrupt += 1
+            fn(line, out)
+        out.lines = out.n
+    else:
+        if rule.format == 'auto': rule = log_formats.Rule(rule.match, 'plain', 'app')   # detection comes in step 1d
+        read = formats.reader(rule)
+        start = formats.re.compile(rule.multiline) if rule.multiline else None
+        counted = [0]
+        def numbered():
+            for line in lines:
+                counted[0] += 1
+                if line.startswith(CORRUPT_PREFIX): out.corrupt += 1
+                yield line
+        for out.n, entry in formats.entries(numbered(), start): _common(entry, rule, read, out)
+        out.lines = counted[0]
+    # a rules file names its services; the built-in rules (no file) keep today's warning for services outside the profile
+    builtin = not out.format_rules or out.format_rules == log_formats.default_rules(out.profile)
+    known = known_service(out.service, out.profile) if builtin or rule is None else True
+    return dict(out.summary(), service=out.service, known_service=known)

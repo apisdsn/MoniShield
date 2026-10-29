@@ -11,8 +11,8 @@ from monishield.domain.parse import TABLES
 class CsvOut(parse.Out):
     """Out that writes each table to <out_dir>/<table>.csv (created on the first row)."""
 
-    def __init__(self, out_dir, service, profile=None):
-        super().__init__(service, profile)
+    def __init__(self, out_dir, service, profile=None, namespace=None, format_rules=None):
+        super().__init__(service, profile, namespace, format_rules)
         self.dir, self._w, self._fh = out_dir, {}, []
 
     def _emit(self, table, values):
@@ -28,10 +28,10 @@ class CsvOut(parse.Out):
         for fh in self._fh: fh.close()
 
 
-def parse_file(path, service, out_dir, profile=None):
+def parse_file(path, service, out_dir, profile=None, namespace=None, format_rules=None):
     """Parse one log file -> CSV in out_dir; returns a summary (lines, err, warn, corrupt_lines, counters, rows)."""
     os.makedirs(out_dir, exist_ok=True)
-    o = CsvOut(out_dir, service, profile)
+    o = CsvOut(out_dir, service, profile, namespace, format_rules)
     try:
         with (gzip.open(path, 'rt', encoding='utf-8', errors='replace') if path.endswith('.gz')
               else open(path, encoding='utf-8', errors='replace')) as fh:
@@ -48,18 +48,19 @@ def hash_file(path):
     return h.hexdigest()
 
 
-def work(path, service, out_dir, profile, known_sha, pair_path):
+def work(path, service, out_dir, profile, known_sha, pair_path, namespace=None, format_rules=None):
     """One file, run in an ingest subprocess: fingerprint, then parse only when the content differs from known_sha.
 
     Does not touch DuckDB (TRD K1/K2). Parse errors are returned, not raised, so other files still get loaded.
     pair_path = the .log.gz pair of a .log (if any): hashed too, to check whether both are identical.
-    profile = the site's log profile (domain/services.py): a subprocess does not see the parent's configuration.
+    profile = the site's log profile (domain/services.py), format_rules = the log-formats.toml rules (or None): a subprocess
+    does not see the parent's configuration.
     """
     out = dict(sha256=None, pair_sha256=None, summary=None, error=None)
     try:
         out['sha256'] = hash_file(path)
         if pair_path: out['pair_sha256'] = hash_file(pair_path)
-        if out['sha256'] != known_sha: out['summary'] = parse_file(path, service, out_dir, profile)
+        if out['sha256'] != known_sha: out['summary'] = parse_file(path, service, out_dir, profile, namespace, format_rules)
     except Exception as e:  # noqa: BLE001  (reported as status 'failed')
         out['error'] = f'{type(e).__name__}: {e}'
     return out

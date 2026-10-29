@@ -99,12 +99,6 @@ applies in full, including wide tables becoming row cards.
 designs the new screens in TRD §8.4, so that the UI stages do not read assumptions that have been dropped.
 Documents only; no code.
 
-Approved 2026-10-29: public sample formats; rules in a file and on the Configuration page. **Step 1a done**:
-`domain/log_formats.py` (rules, first match wins, validation with the rule's position, regex length and nested-repeat
-checks, stable rule key), `config.log_format_rules` (reads `S4_LOG_FORMATS_FILE`, default `<state dir>/log-formats.toml`;
-without it the built-in rules of the site profile), set at start like the profile; `log-formats.example.toml`. The
-parsers do not use the rules yet (step 1b).
-
 **Files changed**
 
 - `docs/01-prd.md`: A1, A2, A3, A5 become decisions; T01 withdrawn; T03 and part of T05 move into scope;
@@ -1345,11 +1339,25 @@ the offset a folder was derived with and the ingest derives a folder again when 
 The web UI reads the zone from `/api/meta` (`tz.js`); dictionary texts use `{tz}`. DB column names `*_wib` are kept and
 hold local time.
 
-## Stage 52 — Configurable log formats (planned, 2026-10-29)
+## Stage 52 — Configurable log formats (in progress, 2026-10-29)
 
 Owner question: how can someone with 7–10 services in different log formats use MoniShield? Plan in
 [`11-log-formats.md`](11-log-formats.md): one rules file, first matching rule per service, built-in presets plus `json`,
 `logfmt`, `regex`, `auto` and `plain`, a common normal form (`http_access`, `app_line`), the current parsers kept as
-presets so today's numbers do not change. Waiting for the owner's approval and answers to the questions in §10 before any
-code.
+presets so today's numbers do not change.
+
+Approved 2026-10-29: public sample formats; rules in a file and on the Configuration page. **Step 1a done**:
+`domain/log_formats.py` (rules, first match wins, validation with the rule's position, regex length and nested-repeat
+checks, stable rule key), `config.log_format_rules` (reads `S4_LOG_FORMATS_FILE`, default `<state dir>/log-formats.toml`;
+without it the built-in rules of the site profile), set at start like the profile; `log-formats.example.toml`.
+
+**Step 1b done**: `domain/formats.py` reads `nginx-combined`, `apache-combined`, `json` (dotted `fields`, common key
+names of pino / winston / zap / logrus / Serilog), `logfmt`, `syslog` (RFC 3164 and 5424), `regex` and `plain`; times
+`iso`, `epoch`, `epoch_ms`, `clf` or strptime (no zone = the site's zone); level words and numbers (pino, syslog
+severity) plus the rule's `levels`; `multiline` joins stack traces to their entry. `parse.parse_lines` takes the rules:
+the five legacy presets keep their own parsers and tables, the common formats fill the new raw tables `http_access` and
+`app_line` (5xx and ERROR count as errors, WARN as warnings, ERROR/WARN messages go to the Messages table), and every
+entry the format cannot read is counted in `ingest_file.lines_unmatched`. `auto` reads as `plain` until step 1d. With the
+built-in rules the parse result is identical to before (tested file by file). Pages do not read the new tables yet
+(step 1c). Tests: `tests/test_formats.py` on public sample lines in `tests/fixtures/formats/`.
 
