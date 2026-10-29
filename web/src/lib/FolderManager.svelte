@@ -8,7 +8,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, fLabel, folderTag, tWIB, utcToWib } from '../format.js';
+  import { num, fLabel, folderTag, tLocal, utcToLocal } from '../format.js';
   import { route } from '../state.js';
   import { toast } from './Toast.svelte';
   import DataTable from './DataTable.svelte';
@@ -52,7 +52,7 @@
           {#if r.log}<SeverityTag level="ok" text={$t('fm.tag.log')} />{/if}
           {#if r.inbox}<SeverityTag level="ok" text={$route.source === 'kafka' ? $t('fm.tag.kafka') : $t('fm.tag.inbox')} />{/if}
         </div>
-        {#if r.ignored && r.ignored_by}<div class="muted small">{$t('fm.ignored_by', { user: r.ignored_by, time: r.ignored_at ? tWIB(utcToWib(r.ignored_at), $lang) : '' })}</div>{/if}
+        {#if r.ignored && r.ignored_by}<div class="muted small">{$t('fm.ignored_by', { user: r.ignored_by, time: r.ignored_at ? tLocal(utcToLocal(r.ignored_at), $lang) : '' })}</div>{/if}
       {:else if r.ignored}
         <button class="btn sm" onclick={() => restore(r)}>{$t('fm.restore')}</button>
       {:else if r.in_db || r.inbox}

@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, Request
 
 from monishield import __version__
 from monishield.infrastructure import refdata
-from monishield.infrastructure.queries.sql import wib
+from monishield.infrastructure.queries.sql import local_time
 from monishield.application import sources
-from monishield.domain import services as profile
+from monishield.domain import services as profile, timezone
 from monishield.domain.kafka_message import configured as kafka_configured
 from .common import cursor, folder_param, public, require_user_ready, source_ctx
 
@@ -24,8 +24,8 @@ def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)
     ctx = source_ctx(request)   # the source being viewed: its folders, its database
     src = ctx.logfolders.source
     # requests: HTTP requests of nginx-ingress (the volume band's 7-day history on every page; None without ingress logs)
-    folders = [dict(folder=str(f), range_start=wib(a), range_end=wib(b), lines=lines, services=svc, files=files, files_empty=empty, files_corrupt=corrupt,
-                    requests=req, derived_at=wib(d), source=src(str(f)))
+    folders = [dict(folder=str(f), range_start=local_time(a), range_end=local_time(b), lines=lines, services=svc, files=files, files_empty=empty, files_corrupt=corrupt,
+                    requests=req, derived_at=local_time(d), source=src(str(f)))
                for f, a, b, lines, files, empty, corrupt, d, svc, req in cur.execute(
                    """SELECT s.folder, s.range_start_utc, s.range_end_utc, s.lines, s.files, s.files_empty, s.files_corrupt, s.derived_at,
                              (SELECT count(*) FROM agg_service a WHERE a.folder = s.folder),
@@ -43,6 +43,7 @@ def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)
     # roles: service folder name of each role of the site profile (domain/services.py); own_org: regex of the site's own network
     return dict(version=__version__, source=ctx.source, sources=offered, folders=folders, hosts=cfg.hosts,
                 roles=profile.current().names(), own_org=cfg.blocklist_exclude_org,
+                timezone=dict(minutes=timezone.current().minutes, label=timezone.current().label, offset=timezone.current().text),
                 server=dict(ip=cfg.server_ip, city=city, region=region, cc=cc, lat=lat, lon=lon), dns_upstream=cfg.dns_upstream,
                 ip_data=dict(owner=owner > 0, location=located > 0, map=refdata.map_ready(cfg)), attribution=refdata.ATTRIBUTION,
                 ingest=dict(running=st['running'], phase=st['phase'], last_status=(st['last'] or {}).get('status'), error=st['error']),
@@ -65,7 +66,7 @@ def folder_summary(request: Request, folder: str = Depends(folder_param), user=D
              for s, pod, ns, lines, err, warn, size, status in cur.execute(
                  'SELECT service, pod, ns, lines, err, warn, size_bytes, status FROM ingest_file WHERE folder = ? ORDER BY relpath', [folder]).fetchall()]
     r = cur.execute('SELECT range_start_utc, range_end_utc FROM folder_state WHERE folder = ?', [folder]).fetchone()
-    return dict(folder=folder, prev_folder=str(prev) if prev else None, range_start=wib(r[0]), range_end=wib(r[1]),
+    return dict(folder=folder, prev_folder=str(prev) if prev else None, range_start=local_time(r[0]), range_end=local_time(r[1]),
                 attack_ip_count=cur.execute(f"SELECT count(*) FROM {'agg_crs_ip' if request.app.state.cfg.attack_rules == 'crs' else 'agg_attack_ip'} WHERE folder = ?",
                                             [folder]).fetchone()[0],
                 services=services, files=files)

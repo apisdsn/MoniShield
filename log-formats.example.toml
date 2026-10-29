@@ -1,0 +1,48 @@
+# How each service logs (docs/11-log-formats.md). Copy to <state dir>/log-formats.toml (or point S4_LOG_FORMATS_FILE at it).
+# Rules are checked from top to bottom; the FIRST rule whose `match` fits the service folder name is used.
+# `match` is a name or a glob (web-*), optionally namespace/name. Every value below is an example.
+# Without this file MoniShield uses its built-in rules (the parsers of the site profile in .env).
+
+[[service]]                           # gateway / reverse proxy
+match  = "ingress-nginx*"
+format = "ingress-nginx"
+kind   = "http"
+
+[[service]]                           # web-shop, web-admin: standard nginx access logs
+match  = "web-*"
+format = "nginx-combined"
+kind   = "http"
+
+[[service]]                           # JSON request logs (pino, winston, zap, …)
+match    = "orders-api"
+format   = "json"
+kind     = "app"
+features = ["tracing"]                # its request_id is joined with the access log
+fields   = { time = "ts", level = "severity", message = "msg", request_id = "trace_id", method = "req.method", path = "req.url", status = "res.status", duration_ms = "latency_ms", ip = "req.ip" }
+
+[[service]]                           # level=info ts=… msg="…"
+match  = "payments"
+format = "logfmt"
+kind   = "app"
+
+[[service]]                           # Spring Boot with the login lines (Security page)
+match    = "auth-service"
+format   = "spring-boot"
+kind     = "app"
+features = ["logins"]
+
+[[service]]                           # anything else: a regular expression with named groups
+match       = "legacy-erp"
+format      = "regex"
+pattern     = '^\[(?P<time>[^\]]+)\] (?P<level>\w+) (?P<message>.*)$'
+time_format = "%d/%m/%Y %H:%M:%S"     # strptime; the site's time zone unless the value carries one
+multiline   = '^\['                   # a line that does not match starts no new entry (stack traces)
+levels      = { SEVERE = "ERROR", WARNING = "WARN", FINE = "DEBUG" }
+
+[[service]]                           # let MoniShield pick the preset that reads the most lines
+match  = "worker-*"
+format = "auto"
+
+[[service]]                           # the rest: lines are counted, the level is guessed from ERROR / WARN words
+match  = "*"
+format = "plain"

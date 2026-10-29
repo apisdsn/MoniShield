@@ -81,7 +81,7 @@ class IngestService:
 def new_folders(ctx):
     """Date folders in the log folder / inbox that are not yet in the database (and not ignored)."""
     w = ctx.warehouse
-    cut = retention.cutoff(retention.today_wib(datetime.datetime.now(datetime.timezone.utc)), ctx.cfg.retention_days)
+    cut = retention.cutoff(retention.today_local(datetime.datetime.now(datetime.timezone.utc)), ctx.cfg.retention_days)
     return retention.keep(ctx.logfolders.new_folders(w.known_folders() | w.ignored()), cut)   # past the keeping period: not offered
 
 

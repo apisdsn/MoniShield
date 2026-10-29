@@ -8,7 +8,7 @@
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { route } from '../state.js';
-  import { num, tWIB, utcToWib } from '../format.js';
+  import { num, tLocal, utcToLocal } from '../format.js';
   import { toast } from '../lib/Toast.svelte';
   import DataTable from '../lib/DataTable.svelte';
   import ImportCard from '../lib/ImportCard.svelte';
@@ -72,7 +72,7 @@
       </header>
       <p class="lastline">
         {#if last}
-          {$t('ing.last')} <b>{tWIB(utcToWib(last.finished_at), $lang)}</b> ·
+          {$t('ing.last')} <b>{tLocal(utcToLocal(last.finished_at), $lang)}</b> ·
           <span class={last.status === 'ok' ? 'ok' : 'ERROR'}>{$t(STATUS[last.status] || 'ing.st.fail')}</span> ·
           {$t('ing.changed', { n: num(last.files_changed ?? 0, $lang), seen: num(last.files_seen ?? 0, $lang) })}
         {:else}<span class="muted">{$t('ing.never')}</span>{/if}
@@ -111,7 +111,7 @@
 
     {#if audit}
       <DataTable title={$t('ing.audit')} rows={audit.rows} limit={50} columns={[
-        { key: 'at', label: $t('col.time'), fmt: (r) => tWIB(utcToWib(r.at), $lang), cls: () => 'nowrap', sort: true },
+        { key: 'at', label: $t('col.time'), fmt: (r) => tLocal(utcToLocal(r.at), $lang), cls: () => 'nowrap', sort: true },
         { key: 'username', label: 'User', fmt: (r) => r.username || '–', sort: true },
         { key: 'action', label: $t('ing.col.action'), type: 'code', sort: true },
         { key: 'detail', label: $t('ing.col.detail'), fmt: (r) => $srv(r.detail || ''), cls: () => 'small', minw: 220 },

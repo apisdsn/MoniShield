@@ -13,7 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
 from monishield.application import account_service, alert_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
-from monishield.domain import config_model, detect, services
+from monishield.domain import config_model, detect, log_formats, services, timezone
 from monishield.infrastructure import auth as authmod, backup, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
 from monishield.interfaces.api import admin, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
@@ -62,6 +62,8 @@ def wire(state, cfg, env_path):
     monishield/application/ports.py). The DuckDB connection (state.con) and accounts (state.auth) are opened at server start."""
     state.cfg, state.settings_pending, state.snapshot_error = cfg, [], None
     services.use(services.from_config(cfg))   # the site's service names (S4_SERVICE_NAMES, …) for parsers and queries
+    timezone.use(timezone.from_config(cfg))   # the site's local time (S4_TIMEZONE_OFFSET)
+    log_formats.use(config.log_format_rules(cfg))   # how each service logs (log-formats.toml); read by the parsers from step 1b
     state.env = envfile.EnvStore(env_path)
     state.warehouse = warehouse.DuckWarehouse(state)
     state.logfolders = logfolders.LogFolders(cfg)

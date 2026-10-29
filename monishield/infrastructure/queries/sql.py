@@ -1,6 +1,5 @@
-"""Read-side query helpers: cell format, WIB hours, short execution, rejection (domain error -> HTTP in the interface)."""
-import datetime
-
+"""Read-side query helpers: cell format, local hours, short execution, rejection (domain error -> HTTP in the interface)."""
+from monishield.domain import timezone
 from monishield.domain.errors import Fail
 
 
@@ -10,9 +9,14 @@ def reject(status, code, message):
 
 
 # ------------------------------------------------------------------ format
-def wib(ts, n=16):
-    """UTC TIMESTAMP -> WIB text 'YYYY-MM-DD HH:MM' (n=13: up to the hour), same format as the old system's data."""
-    return None if ts is None else (ts + datetime.timedelta(hours=7)).strftime('%Y-%m-%d %H:%M')[:n]
+def local_time(ts, n=16):
+    """UTC TIMESTAMP -> local text 'YYYY-MM-DD HH:MM' (n=13: up to the hour; S4_TIMEZONE_OFFSET), the old system's format."""
+    return None if ts is None else timezone.current().local(ts).strftime('%Y-%m-%d %H:%M')[:n]
+
+
+def local(expr):
+    """SQL: UTC column -> local TIMESTAMP (the offset is an integer from the configuration, never user input)."""
+    return f'{expr} + to_minutes({int(timezone.current().minutes)})'
 
 
 def ip_cell(ip, asn=None, cc=None, org=None):
@@ -23,7 +27,7 @@ def ip_cell(ip, asn=None, cc=None, org=None):
 # ------------------------------------------------------------------ used by the page modules (TRD §5.3)
 # All page numbers are read from the full aggregate tables (TRD K4), not from already-truncated lists.
 # When the needed logs are missing: 200 with available=false + reason, not an error.
-H = "strftime({}, '%Y-%m-%d %H')"   # WIB hour, old format
+H = "strftime({}, '%Y-%m-%d %H')"   # local hour, old format
 
 
 def _all(cur, sql, *p): return [list(r) for r in cur.execute(sql, list(p)).fetchall()]

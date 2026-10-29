@@ -1,7 +1,7 @@
 <!-- Hour × date heatmap (Stage 24 item 8). One sequential color (light -> dark accent) for magnitude; empty cell =
      no data. 5 classes (linear quantization against the largest value) with a legend. Hover/focus a cell -> caption
      above the grid (text, not color only); "Lihat sebagai tabel" shows the same numbers (DRD §9.2).
-     days: ['YYYY-MM-DD', …] (WIB dates), rows: [[24 numbers], …] aligned with days. -->
+     days: ['YYYY-MM-DD', …] (local dates), rows: [[24 numbers], …] aligned with days. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { num, dLabel } from '../format.js';

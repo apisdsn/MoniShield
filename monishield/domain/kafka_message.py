@@ -7,10 +7,9 @@ Folder date follows the S3 export: folder D holds logs from (D-1 00:00, D 00:00]
 monishield/application/kafka_service.py and the Kafka adapter in monishield/infrastructure/kafka_client.py."""
 import datetime, json, os, re
 
-from monishield.domain import parse
+from monishield.domain import parse, timezone
 from monishield.domain.errors import Fail
 
-WIB = datetime.timedelta(hours=7)
 
 
 NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,252}')
@@ -70,8 +69,8 @@ def parse_message(value, ts_ms=None):
 
 
 def folder_of(t):
-    """Date folder as in the S3 export: (D-1 00:00, D 00:00] WIB -> D."""
-    w = t.astimezone(datetime.timezone.utc).replace(tzinfo=None) + WIB
+    """Date folder as in the S3 export: (D-1 00:00, D 00:00] local time -> D."""
+    w = timezone.current().local(t)
     return ((w - datetime.timedelta(microseconds=1)).date() + datetime.timedelta(days=1)).isoformat()
 
 

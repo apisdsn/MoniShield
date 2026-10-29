@@ -35,12 +35,13 @@
   import { onDestroy } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { theme } from '../theme.js';
-  import { num, dLabel, tWIB, cut } from '../format.js';
+  import { num, dLabel, tLocal, cut } from '../format.js';
   import InfoTip from './InfoTip.svelte';
+  import { TZ } from '../tz.js';
 
   /**
    * datasets: [{label, data, color?: token ('--err' / '--c2'), colors?: [token per point]}]
-   * timeAxis: labels 'YYYY-MM-DD HH' (WIB hour from the API). fmtV: value format (axis + tooltip).
+   * timeAxis: labels 'YYYY-MM-DD HH' (local hour from the API). fmtV: value format (axis + tooltip).
    * tooltipTitle(i): tooltip title line (e.g. IP + owner). options: merged into the Chart.js options.
    */
   let { title, type = 'bar', labels = [], datasets = [], wide = false, timeAxis = false, fmtV = null, tooltipTitle = null,
@@ -53,7 +54,7 @@
   const points = $derived(datasets.reduce((n, d) => n + (d.data?.length || 0), 0));
   const oneDay = $derived(timeAxis && labels.length > 0 && labels.every((l) => String(l).slice(0, 10) === String(labels[0]).slice(0, 10)));
   const shownLabels = $derived(
-    timeAxis ? labels.map((l) => (oneDay ? tWIB(l, $lang).split(' ').pop() : tWIB(l, $lang))) : labels.map(String),
+    timeAxis ? labels.map((l) => (oneDay ? tLocal(l, $lang).split(' ').pop() : tLocal(l, $lang))) : labels.map(String),
   );
   const fv = (v) => (fmtV ? fmtV(v, $lang) : num(v, $lang));
   const total = $derived(datasets.reduce((a, d) => a + (d.data || []).reduce((x, y) => x + (+y || 0), 0), 0));
@@ -119,7 +120,7 @@
             backgroundColor: v('--tooltip-bg'), borderColor: v('--tooltip-line'), borderWidth: 1, padding: 10,
             titleColor: '#e2ecf3', bodyColor: '#e2ecf3',
             callbacks: {
-              ...(tooltipTitle ? { title: (it) => tooltipTitle(it[0].dataIndex) } : timeAxis ? { title: (it) => tWIB(labels[it[0].dataIndex], $lang) } : {}),
+              ...(tooltipTitle ? { title: (it) => tooltipTitle(it[0].dataIndex) } : timeAxis ? { title: (it) => tLocal(labels[it[0].dataIndex], $lang) } : {}),
               label: (c) => `${c.dataset.label ? c.dataset.label + ': ' : ''}${fv(type === 'doughnut' ? c.raw : horizontal ? c.parsed.x : c.parsed.y)}`,
             },
           },
@@ -155,14 +156,14 @@
           <thead><tr><th scope="col">{timeAxis ? $t('chart.time') : $t('chart.label')}</th>
             {#each datasets as d}<th scope="col" class="n">{d.label || valueLabel || $t('table.count')}</th>{/each}</tr></thead>
           <tbody>
-            {#each labels as l, i}<tr><td>{timeAxis ? tWIB(l, $lang) : String(l)}</td>{#each datasets as d}<td class="n">{fv(d.data[i])}</td>{/each}</tr>{/each}
+            {#each labels as l, i}<tr><td>{timeAxis ? tLocal(l, $lang) : String(l)}</td>{#each datasets as d}<td class="n">{fv(d.data[i])}</td>{/each}</tr>{/each}
           </tbody>
         </table>
       </div>
       {#if oneDay}<p class="day muted">{dLabel(String(labels[0]).slice(0, 10), $lang)}</p>{/if}
     {:else}
       <div class="chart" role="img" aria-label={summary}><canvas bind:this={canvas} aria-hidden="true"></canvas></div>
-      {#if oneDay}<p class="day muted">{dLabel(String(labels[0]).slice(0, 10), $lang)} · WIB</p>{/if}
+      {#if oneDay}<p class="day muted">{dLabel(String(labels[0]).slice(0, 10), $lang)} · {TZ.label}</p>{/if}
     {/if}
     {#if footer}<div class="foot">{@render footer()}</div>{/if}
   </section>

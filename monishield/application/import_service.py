@@ -134,7 +134,7 @@ class ImportService:
         res = dict(at=now(), by=by, sources=[], imported=[], rechecked=[], failed=[], waiting=0, errors=[])
         try:
             known, from_s3 = self._known()
-            today = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=7)).date()   # folder date = WIB
+            today = retention.today_local(datetime.datetime.now(datetime.timezone.utc))   # folder date = local date
             seen, todo = set(), []
             for bucket, base in sources:
                 try: folders = [f for f in s3.list_folders(bucket, base) if f not in seen]

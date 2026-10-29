@@ -11,8 +11,10 @@ from urllib.parse import unquote_plus
 
 
 from monishield.domain import detect
-from monishield.infrastructure.queries.sql import _all, reject
-from .tables import NG, SEV_SQL, T, UTC
+from monishield.infrastructure.queries.sql import _all, reject, local
+from .tables import NG, SEV_SQL, T
+
+LOCAL = lambda e: f"strftime({local(e)}, '%Y-%m-%d %H:%M')"   # UTC column -> local text; works with positional parameters
 
 MAX_REQ = 1000
 
@@ -44,12 +46,12 @@ def ip_profile(cur, folder, cfg, ip):
     sev = 'crs_severity' if crs else SEV_SQL.replace('category', 'attack_cat')
     k = cur.execute(f"""SELECT count(*), count(*) FILTER (WHERE status BETWEEN 400 AND 499), count(*) FILTER (WHERE status >= 500),
                                count(*) FILTER (WHERE {cat} IS NOT NULL), count(DISTINCT path_key), count(DISTINCT ua),
-                               {UTC.format('min(ts_utc)')}, {UTC.format('max(ts_utc)')}
+                               {LOCAL('min(ts_utc)')}, {LOCAL('max(ts_utc)')}
                         FROM nginx_access WHERE folder = ? AND ip = ?""", [folder, ip]).fetchone()
     rows = [dict(time=t, method=m, path=unquote_plus(p)[:300], status=s, bytes=b, ua=u[:160], upstream=up, request_id=rid,
                  category=c, severity=sv if c else None, rules=list(r or []))
             for t, m, p, s, b, u, up, rid, c, sv, r in cur.execute(f"""
-                SELECT {UTC.format('ts_utc')}, method, path, status, bytes, ua, upstream, request_id, {cat}, {sev},
+                SELECT {LOCAL('ts_utc')}, method, path, status, bytes, ua, upstream, request_id, {cat}, {sev},
                        {'crs_rules' if crs else '[]::INTEGER[]'}
                 FROM nginx_access WHERE folder = ? AND ip = ? ORDER BY ts_utc, file_id, line_no LIMIT {MAX_REQ}""", [folder, ip]).fetchall()]
     login = cur.execute(f"""SELECT fail, lock, ok, list_sort(accounts), {T.format('first_wib')}, {T.format('last_wib')}
@@ -133,6 +135,6 @@ def attack_ips_csv(cur, folder, cfg):
                          FROM {I} a LEFT JOIN ip_info i USING (ip) WHERE a.folder = ? ORDER BY a.hits DESC, a.ip""", folder)
     buf = io.StringIO()
     w = csv.writer(buf, lineterminator='\n')
-    w.writerow(['ip', 'attack_requests', 'categories', 'max_severity', 'country', 'asn', 'network_owner', 'first_seen_wib', 'last_seen_wib'])
+    w.writerow(['ip', 'attack_requests', 'categories', 'max_severity', 'country', 'asn', 'network_owner', 'first_seen_local', 'last_seen_local'])
     for r in rows: w.writerow([_safe(v) for v in r])
     return dict(file=buf.getvalue(), media_type='text/csv; charset=utf-8', filename=f'ip-serangan-{folder}.csv')

@@ -10,7 +10,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { tWIB, utcToWib } from '../format.js';
+  import { tLocal, utcToLocal } from '../format.js';
   import { toast } from '../lib/Toast.svelte';
   import DataTable from '../lib/DataTable.svelte';
   import Dialog from '../lib/Dialog.svelte';
@@ -139,7 +139,7 @@
       { key: 'email', label: $t('adm.col.email'), custom: true, sort: true },
       { key: 'role', label: $t('adm.col.role'), custom: true, sort: true },
       { key: 'active', label: $t('col.status'), custom: true, sort: true },
-      { key: 'last_login_at', label: $t('adm.col.last_login'), fmt: (r) => (r.last_login_at ? tWIB(utcToWib(r.last_login_at), $lang) : '–'), cls: () => 'nowrap', sort: true },
+      { key: 'last_login_at', label: $t('adm.col.last_login'), fmt: (r) => (r.last_login_at ? tLocal(utcToLocal(r.last_login_at), $lang) : '–'), cls: () => 'nowrap', sort: true },
       { key: 'actions', label: $t('adm.col.actions'), custom: true },
     ]}>
       {#snippet cell(r, c)}

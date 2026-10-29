@@ -2,17 +2,17 @@
 // v2 formatters vs the examples in inventory §2.0 and the output of the old functions in dashboard_template.html.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tWIB, dur, durMs, tRange, dLabel, logDay, folderOfDay, fLabel, folderTag, num, logRange, delta, bytes, pct, sysName, cut, utcToWib } from '../web/src/format.js';
+import { tLocal, dur, durMs, tRange, dLabel, logDay, folderOfDay, fLabel, folderTag, num, logRange, delta, bytes, pct, sysName, cut, utcToLocal } from '../web/src/format.js';
 
 test('waktu WIB seperti lama', () => {
-  assert.equal(tWIB('2026-09-28 06:03', 'id'), '28 Sep 2026 06.03 WIB');
-  assert.equal(tWIB('2026-09-28 06:03', 'en'), '28 Sep 2026 06:03 WIB');
-  assert.equal(tWIB('2026-09-28 06', 'id'), '28 Sep 06.00');
-  assert.equal(tWIB('2026-09-28 06', 'en'), '28 Sep 06:00');
-  assert.equal(tWIB('2026-10-05 09:00', 'id'), '5 Okt 2026 09.00 WIB');
-  assert.equal(tWIB('2026-08-17 23:59', 'id'), '17 Agu 2026 23.59 WIB');
-  assert.equal(tWIB('2026-08-17 23:59', 'en'), '17 Aug 2026 23:59 WIB');
-  assert.equal(tWIB(null, 'id'), '-');
+  assert.equal(tLocal('2026-09-28 06:03', 'id'), '28 Sep 2026 06.03 WIB');
+  assert.equal(tLocal('2026-09-28 06:03', 'en'), '28 Sep 2026 06:03 WIB');
+  assert.equal(tLocal('2026-09-28 06', 'id'), '28 Sep 06.00');
+  assert.equal(tLocal('2026-09-28 06', 'en'), '28 Sep 06:00');
+  assert.equal(tLocal('2026-10-05 09:00', 'id'), '5 Okt 2026 09.00 WIB');
+  assert.equal(tLocal('2026-08-17 23:59', 'id'), '17 Agu 2026 23.59 WIB');
+  assert.equal(tLocal('2026-08-17 23:59', 'en'), '17 Aug 2026 23:59 WIB');
+  assert.equal(tLocal(null, 'id'), '-');
 });
 
 test('tanggal folder', () => {
@@ -81,11 +81,11 @@ test('label', () => {
 });
 
 test('waktu UTC akun/ingest -> WIB (lewat tengah malam)', () => {
-  assert.equal(utcToWib('2026-10-06 18:40:12'), '2026-10-07 01:40');
-  assert.equal(utcToWib('2026-10-06 02:05'), '2026-10-06 09:05');
-  assert.equal(tWIB(utcToWib('2026-12-31 20:00:00'), 'id'), '1 Jan 2027 03.00 WIB');
-  assert.equal(utcToWib(null), null);
-  assert.equal(utcToWib('bukan waktu'), null);
+  assert.equal(utcToLocal('2026-10-06 18:40:12'), '2026-10-07 01:40');
+  assert.equal(utcToLocal('2026-10-06 02:05'), '2026-10-06 09:05');
+  assert.equal(tLocal(utcToLocal('2026-12-31 20:00:00'), 'id'), '1 Jan 2027 03.00 WIB');
+  assert.equal(utcToLocal(null), null);
+  assert.equal(utcToLocal('bukan waktu'), null);
 });
 
 test('folder name -> log day (S3 and Kafka folders both hold the previous day)', () => {

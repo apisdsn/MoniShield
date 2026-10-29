@@ -6,6 +6,15 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 
 ## [Unreleased]
 
+### Added
+- Log format rules per service (step 1a of `docs/11-log-formats.md`): `log-formats.toml` (`S4_LOG_FORMATS_FILE`, example
+  `log-formats.example.toml`) lists, first match wins, which preset or format (`json`, `logfmt`, `regex`, …) reads each
+  service; a file that cannot be used stops the start with the rule's position. Without the file the built-in rules
+  equal today's parsers. The parsers use the rules from step 1b on.
+- Time zone of the site as configuration: `S4_TIMEZONE_OFFSET` (default `+07:00`) and `S4_TIMEZONE_LABEL` (default `WIB`) set the
+  local time of pages, hours, folder dates and the daily jobs, and the label shown in the UI. Folders derived with another
+  offset are derived again on the next ingest; existing data counts as +07:00, so nothing changes for current sites.
+
 ### Changed
 - No client data in the code: the service folder names of each log role (`S4_SERVICE_NAMES`), the events tag (`S4_EVENT_TAG`), the
   Business endpoints (`S4_BUSINESS_ENDPOINTS`), hosts, server IP, upstream prefix, DNS upstream and own network
@@ -23,6 +32,9 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   (`lama` still accepted). The sidebar now names a failed last ingest instead of showing a raw dictionary key.
 
 ### Security
+- Behind Cloudflare the visitor's own address is used for the audit log and the login limits per IP: `S4_TRUST_CLOUDFLARE=true`
+  reads `CF-Connecting-IP`, believed only from Cloudflare's ranges (`S4_CLOUDFLARE_IPS`, built-in list), so a request sent
+  straight to the server cannot pick its own address.
 - HSTS on the `https` profile includes subdomains (`max-age=31536000; includeSubDomains`, no `preload`); the extra sites in
   `deploy/sites/*.caddy` use the same header. Every subdomain must then work over https; `docs/07-deploy-vps.md` explains
   the `max-age=0` way back.
@@ -38,6 +50,9 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   cannot be dodged with a forged header; `?next=` of the sign-in page also refuses `/\…`.
 
 ### Maintenance
+- Plan for configurable log formats per service (`docs/11-log-formats.md`), not built yet.
+- The public repository `apisdsn/MoniShield` is where work happens; `apisdsn/MoniShield-internal` keeps the earlier history
+  privately. `CLAUDE.md` and `docs/09-status.md` describe the layout, the owner's commit identity and the current deploy.
 - Unused code removed: the `SplitBar` component, 31 dictionary entries no screen uses, dead Python helpers
   (`detect.capec_name`, `rules.geo_scan`, `rules.DBIP_URL`, `rules.NGX_ERR_TS`, `alerts.DEFAULT`, two in `tools/kesetaraan.py`),
   unused imports and re-exports (callers now import from the domain module), and the 12 old browser scripts `tools/uji_*.cjs`

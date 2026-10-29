@@ -7,7 +7,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { fLabel, tWIB, utcToWib } from '../format.js';
+  import { fLabel, tLocal, utcToLocal } from '../format.js';
   import { errText } from '../srv.js';
   import { toast } from '../lib/Toast.svelte';
   import DataTable from '../lib/DataTable.svelte';
@@ -207,7 +207,7 @@
     </section>
 
     <DataTable title={$t('al.history')} rows={v.history} limit={30} columns={[
-      { key: 'at', label: $t('col.time'), fmt: (r) => tWIB(utcToWib(r.at), $lang), cls: () => 'nowrap' },
+      { key: 'at', label: $t('col.time'), fmt: (r) => tLocal(utcToLocal(r.at), $lang), cls: () => 'nowrap' },
       { key: 'channel', label: $t('al.col.channel'), fmt: (r) => $t(`al.ch.${r.channel}`) },
       { key: 'event', label: $t('al.col.event'), fmt: (r) => (r.event === 'test' ? $t('al.test') : $t(`al.ev.${r.event}`)) },
       { key: 'summary', label: $t('al.col.summary'), fmt: (r) => r.summary || '', minw: 220 },
