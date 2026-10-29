@@ -91,6 +91,9 @@ Questions answered along the way, recorded so they are not asked again:
    Object storage if S3 requests should go straight to the bucket's region.
 5. The old checkout `/srv/dashboard-logging/v2` on the server can be removed once nothing points to it.
 
+6. **Configurable log formats** (stage 52, [`11-log-formats.md`](11-log-formats.md)): proposal waiting for the owner's
+   approval and answers to its questions.
+
 ## Known issues
 
 - Fixed 2026-10-12: the S3 sync used to skip dates that already had a Kafka folder. Now, once Kafka writes the next

@@ -46,6 +46,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   cannot be dodged with a forged header; `?next=` of the sign-in page also refuses `/\…`.
 
 ### Maintenance
+- Plan for configurable log formats per service (`docs/11-log-formats.md`), not built yet.
 - The public repository `apisdsn/MoniShield` is where work happens; `apisdsn/MoniShield-internal` keeps the earlier history
   privately. `CLAUDE.md` and `docs/09-status.md` describe the layout, the owner's commit identity and the current deploy.
 - Unused code removed: the `SplitBar` component, 31 dictionary entries no screen uses, dead Python helpers

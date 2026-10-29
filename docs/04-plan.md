@@ -1339,3 +1339,11 @@ the offset a folder was derived with and the ingest derives a folder again when 
 The web UI reads the zone from `/api/meta` (`tz.js`); dictionary texts use `{tz}`. DB column names `*_wib` are kept and
 hold local time.
 
+## Stage 52 — Configurable log formats (planned, 2026-10-29)
+
+Owner question: how can someone with 7–10 services in different log formats use MoniShield? Plan in
+[`11-log-formats.md`](11-log-formats.md): one rules file, first matching rule per service, built-in presets plus `json`,
+`logfmt`, `regex`, `auto` and `plain`, a common normal form (`http_access`, `app_line`), the current parsers kept as
+presets so today's numbers do not change. Waiting for the owner's approval and answers to the questions in §10 before any
+code.
+
