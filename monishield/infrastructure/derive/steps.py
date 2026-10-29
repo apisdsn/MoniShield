@@ -7,18 +7,19 @@ Each function: delete this folder's rows, insert the new ones. Called inside the
 import collections
 from urllib.parse import unquote_plus
 
-from monishield.domain import detect, rules, services
+from monishield.domain import detect, rules, services, timezone
 from monishield.infrastructure.db import insert_rows
 
 C = collections.Counter
-WIB = "date_trunc('minute', {} + INTERVAL 7 HOUR)::VARCHAR"  # 'YYYY-MM-DD HH:MM:SS' -> cut to [:16] = WIB minute
+def local_minute(expr):   # UTC column -> local minute as text 'YYYY-MM-DD HH:MM:SS' (cut to [:16]); S4_TIMEZONE_OFFSET
+    return f"date_trunc('minute', {expr} + to_minutes({timezone.current().minutes}))::VARCHAR"
 
 
 def _map(d): return {str(k): int(v) for k, v in d.items()}   # a MAP(VARCHAR, INTEGER) value (db.insert_rows takes the dict)
 
 
 def attack(con, folder):  # old:71 add_attack + the atk/atk_ip/atk_h part of summarize()
-    rows = con.execute(f"""SELECT a.attack_cat, {WIB.format('a.ts_utc')}, a.ip, a.method, a.path, a.status::VARCHAR, a.bytes, a.ua, a.upstream
+    rows = con.execute(f"""SELECT a.attack_cat, {local_minute('a.ts_utc')}, a.ip, a.method, a.path, a.status::VARCHAR, a.bytes, a.ua, a.upstream
                            FROM nginx_access a JOIN ingest_file f USING (file_id)
                            WHERE a.folder = ? AND a.attack_cat IS NOT NULL ORDER BY f.relpath, a.line_no""", [folder]).fetchall()
     atk, atk_ip, atk_h = {}, {}, C()
@@ -55,7 +56,7 @@ def crs(con, folder):  # Stage 21, TRD §4.6: OWASP CRS classification per uniqu
         con.execute("""UPDATE nginx_access a SET crs_rules = c.rules, capec = c.capec, crs_attack = c.attack, crs_severity = c.sev, crs_score = c.score
                        FROM _crs c WHERE a.folder = ? AND a.method = c.method AND a.path = c.path AND a.ua = c.ua""", [folder])
         con.execute('DROP TABLE _crs')
-    rows = con.execute(f"""SELECT a.capec, a.crs_attack, a.crs_severity, a.crs_rules, {WIB.format('a.ts_utc')}, a.ip, a.method, a.path, a.status::VARCHAR,
+    rows = con.execute(f"""SELECT a.capec, a.crs_attack, a.crs_severity, a.crs_rules, {local_minute('a.ts_utc')}, a.ip, a.method, a.path, a.status::VARCHAR,
                                   a.bytes, a.ua, a.upstream
                            FROM nginx_access a JOIN ingest_file f USING (file_id)
                            WHERE a.folder = ? AND a.crs_score IS NOT NULL ORDER BY f.relpath, a.line_no""", [folder]).fetchall()
@@ -81,7 +82,7 @@ def crs(con, folder):  # Stage 21, TRD §4.6: OWASP CRS classification per uniqu
 
 
 def accounts(con, folder):  # old:251 accounts(); login events of the auth service in read order
-    lev = con.execute(f"""SELECT {WIB.format('s.ts_utc')}, lower(split_part(s.login_account, '@', 1)), s.login_ip, s.login_kind
+    lev = con.execute(f"""SELECT {local_minute('s.ts_utc')}, lower(split_part(s.login_account, '@', 1)), s.login_ip, s.login_kind
                           FROM spring_line s JOIN ingest_file f USING (file_id)
                           WHERE s.folder = ? AND s.service = ? AND s.login_kind IS NOT NULL ORDER BY f.relpath, s.line_no""", [folder, services.current().auth]).fetchall()
     per = collections.defaultdict(list)
@@ -95,7 +96,7 @@ def accounts(con, folder):  # old:251 accounts(); login events of the auth servi
 def incidents(con, folder):  # old:271 incidents(); minutes with 5xx per (upstream, status)
     # order of first appearance, like the old Counter: sets the upstream/status order within each incident
     inc = {(ts[:16], up, st): n for ts, up, st, n in con.execute(
-        f"""SELECT {WIB.format('a.ts_utc')} AS ts, a.upstream, a.status::VARCHAR, count(*) FROM nginx_access a JOIN ingest_file f USING (file_id)
+        f"""SELECT {local_minute('a.ts_utc')} AS ts, a.upstream, a.status::VARCHAR, count(*) FROM nginx_access a JOIN ingest_file f USING (file_id)
             WHERE a.folder = ? AND a.status BETWEEN 500 AND 599 GROUP BY ALL ORDER BY min((f.relpath, a.line_no))""", [folder]).fetchall()}
     con.execute('DELETE FROM agg_incident WHERE folder = ?', [folder])
     rows = rules.incidents(inc)
@@ -118,8 +119,8 @@ def correlation(con, folder):  # old:481 correlate(); TRD §3.5
                                              (f.relpath, a.line_no)) AS r
                 FROM nginx_access a JOIN ingest_file f USING (file_id) SEMI JOIN ids USING (request_id) GROUP BY a.request_id)
         SELECT g.relpath, e.line_no, e.method || ' ' || e.path_key AS pk, e.status, e.duration_ms, e.failed, e.err_name, e.err_message,
-               date_trunc('minute', req.r.ts + INTERVAL 7 HOUR) AS ts, req.r.ip AS ip, req.r.method AS method, req.r.path AS path, req.r.upstream AS upstream, req.r.ua AS ua
-        FROM sl_event e JOIN ingest_file g USING (file_id) JOIN req USING (request_id) WHERE e.folder = $f""", {'f': folder})
+               date_trunc('minute', req.r.ts + to_minutes($tz)) AS ts, req.r.ip AS ip, req.r.method AS method, req.r.path AS path, req.r.upstream AS upstream, req.r.ua AS ua
+        FROM sl_event e JOIN ingest_file g USING (file_id) JOIN req USING (request_id) WHERE e.folder = $f""", {'f': folder, 'tz': timezone.current().minutes})
     matched = con.execute('SELECT count(*) FROM _corr').fetchone()[0]
     con.execute('INSERT INTO agg_corr VALUES (?, ?, ?)', [folder, matched, total])
     con.execute("""INSERT INTO agg_hour SELECT ?, ?, date_trunc('hour', ts), count(*), count(*) FILTER (WHERE failed) FROM _corr GROUP BY ALL""", [folder, services.current().events])

@@ -4,7 +4,7 @@ import datetime, re
 from fastapi import Depends, HTTPException, Request, Response
 
 from monishield.application import sources
-from monishield.domain import accounts
+from monishield.domain import accounts, client_address
 
 COOKIE = 's4_session'
 CSRF_HEADER = 'x-requested-with'      # required on every request that changes data (TRD §8.2)
@@ -18,8 +18,10 @@ class ApiError(HTTPException):
 def client_ip(request: Request):
     cfg = request.app.state.cfg
     # the LAST address is the one our proxy added; earlier ones were sent by the client and can be anything (security review)
-    if cfg.trust_proxy and (xff := request.headers.get('x-forwarded-for')): return xff.split(',')[-1].strip()[:64]
-    return request.client.host if request.client else None
+    if cfg.trust_proxy and (xff := request.headers.get('x-forwarded-for')): peer = xff.split(',')[-1].strip()[:64]
+    else: peer = request.client.host if request.client else None
+    # behind Cloudflare: CF-Connecting-IP, believed only when the peer is a Cloudflare address (domain/client_address.py)
+    return client_address.real_client(peer, request.headers.get('cf-connecting-ip'), cfg.trust_cloudflare, cfg.cloudflare_ips)
 
 
 # ------------------------------------------------------------------ roles (TRD §8.3)

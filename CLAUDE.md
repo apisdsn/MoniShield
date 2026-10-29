@@ -38,6 +38,12 @@ Every test must pass (they run on the sample lines in `tests/fixtures/`, no real
   diff for anything that looks like a key (`git diff --cached`).
 - **Architecture.** Keep the dependency rule of `docs/08-architecture.md`; `tests/test_architecture.py` enforces it.
   Domain and application code import no third-party packages.
+- **Repositories.** Work in `apisdsn/MoniShield` (public; this repo). `apisdsn/MoniShield-internal` is the private
+  archive of the history before the public release and still holds client data: never push to it, never copy its
+  history, commits or files with client data here. The site's own values (service names, hosts, IPs) live only in the
+  server's `.env`, never in this repo.
+- **Authorship.** Commits are authored as the owner (`Hafiz Adha Febrian <50698048+apisdsn@users.noreply.github.com>`,
+  set once per clone with `git config user.name` / `user.email`); no AI tool appears as author, committer or co-author.
 - **Old repo.** `apisdsn/dashboard-logging` is the old system: never change its `build_dashboard.py`,
   `dashboard_template.html` or log folders.
 - **Owner.** The owner writes in Indonesian; answer in Indonesian. Documentation and code stay English.

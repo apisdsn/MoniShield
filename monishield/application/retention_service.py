@@ -21,7 +21,7 @@ class RetentionService:
     def plan(self):
         cfg, w = self.ctx.cfg, self.ctx.warehouse
         _, inbox = self.ctx.logfolders.dates()
-        p = retention.plan(w.known_folders(), inbox, retention.today_wib(_now()), cfg.retention_days, cfg.retention_inbox_days)
+        p = retention.plan(w.known_folders(), inbox, retention.today_local(_now()), cfg.retention_days, cfg.retention_inbox_days)
         return dict(p, days=cfg.retention_days, inbox_days=cfg.retention_inbox_days)
 
     def view(self): return dict(self.plan(), last=self.last)

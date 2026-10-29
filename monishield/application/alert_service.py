@@ -8,7 +8,7 @@ right before being handed to the channel.
 import datetime, threading, time
 
 from monishield.application import settings_service, sources
-from monishield.domain import alerts
+from monishield.domain import alerts, timezone
 from monishield.domain.alerts import AlertFail, AlertUnconfirmed
 from monishield.domain.errors import Fail
 
@@ -94,7 +94,7 @@ def send_report(ctx, folder=None, source=sources.S3, pending=False):
     return out
 
 
-def _wib(now_utc=None): return (now_utc or datetime.datetime.now(datetime.timezone.utc)) + datetime.timedelta(hours=7)
+def _local(now_utc=None): return (now_utc or datetime.datetime.now(datetime.timezone.utc)) + timezone.current().delta   # S4_TIMEZONE_OFFSET
 
 
 # ------------------------------------------------------------------ automatic
@@ -154,7 +154,7 @@ class Notifier:
         if not self._has(source): return []
         try: fs = sorted(self._src(source).warehouse.folder_table()[0], reverse=True)
         except Exception: return []   # noqa: BLE001  database not open
-        if source == sources.KAFKA: fs = [f for f in fs if f <= _wib().date().isoformat()]
+        if source == sources.KAFKA: fs = [f for f in fs if f <= _local().date().isoformat()]
         return fs
 
     def report_folders(self, limit=14):
@@ -177,12 +177,12 @@ class Notifier:
         return deliver(self.ctx, cfg, key, 'summary', title, text, force=force)
 
     def daily_report(self, now_utc=None, seconds=None):
-        """Scheduled daily report: from the report hour (WIB) on, the newest complete folder, once per folder."""
+        """Scheduled daily report: from the report hour (local time) on, the newest complete folder, once per folder."""
         cfg = self._cfg()
-        wib = _wib(now_utc)
-        if not alerts.active(cfg) or not alerts.report_due(cfg, wib): return None
+        local = _local(now_utc)
+        if not alerts.active(cfg) or not alerts.report_due(cfg, local): return None
         kafka = self.folders(sources.KAFKA) if self._has(sources.KAFKA) else []
-        target = alerts.report_target(self.ctx.warehouse.newest_folder(), kafka, wib.date())
+        target = alerts.report_target(self.ctx.warehouse.newest_folder(), kafka, local.date())
         if not target: return None
         key = self._named(self._src(target[1]), alerts.summary_key(target[0]), '')[0]
         if time.monotonic() - self._tried.get(key, -self.RETRY) < self.RETRY: return None
@@ -219,12 +219,12 @@ class Notifier:
         if alerts.active(cfg) and (ev := alerts.sync_failed(cfg, res)): deliver(self.ctx, cfg, ev[0], 'sync_failed', ev[1], ev[2])
 
     def check_missing(self, now_utc=None):
-        """Folder dated today (WIB) still missing after `missing_hour` -> once per day."""
+        """Folder dated today (local time) still missing after `missing_hour` -> once per day."""
         cfg = self._cfg()
         if not alerts.active(cfg) or not cfg['events']['folder_missing']: return None
-        wib = _wib(now_utc)
-        if wib.hour < int(cfg['missing_hour']): return None
-        ev = alerts.folder_missing(cfg, wib, self.ctx.warehouse.newest_folder())
+        local = _local(now_utc)
+        if local.hour < int(cfg['missing_hour']): return None
+        ev = alerts.folder_missing(cfg, local, self.ctx.warehouse.newest_folder())
         return ev and deliver(self.ctx, cfg, ev[0], 'folder_missing', ev[1], ev[2])
 
     def start(self):

@@ -4,6 +4,7 @@
      Keyboard (ARIA grid pattern): arrows ±1 day/±1 week, PageUp/PageDown ±1 month, Home/End start/end of week,
      Enter/Space selects, Esc closes and returns focus to the button. Value = 'YYYY-MM-DD' or ''. -->
 <script>
+  import { localToday } from '../tz.js';
   import { tick } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { dLabel, locale } from '../format.js';
@@ -20,8 +21,7 @@
     const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
     d.setUTCDate(Math.min(day, last)); return iso(d);
   };
-  const wib = () => iso(new Date(Date.now() + 7 * 3600e3));   // folder date = WIB
-  const today = $derived(wib());
+  const today = $derived(localToday());   // folder date = the site's local date (tz.js)
   const limit = $derived(max ?? today);
 
   let open = $state(false), focus = $state(''), root = $state(), trigger = $state(), grid = $state();

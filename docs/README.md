@@ -17,6 +17,7 @@ Read [`09-status.md`](09-status.md) first: it says where the project stands and 
 | [`08-architecture.md`](08-architecture.md) | Code architecture (clean architecture layers) and where new code goes |
 | [`09-status.md`](09-status.md) | Current state, owner requests and where they live, next steps, known issues |
 | [`10-user-guide.md`](10-user-guide.md) | Using MoniShield: loading logs, admin screens, command line, Kafka, S3 import, tests |
+| [`11-log-formats.md`](11-log-formats.md) | Plan (proposal): configurable log formats per service, for sites with other logs |
 
 Repository rules (branches, commit messages, checks) are in `../CONTRIBUTING.md`; release
 history is in `../CHANGELOG.md`.

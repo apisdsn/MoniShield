@@ -25,13 +25,13 @@ def test_rules():
     assert retention.watch_days(30, 0) == 30 and retention.watch_days(30, 10) == 10 and retention.watch_days(0, 10) == 10
     assert retention.validate(0, 0) is None and retention.validate(8, 2) is None
     assert 'Database retention' in retention.validate(7, 0) and 'Inbox retention' in retention.validate(0, 1)
-    assert retention.today_wib(datetime.datetime(2026, 1, 11, 18, 0)) == TODAY   # 18:00 UTC = 01:00 WIB the next day
+    assert retention.today_local(datetime.datetime(2026, 1, 11, 18, 0)) == TODAY   # 18:00 UTC = 01:00 WIB the next day
 
 
 @pytest.fixture
 def tc(tmp_path, auth_url, monkeypatch):
     monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
-    monkeypatch.setattr(retention, 'today_wib', lambda now: TODAY)
+    monkeypatch.setattr(retention, 'today_local', lambda now: TODAY)
     c = dataclasses.replace(config.Config(), log_dir=logs_mini.build(tmp_path / 'logs'), data_dir=str(tmp_path / 'data'), state_dir=str(tmp_path / 'state'),
                             inbox_dir=str(tmp_path / 'inbox'), cache_dir=str(tmp_path / 'cache'), offline=True, ingest_on_start=False, cookie_secure=False,
                             admin_user='admin', admin_password=PW, jwt_secret=JWT_SECRET, auth_database_url=auth_url)

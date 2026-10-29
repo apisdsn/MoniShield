@@ -9,7 +9,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, bytes, fLabel, tWIB, utcToWib } from '../format.js';
+  import { num, bytes, fLabel, tLocal, utcToLocal } from '../format.js';
   import { toast } from './Toast.svelte';
   import DataTable from './DataTable.svelte';
   import Dialog from './Dialog.svelte';
@@ -119,7 +119,7 @@
     {@const c = ov.credentials}
     <p class="cred">
       {$t('imp.cred')}
-      {#if c.available}<SeverityTag level="ok" text={$t('imp.cred_ok')} /> <span class="muted">({$t(c.source === 'pasted' ? 'imp.src.pasted' : 'imp.src.env')}{#if c.pasted_at} · {tWIB(utcToWib(c.pasted_at), $lang)}{/if})</span>
+      {#if c.available}<SeverityTag level="ok" text={$t('imp.cred_ok')} /> <span class="muted">({$t(c.source === 'pasted' ? 'imp.src.pasted' : 'imp.src.env')}{#if c.pasted_at} · {tLocal(utcToLocal(c.pasted_at), $lang)}{/if})</span>
       {:else}<SeverityTag level={3} text={$t('imp.cred_none')} />{/if}
     </p>
     <div class="credacts">
@@ -172,11 +172,11 @@
         {#if !c.environment}<p class="warnline small">{$t('imp.w.cred_note')}</p>{/if}
         {#if w.last}
           {@const l = w.last}
-          <p class="small">{$t('imp.w.last', { time: tWIB(utcToWib(l.at), $lang), by: who(l.by) })}:
+          <p class="small">{$t('imp.w.last', { time: tLocal(utcToLocal(l.at), $lang), by: who(l.by) })}:
             {#if l.imported.length}{$t('imp.w.got', { n: num(l.imported.length, $lang), list: l.imported.join(', ') })}{:else}{$t('imp.w.none')}{/if}{#if l.rechecked.length}; {$t('imp.w.updated', { list: l.rechecked.join(', ') })}{/if}{#if l.waiting}; {$t('imp.w.waiting', { n: num(l.waiting, $lang) })}{/if}{#if l.failed.length}; <span class="errtxt">{$t('imp.w.failed', { list: l.failed.join(', ') })}</span>{/if}</p>
           {#each l.errors as e}<p class="err small">{e.where ? `${e.where}: ` : ''}{$errText(e)}</p>{/each}
         {:else}<p class="muted small">{$t('imp.w.never')}</p>{/if}
-        {#if w.next_check}<p class="muted small">{$t('imp.w.next', { time: tWIB(utcToWib(w.next_check), $lang) })}</p>{/if}
+        {#if w.next_check}<p class="muted small">{$t('imp.w.next', { time: tLocal(utcToLocal(w.next_check), $lang) })}</p>{/if}
         <div class="acts">
           <button class="btn" onclick={syncNow} disabled={syncing || busy || ov.running || !c.available}>{syncing ? $t('imp.w.running') : $t('imp.w.now')}</button>
         </div>
@@ -235,7 +235,7 @@
 
 {#if ov?.enabled}
   <DataTable title={$t('imp.history')} rows={ov.jobs} limit={20} columns={[
-    { key: 'started_at', label: $t('col.time'), fmt: (r) => tWIB(utcToWib(r.started_at), $lang), cls: () => 'nowrap', sort: true },
+    { key: 'started_at', label: $t('col.time'), fmt: (r) => tLocal(utcToLocal(r.started_at), $lang), cls: () => 'nowrap', sort: true },
     { key: 'prefix', label: $t('imp.col.link'), type: 'code', fmt: (r) => `s3://${r.bucket}/${r.prefix}`, minw: 240 },
     { key: 'folder', label: 'Folder', cls: () => 'nowrap', sort: true },
     { key: 'files', label: $t('imp.col.objects'), type: 'num', fmt: (r) => (r.files == null ? '–' : num(r.files, $lang)) },

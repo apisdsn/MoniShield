@@ -10,12 +10,14 @@ before today minus N days.
 """
 import datetime
 
+from monishield.domain import timezone
+
 MIN_DAYS = 8         # the dashboard compares a folder with the average of the 7 before it (Command Center, notifications)
 MIN_INBOX_DAYS = 2   # the S3 sync re-checks yesterday's folder; its inbox copy must still be there
 MAX_DAYS = 3650
 
 
-def today_wib(now_utc): return (now_utc + datetime.timedelta(hours=7)).date()
+def today_local(now_utc): return timezone.current().today(now_utc)
 
 
 def cutoff(today, days):
@@ -50,10 +52,10 @@ def validate(days, inbox_days):
     return None
 
 
-def next_daily(now_utc, hour_wib):
-    """The next time (UTC, aware) a daily job set to `hour_wib` o'clock WIB runs, strictly after now."""
-    wib = datetime.timedelta(hours=7)
-    local = (now_utc + wib).replace(minute=0, second=0, microsecond=0)
-    at = local.replace(hour=hour_wib)
-    if at <= now_utc + wib: at += datetime.timedelta(days=1)
-    return at - wib
+def next_daily(now_utc, hour):
+    """The next time (UTC, aware) a daily job set to `hour` o'clock local time (S4_TIMEZONE_OFFSET) runs, strictly after now."""
+    off = timezone.current().delta
+    local = (now_utc + off).replace(minute=0, second=0, microsecond=0)
+    at = local.replace(hour=hour)
+    if at <= now_utc + off: at += datetime.timedelta(days=1)
+    return at - off

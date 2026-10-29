@@ -27,7 +27,7 @@ class BackupService:
         Raises Fail (and notifies) when it fails."""
         if self.running: raise Fail('backup_busy', 'A backup is already running.', 409)
         self.running = True
-        day = retention.today_wib(_now()).isoformat()
+        day = retention.today_local(_now()).isoformat()
         res = dict(at=str(_now().replace(tzinfo=None, microsecond=0)), by=by, day=day, ok=False, uploaded=None, pruned=[], error=None)
         try:
             cons = {name: ctx.con for name, ctx in self.ctx.sources.items()}

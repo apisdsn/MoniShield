@@ -9,7 +9,7 @@ Stage 24: previous-folder KPIs (▲/▼ change), hourly charts (requests, 5xx, a
 """
 
 from monishield.domain import alerts
-from monishield.infrastructure.queries.sql import H, _all, _one
+from monishield.infrastructure.queries.sql import H, _all, _one, local
 from .map import ipmap
 from .tables import NG, SEV_SQL
 
@@ -109,7 +109,7 @@ def command(cur, folder, cfg, module=None):
     # per hour (WIB): ingress requests, 5xx (from the raw table like the Availability page), attack requests
     hr = 'agg_crs_hour' if crs else 'agg_attack_hour'
     req = dict(_all(cur, f"SELECT {H.format('hour_wib')}, total FROM agg_hour WHERE folder = ? AND service = ? AND total > 0", folder, NG))
-    n5 = dict(_all(cur, f"""SELECT {H.format("date_trunc('hour', ts_utc + INTERVAL 7 HOUR)")} AS h, count(*) FROM nginx_access
+    n5 = dict(_all(cur, f"""SELECT {H.format(f"date_trunc('hour', {local('ts_utc')})")} AS h, count(*) FROM nginx_access
                            WHERE folder = ? AND status BETWEEN 500 AND 599 GROUP BY h""", folder)) if req else {}
     atk = dict(_all(cur, f"SELECT {H.format('hour_wib')}, n FROM {hr} WHERE folder = ?", folder))
     hours = sorted(set(req) | set(n5) | set(atk))

@@ -99,6 +99,12 @@ applies in full, including wide tables becoming row cards.
 designs the new screens in TRD §8.4, so that the UI stages do not read assumptions that have been dropped.
 Documents only; no code.
 
+Approved 2026-10-29: public sample formats; rules in a file and on the Configuration page. **Step 1a done**:
+`domain/log_formats.py` (rules, first match wins, validation with the rule's position, regex length and nested-repeat
+checks, stable rule key), `config.log_format_rules` (reads `S4_LOG_FORMATS_FILE`, default `<state dir>/log-formats.toml`;
+without it the built-in rules of the site profile), set at start like the profile; `log-formats.example.toml`. The
+parsers do not use the rules yet (step 1b).
+
 **Files changed**
 
 - `docs/01-prd.md`: A1, A2, A3, A5 become decisions; T01 withdrawn; T03 and part of T05 move into scope;
@@ -1327,3 +1333,23 @@ the token level (strings, UI texts and email letters untouched), JS/Svelte names
 English file names, i18n keys with Indonesian words were renamed, the IP CSV export has English columns, and the business
 metric keys are English (`db.py` rewrites stored `agg_biz` / `file_counter` keys once). Kept on purpose: the Indonesian UI
 texts (`id.json`, `srv.js`, letters), the old status values the migrations read, and the legacy rule flags stored as data.
+
+## Stage 51 — Cloudflare visitor address and the time zone as configuration (2026-10-29)
+
+Owner request. (a) Behind Cloudflare every visitor looked like a Cloudflare server: `domain/client_address.py` takes
+`CF-Connecting-IP` when `S4_TRUST_CLOUDFLARE=true` and the request came from Cloudflare's ranges (`S4_CLOUDFLARE_IPS`).
+(b) WIB was fixed in the code: `domain/timezone.py` holds the site's offset and label (`S4_TIMEZONE_OFFSET`,
+`S4_TIMEZONE_LABEL`), set at start like the site profile. Derive SQL uses `$tz` (minutes), queries `sql.local()` /
+`sql.local_time()`, retention, backups, reports and the Kafka folder date use the zone; `folder_state.tz_minutes` records
+the offset a folder was derived with and the ingest derives a folder again when it differs (NULL = +7 h, the old value).
+The web UI reads the zone from `/api/meta` (`tz.js`); dictionary texts use `{tz}`. DB column names `*_wib` are kept and
+hold local time.
+
+## Stage 52 — Configurable log formats (planned, 2026-10-29)
+
+Owner question: how can someone with 7–10 services in different log formats use MoniShield? Plan in
+[`11-log-formats.md`](11-log-formats.md): one rules file, first matching rule per service, built-in presets plus `json`,
+`logfmt`, `regex`, `auto` and `plain`, a common normal form (`http_access`, `app_line`), the current parsers kept as
+presets so today's numbers do not change. Waiting for the owner's approval and answers to the questions in §10 before any
+code.
+

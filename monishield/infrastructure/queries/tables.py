@@ -7,13 +7,13 @@ input: all are matched against the lists below, the rest goes through bound para
 import dataclasses, re
 
 
-from monishield.domain import services as profile
+from monishield.domain import services as profile, timezone
 from monishield.infrastructure.queries.sql import ip_cell, reject
 
 NG = 'nginx-ingress-controller'
 MAX_LIMIT, MAX_Q = 500, 200
-T = "strftime({}, '%Y-%m-%d %H:%M')"   # WIB TIMESTAMP -> text in the old format
-UTC = "strftime({} + INTERVAL 7 HOUR, '%Y-%m-%d %H:%M')"
+T = "strftime({}, '%Y-%m-%d %H:%M')"   # local TIMESTAMP -> text in the old format
+UTC = "strftime({} + to_minutes($tz), '%Y-%m-%d %H:%M')"   # UTC column -> local text ($tz = S4_TIMEZONE_OFFSET minutes)
 
 # Severity of the OLD rules' attack categories (SEV constant in the template); CRS rules carry their own severity (Stage 21).
 SEV = {'Log4Shell / RCE': 3, 'SQL Injection': 3, 'Path Traversal / LFI': 3, 'XSS': 3,
@@ -151,7 +151,7 @@ def page(cur, name, folder, service=None, module=None, q='', sort=None, dir='des
     text = [f'CAST("{c}" AS VARCHAR)' for c in t.text] + (['_org'] if t.ip else [])
     cond = f"contains(lower(concat_ws(' ', {', '.join(text)})), $q)" if q else 'TRUE'
     order = (f'"{sort}" {"ASC" if dir == "asc" else "DESC"} NULLS LAST, ' if sort else '') + t.order
-    run = lambda sql: cur.execute(sql, {k: v for k, v in dict(f=folder, s=service, m=module, q=q.lower(), sl=profile.current().events).items() if re.search(rf'\${k}\b', sql)})
+    run = lambda sql: cur.execute(sql, {k: v for k, v in dict(f=folder, s=service, m=module, q=q.lower(), sl=profile.current().events, tz=timezone.current().minutes).items() if re.search(rf'\${k}\b', sql)})
     total, matched = run(f'{head}SELECT count(*), count(*) FILTER (WHERE {cond}) FROM u').fetchone()
     res = run(f'{head}SELECT * FROM u WHERE {cond} ORDER BY {order} LIMIT {int(limit)} OFFSET {int(offset)}')
     names = [d[0] for d in res.description]

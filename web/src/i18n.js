@@ -5,6 +5,7 @@ import { derived, writable } from 'svelte/store';
 import id from './i18n/id.json';
 import en from './i18n/en.json';
 import { load, save } from './store.js';
+import { TZ } from './tz.js';
 
 const DICTS = { id, en };
 
@@ -33,7 +34,9 @@ export function translate(l, key, params) {
     if (import.meta.env?.DEV) console.warn('kunci i18n tidak ada:', key);
     return key;
   }
-  if (params) s = s.replace(/\{(\w+)\}/g, (m, k) => (params[k] ?? m));
+  // {tz} = the site's time zone label (tz.js), in every text without being passed
+  const p = { tz: TZ.label, ...(params || {}) };
+  if (s.includes('{')) s = s.replace(/\{(\w+)\}/g, (m, k) => (p[k] ?? m));
   return s;
 }
 

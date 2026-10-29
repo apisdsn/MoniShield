@@ -7,7 +7,7 @@
   import { tick, untrack } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api, tablePath } from '../api.js';
-  import { num, tWIB, tRange, durMs, pct, bytes } from '../format.js';
+  import { num, tLocal, tRange, durMs, pct, bytes } from '../format.js';
   import IpCell from './IpCell.svelte';
   import StatusCode from './StatusCode.svelte';
   import SeverityTag from './SeverityTag.svelte';
@@ -137,7 +137,7 @@
     if (v === null || v === undefined) return '–';
     switch (c.type) {
       case 'num': return num(v, $lang);
-      case 'time': return tWIB(v, $lang);
+      case 'time': return tLocal(v, $lang);
       case 'range': return tRange(row[c.key], row[c.to], $lang);
       case 'dur': return durMs(v, $lang);
       case 'pct': return pct(v, $lang);
