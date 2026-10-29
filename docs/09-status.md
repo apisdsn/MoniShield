@@ -64,6 +64,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 39 | Home page: link preview card in ID/EN, dashboard preview with tabs (Overview, Security, Command Center), map loaded only near the screen, `robots.txt`; language from the browser on a first visit | `/`, `/?lang=en`; `monishield/interfaces/api/home_meta.py` | mockups "Saran 1" and "Saran 3" on the design canvas |
 | 40 | No client data in the code: service names, event tag, business endpoints, hosts, server IP, upstream prefix, own network and the source link come from `.env`; tests, fixtures, examples and docs use example names, `example.com` and synthetic IPs; old-system comparison tools removed | `.env.example` §9, [`10-user-guide.md`](10-user-guide.md) *Site profile* | plan stage 50 |
 | 41 | Every function, variable, file, i18n key and stored key in the code in English, following common naming practice | Renamed tools and tests; business metric keys migrated in place; `S4_ATTACK_RULES=legacy` | plan stage 50 |
+| 42 | Real visitor IPs behind Cloudflare; WIB as configuration | `S4_TRUST_CLOUDFLARE`; `S4_TIMEZONE_OFFSET` / `S4_TIMEZONE_LABEL` ([`10-user-guide.md`](10-user-guide.md) *Time zone*) | plan stage 51 |
 
 Questions answered along the way, recorded so they are not asked again:
 

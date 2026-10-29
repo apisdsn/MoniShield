@@ -7,7 +7,7 @@
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
   import { route, go, build, parse, ADMIN } from './state.js';
   import { setSite } from './site.js';
-  import { fLabel, logRange, num, sysName, tWIB, SPARSE_LINES } from './format.js';
+  import { fLabel, logRange, num, sysName, tLocal, SPARSE_LINES } from './format.js';
   import { cmpNote } from './lib/compare.js';
   import { APP_NAME } from './brand.js';
   import { load, save } from './store.js';
@@ -219,7 +219,7 @@
     const parts = [];
     const rng = logRange(folderInfo.range_start, folderInfo.range_end, $lang);
     if (rng) parts.push($t('sub.contains', { range: rng }));
-    if (folderInfo.derived_at) parts.push($t('sub.derived', { time: tWIB(folderInfo.derived_at, $lang) }));
+    if (folderInfo.derived_at) parts.push($t('sub.derived', { time: tLocal(folderInfo.derived_at, $lang) }));
     return parts.join(' · ');
   });
   // compact status line under the title (reference style DRD §12): number of services, errors, warnings, attack IPs

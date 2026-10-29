@@ -45,6 +45,8 @@ class Config:
     session_max_hours: int = 12
     password_reset: bool = True       # "forgot password" on the sign-in page emails a temporary password (needs the mail server)
     password_reset_minutes: int = 30  # how long that temporary password works
+    timezone_offset: str = '+07:00'   # local time of the monitored site (pages, hours, folder dates, daily jobs); domain/timezone.py
+    timezone_label: str = 'WIB'       # its name shown next to times
     # site profile (domain/services.py): the values below are a site's own; the defaults name nothing real
     server_ip: str = ''             # public IP of the server = destination point on the map; empty = server_fallback's place
     server_fallback: list = dataclasses.field(default_factory=lambda: list(rules.SERVER_FALLBACK))
@@ -98,10 +100,10 @@ class Config:
     alert_events: str = 'spike,critical,ingest_failed,sync_failed,folder_missing,backup_failed,summary'   # from ALERT_EVENTS, comma-separated
     alert_lang: str = 'id'
     dashboard_url: str = ''           # dashboard address for links in messages, e.g. https://monishield.example.com
-    alert_missing_hour: int = 10      # hour (WIB) of the "today's log folder has not arrived" check
+    alert_missing_hour: int = 10      # hour (local time) of the "today's log folder has not arrived" check
     source_url: str = ''            # "Source code" link on the public home page, e.g. https://github.com/example/monishield; empty = no link
     public_map: bool = True           # live map on the public home page (domain/public_map.py: coarse cells, no IP addresses)
-    alert_summary_hour: int = 8       # hour (WIB) from which the daily report of the newest complete folder is sent
+    alert_summary_hour: int = 8       # hour (local time) from which the daily report of the newest complete folder is sent
     alert_spike: str = ''             # spike thresholds per number, "key=factor:minimum increase", e.g. n5xx=3:50,errors=off; empty = defaults
     alert_service_spike: str = 'default=2:50'   # service errors vs their own average, e.g. default=2:50,report-service=3:200,coredns=off
     # logs from Kafka (Rancher cluster logging -> Kafka; monishield/kafka_in.py)
@@ -135,8 +137,8 @@ class Config:
     retention_days: int = 0           # folders older than N days are removed from the database (log files are not touched)
     retention_inbox_days: int = 0     # inbox folders (S3 imports, uploads, Kafka) older than N days are deleted from disk
     # backup (monishield/infrastructure/backup.py, owner request 2026-10-27): both DuckDB databases + the account database, daily
-    backup_enabled: bool = True       # daily backup at backup_hour (WIB)
-    backup_hour: int = 2              # hour of the day (WIB) the daily backup runs
+    backup_enabled: bool = True       # daily backup at backup_hour (local time)
+    backup_hour: int = 2              # hour of the day (local time) the daily backup runs
     backup_keep: int = 7              # daily backups kept in backup_dir (older ones are deleted)
     backup_dir: str = ''              # default: <data_dir>/backup
     backup_s3: str = ''               # optional copy to object storage, s3://bucket/prefix/ (the keys of the object storage settings; need write access)

@@ -3,7 +3,7 @@ hour × day heatmap (ingress requests, errors of all services)."""
 import datetime
 
 
-from monishield.infrastructure.queries.sql import wib, _all, reject
+from monishield.infrastructure.queries.sql import local_time, _all, reject
 from .tables import NG
 
 TREND_BIZ = ('reports_created', 'report_registrations', 'files_uploaded', 'emails_sent', 'otp_requested')
@@ -50,7 +50,7 @@ def _completeness(cur, folders):
     st = {str(f): (c, e) for f, c, e in _all(cur, 'SELECT folder, files_corrupt, files_empty FROM folder_state WHERE folder >= ?', folders[0])}
     run = cur.execute('SELECT finished_at, status, files_changed FROM ingest_run WHERE finished_at IS NOT NULL ORDER BY run_id DESC LIMIT 1').fetchone()
     return dict(missing=missing, corrupt=[st.get(f, (0, 0))[0] for f in folders], empty=[st.get(f, (0, 0))[1] for f in folders],
-                last_ingest=dict(time=wib(run[0]), status=run[1], files_changed=run[2]) if run else None)
+                last_ingest=dict(time=local_time(run[0]), status=run[1], files_changed=run[2]) if run else None)
 
 
 def _heat(cur, lo):

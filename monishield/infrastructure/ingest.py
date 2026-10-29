@@ -6,7 +6,7 @@ Aggregates are derived via derive_folder(), filled in by a later stage.
 import concurrent.futures, datetime, json, multiprocessing, os, shutil, threading, time
 
 from monishield.infrastructure import db, derive, logfiles, refdata
-from monishield.domain import detect, parse, retention, rules, services
+from monishield.domain import detect, parse, retention, rules, services, timezone
 
 RAW_TABLES = list(parse.TABLES)
 _lock = threading.Lock()  # one ingest at a time (TRD §3.1)
@@ -136,7 +136,7 @@ def _run(cfg, con, only_folder, force, workers, progress):
     try:
         files, res['warnings'] = scan([cfg.log_dir, cfg.inbox_dir])
         ign = ignored(con)   # folders an admin deleted from the dashboard: skipped until restored
-        cut = retention.cutoff(retention.today_wib(datetime.datetime.now(datetime.timezone.utc)), cfg.retention_days)   # past the keeping period
+        cut = retention.cutoff(retention.today_local(datetime.datetime.now(datetime.timezone.utc)), cfg.retention_days)   # past the keeping period
         files = {k: f for k, f in files.items() if f['folder'] not in ign and not retention.expired(f['folder'], cut)}
         if only_folder: files = {k: f for k, f in files.items() if f['folder'] == only_folder}
         res['files_seen'] = len(files)
@@ -208,6 +208,17 @@ def _run(cfg, con, only_folder, force, workers, progress):
                 con.execute('UPDATE folder_state SET crs_version = ? WHERE folder = ?', [detect.version_key(), fd]); con.execute('COMMIT')
             except BaseException: con.execute('ROLLBACK'); raise
             res['folders_redetected'].append(fd)
+        # 5c. local time zone (S4_TIMEZONE_OFFSET): folders derived with another offset are derived again (no re-parse);
+        #     folders from before the setting existed count as +7 h, the old fixed value
+        res['folders_rezoned'] = []
+        tz = timezone.current().minutes
+        for (fd,) in con.execute('SELECT folder::VARCHAR FROM folder_state WHERE coalesce(tz_minutes, 420) <> ? ORDER BY 1', [tz]).fetchall():
+            if fd in res['folders_changed'] or (only_folder and fd != only_folder): continue
+            progress(phase='load', folder=fd)
+            con.execute('BEGIN')
+            try: derive_folder(con, fd); con.execute('COMMIT')
+            except BaseException: con.execute('ROLLBACK'); raise
+            res['folders_rezoned'].append(fd)
         res['files_changed'] = res['files_parsed'] + res['files_removed'] + res['files_failed']
 
         # 6. fill in IP owner & location and the map files (TRD §3.6); a download failure does not fail the ingest

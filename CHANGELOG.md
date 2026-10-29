@@ -6,6 +6,11 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 
 ## [Unreleased]
 
+### Added
+- Time zone of the site as configuration: `S4_TIMEZONE_OFFSET` (default `+07:00`) and `S4_TIMEZONE_LABEL` (default `WIB`) set the
+  local time of pages, hours, folder dates and the daily jobs, and the label shown in the UI. Folders derived with another
+  offset are derived again on the next ingest; existing data counts as +07:00, so nothing changes for current sites.
+
 ### Changed
 - No client data in the code: the service folder names of each log role (`S4_SERVICE_NAMES`), the events tag (`S4_EVENT_TAG`), the
   Business endpoints (`S4_BUSINESS_ENDPOINTS`), hosts, server IP, upstream prefix, DNS upstream and own network

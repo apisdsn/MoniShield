@@ -1327,3 +1327,15 @@ the token level (strings, UI texts and email letters untouched), JS/Svelte names
 English file names, i18n keys with Indonesian words were renamed, the IP CSV export has English columns, and the business
 metric keys are English (`db.py` rewrites stored `agg_biz` / `file_counter` keys once). Kept on purpose: the Indonesian UI
 texts (`id.json`, `srv.js`, letters), the old status values the migrations read, and the legacy rule flags stored as data.
+
+## Stage 51 — Cloudflare visitor address and the time zone as configuration (2026-10-29)
+
+Owner request. (a) Behind Cloudflare every visitor looked like a Cloudflare server: `domain/client_address.py` takes
+`CF-Connecting-IP` when `S4_TRUST_CLOUDFLARE=true` and the request came from Cloudflare's ranges (`S4_CLOUDFLARE_IPS`).
+(b) WIB was fixed in the code: `domain/timezone.py` holds the site's offset and label (`S4_TIMEZONE_OFFSET`,
+`S4_TIMEZONE_LABEL`), set at start like the site profile. Derive SQL uses `$tz` (minutes), queries `sql.local()` /
+`sql.local_time()`, retention, backups, reports and the Kafka folder date use the zone; `folder_state.tz_minutes` records
+the offset a folder was derived with and the ingest derives a folder again when it differs (NULL = +7 h, the old value).
+The web UI reads the zone from `/api/meta` (`tz.js`); dictionary texts use `{tz}`. DB column names `*_wib` are kept and
+hold local time.
+

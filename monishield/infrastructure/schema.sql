@@ -300,6 +300,7 @@ ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS capec VARCHAR;            -- C
 ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_attack VARCHAR;       -- CRS attack family (sqli, xss, rce, ...)
 ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_severity TINYINT;     -- 1..3 (display tag)
 ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_score SMALLINT;       -- anomaly score (>= threshold 5)
+ALTER TABLE folder_state ADD COLUMN IF NOT EXISTS tz_minutes INTEGER;       -- local time offset the aggregates were derived with (NULL = +7 h, before 2026-10-28)
 ALTER TABLE folder_state ADD COLUMN IF NOT EXISTS crs_version VARCHAR;      -- CRS version + paranoia level when the CRS aggregates were derived
 
 CREATE TABLE IF NOT EXISTS agg_crs_url (

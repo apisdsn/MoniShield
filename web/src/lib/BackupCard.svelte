@@ -5,7 +5,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, bytes, dLabel, tWIB, utcToWib } from '../format.js';
+  import { num, bytes, dLabel, tLocal, utcToLocal } from '../format.js';
   import { errText } from '../srv.js';
   import { toast } from './Toast.svelte';
   import SeverityTag from './SeverityTag.svelte';
@@ -28,7 +28,7 @@
     } catch (e) { toast($errText(e)); await load(); }
     finally { busy = false; onfinished?.(); }
   }
-  const when = (x) => (x ? tWIB(utcToWib(x), $lang) : '—');
+  const when = (x) => (x ? tLocal(utcToLocal(x), $lang) : '—');
 </script>
 
 <section class="card wide bk" aria-labelledby="bk-h">

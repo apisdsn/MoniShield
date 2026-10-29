@@ -89,6 +89,13 @@ the home page is `S4_SOURCE_URL` (empty = no link). A changed service name appli
 `monishield ingest --force` to re-read older folders with the new names. Extra sites on the same Caddy (profile `https`) go in
 `deploy/sites/*.caddy` on the server (not in git).
 
+### Time zone
+
+Times on every page, the hours of the charts, folder dates (a folder D holds (D-1 00:00, D 00:00] local time) and the
+hours of the daily jobs (backup, daily report, folder check) use the site's local time: `S4_TIMEZONE_OFFSET` (default
+`+07:00`) with the label `S4_TIMEZONE_LABEL` (default `WIB`) next to the times. It is a fixed offset, without daylight
+saving time. After a change, the next ingest derives every folder again from the stored lines (no re-parse).
+
 ### Object storage providers
 
 Configuration → **Object storage** → *Provider*: Amazon S3, Cloudflare R2, MinIO, Wasabi, Google Cloud Storage (HMAC

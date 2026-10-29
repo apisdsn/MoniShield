@@ -9,7 +9,7 @@
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, fLabel, tWIB, utcToWib } from '../format.js';
+  import { num, fLabel, tLocal, utcToLocal } from '../format.js';
   import { errText, srv } from '../srv.js';
   import { toast } from './Toast.svelte';
   import SeverityTag from './SeverityTag.svelte';
@@ -29,7 +29,7 @@
     try { await api.post('/api/admin/kafka/ingest', {}); toast($t('kf.ingest_started')); setTimeout(load, 800); } catch (e) { toast($errText(e)); } finally { busy = ''; }
   }
   const STATE = { running: ['ok', 'kf.st.running'], connecting: [1, 'kf.st.connecting'], error: [3, 'kf.st.error'], off: [1, 'kf.st.off'] };
-  const when = (x) => (x ? tWIB(utcToWib(x.replace('T', ' ')), $lang) : '—');
+  const when = (x) => (x ? tLocal(utcToLocal(x.replace('T', ' ')), $lang) : '—');
   const svc = $derived(s ? Object.entries(s.per_service).sort((a, b) => b[1] - a[1]) : []);
 </script>
 
