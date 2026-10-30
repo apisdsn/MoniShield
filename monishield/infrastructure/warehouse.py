@@ -52,10 +52,10 @@ class DuckWarehouse:
     # -------------------------------------------------------------- folder
     def last_run(self):
         with self._cur() as cur:
-            r = cur.execute("""SELECT started_at, finished_at, status, files_seen, files_changed, message FROM ingest_run
+            r = cur.execute("""SELECT started_at, finished_at, status, files_seen, files_changed, message, run_id FROM ingest_run
                               WHERE finished_at IS NOT NULL ORDER BY run_id DESC LIMIT 1""").fetchone()
         return r and dict(started_at=str(r[0].replace(microsecond=0)), finished_at=str(r[1].replace(microsecond=0)), status=r[2], files_seen=r[3],
-                          files_changed=r[4], warnings=json.loads(r[5]) if r[5] else [])
+                          files_changed=r[4], warnings=json.loads(r[5]) if r[5] else [], run_id=r[6])
 
     def known_folders(self):
         with self._cur() as cur: return {str(r[0]) for r in cur.execute('SELECT folder FROM folder_state').fetchall()}
