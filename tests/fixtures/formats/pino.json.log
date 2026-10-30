@@ -1,0 +1,4 @@
+{"level":30,"time":1791640536000,"pid":42,"hostname":"api-1","req":{"id":"r-1","method":"GET","url":"/api/items","remoteAddress":"203.0.113.9"},"res":{"statusCode":200},"responseTime":12.5,"msg":"request completed"}
+{"level":50,"time":1791640537000,"pid":42,"hostname":"api-1","req":{"id":"r-2","method":"POST","url":"/api/pay"},"res":{"statusCode":500},"responseTime":2005,"msg":"payment provider timeout"}
+{"level":40,"time":"2026-10-10T13:55:38.120Z","msg":"cache miss rate high"}
+not json at all

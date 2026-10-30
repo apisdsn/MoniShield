@@ -21,7 +21,9 @@ Every test must pass (they run on the sample lines in `tests/fixtures/`, no real
 - **Language.** Commit messages, code comments, Markdown docs (titles and file names too), server error messages,
   API responses, CLI output and GitHub Actions step names are English. The UI stays bilingual: add every new text to
   both `web/src/i18n/id.json` and `en.json`; server text shown in the UI needs an Indonesian entry in
-  `web/src/srv.js` (`ID`, or `ERR_ID` for full error sentences). API status values are English.
+  `web/src/srv.js` (`ID`, or `ERR_ID` for full error sentences). API status values are English. Test data, variable
+  names and quotes of the owner in comments are English too; `tests/test_language.py` fails on Indonesian words outside
+  the files that hold Indonesian UI copy or old values.
 - **Commits.** Conventional Commits 1.0, English. No `Co-Authored-By` or `Claude-Session` trailers. Enable the hook
   once per clone: `git config core.hooksPath .githooks`.
 - **Branches.** Work on `dev` (or a `feat/…`/`fix/…` branch into `dev`). Promote `dev` → `stg` → `prd` with pull

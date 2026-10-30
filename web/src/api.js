@@ -1,6 +1,6 @@
 // Single gateway to /api (TRD §5). The HttpOnly session cookie is sent by the browser; every data-changing request carries
 // X-Requested-With (CSRF, TRD §8.2). 401 mid-use -> Login screen "Sesi Anda berakhir" (DRD §6.7);
-// 403 -> coded error (e.g. "tidak punya akses"); server unreachable -> "Tidak tersambung" band + automatic
+// 403 -> coded error (e.g. "no access"); server unreachable -> "Not connected" band + automatic
 // retry every 5 seconds for 1 minute, then manual.
 import { writable, get } from 'svelte/store';
 import { forget, open, seal, wireKey } from './wire.js';

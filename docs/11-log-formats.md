@@ -1,7 +1,8 @@
 # Plan — configurable log formats (stage 1 of "any log")
 
 Status: approved by the owner 2026-10-29 (public sample formats; rules in a file **and** on the Configuration page).
-Step 1a is built (rules model, file, validation, built-in rules); 1b–1e follow.
+Steps 1a (rules model, file, validation, built-in rules) and 1b (common formats, `http_access` / `app_line`) are built;
+1c–1e follow.
 
 ## 1. Goal
 
@@ -36,7 +37,7 @@ configurable folder layout (stage 3).
    | `syslog` | RFC 3164 / 5424 |
    | `coredns` | CoreDNS (today's parser) |
    | `regex` | a regular expression with named groups (`time`, `level`, `ip`, `method`, `path`, `status`, `duration_ms`, `request_id`, `user`, `message`) |
-   | `auto` | tries the presets on the first 200 lines and keeps the one that reads the most |
+   | `auto` | tries the presets on the first 200 lines and keeps the one that reads the most (step 1d; until then read as `plain`) |
    | `plain` | counts lines only; level guessed from words like ERROR / WARN |
 
 4. **Kind.** `kind = "http"` (an access log) or `kind = "app"` (an application log). The kind decides which pages a
@@ -122,14 +123,14 @@ patterns longer than 2,000 characters or with nested quantifiers (`(a+)+`) are r
 
 - Two new raw tables in DuckDB, filled by every non-legacy format:
   - `http_access` (file_id, line_no, folder, service, ts_utc, ip, method, path, path_key, status, bytes, duration_ms,
-    upstream, request_id, ua, referer)
+    request_id, user_name, ua, referer, upstream)
   - `app_line` (file_id, line_no, folder, service, ts_utc, level, logger, message, msg_key, request_id, method, path_key,
-    status, duration_ms, user)
+    status, duration_ms, user_name)
 - The five current parsers keep writing their own tables (`nginx_access`, `fe_access`, `sl_event`, `spring_line`, …), so
   today's numbers stay exactly the same; the derive SQL adds a `UNION ALL` from the two new tables to the aggregates that
   are already per service (`agg_service`, `agg_hour`, `agg_status`, `agg_endpoint`, `agg_ip`, `agg_level`, `agg_message`, …).
 - Attack detection (CRS) runs on `http_access` rows as well as on `nginx_access`; the map uses both.
-- `ingest_file` gains `format_key` (hash of the rule that read the file) and `lines_unmatched`.
+- `ingest_file` gains `lines_unmatched` (step 1b) and `format_key` (hash of the rule that read the file, step 1d).
 
 ## 5. Ingest
 
@@ -168,7 +169,7 @@ edit from there. No re-parse is needed after the upgrade.
 | Step | Delivers |
 |---|---|
 | 1a | **Done.** Rules model + loader + validation (`domain/log_formats.py`, `config.log_format_rules`, `S4_LOG_FORMATS_FILE`, `log-formats.example.toml`), today's rules built from the site profile; tests |
-| 1b | Presets `nginx-combined`, `apache-combined`, `json`, `logfmt`, `regex`, `plain`, `syslog`, multiline; `http_access` / `app_line`; tests with sample lines per preset |
+| 1b | **Done.** Presets `nginx-combined`, `apache-combined`, `json`, `logfmt`, `regex`, `plain`, `syslog`, multiline (`domain/formats.py`); `http_access` / `app_line`; `ingest_file.lines_unmatched`; `auto` reads as `plain` until 1d; tests with sample lines per preset |
 | 1c | Derive and pages read the new tables; CRS detection and map on `http_access`; unread-line rate |
 | 1d | `auto` detection; per-file `format_key` re-parse; CLI `formats list/test` |
 | 1e | Configuration → Log formats page (after the mockup), docs, `.env.example`, user guide |

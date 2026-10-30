@@ -14,14 +14,14 @@ from monishield.domain import alerts, settings
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
-X = {'X-Requested-With': 'uji'}
-PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
-SECRET_ENV = 'rahasiaEnvUjiYangTidakBolehBocor0001'
-KEY_UI, SECRET_UI = 'AKIALAYARUJI00000002', 'rahasiaLayarUjiYangTidakBolehBocor02'
-MM_ID, MM_KEY = '123456', 'LisensiMaxMindRahasia_0001'
-SAMPLE_ENV = """# contoh .env
-S4_JWT_SECRET=dibiarkan
-# [OPSIONAL] wilayah
+X = {'X-Requested-With': 'test'}
+PW, PW2 = 'first-admin-password', 'admin-password-after-change'
+SECRET_ENV = 'envTestSecretThatMustNeverLeak0001'
+KEY_UI, SECRET_UI = 'AKIAPAGETEST00000002', 'pageTestSecretThatMustNeverLeak02'
+MM_ID, MM_KEY = '123456', 'SecretMaxMindLicense_0001'
+SAMPLE_ENV = """# sample .env
+S4_JWT_SECRET=left-as-is
+# [OPTIONAL] region
 # S4_IMPORT_REGION=ap-southeast-3
 MAXMIND_ACCOUNT_ID=
 MAXMIND_LICENSE_KEY=
@@ -34,20 +34,20 @@ def test_envfile_writes_in_place_and_keeps_comments(tmp_path):
     p.write_text(SAMPLE_ENV); os.chmod(p, 0o640)
     ino = os.stat(p).st_ino
     envfile.update(str(p), {'MAXMIND_ACCOUNT_ID': MM_ID, 'S4_IMPORT_REGION': 'ap-southeast-1', 'S4_BLOCKLIST_EXCLUDE_ORG': 'A B#C',
-                            'S4_SMTP_FROM': 'Tim "Ops" <ops@x.id>', 'S4_BARU': ''})
+                            'S4_SMTP_FROM': 'Team "Ops" <ops@x.id>', 'S4_NEW_KEY': ''})
     t = p.read_text()
     assert os.stat(p).st_ino == ino and stat.S_IMODE(os.stat(p).st_mode) == 0o640       # the same file (Docker bind mount)
-    assert '# contoh .env\nS4_JWT_SECRET=dibiarkan\n# [OPSIONAL] wilayah\nS4_IMPORT_REGION=ap-southeast-1\nMAXMIND_ACCOUNT_ID=123456\n' in t
+    assert '# sample .env\nS4_JWT_SECRET=left-as-is\n# [OPTIONAL] region\nS4_IMPORT_REGION=ap-southeast-1\nMAXMIND_ACCOUNT_ID=123456\n' in t
     assert envfile.MARK in t
     v = config.read_dotenv(str(p))
-    assert (v['S4_BLOCKLIST_EXCLUDE_ORG'], v['S4_SMTP_FROM'], v['S4_BARU']) == ('A B#C', 'Tim "Ops" <ops@x.id>', '')
+    assert (v['S4_BLOCKLIST_EXCLUDE_ORG'], v['S4_SMTP_FROM'], v['S4_NEW_KEY']) == ('A B#C', 'Team "Ops" <ops@x.id>', '')
     # delete = line disabled without the old value (secrets are not left in a comment)
     envfile.update(str(p), {'MAXMIND_ACCOUNT_ID': None})
     assert '# MAXMIND_ACCOUNT_ID=\n' in p.read_text() and MM_ID not in p.read_text() and 'MAXMIND_ACCOUNT_ID' not in config.read_dotenv(str(p))
     for bad in ('a\nS4_JAHAT=1', 'kutip \' dan "'):
         with pytest.raises(envfile.EnvFileFail): envfile.update(str(p), {'S4_X': bad})
     assert 'S4_JAHAT' not in p.read_text()
-    q = tmp_path / 'baru.env'
+    q = tmp_path / 'new.env'
     envfile.update(str(q), {'AWS_ACCESS_KEY_ID': KEY_UI})
     assert stat.S_IMODE(os.stat(q).st_mode) == 0o600
 
@@ -114,7 +114,7 @@ def test_save_to_env_applies_at_once(client, envp):
     clean(r.text)
     f = config.read_dotenv(envp)
     assert (f['AWS_ACCESS_KEY_ID'], f['AWS_SECRET_ACCESS_KEY'], f['MAXMIND_ACCOUNT_ID'], f['MAXMIND_LICENSE_KEY']) == (KEY_UI, SECRET_UI, MM_ID, MM_KEY)
-    assert f['S4_BLOCKLIST_EXCLUDE'] == '36.66.1.0/24, 198.51.100.7' and f['S4_JWT_SECRET'] == 'dibiarkan'
+    assert f['S4_BLOCKLIST_EXCLUDE'] == '36.66.1.0/24, 198.51.100.7' and f['S4_JWT_SECRET'] == 'left-as-is'
     assert (cfg.aws_access_key_id, cfg.aws_secret_access_key, cfg.maxmind_license_key) == (KEY_UI, SECRET_UI, MM_KEY)
     assert client.app.state.imports.creds.get()[0]['aws_access_key_id'] == KEY_UI
     assert client.app.state.auth.setting_get('config') is None                          # no longer in the database
@@ -122,7 +122,7 @@ def test_save_to_env_applies_at_once(client, envp):
     r = client.put('/api/admin/config', json=dict(aws_access_key_id=KEY_UI, aws_secret_access_key='', import_region='ap-southeast-1'), headers=X)
     assert r.status_code == 200, r.text
     assert (cfg.aws_secret_access_key, cfg.import_region) == (SECRET_UI, 'ap-southeast-1')
-    assert '# [OPSIONAL] wilayah\nS4_IMPORT_REGION=ap-southeast-1\n' in open(envp).read()
+    assert '# [OPTIONAL] region\nS4_IMPORT_REGION=ap-southeast-1\n' in open(envp).read()
     log = json.dumps(client.app.state.auth.audit_list(50), default=str)
     assert 'config.update' in log
     clean(log)
@@ -153,8 +153,8 @@ def test_environment_variables_beat_env_and_are_marked(client, monkeypatch):
     dict(import_region='ap southeast 3'),                                         # free text, but no spaces
     dict(maxmind_account_id='abc', maxmind_license_key=MM_KEY),
     dict(maxmind_license_key=MM_KEY),
-    dict(blocklist_exclude='10.0.0.0/8, bukan-ip'),
-    dict(blocklist_exclude_org='(tidak-tertutup'),
+    dict(blocklist_exclude='10.0.0.0/8, not-an-ip'),
+    dict(blocklist_exclude_org='(unclosed'),
 ])
 def test_invalid_fields_are_refused_without_writing(client, envp, body):
     before = open(envp).read()
@@ -207,7 +207,7 @@ def test_check_aws(client):
     r = client.post('/api/admin/config/test', json=dict(kind='aws'), headers=X)
     assert r.status_code == 424 and r.json()['error']['code'] == 's3_denied'
     clean(r.text)
-    assert client.post('/api/admin/config/test', json=dict(kind='lain'), headers=X).status_code == 400
+    assert client.post('/api/admin/config/test', json=dict(kind='other'), headers=X).status_code == 400
 
 
 def test_check_maxmind(client, monkeypatch):
@@ -256,19 +256,19 @@ def test_kafka_fields_from_the_page_are_saved_to_env(client, envp):
     """The Kafka card in Configuration sends kafka_* to PUT /api/admin/config (same body as AdminConfig.svelte kfBody):
     must be written to .env and take effect immediately; the SASL password is never returned."""
     body = dict(kafka_enabled=True, kafka_brokers='127.0.0.1:9, 127.0.0.2:9', kafka_topic='k8s-logs', kafka_group='monishield',
-                kafka_security='sasl_plaintext', kafka_sasl_mechanism='SCRAM-SHA-512', kafka_username='monishield', kafka_password='sandiKafkaRahasia1',
+                kafka_security='sasl_plaintext', kafka_sasl_mechanism='SCRAM-SHA-512', kafka_username='monishield', kafka_password='secretKafkaPassword1',
                 kafka_offset_reset='latest', kafka_ingest_minutes='15')
     r = client.put('/api/admin/config', json=body, headers=X)
     assert r.status_code == 200, r.text
-    assert 'sandiKafkaRahasia1' not in r.text and r.json()['kafka']['kafka_password'] == dict(set=True, source='file', env='KAFKA_PASSWORD')
+    assert 'secretKafkaPassword1' not in r.text and r.json()['kafka']['kafka_password'] == dict(set=True, source='file', env='KAFKA_PASSWORD')
     text = open(envp).read()
     for line in ('S4_KAFKA_TOPIC=k8s-logs', 'S4_KAFKA_SECURITY=sasl_plaintext', 'S4_KAFKA_INGEST_MINUTES=15', 'KAFKA_PASSWORD='): assert line in text, line
     c = client.app.state.cfg
     assert (c.kafka_enabled, c.kafka_brokers, c.kafka_sasl_mechanism, c.kafka_password, c.kafka_ingest_minutes) == \
-        (True, '127.0.0.1:9, 127.0.0.2:9', 'SCRAM-SHA-512', 'sandiKafkaRahasia1', 15)
+        (True, '127.0.0.1:9, 127.0.0.2:9', 'SCRAM-SHA-512', 'secretKafkaPassword1', 15)
     r = client.put('/api/admin/config', json=dict(kafka_security='sasl_ssl', kafka_password=''), headers=X)   # empty password = unchanged
-    assert r.status_code == 200 and client.app.state.cfg.kafka_password == 'sandiKafkaRahasia1'
-    r = client.put('/api/admin/config', json=dict(kafka_brokers='bukan broker'), headers=X)
+    assert r.status_code == 200 and client.app.state.cfg.kafka_password == 'secretKafkaPassword1'
+    r = client.put('/api/admin/config', json=dict(kafka_brokers='not a broker'), headers=X)
     assert r.status_code == 400 and 'host:port' in r.json()['error']['message']
     r = client.put('/api/admin/config', json=dict(kafka_enabled=False), headers=X)   # switch from the UI (JSON bool)
     assert r.status_code == 200 and client.app.state.cfg.kafka_enabled is False and 'S4_KAFKA_ENABLED=false' in open(envp).read()

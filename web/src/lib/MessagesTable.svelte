@@ -1,6 +1,6 @@
 <!-- Grouped error/warning messages table (DRD §4.3, inv. §2.10 no. 19 and §2.1): Level, Message (click -> original log
      line, UTC time, with a copy button), Count; the filter searches all messages on the server. crossService: Service
-     column for Overview ("Top pesan error lintas layanan", top 25). -->
+     column for Overview ("Top error messages across services", top 25). -->
 <script>
   import { t } from '../i18n.js';
   import { sysName } from '../format.js';

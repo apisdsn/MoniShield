@@ -6,7 +6,7 @@ Aggregates are derived via derive_folder(), filled in by a later stage.
 import concurrent.futures, datetime, json, multiprocessing, os, shutil, threading, time
 
 from monishield.infrastructure import db, derive, logfiles, refdata
-from monishield.domain import detect, parse, retention, rules, services, timezone
+from monishield.domain import detect, log_formats, parse, retention, rules, services, timezone
 
 RAW_TABLES = list(parse.TABLES)
 _lock = threading.Lock()  # one ingest at a time (TRD §3.1)
@@ -158,7 +158,8 @@ def _run(cfg, con, only_folder, force, workers, progress):
             f['known_sha'] = None if force or not k or k['rules_version'] != parse.RULES_VERSION else k['sha256']
         n = min(4, os.cpu_count() or 1) if workers is None else workers
         profile = services.current()   # passed to each subprocess: it does not see this process's state
-        args = [(f['path'], f['service'], f['out'], profile, f['known_sha'], f['pair']) for f in todo]
+        fr = log_formats.current()   # log-formats.toml rules; None outside the server/CLI (tests): by role, as before
+        args = [(f['path'], f['service'], f['out'], profile, f['known_sha'], f['pair'], f['ns'], fr) for f in todo]
         if n and len(todo) > 2:
             with concurrent.futures.ProcessPoolExecutor(n, mp_context=multiprocessing.get_context('spawn')) as pool:
                 futs = [pool.submit(logfiles.work, *a) for a in args]
@@ -258,7 +259,7 @@ def _apply_file(con, f, k, res):
         res['warnings'].append(f"{f['relpath']}: FAILED to parse: {r['error']}"); res['files_failed'] += 1
         _delete_file_rows(con, file_id); con.execute('DELETE FROM ingest_file WHERE file_id = ?', [file_id])
         # rules_version 0 -> always retried on the next ingest
-        con.execute("INSERT INTO ingest_file VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 'failed', 0, ?)",
+        con.execute("INSERT INTO ingest_file (file_id, relpath, source_ext, folder, ns, service, pod, size_bytes, mtime_ns, sha256, lines, err, warn, corrupt_lines, status, rules_version, ingested_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 'failed', 0, ?)",
                     [file_id, f['relpath'], f['source_ext'], f['folder'], f['ns'], f['service'], f['pod'], f['size_bytes'], f['mtime_ns'], r['sha256'] or '', utcnow()])
         return True
     if s is None:  # content same as already processed: only the source file changed (touched, or .gz <-> .log)
@@ -268,9 +269,9 @@ def _apply_file(con, f, k, res):
     status = 'empty' if not s['lines'] else 'corrupt' if s['corrupt_lines'] and not s['rows'] else 'ok'
     if status == 'corrupt' and _export_error(f['path']):   # found in real S3 data 2026-10-07
         res['warnings'].append(f"{f['relpath']}: contains an error message from the log export tool, not logs ('{EXPORT_ERROR}…'); check the log delivery to S3")
-    con.execute('INSERT INTO ingest_file VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    con.execute('INSERT INTO ingest_file (file_id, relpath, source_ext, folder, ns, service, pod, size_bytes, mtime_ns, sha256, lines, err, warn, corrupt_lines, status, rules_version, ingested_at, lines_unmatched) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [file_id, f['relpath'], f['source_ext'], f['folder'], f['ns'], f['service'], f['pod'], f['size_bytes'], f['mtime_ns'], r['sha256'],
-                 s['lines'], s['err'], s['warn'], s['corrupt_lines'], status, parse.RULES_VERSION, utcnow()])
+                 s['lines'], s['err'], s['warn'], s['corrupt_lines'], status, parse.RULES_VERSION, utcnow(), s.get('unmatched_lines', 0)])
     for table in s['rows']: _load_csv(con, table, os.path.join(f['out'], table + '.csv'), file_id, f['folder'])
     db.insert_rows(con, 'file_counter', [[file_id, *c] for c in s['counters']])
     res['files_parsed'] += 1

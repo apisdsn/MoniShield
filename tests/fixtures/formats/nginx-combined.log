@@ -1,0 +1,4 @@
+203.0.113.5 - alice [10/Oct/2026:13:55:36 +0000] "GET /api/orders?id=1 HTTP/1.1" 200 2326 "https://shop.example.com/" "Mozilla/5.0 (X11; Linux x86_64)" 0.123
+198.51.100.7 - - [10/Oct/2026:13:55:37 +0000] "POST /api/orders HTTP/2.0" 502 157 "-" "curl/8.4.0"
+192.0.2.10 - - [10/Oct/2026:13:55:38 +0000] "GET /../../etc/passwd HTTP/1.1" 404 0 "-" "sqlmap/1.7"
+this is not an access log line

@@ -1,6 +1,6 @@
 <!-- Chart card (DRD §4.2): title left, actions right, 280 px canvas. Colors from tokens (§5.4), read at draw time;
      theme/language change = redraw without fetching data. Text alternatives: aria-label (title + summary) and
-     "Lihat sebagai tabel" (U9). Time axis without repeated dates when all points are on one date (U10).
+     "View as table" (U9). Time axis without repeated dates when all points are on one date (U10).
      0 points -> the card is not rendered (old). -->
 <script module>
   import { Chart, registerables } from 'chart.js';

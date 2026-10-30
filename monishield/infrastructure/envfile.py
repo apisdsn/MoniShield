@@ -1,4 +1,4 @@
-"""Writes values to the .env file (Configuration page; owner request 2026-10-07: "semua configuration … ke dalam .env"
+"""Writes values to the .env file (Configuration page; owner request 2026-10-07: "all configuration … into .env"
 (all configuration … into .env)).
 
 Only the lines of changed keys are touched; comments, order, and other lines stay. A key that is not active yet is first
@@ -16,7 +16,8 @@ from monishield.domain.settings import SettingsFail
 from monishield.infrastructure import config
 
 _LOCK = threading.Lock()
-MARK = '# --- diisi dari layar Konfigurasi MoniShield ---'
+MARK = '# --- set from the MoniShield Configuration page ---'
+OLD_MARKS = ('# --- diisi dari layar Konfigurasi MoniShield ---',)   # written by earlier versions: not added twice
 
 
 class EnvFileFail(Exception):
@@ -68,7 +69,7 @@ def update(path, changes):
             com = [i for i, l in enumerate(lines) if _key_re(name, False).match(l)]
             if com: lines[com[0]] = line
             else:
-                if MARK not in lines: lines += ['', MARK]
+                if MARK not in lines and not any(m in lines for m in OLD_MARKS): lines += ['', MARK]
                 lines.append(line)
         text = '\n'.join(lines) + '\n'
         if text == old: return []

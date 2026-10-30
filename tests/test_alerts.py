@@ -11,8 +11,8 @@ from monishield.infrastructure import config, db, ingest, notify_channels
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
-X = {'X-Requested-With': 'uji'}
-PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
+X = {'X-Requested-With': 'test'}
+PW, PW2 = 'first-admin-password', 'admin-password-after-change'
 TOKEN = '123456789:AAHrahasiaTokenBotTelegramUji0000000'
 HOOK = 'https://discord.com/api/webhooks/1234567890/rahasiaWebhookDiscordUji0000'
 SMTP_PW = 'sandiSmtpRahasiaUji'
@@ -86,10 +86,10 @@ def test_credentials_are_never_sent_back(app_env):
     assert 'alerts.update' in audit and TOKEN not in audit and SMTP_PW not in audit
 
 
-@pytest.mark.parametrize('ch, msg', [(dict(telegram=dict(bot_token='bukan-token')), 'bot token'), (dict(telegram=dict(chat_id='abc')), 'chat ID'),
+@pytest.mark.parametrize('ch, msg', [(dict(telegram=dict(bot_token='not-a-token')), 'bot token'), (dict(telegram=dict(chat_id='abc')), 'chat ID'),
                                     (dict(discord=dict(webhook_url='https://evil.example/api/webhooks/1/x')), 'Discord webhook URL'),
                                     (dict(discord=dict(webhook_url='http://discord.com/api/webhooks/1/x')), 'Discord webhook URL'),
-                                    (dict(email=dict(to='bukan email')), 'recipients'), (dict(email=dict(enabled=True)), 'incomplete'),
+                                    (dict(email=dict(to='not an email')), 'recipients'), (dict(email=dict(enabled=True)), 'incomplete'),
                                     (dict(telegram=dict(enabled=True)), 'not set')])
 def test_fields_are_validated(app_env, ch, msg):
     tc, _, _ = app_env
@@ -207,10 +207,10 @@ def test_real_json_post_to_a_local_server(monkeypatch):
 
 def test_plain_user_not_allowed(app_env):
     tc, _, _ = app_env
-    assert tc.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='sandi-awal-rina-123'), headers=X).status_code == 201
+    assert tc.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='rina-initial-password-123'), headers=X).status_code == 201
     u = TestClient(tc.app)
-    u.post('/api/auth/login', json=dict(username='rina', password='sandi-awal-rina-123'), headers=X)
-    u.post('/api/me/password', json=dict(old_password='sandi-awal-rina-123', new_password='sandi-baru-rina-123'), headers=X)
+    u.post('/api/auth/login', json=dict(username='rina', password='rina-initial-password-123'), headers=X)
+    u.post('/api/me/password', json=dict(old_password='rina-initial-password-123', new_password='rina-new-password-123'), headers=X)
     assert u.get('/api/admin/alerts').status_code == 403 and u.post('/api/admin/alerts/test', json=dict(channel='email'), headers=X).status_code == 403
 
 
@@ -230,7 +230,7 @@ def test_threshold_text_round_trip_and_errors():
     d = alerts.parse_service_spike('default=2:50,REPORT-SERVICE=3:200,coredns=off')
     assert d == dict(default=(2, 50), services={'report-service': (3, 200), 'coredns': None})
     assert alerts.format_service_spike(d) == 'default=2:50,coredns=off,report-service=3:200'
-    assert alerts.service_threshold(d, 'Report-Service') == (3, 200) and alerts.service_threshold(d, 'lain') == (2, 50)
+    assert alerts.service_threshold(d, 'Report-Service') == (3, 200) and alerts.service_threshold(d, 'other-service') == (2, 50)
     for bad in ('n5xx=1:5', 'n5xx=abc', 'tidak_ada=2:5', 'n5xx'):
         with pytest.raises(alerts.AlertFail): alerts.parse_spike(bad)
     with pytest.raises(alerts.AlertFail): alerts.parse_service_spike('../x=2:5')

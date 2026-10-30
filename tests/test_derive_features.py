@@ -47,16 +47,16 @@ def test_attacks(mini):
 def test_attack_aggregation_order_and_decoding(tmp_path):
     """Key = path decoded ONCE, 200 characters; top IP on a tie = the first to appear; UA = first occurrence."""
     root = str(tmp_path / 'l'); p = '/a%2520b/.env'   # decoded once -> '/a%20b/.env'; classification uses double decoding
-    lines = [ngx('9.9.9.9', '10:00:05', p, 404, ID('a'), ua='UA-pertama'), ngx('1.1.1.1', '10:00:40', p, 200, ID('b'), up='web-frontend-3000', ua='UA-kedua'),
-             ngx('1.1.1.1', '12:30:00', p, 404, ID('c'), ua='UA-kedua'), ngx('9.9.9.9', '09:15:00', p, 404, ID('d'), ua='UA-pertama'),
+    lines = [ngx('9.9.9.9', '10:00:05', p, 404, ID('a'), ua='UA-first'), ngx('1.1.1.1', '10:00:40', p, 200, ID('b'), up='web-frontend-3000', ua='UA-second'),
+             ngx('1.1.1.1', '12:30:00', p, 404, ID('c'), ua='UA-second'), ngx('9.9.9.9', '09:15:00', p, 404, ID('d'), ua='UA-first'),
              ngx('5.5.5.5', '09:00:00', '/' + 'x' * 250 + '.php', 404, ID('e'))]
     logs_mini.write(logs_mini.log_path(root, B, 'ingress-nginx', NG, 'pod-n'), '\n'.join(lines) + '\n')
     _, con = make(tmp_path, root, workers=0)
     r = q(con, "SELECT method_path, hits, ip_count, top_ip, status_counts, sizes, upstreams, ua_first, first_wib, last_wib FROM agg_attack_url WHERE category = 'Probe file sensitif'")[0]
-    assert r[:8] == ('GET /a%20b/.env', 4, 2, '9.9.9.9', {'200': 1, '404': 3}, [100], ['event-api-3000', 'web-frontend-3000'], 'UA-pertama')
+    assert r[:8] == ('GET /a%20b/.env', 4, 2, '9.9.9.9', {'200': 1, '404': 3}, [100], ['event-api-3000', 'web-frontend-3000'], 'UA-first')
     assert (M(r[8]), M(r[9])) == ('2026-09-27 16:15', '2026-09-27 19:30')
     assert q(con, "SELECT length(method_path) FROM agg_attack_url WHERE category = 'Probe PHP / CGI'") == [(204,)]  # 'GET ' + 200 characters
-    assert q(con, "SELECT hits, cats, ua_top FROM agg_attack_ip WHERE ip = '1.1.1.1'") == [(2, {'Probe file sensitif': 2}, 'UA-kedua')]
+    assert q(con, "SELECT hits, cats, ua_top FROM agg_attack_ip WHERE ip = '1.1.1.1'") == [(2, {'Probe file sensitif': 2}, 'UA-second')]
     con.close()
 
 
@@ -108,28 +108,28 @@ def test_correlation_within_and_across_folders_and_duplicate_ids(tmp_path):
     X, Y, Y2, Z = ID('1'), ID('2'), ID('3'), ID('4')
     logs_mini.write(logs_mini.log_path(root, F1, 'tenant', SL, 'pod-s'), '\n'.join([
         sl(X, '/tx/12', 401, 1, True, 'UnauthorizedError', 'Unauthorized'),   # its nginx is only in F2 -> matched across folders
-        sl(Y, '/lambat', 200, 6000),                                          # slow >= 5 s -> included in traces
-        sl(Z, '/galat', 500, 20, True, 'Boom', 'x'),                          # duplicate request id: F1 and F2
-        sl(Y2, '/cepat', 200, 5),                                             # matched, not included in traces
+        sl(Y, '/slow-page', 200, 6000),                                          # slow >= 5 s -> included in traces
+        sl(Z, '/error-page', 500, 20, True, 'Boom', 'x'),                          # duplicate request id: F1 and F2
+        sl(Y2, '/fast-page', 200, 5),                                             # matched, not included in traces
         sl(ID('9'), '/tanpa-nginx', 500, 1, True)]) + '\n')
     logs_mini.write(logs_mini.log_path(root, F1, 'ingress-nginx', NG, 'pod-n'), '\n'.join([
-        ngx('7.7.7.7', '17:30:00', '/lambat?a=1%20b', 200, Y, ua='U' * 130), ngx('1.1.1.1', '18:10:00', '/galat', 500, Z), ngx('7.7.7.7', '17:59:59', '/cepat', 200, Y2)]) + '\n')
+        ngx('7.7.7.7', '17:30:00', '/slow-page?a=1%20b', 200, Y, ua='U' * 130), ngx('1.1.1.1', '18:10:00', '/error-page', 500, Z), ngx('7.7.7.7', '17:59:59', '/fast-page', 200, Y2)]) + '\n')
     cfg, con = make(tmp_path, root, workers=0)
     assert q(con, 'SELECT matched, total FROM agg_corr') == [(3, 5)]
     tr = lambda: {r[:4]: r[4:] for r in q(con, 'SELECT ip, status, error, key, n, url, upstream, ua, first_wib, max_ms FROM agg_trace WHERE folder = ?', F1)}
     t = tr()
-    assert set(t) == {('7.7.7.7', 200, 'Lambat 6.0 dtk', 'GET /lambat'), ('1.1.1.1', 500, 'Boom: x', 'GET /galat')}
-    assert t['7.7.7.7', 200, 'Lambat 6.0 dtk', 'GET /lambat'][:4] == (1, 'GET /lambat?a=1 b', 'event-api-3000', 'U' * 120) and t['7.7.7.7', 200, 'Lambat 6.0 dtk', 'GET /lambat'][5] == 6000
+    assert set(t) == {('7.7.7.7', 200, 'Lambat 6.0 dtk', 'GET /slow-page'), ('1.1.1.1', 500, 'Boom: x', 'GET /error-page')}
+    assert t['7.7.7.7', 200, 'Lambat 6.0 dtk', 'GET /slow-page'][:4] == (1, 'GET /slow-page?a=1 b', 'event-api-3000', 'U' * 120) and t['7.7.7.7', 200, 'Lambat 6.0 dtk', 'GET /slow-page'][5] == 6000
     hour = lambda: {H(r[0]): r[1:] for r in q(con, 'SELECT hour_wib, total, err FROM agg_hour WHERE folder = ? AND service = ?', F1, SL)}
     assert hour() == {'2026-09-28 00': (2, 0), '2026-09-28 01': (1, 1)}       # events-service time = its nginx request's time
     # next folder arrives: holds nginx for X and a second copy of Z
     logs_mini.write(logs_mini.log_path(root, F2, 'ingress-nginx', NG, 'pod-n'), '\n'.join([
-        ngx('8.8.8.8', '20:00:00', '/tx/12?x=1', 401, X, day='28/Sep/2026'), ngx('2.2.2.2', '21:00:00', '/galat', 500, Z, day='28/Sep/2026')]) + '\n')
+        ngx('8.8.8.8', '20:00:00', '/tx/12?x=1', 401, X, day='28/Sep/2026'), ngx('2.2.2.2', '21:00:00', '/error-page', 500, Z, day='28/Sep/2026')]) + '\n')
     r = ingest.run(cfg, con, workers=0)
     assert r['folders_changed'] == [F2] and r['folders_recorrelated'] == [F1]
     assert q(con, 'SELECT folder::VARCHAR, matched, total FROM agg_corr') == [(F1, 4, 5)]   # F2 without events-service events: no rows
     t = tr()
-    assert set(t) == {('7.7.7.7', 200, 'Lambat 6.0 dtk', 'GET /lambat'), ('2.2.2.2', 500, 'Boom: x', 'GET /galat'), ('8.8.8.8', 401, 'UnauthorizedError: Unauthorized', 'GET /tx/:n')}
+    assert set(t) == {('7.7.7.7', 200, 'Lambat 6.0 dtk', 'GET /slow-page'), ('2.2.2.2', 500, 'Boom: x', 'GET /error-page'), ('8.8.8.8', 401, 'UnauthorizedError: Unauthorized', 'GET /tx/:n')}
     assert t['8.8.8.8', 401, 'UnauthorizedError: Unauthorized', 'GET /tx/:n'][1] == 'GET /tx/12?x=1'
     assert hour() == {'2026-09-28 00': (2, 0), '2026-09-29 03': (1, 1), '2026-09-29 04': (1, 1)}  # Z now uses the last occurrence (F2)
     before = ingest.checksums(con); ingest.derive_all(con)

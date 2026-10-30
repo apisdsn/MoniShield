@@ -9,7 +9,7 @@ def test_duckdb_status_values_rewritten(tmp_path):
     con = db.open(path)
     con.execute("INSERT INTO ingest_run VALUES (1, now(), now(), 'gagal', 0, 0, NULL), (2, now(), NULL, 'berjalan', NULL, NULL, NULL), (3, now(), now(), 'ok', 1, 1, NULL)")
     for i, st in enumerate(('kosong', 'rusak', 'gagal', 'ok')):
-        con.execute("INSERT INTO ingest_file VALUES (?, ?, '.log', ?, 'ns', 'svc', 'pod', 0, 0, '', 0, 0, 0, 0, ?, 1, now())",
+        con.execute("INSERT INTO ingest_file VALUES (?, ?, '.log', ?, 'ns', 'svc', 'pod', 0, 0, '', 0, 0, 0, 0, ?, 1, now(), 0)",
                     [i, f'f{i}', datetime.date(2026, 1, 1), st])
     con.close()
     con = db.open(path)

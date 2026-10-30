@@ -44,9 +44,9 @@ def trends(cur, cfg, params):
 
 def _completeness(cur, folders):
     """Dates in the range without a log folder, corrupt/empty files per folder, the last finished ingest."""
-    ada = {datetime.date.fromisoformat(f) for f in folders}
-    a, b = min(ada), max(ada)
-    missing = [str(a + datetime.timedelta(days=i)) for i in range((b - a).days + 1) if a + datetime.timedelta(days=i) not in ada]
+    present = {datetime.date.fromisoformat(f) for f in folders}
+    a, b = min(present), max(present)
+    missing = [str(a + datetime.timedelta(days=i)) for i in range((b - a).days + 1) if a + datetime.timedelta(days=i) not in present]
     st = {str(f): (c, e) for f, c, e in _all(cur, 'SELECT folder, files_corrupt, files_empty FROM folder_state WHERE folder >= ?', folders[0])}
     run = cur.execute('SELECT finished_at, status, files_changed FROM ingest_run WHERE finished_at IS NOT NULL ORDER BY run_id DESC LIMIT 1').fetchone()
     return dict(missing=missing, corrupt=[st.get(f, (0, 0))[0] for f in folders], empty=[st.get(f, (0, 0))[1] for f in folders],

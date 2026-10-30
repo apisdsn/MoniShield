@@ -25,6 +25,7 @@
   import Pods from './pages/Pods.svelte';
   import Business from './pages/Business.svelte';
   import Tracing from './pages/Tracing.svelte';
+  import RawLogs from './pages/RawLogs.svelte';
   import CommandCenter from './pages/CommandCenter.svelte';
   import IpProfile from './pages/IpProfile.svelte';
   import AdminUsers from './pages/AdminUsers.svelte';
@@ -133,7 +134,7 @@
   const folderInfo = $derived(folders.find((f) => f.folder === folder) || null);
   const isAdminTab = $derived(ADMIN.includes($route.tab));
   const isDataTab = $derived(!isAdminTab);
-  // #/password and #/email (old #/sandi): open the account pop-up over the Overview (lib/AccountDialogs.svelte)
+  // #/password and #/email (old Indonesian path): open the account pop-up over the Overview (lib/AccountDialogs.svelte)
   $effect(() => {
     if (screen !== 'app' || ($route.tab !== 'password' && $route.tab !== 'email')) return;
     openAccount($route.tab);
@@ -363,6 +364,8 @@
             <Business {folder} {summary} {reloadKey} {onready} />
           {:else if $route.tab === 'tracing'}
             <Tracing {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} />
+          {:else if $route.tab === 'raw-logs'}
+            <RawLogs {folder} {summary} {onready} />
           {:else if $route.tab === 'ip'}
             <IpProfile {folder} ip={$route.service} {reloadKey} {onready} />
           {:else if $route.tab === 'service'}

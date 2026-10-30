@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { tLocal, dur, durMs, tRange, dLabel, logDay, folderOfDay, fLabel, folderTag, num, logRange, delta, bytes, pct, sysName, cut, utcToLocal } from '../web/src/format.js';
 
-test('waktu WIB seperti lama', () => {
+test('local time like the old system', () => {
   assert.equal(tLocal('2026-09-28 06:03', 'id'), '28 Sep 2026 06.03 WIB');
   assert.equal(tLocal('2026-09-28 06:03', 'en'), '28 Sep 2026 06:03 WIB');
   assert.equal(tLocal('2026-09-28 06', 'id'), '28 Sep 06.00');
@@ -15,13 +15,13 @@ test('waktu WIB seperti lama', () => {
   assert.equal(tLocal(null, 'id'), '-');
 });
 
-test('tanggal folder', () => {
+test('folder date', () => {
   assert.equal(dLabel('2026-10-06', 'id'), '6 Okt 2026');
   assert.equal(dLabel('2026-10-06', 'en'), '6 Oct 2026');
   assert.equal(dLabel('2026-05-01', 'id'), '1 Mei 2026');
 });
 
-test('durasi seperti lama', () => {
+test('duration like the old system', () => {
   assert.equal(dur(0.85, 'id'), '850 ms');
   assert.equal(dur(2.35, 'id'), '2,35 dtk');
   assert.equal(dur(2.35, 'en'), '2.35 s');
@@ -33,14 +33,14 @@ test('durasi seperti lama', () => {
   assert.equal(durMs(1250, 'en'), '1.25 s');
 });
 
-test('rentang waktu digabung bila tanggal sama', () => {
+test('time range joined when the date is the same', () => {
   assert.equal(tRange('2026-09-28 06:03', '2026-09-28 07:15', 'id'), '28 Sep 2026 06.03 – 07.15 WIB');
   assert.equal(tRange('2026-09-28 06:03', '2026-09-28 07:15', 'en'), '28 Sep 2026 06:03 – 07:15 WIB');
   assert.equal(tRange('2026-09-28 06:03', '2026-09-28 06:03', 'id'), '28 Sep 2026 06.03 WIB');
   assert.equal(tRange('2026-09-28 23:50', '2026-09-29 00:10', 'id'), '28 Sep 2026 23.50 WIB – 29 Sep 2026 00.10 WIB');
 });
 
-test('rentang isi log untuk subjudul (U2)', () => {
+test('log content range for the subtitle (U2)', () => {
   assert.equal(logRange('2026-10-05 09:00', '2026-10-06 00:59', 'id'), '5 Okt 09.00–6 Okt 00.59 WIB');
   assert.equal(logRange('2026-10-05 09:00', '2026-10-06 00:59', 'en'), '5 Oct 09:00–6 Oct 00:59 WIB');
   assert.equal(logRange('2026-10-06 00:00', '2026-10-06 23:59', 'id'), '6 Okt 00.00–23.59 WIB');
@@ -59,7 +59,7 @@ test('angka', () => {
   assert.equal(pct(0.1234, 'en'), '12.3%');
 });
 
-test('perubahan vs folder sebelumnya (dlt lama: empat bentuk)', () => {
+test('change vs the previous folder (old dlt: four forms)', () => {
   assert.deepEqual(delta(64, 100, '2026-10-05', 'id'),
     { kind: 'down', tone: 'good', text: '▼ 36% vs 4 Okt 2026', short: '▼ 36%', rest: 'vs 4 Okt 2026', spoken: 'turun 36% dibanding 4 Okt 2026' });
   assert.equal(delta(150, 100, '2026-10-05', 'id').tone, 'bad');                       // errors up = bad
@@ -85,7 +85,7 @@ test('waktu UTC akun/ingest -> WIB (lewat tengah malam)', () => {
   assert.equal(utcToLocal('2026-10-06 02:05'), '2026-10-06 09:05');
   assert.equal(tLocal(utcToLocal('2026-12-31 20:00:00'), 'id'), '1 Jan 2027 03.00 WIB');
   assert.equal(utcToLocal(null), null);
-  assert.equal(utcToLocal('bukan waktu'), null);
+  assert.equal(utcToLocal('not a time'), null);
 });
 
 test('folder name -> log day (S3 and Kafka folders both hold the previous day)', () => {

@@ -281,6 +281,22 @@ the role. Raw schema: `/api/openapi.json`.
 or the contents of one date + fill in its date) → **Upload**. Only `.log`/`.log.gz` are sent (same size limits as
 S3 import); the files go to the inbox and are then ingested. Behind nginx, raise `client_max_body_size` (nginx default 1 MB).
 
+### Raw Logs
+
+**Raw Logs** (Analysis group) shows the original lines of the services for the date in the header, exactly as they were
+written. Type what to look for and pick a mode:
+
+- **Text**: words, upper or lower case does not matter (`verify-otp`).
+- **Regex**: a regular expression (`"statusCode":5\d\d`); very long patterns and nested repeats such as `(a+)+` are refused.
+- **Request ID**: every line of one request; **Follow request** on a selected line does this for you, oldest line first.
+- **IP**: one address; `66.66.66.21` does not match `66.66.66.213`.
+
+Narrow the search with the services, the level or HTTP status, the pod and a local time window. A stack trace is shown
+with the line it belongs to. Event lines that carry no time get the time of the ingress request with the same request ID
+(marked ≈). A search stops after 20 seconds or 20,000 matches and then says it is partial: narrow it. **Download .log**
+saves every match as `file:line: text`. Lines are only available while the log files are on disk (see *Data
+retention*). Every search and download is written to the audit log with who searched what.
+
 ### Removing a folder from the list
 
 Admin → **Ingest & import** → **Log folders** card → **Delete**. The folder's data disappears from

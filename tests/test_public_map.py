@@ -11,8 +11,8 @@ from monishield.infrastructure import config, db, ingest
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
-PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
-X = {'X-Requested-With': 'uji'}
+PW, PW2 = 'first-admin-password', 'admin-password-after-change'
+X = {'X-Requested-With': 'test'}
 IP = re.compile(r'\b\d{1,3}(?:\.\d{1,3}){3}\b')
 
 
@@ -99,7 +99,7 @@ def test_empty_newest_folder_uses_the_previous_one():
     class Wh:
         def folder_table(self):
             return ({'2026-10-28': dict(lines=10), '2026-10-27': dict(lines=500), '2026-10-26': dict(lines=400),
-                     '2026-10-29': dict(lines=0), 'uji-lama': dict(lines=9), '2026-10-30': dict(lines=7)}, {'2026-10-30': dict(by='admin', at=None)})
+                     '2026-10-29': dict(lines=0), 'old-test': dict(lines=9), '2026-10-30': dict(lines=7)}, {'2026-10-30': dict(by='admin', at=None)})
         def request_origins(self, folder):
             return {'2026-10-27': [(-6.2, 106.8, 40, 'Jakarta', 'ID')], '2026-10-26': [(3.6, 98.7, 9, 'Medan', 'ID')]}.get(folder, [])
 

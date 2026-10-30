@@ -1,6 +1,6 @@
 <!-- Notifications (owner request 2026-10-07; API /api/admin/alerts, monishield/alerts.py), admin only.
-     Three channels (Telegram, Discord, email): on/off + credentials + "Kirim uji" (send test). Secret fields (bot token, webhook URL,
-     SMTP password) are never refilled from the server: shown as "sudah diisi"; left empty on save = not
+     Three channels (Telegram, Discord, email): on/off + credentials + "Send test". Secret fields (bot token, webhook URL,
+     SMTP password) are never refilled from the server: shown as "already set"; left empty on save = not
      changed; "Hapus" removes them. Events sent, message language, dashboard address for links, daily folder check
      time, daily report hour, and sending the daily report of any folder now (also the ones not sent yet). History of the last 30 sends. Messages never contain IP addresses (project rule). -->
 <script>

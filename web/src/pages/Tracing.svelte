@@ -1,6 +1,6 @@
 <!-- Request Tracing (DRD §3.9, inv. §2.9): 6 KPIs, notes, 2 charts, table of failed/slow nginx → application traces.
      One request: GET /api/folders/{folder}/tracing. Changed from the old one: traces are not truncated at 300 (TRD §4.4 item 1;
-     KPIs and charts computed from all traces, table shows the first 300 + "tampilkan berikutnya"); "lambat ≥ 5 dtk" includes
+     KPIs and charts computed from all traces, table shows the first 300 + "show more"); "slow ≥ 5 s" includes
      all statuses except failed (item 9). ASSUMPTION: with no matching request at all (matched = 0) a note is shown,
      not a page full of zeros like the old one (DRD §6.6). -->
 <script>

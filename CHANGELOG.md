@@ -10,12 +10,22 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 - Log format rules per service (step 1a of `docs/11-log-formats.md`): `log-formats.toml` (`S4_LOG_FORMATS_FILE`, example
   `log-formats.example.toml`) lists, first match wins, which preset or format (`json`, `logfmt`, `regex`, …) reads each
   service; a file that cannot be used stops the start with the rule's position. Without the file the built-in rules
-  equal today's parsers. The parsers use the rules from step 1b on.
+  equal today's parsers.
+- Common log formats (step 1b): services whose rule names `nginx-combined`, `apache-combined`, `json`, `logfmt`, `syslog`,
+  `regex` or `plain` are read into the new tables `http_access` and `app_line` (multiline stack traces, level words, time
+  formats); lines a format cannot read are counted per file (`lines_unmatched`). The pages read these tables from step 1c on;
+  sites without `log-formats.toml` are read exactly as before.
+- Raw Logs page (Analysis): search the original lines of every service in the folder's log files by text, regular
+  expression, request ID or IP, filtered by service, pod, level/status and local time; follow one request across
+  services, see the lines around an entry, download the matches as a `.log` file. Open to every signed-in user, text as
+  written; every search and download is recorded in the audit log (`raw.search`, `raw.download`).
 - Time zone of the site as configuration: `S4_TIMEZONE_OFFSET` (default `+07:00`) and `S4_TIMEZONE_LABEL` (default `WIB`) set the
   local time of pages, hours, folder dates and the daily jobs, and the label shown in the UI. Folders derived with another
   offset are derived again on the next ingest; existing data counts as +07:00, so nothing changes for current sites.
 
 ### Changed
+- Pop-ups: only their content scrolls; the title and buttons stay in place and the scrollbar no longer cuts the rounded
+  corners.
 - No client data in the code: the service folder names of each log role (`S4_SERVICE_NAMES`), the events tag (`S4_EVENT_TAG`), the
   Business endpoints (`S4_BUSINESS_ENDPOINTS`), hosts, server IP, upstream prefix, DNS upstream and own network
   (`S4_BLOCKLIST_EXCLUDE_ORG`, also tags "Own network" in IP cells) come from `.env`; the defaults name nothing real. The home page
@@ -50,6 +60,10 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   cannot be dodged with a forged header; `?next=` of the sign-in page also refuses `/\…`.
 
 ### Maintenance
+- Code is English throughout: test data, assert messages, test names, comments that quoted Indonesian, the CRS skip notes
+  and one variable name were translated; `tests/test_language.py` now fails on Indonesian words outside the UI copy. The
+  Security API sends `Unknown` for an IP without a known owner (the UI shows its own word); the Configuration page writes
+  an English marker line to `.env` and still recognises the old one.
 - Plan for configurable log formats per service (`docs/11-log-formats.md`), not built yet.
 - The public repository `apisdsn/MoniShield` is where work happens; `apisdsn/MoniShield-internal` keeps the earlier history
   privately. `CLAUDE.md` and `docs/09-status.md` describe the layout, the owner's commit identity and the current deploy.

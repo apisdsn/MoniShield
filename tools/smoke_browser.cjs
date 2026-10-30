@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
 const BASE = process.argv[2] || 'http://127.0.0.1:8777';
 const SHOTS = process.argv[3] || '';
 const PW0 = 'smoke-test-first-password', PW1 = 'Smoke-Test-Second-Password-2026!';
-const PAGES = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing',
+const PAGES = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
   'services/event-api', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
 const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'en', source: '' }];
 

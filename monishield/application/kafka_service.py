@@ -2,7 +2,7 @@
 client monishield/infrastructure/kafka_client.py, inbox monishield/infrastructure/inbox.py; message rules
 monishield/domain/kafka_message.py.
 
-Logs from Kafka (owner request 2026-10-07: "apakah bisa dibuat seperti logging existing?" (can it work like the existing logging?)).
+Logs from Kafka (owner request 2026-10-07: can it work like the existing logging?).
 
 Rancher (cluster logging -> Kafka, fluentd) sends one JSON message per container log line:
     {"log": "<original line>", "stream": "stdout", "tag": "kubernetes.var.log.containers.<pod>_<ns>_<container>-<id>.log",
