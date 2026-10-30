@@ -15,11 +15,17 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   `regex` or `plain` are read into the new tables `http_access` and `app_line` (multiline stack traces, level words, time
   formats); lines a format cannot read are counted per file (`lines_unmatched`). The pages read these tables from step 1c on;
   sites without `log-formats.toml` are read exactly as before.
+- Raw Logs page (Analysis): search the original lines of every service in the folder's log files by text, regular
+  expression, request ID or IP, filtered by service, pod, level/status and local time; follow one request across
+  services, see the lines around an entry, download the matches as a `.log` file. Open to every signed-in user, text as
+  written; every search and download is recorded in the audit log (`raw.search`, `raw.download`).
 - Time zone of the site as configuration: `S4_TIMEZONE_OFFSET` (default `+07:00`) and `S4_TIMEZONE_LABEL` (default `WIB`) set the
   local time of pages, hours, folder dates and the daily jobs, and the label shown in the UI. Folders derived with another
   offset are derived again on the next ingest; existing data counts as +07:00, so nothing changes for current sites.
 
 ### Changed
+- Pop-ups: only their content scrolls; the title and buttons stay in place and the scrollbar no longer cuts the rounded
+  corners.
 - No client data in the code: the service folder names of each log role (`S4_SERVICE_NAMES`), the events tag (`S4_EVENT_TAG`), the
   Business endpoints (`S4_BUSINESS_ENDPOINTS`), hosts, server IP, upstream prefix, DNS upstream and own network
   (`S4_BLOCKLIST_EXCLUDE_ORG`, also tags "Own network" in IP cells) come from `.env`; the defaults name nothing real. The home page

@@ -1361,3 +1361,32 @@ entry the format cannot read is counted in `ingest_file.lines_unmatched`. `auto`
 built-in rules the parse result is identical to before (tested file by file). Pages do not read the new tables yet
 (step 1c). Tests: `tests/test_formats.py` on public sample lines in `tests/fixtures/formats/`.
 
+
+## Stage 53 — Raw Logs page (done, 2026-10-30)
+
+Owner request: read the raw log text of any service from the dashboard (first for OTP checks, then for every service).
+Mockup approved on 2026-10-30 with these decisions: every signed-in user may use it (role-based access per module is a
+later stage), the text is shown exactly as written (no masking), every search and download is recorded in the audit
+log, and the page sits in the Analysis group after Request Tracing.
+
+- `domain/rawlog.py` (pure): entries (a stack trace stays with its line; a rule's `multiline` regex when the rules file
+  has one), the time written in a line (CLF, ISO, nginx error, JSON / logfmt time keys; no zone = UTC for today's parsers,
+  the site zone for rules-file formats), the level or HTTP status class, request ID / IP / status / method / path of a
+  line, the four search modes (text, regex checked like log-formats.toml patterns, request ID, one IP address), local
+  time window -> UTC, context around a line.
+- `infrastructure/queries/rawlogs.py`: lists the folder's files like ingest (log folder before inbox, `.log` before
+  `.log.gz`), reads them within a 20-second budget and keeps at most 20,000 matching entries (answer marked partial
+  otherwise). JSON event lines have no time: they take the time of the ingress line with the same request ID
+  (`nginx_access`), else of the line above them in their file.
+- API (`interfaces/api/pages.py`, every signed-in user): `GET /api/folders/{folder}/raw` (`q`, `mode`, `services`,
+  `pods`, `kinds`, `from`/`to` local HH:MM, `order`, `limit` ≤ 1,000, `offset`), `…/raw/context` (`file` must be a file
+  of that folder, `line`, `n` ≤ 20), `…/raw/download` (up to 100,000 entries, `<file>:<line>: <text>`). Audit:
+  `raw.search` (first page only) and `raw.download`, detail = folder, source, mode, text, services, kinds, window and
+  the number of matches.
+- Web: `pages/RawLogs.svelte` (`/raw-logs`), sidebar icon `terminal`, header search `?search=` fills and runs it.
+  Selected entry: fields, IP profile link, "Follow request" (request ID mode, every service, oldest first), lines around.
+- `lib/Dialog.svelte`: only the body scrolls; title and buttons stay; the scrollbar stops short of the rounded corners.
+  Checked on all 15 pop-ups (desktop and phone): no nested scroll area, title visible after scrolling, dialog on screen.
+- Tests: `tests/test_rawlogs.py`; smoke test opens `/raw-logs`.
+
+Later: live tail for the Kafka source, links from Request Tracing / IP profile / Messages rows, role per module.

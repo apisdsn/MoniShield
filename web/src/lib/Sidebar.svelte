@@ -41,7 +41,7 @@
   const tip = (s) => (collapsed ? s : undefined);
 
   const ICON = { overview: 'overview', 'command-center': 'globe', trends: 'trend', security: 'shield', 'root-causes': 'search',
-                 availability: 'pulse', pods: 'box', business: 'briefcase', tracing: 'route' };
+                 availability: 'pulse', pods: 'box', business: 'briefcase', tracing: 'route', 'raw-logs': 'terminal' };
   const ingestTone = $derived(ingest?.running ? 'accent' : ingest?.last_status === 'ok' ? 'ok' : ingest?.last_status ? 'err' : '');
 
   const href = (patch) => build({ ...route, ...patch, q: null, ...(patch.tab !== 'service' ? { service: null } : {}) });

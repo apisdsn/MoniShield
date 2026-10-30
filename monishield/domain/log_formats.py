@@ -87,6 +87,11 @@ def _regex(text, where, what):
     except re.error as e: raise FormatError(f'{where}: {what} is not a valid regular expression ({e})') from None
 
 
+def check_regex(text, where, what):
+    """A user's regular expression, compiled after the length and nested-repeat checks (also used by the raw log search)."""
+    return _regex(text, where, what)
+
+
 def rule_from(d, n):
     """One `[[service]]` table (dict) at position n (1-based) -> Rule. FormatError when it cannot be used."""
     where = f'rule {n}' + (f' ({d.get("match")})' if isinstance(d, dict) and d.get('match') else '')
