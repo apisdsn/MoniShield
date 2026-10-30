@@ -101,7 +101,7 @@ def test_events_borrow_the_time_of_their_ingress_request(tmp_path):
 
 def test_raw_logs_api_for_every_user_with_audit(client):
     admin(client); make_user(client)
-    user = as_user(client, 'rina', 'sandi-awal-rina-123')     # an ordinary user, not an admin
+    user = as_user(client, 'rina', 'rina-initial-password-123')     # an ordinary user, not an admin
     base = f'/api/folders/{B}/raw'
     r = user.get(base, params=dict(q='GET', services='nginx-ingress-controller', limit=2))
     assert r.status_code == 200, r.text

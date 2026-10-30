@@ -2,7 +2,7 @@
      (built by ingest), labels from /map/labels.json, Noto Sans glyphs from /fonts (bundled). 13 layers §7.3; presets
      Indonesia/World (fit bounds); dots per location + clustering < 40 px up to zoom 7 (cluster circles
      without numbers, owner decision 2026-10-06; numbers in the tooltip and on the labels of the 6 largest locations); arcs per location; server
-     dot; chart-style tooltip with "Lihat di tabel"; cooperative gestures (Ctrl + wheel, two fingers); keyboard
+     dot; chart-style tooltip with "View in table"; cooperative gestures (Ctrl + wheel, two fingers); keyboard
      (arrows, +/−, 0, Esc); attribution always visible; theme/language/data change without losing position.
      MapLibre is loaded separately (dynamic import) so other pages do not carry it.
      Flow animation (owner request 2026-10-07; lib/mapFlow.js): particles travel from the origin location to the server dot +
@@ -163,7 +163,7 @@
           cooperativeGestures: true, attributionControl: false, locale: uiText(l), maxPitch: 0,
           canvasContextAttributes: { preserveDrawingBuffer: tall },   // Command Center: the canvas is included in the PDF summary print (Stage 24)
         });
-        box.__map = map;   // read by test tools (tools/uji_tahap20.cjs): position, zoom, drawn features
+        box.__map = map;   // read by test tools (browser test scripts): position, zoom, drawn features
         map.touchZoomRotate.disableRotation();
         map.keyboard.disableRotation();
         map.getCanvas().setAttribute('aria-label', label);

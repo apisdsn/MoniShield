@@ -52,7 +52,7 @@ def test_file_scan():
 
 
 ATTACKS = ["/?id=1 union select 1,2", "/x?q=%2527%2520or%25201", "/<script>alert(1)</script>", "/a/../../etc/passwd", "/${jndi:ldap://x/a}",
-            "/.env", "/.git/config", "/wp-login.php", "/index.php", "/cgi-bin/test.cgi", "/backup.sql", "/actuator/health", "/aman/saja"]
+            "/.env", "/.git/config", "/wp-login.php", "/index.php", "/cgi-bin/test.cgi", "/backup.sql", "/actuator/health", "/safe/path"]
 TEST_UAS = ["sqlmap/1.7", "curl/8.1", "python-requests/2.31", "${jndi:ldap://x}", "Mozilla/5.0 (Instagram 1; id; x)", "Uptime-Kuma/2.0.2", "-"]
 
 

@@ -60,6 +60,10 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   cannot be dodged with a forged header; `?next=` of the sign-in page also refuses `/\…`.
 
 ### Maintenance
+- Code is English throughout: test data, assert messages, test names, comments that quoted Indonesian, the CRS skip notes
+  and one variable name were translated; `tests/test_language.py` now fails on Indonesian words outside the UI copy. The
+  Security API sends `Unknown` for an IP without a known owner (the UI shows its own word); the Configuration page writes
+  an English marker line to `.env` and still recognises the old one.
 - Plan for configurable log formats per service (`docs/11-log-formats.md`), not built yet.
 - The public repository `apisdsn/MoniShield` is where work happens; `apisdsn/MoniShield-internal` keeps the earlier history
   privately. `CLAUDE.md` and `docs/09-status.md` describe the layout, the owner's commit identity and the current deploy.

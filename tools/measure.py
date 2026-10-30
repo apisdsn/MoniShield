@@ -168,7 +168,7 @@ def main():
         import hashlib, secrets
         print('\n## Password hash cost (scrypt)')
         for nlog, r, p in ((14, 8, 1), (15, 8, 1), (16, 8, 1)):
-            t0 = time.perf_counter(); hashlib.scrypt(b'sandi-contoh-panjang', salt=secrets.token_bytes(16), n=2**nlog, r=r, p=p, maxmem=2**30); ms = (time.perf_counter() - t0) * 1000
+            t0 = time.perf_counter(); hashlib.scrypt(b'example-long-password', salt=secrets.token_bytes(16), n=2**nlog, r=r, p=p, maxmem=2**30); ms = (time.perf_counter() - t0) * 1000
             print(f'  n=2^{nlog} r={r} p={p}: {ms:.0f} ms')
 
     if a.ingest:

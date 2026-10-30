@@ -90,9 +90,9 @@ def convert(rule_op, arg, src):
     if op == 'rx':
         # ModSecurity matches BYTES: escape \x{HH} (<= 0xff) = one byte. The detector matches UTF-8 bytes read as latin-1,
         # so \x{HH} -> \xHH means the same. Multi-byte escapes, POSIX classes and \Q..\E have no safe equivalent.
-        if re.search(r'\\x\{[0-9a-fA-F]{3,}\}', arg): raise ValueError('escape \\x{...} lebih dari satu byte')
+        if re.search(r'\\x\{[0-9a-fA-F]{3,}\}', arg): raise ValueError('escape \\x{...} longer than one byte')
         arg = re.sub(r'\\x\{([0-9a-fA-F]{1,2})\}', lambda m: '\\x' + m.group(1).zfill(2), arg)
-        if re.search(r'\[\[:\w+:\]\]|\\Q|\\E', arg): raise ValueError('sintaks PCRE yang tidak didukung re Python')
+        if re.search(r'\[\[:\w+:\]\]|\\Q|\\E', arg): raise ValueError('PCRE syntax that Python re does not support')
         try: re.compile(arg)
         except re.error as e: raise ValueError(f'pola ditolak re Python: {e}') from None
         return 'rx', arg
@@ -120,17 +120,17 @@ def rules_of(src):
             pl = next((int(t.split('/')[1]) for t in tags if t.startswith('paranoia-level/')), None)
             base = dict(id=int(rid), file=os.path.basename(path), pl=pl)
             if 'chain' in d:
-                chained = True; skipped.append(dict(base, reason='rantai aturan (chain)')); continue
+                chained = True; skipped.append(dict(base, reason='rule chain')); continue
             m = re.match(r'^(!?)@(\w+)\s*(.*)$', operator, re.S)
-            if not m: skipped.append(dict(base, reason=f'operator tidak dikenal: {operator[:40]}')); continue
+            if not m: skipped.append(dict(base, reason=f'unknown operator: {operator[:40]}')); continue
             neg, op, arg = m.groups()
-            if neg: skipped.append(dict(base, reason=f'operator negasi !@{op}')); continue
-            if op not in OPERATORS: skipped.append(dict(base, reason=f'operator @{op} tidak didukung (mis. libinjection)')); continue
+            if neg: skipped.append(dict(base, reason=f'negated operator !@{op}')); continue
+            if op not in OPERATORS: skipped.append(dict(base, reason=f'operator @{op} not supported (e.g. libinjection)')); continue
             targets = sorted({TARGETS[v] for v in variables.split('|') if not v.startswith('!') and v.split(':/', 1)[0] in TARGETS})
-            if not targets: skipped.append(dict(base, reason='sasaran tidak ada di log nginx: ' + variables[:80])); continue
+            if not targets: skipped.append(dict(base, reason='target not in the nginx log: ' + variables[:80])); continue
             tf = [t for t in d.get('t', []) if t]
             bad = [t for t in tf if t not in TRANSFORMS]
-            if bad: skipped.append(dict(base, reason='transformasi tidak didukung: ' + ', '.join(bad))); continue
+            if bad: skipped.append(dict(base, reason='transformation not supported: ' + ', '.join(bad))); continue
             try: op, arg = convert(op, arg, src)
             except ValueError as e: skipped.append(dict(base, reason=str(e))); continue
             capec = [t.split('/')[-1] for t in tags if t.startswith('capec/')]

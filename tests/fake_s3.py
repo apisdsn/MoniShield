@@ -6,7 +6,7 @@ Every request is recorded in `log` so tests can assert, e.g., that a rejected li
 import hashlib, http.server, re, threading, urllib.parse
 from xml.sax.saxutils import escape
 
-KEY_OK = 'AKIATIRUANUJI0000001'
+KEY_OK = 'AKIAFAKETEST00000001'
 
 
 class FakeS3:

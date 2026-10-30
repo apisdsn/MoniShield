@@ -134,7 +134,7 @@
   const folderInfo = $derived(folders.find((f) => f.folder === folder) || null);
   const isAdminTab = $derived(ADMIN.includes($route.tab));
   const isDataTab = $derived(!isAdminTab);
-  // #/password and #/email (old #/sandi): open the account pop-up over the Overview (lib/AccountDialogs.svelte)
+  // #/password and #/email (old Indonesian path): open the account pop-up over the Overview (lib/AccountDialogs.svelte)
   $effect(() => {
     if (screen !== 'app' || ($route.tab !== 'password' && $route.tab !== 'email')) return;
     openAccount($route.tab);

@@ -10,8 +10,8 @@ from monishield.infrastructure import config, db, importer, ingest, logfolders
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
-X = {'X-Requested-With': 'uji'}
-PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
+X = {'X-Requested-With': 'test'}
+PW, PW2 = 'first-admin-password', 'admin-password-after-change'
 D = '2026-01-09'
 APPS = logs_mini.lines('auth-service').encode()
 FE = logs_mini.lines('web-frontend').encode()
@@ -36,8 +36,8 @@ def test_plan_path_shapes(cfg):
         f'unduhan/{D}/tenant/auth-service/a.log',     # parent of the date folders
         '2026-01-10/tenant/web-frontend/b.log.gz',        # several dates at once
         f'{D}/tenant/auth-service/a.log.gz',          # paired with a .log: skipped
-        f'{D}/.DS_Store', f'{D}/catatan.txt',                 # not a log
-        f'{D}/lepas.log',                                     # missing components
+        f'{D}/.DS_Store', f'{D}/notes.txt',                 # not a log
+        f'{D}/loose.log',                                     # missing components
         '2026-01-01/tenant/auth-service/c.log',       # exists in the main log folder
         'tenant/report-service/d.log',                       # no date, date not filled in
     ])
@@ -45,7 +45,7 @@ def test_plan_path_shapes(cfg):
     why = {s['path']: s['reason'] for s in skip}
     assert why[f'{D}/tenant/auth-service/a.log.gz'] == '.gz paired with .log' and why[f'{D}/.DS_Store'] == 'not a log file'
     assert 'main log folder' in why['2026-01-01/tenant/auth-service/c.log'] and 'fill in the folder date' in why['tenant/report-service/d.log']
-    assert 'namespace' in why[f'{D}/lepas.log']
+    assert 'namespace' in why[f'{D}/loose.log']
     # one date's contents without a date name: the chosen folder (first component) is replaced by the chosen date
     ok, _ = plan_upload(cfg, ['salinan-server/tenant/report-service/d.log'], folder=D)
     assert [o['rel'] for o in ok] == [f'{D}/tenant/report-service/d.log']
@@ -99,7 +99,7 @@ def wait_for_ingest(tc):
 def test_upload_a_folder_then_ingest(client, cfg):
     files = [f(f'log-saya/{D}/tenant/auth-service/log_auth-service_pod-a_{D}-00-00.log', APPS),
              f(f'log-saya/{D}/tenant/web-frontend/log_web-frontend_pod-f_{D}-00-00.log.gz', gzip.compress(FE)),
-             f(f'log-saya/{D}/catatan.txt', b'abaikan')]
+             f(f'log-saya/{D}/notes.txt', b'abaikan')]
     p = upload(client, files)
     assert (p['folders'], len(p['files']), p['skipped_count']) == ([D], 2, 1)
     r = client.post(f"/api/admin/uploads/{p['upload_id']}/finish", headers=X)
@@ -141,9 +141,9 @@ def test_upload_rejected_and_cancelled(client, cfg):
 
 
 def test_plain_user_may_not_upload(client):
-    assert client.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='sandi-awal-rina-123'), headers=X).status_code == 201
+    assert client.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='rina-initial-password-123'), headers=X).status_code == 201
     u = TestClient(client.app)
-    assert u.post('/api/auth/login', json=dict(username='rina', password='sandi-awal-rina-123'), headers=X).status_code == 200
-    assert u.post('/api/me/password', json=dict(old_password='sandi-awal-rina-123', new_password='sandi-baru-rina-123'), headers=X).status_code == 200
+    assert u.post('/api/auth/login', json=dict(username='rina', password='rina-initial-password-123'), headers=X).status_code == 200
+    assert u.post('/api/me/password', json=dict(old_password='rina-initial-password-123', new_password='rina-new-password-123'), headers=X).status_code == 200
     assert u.post('/api/admin/uploads', json=dict(files=[dict(path=f'{D}/a/b/c.log', size=1)]), headers=X).status_code == 403
     assert u.post('/api/admin/imports/sync', headers=X).status_code == 403

@@ -13,11 +13,11 @@ from conftest import JWT_SECRET
 
 D = '2026-01-05'
 PRE = f'k8s-logs/{D}/'
-SECRET = 'rahasiaTiruanUjiYangTidakBolehBocor0001'
+SECRET = 'fakeTestSecretThatMustNeverLeak0001'
 URL = f's3://example-log-bucket/{PRE}'
-X = {'X-Requested-With': 'uji'}
-TOKEN = 'token-mesin-untuk-uji-impor'
-PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
+X = {'X-Requested-With': 'test'}
+TOKEN = 'machine-token-for-import-tests'
+PW, PW2 = 'first-admin-password', 'admin-password-after-change'
 
 
 def obj(service, pod, ns='tenant', ext='.log', folder=D):
@@ -30,14 +30,14 @@ CONTENTS = {
     obj('auth-service', 'pod-a', ext='.log.gz'): gzip.compress(APPS),          # paired: only the .log is fetched
     obj('web-frontend', 'pod-f', ns='tenant', ext='.log.gz'): gzip.compress(logs_mini.lines('web-frontend').encode()),   # .gz only: fetched
     f'{PRE}.DS_Store': b'x',                                                          # not a log file
-    f'{PRE}catatan.txt': b'bukan log',
-    f'{PRE}lepas.log': b'kurang dari 3 komponen path',
+    f'{PRE}notes.txt': b'not a log',
+    f'{PRE}loose.log': b'fewer than 3 path parts',
 }
 
 
 @pytest.fixture
 def s3(monkeypatch):
-    t = FakeS3({'example-log-bucket': dict(CONTENTS), 'bucket-lain': dict(CONTENTS)})
+    t = FakeS3({'example-log-bucket': dict(CONTENTS), 'other-bucket': dict(CONTENTS)})
     monkeypatch.setattr(importer, 'ENDPOINT', t.url)
     yield t
     t.close()
@@ -64,9 +64,9 @@ def failed(cfg, url, code, **kw):
 # ------------------------------------------------------------------ links: rejected before contacting S3
 @pytest.mark.parametrize('url, code', [
     ('https://example-log-bucket.s3.amazonaws.com/k8s-logs/2026-01-05/', 'invalid_url'),
-    ('s3://bucket-lain/k8s-logs/2026-01-05/', 'bucket_not_allowed'),
-    ('s3://example-log-bucket/lain/2026-01-05/', 'prefix_not_allowed'),
-    ('s3://example-log-bucket/k8s-logs/bukan-tanggal/', 'invalid_date'),
+    ('s3://other-bucket/k8s-logs/2026-01-05/', 'bucket_not_allowed'),
+    ('s3://example-log-bucket/other/2026-01-05/', 'prefix_not_allowed'),
+    ('s3://example-log-bucket/k8s-logs/not-a-date/', 'invalid_date'),
     ('s3://example-log-bucket/k8s-logs/2026-02-30/', 'invalid_date'),
     ('s3://example-log-bucket/k8s-logs/../2026-01-05/', 'invalid_url'),
     ('s3://example-log-bucket/k8s-logs//2026-01-05/', 'invalid_url'),
@@ -118,7 +118,7 @@ def test_dry_run_writes_nothing(cfg, s3):
     assert actions[obj('auth-service', 'pod-a')[len(PRE):]] == ('fetch', '')
     assert actions[obj('auth-service', 'pod-a', ext='.log.gz')[len(PRE):]] == ('skip', '.gz paired with .log')
     assert actions[obj('web-frontend', 'pod-f', ext='.log.gz')[len(PRE):]] == ('fetch', '')
-    assert actions['.DS_Store'] == actions['catatan.txt'] == actions['lepas.log'] == ('skip', 'not a log file')
+    assert actions['.DS_Store'] == actions['notes.txt'] == actions['loose.log'] == ('skip', 'not a log file')
     assert (r['take'], r['skipped'], r['downloaded'], r['credentials']) == (2, 4, 0, 'environment')
     assert blank(cfg) and s3.gets() == [] and not os.path.exists(os.path.join(cfg.data_dir, 'tmp'))
 
@@ -162,17 +162,17 @@ def test_same_folder_in_the_local_log_folder_gets_a_warning(cfg, s3):
 def test_temporary_credentials_in_memory(cfg):
     c = importer.Credentials(dataclasses.replace(cfg, aws_access_key_id='', aws_secret_access_key=''))
     assert c.get() == (None, None) and c.status()['available'] is False
-    with pytest.raises(importer.ImportFail): c.set('bukan kunci', 'x')
-    c.set('AKIATEMPELUJI0000002', SECRET, 'token-sesi')
+    with pytest.raises(importer.ImportFail): c.set('not a key', 'x')
+    c.set('AKIAPASTEDTEST000002', SECRET, 'session-token')
     kw, src = c.get()
-    assert src == 'pasted' and kw['aws_session_token'] == 'token-sesi'
+    assert src == 'pasted' and kw['aws_session_token'] == 'session-token'
     assert SECRET not in repr(c) and SECRET not in str(c.status()) and c.status()['pasted_at']
     c.clear()
     assert c.get() == (None, None)
     # order: pasted then environment
     c2 = importer.Credentials(cfg)
     assert c2.get()[1] == 'environment'
-    c2.set('AKIATEMPELUJI0000002', SECRET)
+    c2.set('AKIAPASTEDTEST000002', SECRET)
     assert c2.get()[1] == 'pasted'
 
 
@@ -193,7 +193,7 @@ def wait_job(tc, job, h=X):
         j = tc.get(f'/api/admin/imports/{job}', headers=h).json()
         if not j['running'] and j['status'] != 'running' and (j['result'] or j['status'] == 'failed'): return j
         time.sleep(0.05)
-    raise AssertionError('impor tidak selesai')
+    raise AssertionError('import did not finish')
 
 
 def test_api_dry_run_then_import_with_the_machine_token(client, cfg):
@@ -214,7 +214,7 @@ def test_api_dry_run_then_import_with_the_machine_token(client, cfg):
     assert {'import.start'} <= {x['action'] for x in client.get('/api/admin/audit').json()['rows']}
 
 
-@pytest.mark.parametrize('url, code', [('s3://bucket-lain/k8s-logs/2026-01-05/', 'bucket_not_allowed'), ('s3://example-log-bucket/k8s-logs/x/', 'invalid_date'), ('', 'invalid_url')])
+@pytest.mark.parametrize('url, code', [('s3://other-bucket/k8s-logs/2026-01-05/', 'bucket_not_allowed'), ('s3://example-log-bucket/k8s-logs/x/', 'invalid_date'), ('', 'invalid_url')])
 def test_api_rejected_link_400(client, s3, url, code):
     r = client.post('/api/admin/imports', json=dict(url=url), headers=X)
     assert (r.status_code, r.json()['error']['code']) == (400, code) and s3.log == []
@@ -226,8 +226,8 @@ def test_api_temporary_credentials(client, cfg, auth_url, s3):
     machine = TestClient(client.app)
     assert machine.post('/api/admin/imports/credentials', json=dict(access_key_id=KEY_OK, secret_access_key=SECRET), headers=h).status_code == 401
     assert machine.delete('/api/admin/imports/credentials', headers=h).status_code == 401
-    r = client.post('/api/admin/imports/credentials', json=dict(access_key_id='AKIATEMPELUJI0000002', secret_access_key=SECRET), headers=X)
-    assert r.status_code == 200 and r.json()['credentials']['source'] == 'pasted' and SECRET not in r.text and 'AKIATEMPEL' not in r.text
+    r = client.post('/api/admin/imports/credentials', json=dict(access_key_id='AKIAPASTEDTEST000002', secret_access_key=SECRET), headers=X)
+    assert r.status_code == 200 and r.json()['credentials']['source'] == 'pasted' and SECRET not in r.text and 'AKIAPASTED' not in r.text
     meta = client.get('/api/meta').json()['imports']
     assert meta == dict(enabled=True, credentials=dict(available=True, source='pasted'))
     # pasted key unknown to the fake S3 -> import fails with a cause; inbox stays empty
@@ -236,11 +236,11 @@ def test_api_temporary_credentials(client, cfg, auth_url, s3):
     assert client.delete('/api/admin/imports/credentials', headers=X).json()['credentials']['source'] == 'environment'
     # secrets are not in the response, the audit, or the account database
     everything = client.get('/api/admin/audit?limit=500').text + client.get('/api/admin/imports').text + client.get(f'/api/admin/imports/{j["job_id"]}').text
-    assert SECRET not in everything and KEY_OK not in everything and 'AKIATEMPEL' not in everything
+    assert SECRET not in everything and KEY_OK not in everything and 'AKIAPASTED' not in everything
     assert {'import.credentials.set', 'import.credentials.clear'} <= {x['action'] for x in client.get('/api/admin/audit?limit=500').json()['rows']}
     if auth_url.startswith('sqlite:///'):
         fill = open(auth_url[len('sqlite:///'):], 'rb').read()
-        assert SECRET.encode() not in fill and b'AKIATEMPEL' not in fill
+        assert SECRET.encode() not in fill and b'AKIAPASTED' not in fill
 
 
 def test_pasted_credentials_are_gone_after_a_restart(cfg, auth_url, monkeypatch, s3):
@@ -261,10 +261,10 @@ def test_pasted_credentials_are_gone_after_a_restart(cfg, auth_url, monkeypatch,
 
 
 def test_plain_user_403(client):
-    assert client.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='sandi-awal-rina-123'), headers=X).status_code == 201
+    assert client.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='rina-initial-password-123'), headers=X).status_code == 201
     tc = TestClient(client.app)
-    assert tc.post('/api/auth/login', json=dict(username='rina', password='sandi-awal-rina-123'), headers=X).status_code == 200
-    assert tc.post('/api/me/password', json=dict(old_password='sandi-awal-rina-123', new_password='sandi-baru-rina-456'), headers=X).status_code == 200
+    assert tc.post('/api/auth/login', json=dict(username='rina', password='rina-initial-password-123'), headers=X).status_code == 200
+    assert tc.post('/api/me/password', json=dict(old_password='rina-initial-password-123', new_password='rina-new-password-456'), headers=X).status_code == 200
     for m, p in (('get', '/api/admin/imports'), ('post', '/api/admin/imports'), ('get', '/api/admin/imports/1'), ('post', '/api/admin/imports/credentials'),
                  ('delete', '/api/admin/imports/credentials')):
         r = getattr(tc, m)(p, headers=X) if m in ('get', 'delete') else getattr(tc, m)(p, json={}, headers=X)
@@ -322,7 +322,7 @@ def test_gz_from_an_earlier_import_is_extracted_without_downloading_again(cfg, s
 
 
 def test_corrupt_gz_cancels_the_import(cfg, s3):
-    s3.buckets['example-log-bucket'][FE_GZ] = gzip.compress(b'baris log\n' * 100)[:-12]     # truncated
+    s3.buckets['example-log-bucket'][FE_GZ] = gzip.compress(b'log line\n' * 100)[:-12]     # truncated
     failed(cfg, URL, 'bad_gzip')
     assert blank(cfg) and os.listdir(os.path.join(cfg.data_dir, 'tmp')) == []
 
@@ -347,8 +347,8 @@ def test_pick_new_folders_and_recheck():
     assert s3_import.pick(fs, known, set(), today, days=0, recheck_days=1, max_new=10)[0] == ['2026-08-01', '2026-10-01', '2026-10-03', '2026-10-05']
 
 
-@pytest.mark.parametrize('watch, code', [('s3://example-log-bucket/k8s-logs/', None), ('s3://bucket-lain/k8s-logs/', 'watch_not_allowed'),
-                                        ('s3://example-log-bucket/lain/', 'watch_not_allowed'), ('https://x/y', 'invalid_watch'),
+@pytest.mark.parametrize('watch, code', [('s3://example-log-bucket/k8s-logs/', None), ('s3://other-bucket/k8s-logs/', 'watch_not_allowed'),
+                                        ('s3://example-log-bucket/other/', 'watch_not_allowed'), ('https://x/y', 'invalid_watch'),
                                         ('s3://example-log-bucket/k8s-logs/../x/', 'invalid_watch')])
 def test_watch_prefix_is_checked_against_the_allow_list(cfg, watch, code):
     c = dataclasses.replace(cfg, s3_watch=watch)
@@ -364,7 +364,7 @@ def wclient(cfg, auth_url, monkeypatch, s3):
     monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     b = s3.buckets['example-log-bucket']
     for f in ('2026-01-02', '2026-01-06', '2026-01-07'): b[obj('auth-service', 'pod-a', folder=f)] = APPS
-    b['k8s-logs/arsip-lama/x.log'] = b'x'
+    b['k8s-logs/old-archive/x.log'] = b'x'
     c = dataclasses.replace(cfg, auth_database_url=auth_url, s3_watch=WATCH, s3_watch_days=0, s3_watch_max_folders=2, s3_watch_recheck_days=400, s3_watch_minutes=0)
     con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
     with TestClient(appmod.create_app(c)) as tc:
@@ -445,7 +445,7 @@ def sign_in_admin(tc):
     assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
 
 
-@pytest.mark.parametrize('url, code', [('s3://example-log-bucket/k8s-logs/2026-01-06/', 'watch_is_date'), ('s3://bucket-lain/x/', 'watch_not_allowed'),
+@pytest.mark.parametrize('url, code', [('s3://example-log-bucket/k8s-logs/2026-01-06/', 'watch_is_date'), ('s3://other-bucket/x/', 'watch_not_allowed'),
                                       ('example-log-bucket/k8s-logs', 'invalid_watch'), ('', 'invalid_watch')])
 def test_address_from_the_page_is_validated(plain, url, code):
     with TestClient(appmod.create_app(plain)) as tc:
@@ -493,10 +493,10 @@ def reload_with(c):
 def test_plain_user_may_not_set_up_sync(plain):
     with TestClient(appmod.create_app(plain)) as tc:
         sign_in_admin(tc)
-        assert tc.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='sandi-awal-rina-123'), headers=X).status_code == 201
+        assert tc.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='rina-initial-password-123'), headers=X).status_code == 201
         u = TestClient(tc.app)
-        u.post('/api/auth/login', json=dict(username='rina', password='sandi-awal-rina-123'), headers=X)
-        u.post('/api/me/password', json=dict(old_password='sandi-awal-rina-123', new_password='sandi-baru-rina-123'), headers=X)
+        u.post('/api/auth/login', json=dict(username='rina', password='rina-initial-password-123'), headers=X)
+        u.post('/api/me/password', json=dict(old_password='rina-initial-password-123', new_password='rina-new-password-123'), headers=X)
         assert u.put('/api/admin/imports/watch', json=dict(url=WATCH, minutes=60, enabled=True), headers=X).status_code == 403
 
 

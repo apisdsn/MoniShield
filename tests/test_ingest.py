@@ -61,7 +61,7 @@ def test_file_id_line_no_key_is_unique(env):
 def test_ingest_twice_is_the_same(env, monkeypatch):
     cfg, con, _ = env
     go(cfg, con); before = ingest.checksums(con)
-    monkeypatch.setattr(logfiles, 'work', lambda *a: pytest.fail('file yang tidak berubah tidak boleh dibaca'))
+    monkeypatch.setattr(logfiles, 'work', lambda *a: pytest.fail('an unchanged file must not be read'))
     r = go(cfg, con)
     assert (r['files_seen'], r['files_changed'], r['folders_changed']) == (9, 0, []) and ingest.checksums(con) == before
 
@@ -221,8 +221,8 @@ def test_read_copy_for_dbgate(env):
     ro = duckdb.connect(path, read_only=True)
     try: assert ingest.checksums(ro) == ingest.checksums(con)
     finally: ro.close()
-    open(path + '.tmp', 'wb').write(b'sisa salinan yang terputus')   # a previously interrupted copy does not interfere
-    open(path + '.wal', 'wb').write(b'wal penampil atas salinan lama')  # must not be rotated into the new copy
+    open(path + '.tmp', 'wb').write(b'leftover of an interrupted copy')   # a previously interrupted copy does not interfere
+    open(path + '.wal', 'wb').write(b'viewer wal of the old copy')  # must not be rotated into the new copy
     shutil.copytree(os.path.join(root, B), os.path.join(root, '2026-01-09'))
     go(cfg, con); db.snapshot(con, cfg)
     ro = duckdb.connect(path, read_only=True)

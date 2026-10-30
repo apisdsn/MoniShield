@@ -11,8 +11,8 @@ from monishield.infrastructure import config, db, ingest
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
-X = {'X-Requested-With': 'uji'}
-PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
+X = {'X-Requested-With': 'test'}
+PW, PW2 = 'first-admin-password', 'admin-password-after-change'
 TODAY = datetime.date(2026, 1, 12)   # cut-off with 10 days = 2026-01-02: folder 01-01 is past it, 01-02 is kept
 
 
@@ -60,7 +60,7 @@ def test_cleanup_removes_old_folders_for_good(tc):
     assert os.path.isdir(os.path.join(st.cfg.log_dir, '2026-01-01'))              # main log folder untouched
     assert 'retention.run' in tc.get('/api/admin/audit', headers=X).text
     # the log files are still there, but ingest and the "new folders" badge skip them
-    st.ingest.start(by='uji'); st.ingest.wait(60)
+    st.ingest.start(by='test'); st.ingest.wait(60)
     assert st.warehouse.known_folders() == {'2026-01-02'}
     assert tc.get('/api/admin/ingest', headers=X).json()['new_folders'] == []
 

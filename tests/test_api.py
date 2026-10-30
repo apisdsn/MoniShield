@@ -10,10 +10,10 @@ from monishield.infrastructure import config, db, ingest
 from monishield.interfaces.api import app as appmod, common
 from conftest import JWT_SECRET
 
-PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
+PW, PW2 = 'first-admin-password', 'admin-password-after-change'
 A, B = '2026-01-01', '2026-01-02'
-X = {'X-Requested-With': 'uji'}
-TOKEN = 'token-mesin-untuk-uji'
+X = {'X-Requested-With': 'test'}
+TOKEN = 'machine-token-for-tests'
 NG, SL = 'nginx-ingress-controller', 'event-api'
 PAGES = ('overview', 'map', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing')
 
@@ -50,13 +50,13 @@ def admin(tc):
     return tc
 
 
-def make_user(tc, username='rina', role='user', password='sandi-awal-rina-123'):
+def make_user(tc, username='rina', role='user', password='rina-initial-password-123'):
     r = tc.post('/api/admin/users', json=dict(username=username, display_name=username.title(), role=role, password=password), headers=X)
     assert r.status_code == 201, r.text
     return r.json()
 
 
-def as_user(cfg_client, username, password, unseen='sandi-baru-milik-user'):
+def as_user(cfg_client, username, password, unseen='user-own-new-password'):
     """Separate client logged in as another user who has already changed their initial password."""
     tc = TestClient(cfg_client.app)
     sign_in(tc, username, password)
@@ -80,14 +80,14 @@ def test_without_session_rejected(client):
 
 
 def test_security_headers_on_every_answer(client):
-    for r in (client.get('/api/health'), client.get('/api/meta'), client.get('/tidak-ada'), client.get('/api/tidak-ada')):
+    for r in (client.get('/api/health'), client.get('/api/meta'), client.get('/does-not-exist'), client.get('/api/does-not-exist')):
         assert "default-src 'self'" in r.headers['content-security-policy'] and "frame-ancestors 'none'" in r.headers['content-security-policy']
         assert r.headers['x-content-type-options'] == 'nosniff' and r.headers['referrer-policy'] == 'no-referrer'
     assert client.get('/api/health').headers['cache-control'] == 'no-store'
 
 
 def test_error_format(client):
-    r = client.get('/api/tidak-ada')
+    r = client.get('/api/does-not-exist')
     assert r.status_code == 404 and set(r.json()) == {'error'} and set(r.json()['error']) == {'code', 'message'}
 
 
@@ -109,19 +109,19 @@ def test_sign_in_cookie_and_forced_password_change(client):
 def test_cookie_secure_when_configured(cfg, auth_url, monkeypatch):
     monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     c = dataclasses.replace(cfg, auth_database_url=auth_url, cookie_secure=True)
-    with TestClient(appmod.create_app(c), base_url='https://uji.local') as tc:
+    with TestClient(appmod.create_app(c), base_url='https://test.local') as tc:
         assert '; secure' in sign_in(tc).headers['set-cookie'].lower()
 
 
 def test_wrong_password_and_unknown_user_get_the_same_answer(client):
-    a = client.post('/api/auth/login', json=dict(username='admin', password='sandi-yang-salah'), headers=X)
-    b = client.post('/api/auth/login', json=dict(username='tidak-ada', password='sandi-yang-salah'), headers=X)
+    a = client.post('/api/auth/login', json=dict(username='admin', password='wrong-password'), headers=X)
+    b = client.post('/api/auth/login', json=dict(username='does-not-exist', password='wrong-password'), headers=X)
     assert a.status_code == b.status_code == 401 and a.json() == b.json() and 'set-cookie' not in a.headers
 
 
 def test_six_wrong_attempts_are_rate_limited(client):
     for _ in range(5):
-        assert client.post('/api/auth/login', json=dict(username='admin', password='sandi-yang-salah'), headers=X).status_code == 401
+        assert client.post('/api/auth/login', json=dict(username='admin', password='wrong-password'), headers=X).status_code == 401
     r = client.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X)
     assert (r.status_code, error_code(r)) == (429, 'too_many_attempts')
 
@@ -135,10 +135,10 @@ def test_logout_revokes_the_session(client):
 def test_csrf_header_and_origin(client):
     assert error_code(client.post('/api/auth/login', json=dict(username='admin', password=PW))) == 'csrf'          # without X-Requested-With
     admin(client)
-    assert error_code(client.post('/api/admin/users', json=dict(username='x1x', password='sandi-awal-12345'))) == 'csrf'
-    r = client.post('/api/admin/users', json=dict(username='x1x', password='sandi-awal-12345'), headers={**X, 'Origin': 'https://jahat.example'})
+    assert error_code(client.post('/api/admin/users', json=dict(username='x1x', password='initial-password-12345'))) == 'csrf'
+    r = client.post('/api/admin/users', json=dict(username='x1x', password='initial-password-12345'), headers={**X, 'Origin': 'https://evil.example'})
     assert (r.status_code, error_code(r)) == (403, 'csrf')
-    assert client.post('/api/admin/users', json=dict(username='x1x', password='sandi-awal-12345'), headers={**X, 'Origin': 'http://testserver'}).status_code == 201
+    assert client.post('/api/admin/users', json=dict(username='x1x', password='initial-password-12345'), headers={**X, 'Origin': 'http://testserver'}).status_code == 201
     assert client.get('/api/admin/users').status_code == 200                                                  # GET needs no header
 
 
@@ -146,7 +146,7 @@ def test_csrf_header_and_origin(client):
 def test_user_sees_the_dashboard_but_not_admin(client):
     admin(client); u = make_user(client)
     assert u['role'] == 'user' and u['must_change_password'] is True
-    tc = as_user(client, 'rina', 'sandi-awal-rina-123')
+    tc = as_user(client, 'rina', 'rina-initial-password-123')
     a, b = client.get(f'/api/folders/{B}').json(), tc.get(f'/api/folders/{B}').json()
     assert a == b and len(b['services']) == 7                                    # user sees the same as admin
     assert tc.get('/api/meta').status_code == 200
@@ -159,7 +159,7 @@ def test_user_sees_the_dashboard_but_not_admin(client):
 def test_role_matrix_covers_every_route(client):
     """For EVERY route: no session / user / admin / machine token -> accepted or rejected per TRD §8.3."""
     admin(client); make_user(client)
-    user = as_user(client, 'rina', 'sandi-awal-rina-123')
+    user = as_user(client, 'rina', 'rina-initial-password-123')
     anon, machine = TestClient(client.app), TestClient(client.app)
     expected = {common.public: (1, 1, 1, 1), common.require_user: (0, 1, 1, 0), common.require_user_ready: (0, 1, 1, 0),
              common.require_admin: (0, 0, 1, 0), common.require_admin_or_job: (0, 0, 1, 1)}
@@ -176,7 +176,7 @@ def test_role_matrix_covers_every_route(client):
             kw = dict(headers=hdr) if method in ('get', 'delete') else dict(headers=hdr, json={})
             res = getattr(tc, method)(path, **kw)
             accepted = error_code(res) not in rejected if res.status_code >= 400 else True
-            assert accepted == bool(expected[dep][i]), f'{method.upper()} {r.path} sebagai {("anonim", "user", "admin", "token mesin")[i]}: {res.status_code} {res.text[:80]}'
+            assert accepted == bool(expected[dep][i]), f'{method.upper()} {r.path} as {("anonymous", "user", "admin", "machine token")[i]}: {res.status_code} {res.text[:80]}'
         for job in (client.app.state.ingest, client.app.state.imports): job.wait(60)   # ingest, S3 import and sync run in the
         # background; one still running would finish after a later test's ingest and become the newest ingest_run row
 
@@ -185,7 +185,7 @@ def test_machine_token_only_for_ingest(client):
     h = {**X, 'Authorization': f'Bearer {TOKEN}'}
     tc = TestClient(client.app)
     assert tc.get('/api/admin/ingest', headers=h).status_code == 200
-    assert tc.get('/api/admin/ingest', headers={**X, 'Authorization': 'Bearer salah'}).status_code == 401
+    assert tc.get('/api/admin/ingest', headers={**X, 'Authorization': 'Bearer wrong'}).status_code == 401
     for path in ('/api/meta', '/api/admin/users', f'/api/folders/{B}', '/api/me'):
         assert tc.get(path, headers=h).status_code == 401, path
     assert tc.post('/api/admin/forget', json=dict(folder=B), headers=h).status_code == 401
@@ -194,7 +194,7 @@ def test_machine_token_only_for_ingest(client):
 def test_route_without_a_role_declaration_refuses_to_start():
     from fastapi import APIRouter
     r = APIRouter(prefix='/api')
-    r.add_api_route('/bocor', lambda: {'data': 'rahasia'}, methods=['GET'])
+    r.add_api_route('/leak', lambda: {'data': 'secret'}, methods=['GET'])
     with pytest.raises(RuntimeError, match='without a role declaration'): appmod.check_roles((*appmod.ROUTERS, r))
 
 
@@ -202,11 +202,11 @@ def test_route_without_a_role_declaration_refuses_to_start():
 def test_manage_users(client):
     admin(client); u = make_user(client, 'budi')
     assert [x['username'] for x in client.get('/api/admin/users').json()['users']] == ['admin', 'budi']
-    assert error_code(client.post('/api/admin/users', json=dict(username='budi', password='sandi-awal-12345'), headers=X)) == 'username_taken'
-    assert error_code(client.post('/api/admin/users', json=dict(username='B', password='sandi-awal-12345'), headers=X)) == 'invalid_username'
+    assert error_code(client.post('/api/admin/users', json=dict(username='budi', password='initial-password-12345'), headers=X)) == 'username_taken'
+    assert error_code(client.post('/api/admin/users', json=dict(username='B', password='initial-password-12345'), headers=X)) == 'invalid_username'
     assert error_code(client.post('/api/admin/users', json=dict(username='caca', password='pendek'), headers=X)) == 'invalid_password'
-    assert error_code(client.post('/api/admin/users', json=dict(username='caca', password='sandi-awal-12345', role='root'), headers=X)) == 'invalid_role'
-    tc = TestClient(client.app); sign_in(tc, 'budi', 'sandi-awal-rina-123')
+    assert error_code(client.post('/api/admin/users', json=dict(username='caca', password='initial-password-12345', role='root'), headers=X)) == 'invalid_role'
+    tc = TestClient(client.app); sign_in(tc, 'budi', 'rina-initial-password-123')
     r = client.post(f"/api/admin/users/{u['user_id']}/reset-password", headers=X)
     temp = r.json()['temporary_password']
     assert len(temp) >= 12 and tc.get('/api/me').status_code == 401                # budi's session ends immediately
@@ -258,7 +258,7 @@ def test_folder(client):
     assert client.get(f'/api/folders/{A}').json()['prev_folder'] is None
 
 
-@pytest.mark.parametrize('folder', ['2026-01-03', '2026-13-45', 'bukan-tanggal', "2026-01-02' OR '1'='1", '../../etc/passwd', '2026-01-02;DROP TABLE agg_service'])
+@pytest.mark.parametrize('folder', ['2026-01-03', '2026-13-45', 'not-a-date', "2026-01-02' OR '1'='1", '../../etc/passwd', '2026-01-02;DROP TABLE agg_service'])
 def test_invalid_folder_404_without_leaking(client, folder):
     admin(client)
     r = client.get(f'/api/folders/{folder}')
@@ -325,7 +325,7 @@ def test_sync_detects_new_folders(client, cfg):
     import shutil
     admin(client)
     assert client.get('/api/admin/ingest').json()['new_folders'] == []
-    os.makedirs(os.path.join(cfg.log_dir, '2026-03-03', 'kosong'))                     # folder without log files: not counted
+    os.makedirs(os.path.join(cfg.log_dir, '2026-03-03', 'empty'))                     # folder without log files: not counted
     src = os.path.join(cfg.log_dir, B)
     shutil.copytree(src, os.path.join(cfg.log_dir, '2026-03-04'))
     assert client.get('/api/admin/ingest').json()['new_folders'] == ['2026-03-04']
@@ -348,7 +348,7 @@ def _wait_for_ingest(client):
         st = client.get('/api/admin/ingest').json()
         if not st['running']: return st
         time.sleep(0.02)
-    raise AssertionError('ingest tidak selesai')
+    raise AssertionError('ingest did not finish')
 
 
 def test_delete_a_folder_from_the_dashboard_and_restore_it(client, cfg):
@@ -377,7 +377,7 @@ def test_delete_a_folder_from_the_dashboard_and_restore_it(client, cfg):
         assert r['files'] > 0 and r['inbox_deleted'] and not r['ignored'] and not os.path.exists(os.path.join(cfg.inbox_dir, '2026-03-05'))
         assert '2026-03-05' not in [x['folder'] for x in client.get('/api/admin/folders').json()['rows']]
     finally: shutil.rmtree(os.path.join(cfg.inbox_dir, '2026-03-05'), ignore_errors=True)
-    assert client.delete('/api/admin/folders/bukan-tanggal', headers=X).status_code in (400, 404)
+    assert client.delete('/api/admin/folders/not-a-date', headers=X).status_code in (400, 404)
     assert client.delete('/api/admin/folders/2030-01-01', headers=X).status_code == 404
     assert client.post('/api/admin/folders/2030-01-01/restore', headers=X).status_code == 404
     assert {'folder.delete', 'folder.restore'} <= {x['action'] for x in client.get('/api/admin/audit').json()['rows']}
@@ -430,7 +430,7 @@ def test_cookie_holds_a_jwt_and_a_forged_jwt_is_rejected(client):
     c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')
     assert {'sub', 'sid', 'exp'} <= set(c)
     tc = TestClient(client.app)
-    tc.cookies.set('s4_session', jwt.encode({**c, 'sub': '999'}, 'rahasia-penyerang-yang-panjang-sekali-32', algorithm='HS256'))
+    tc.cookies.set('s4_session', jwt.encode({**c, 'sub': '999'}, 'attacker-secret-that-is-long-enough-32', algorithm='HS256'))
     assert tc.get('/api/me').status_code == 401
     tc.cookies.set('s4_session', jwt.encode(c, None, algorithm='none'))
     assert tc.get('/api/me').status_code == 401
@@ -442,7 +442,7 @@ def test_cookie_holds_a_jwt_and_a_forged_jwt_is_rejected(client):
 def user(client):
     """Regular user: every data endpoint is open to them (TRD §8.3)."""
     admin(client); make_user(client)
-    return as_user(client, 'rina', 'sandi-awal-rina-123')
+    return as_user(client, 'rina', 'rina-initial-password-123')
 
 
 def test_every_page_open_to_users_and_small(user):
@@ -527,7 +527,7 @@ def test_table_paging_filter_sort(user):
     assert 0 < f['matched'] <= f['total'] == everything['total'] and all(word.lower() in r['key'].lower() for r in f['rows'])
     rising = user.get(u + '&sort=key&dir=asc&limit=500').json()['rows']
     assert [r['key'] for r in rising] == sorted(r['key'] for r in everything['rows'])
-    assert user.get(P, params=dict(service=NG, q='tidak-ada-yang-cocok-zzz')).json()['matched'] == 0
+    assert user.get(P, params=dict(service=NG, q='nothing-matches-zzz')).json()['matched'] == 0
     assert user.get(P, params=dict(service=NG, q='%')).json()['matched'] < everything['total'] or all('%' in r['key'] for r in user.get(P, params=dict(service=NG, q='%')).json()['rows'])  # % is not a wildcard
 
 
@@ -535,10 +535,10 @@ def test_table_filter_searches_the_ip_owner(client, user):
     """IP tables filter also searches the network owner name, like the text filter in the old dashboard."""
     cur = client.app.state.con.cursor()
     ip = user.get(f'/api/folders/{B}/tables/ips?service={NG}').json()['rows'][0]['ip']['ip']
-    cur.execute("INSERT OR REPLACE INTO ip_info (ip, asn, cc, org, is_private) VALUES (?, 64500, 'ID', 'CONTOH-NET-UJI PT Contoh', false)", [ip])
+    cur.execute("INSERT OR REPLACE INTO ip_info (ip, asn, cc, org, is_private) VALUES (?, 64500, 'ID', 'EXAMPLE-NET-TEST Example Ltd', false)", [ip])
     try:
-        j = user.get(f'/api/folders/{B}/tables/ips', params=dict(service=NG, q='contoh-net')).json()
-        assert j['matched'] == 1 and j['rows'][0]['ip'] == dict(ip=ip, asn=64500, cc='ID', org='CONTOH-NET-UJI PT Contoh')
+        j = user.get(f'/api/folders/{B}/tables/ips', params=dict(service=NG, q='example-net')).json()
+        assert j['matched'] == 1 and j['rows'][0]['ip'] == dict(ip=ip, asn=64500, cc='ID', org='EXAMPLE-NET-TEST Example Ltd')
     finally: cur.execute('DELETE FROM ip_info WHERE ip = ?', [ip])
 
 
@@ -570,10 +570,10 @@ def test_unknown_table_and_service(user):
     assert (user.get(f'/api/folders/{B}/tables/users').status_code, error_code(user.get(f'/api/folders/{B}/tables/users'))) == (404, 'not_found')
     assert user.get(f'/api/folders/{B}/tables/ingest_file').status_code == 404                                 # database table name is not an API table name
     assert error_code(user.get(f'/api/folders/{B}/tables/endpoints')) == 'invalid_parameter'                         # service is required
-    assert user.get(f'/api/folders/{B}/tables/endpoints?service=tidak-ada').status_code == 404
-    assert user.get(f'/api/folders/{B}/services/tidak-ada').status_code == 404
+    assert user.get(f'/api/folders/{B}/tables/endpoints?service=does-not-exist').status_code == 404
+    assert user.get(f'/api/folders/{B}/services/does-not-exist').status_code == 404
     assert user.get('/api/folders/2026-01-09/overview').status_code == 404
-    assert user.get(f'/api/folders/{B}/map?module=tidak-ada').status_code == 404
+    assert user.get(f'/api/folders/{B}/map?module=does-not-exist').status_code == 404
 
 
 def test_map_module_filters_the_flows(user):
@@ -601,7 +601,7 @@ def test_command_center_combines_numbers_of_other_pages(user):
     assert all(set(a) >= {'key', 'tone', 'tab', 'n'} and a['n'] > 0 for a in c['attention'])
     one = user.get(f'/api/folders/{B}/command-center', params=dict(module=mapping['modules'][0])).json()
     assert one['map']['module'] == mapping['modules'][0] and one['kpi'] == k                                       # module only filters the map
-    assert user.get(f'/api/folders/{B}/command-center?module=tidak-ada').status_code == 404
+    assert user.get(f'/api/folders/{B}/command-center?module=does-not-exist').status_code == 404
 
 
 # ------------------------------------------------------------------ Stage 24
@@ -631,7 +631,7 @@ def test_ip_profile(user):
     assert any(f['folder'] == B for f in p['folders'])
     assert all(set(r) >= {'time', 'method', 'path', 'status', 'request_id', 'rules'} for r in p['requests'])
     assert set(p['rule_msgs']) == {str(i) for r in p['requests'] for i in r['rules']}
-    assert user.get(f'/api/folders/{B}/ips/bukan-ip').status_code == 400
+    assert user.get(f'/api/folders/{B}/ips/not-an-ip').status_code == 400
     assert user.get(f'/api/folders/{B}/ips/203.0.113.254').status_code == 404
 
 
@@ -699,8 +699,8 @@ def test_swagger_only_after_sign_in(client):
 
 def test_swagger_for_plain_users_but_admin_routes_stay_403(client):
     admin(client)
-    make_user(client, 'rina', 'user', 'sandi-awal-rina-123')
-    u = as_user(client, 'rina', 'sandi-awal-rina-123')
+    make_user(client, 'rina', 'user', 'rina-initial-password-123')
+    u = as_user(client, 'rina', 'rina-initial-password-123')
     assert u.get('/api/docs').status_code == 200 and u.get('/api/openapi.json').status_code == 200
     assert u.get('/api/admin/users').status_code == 403
 

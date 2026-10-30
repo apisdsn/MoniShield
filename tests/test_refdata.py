@@ -16,7 +16,7 @@ IP = lambda s: int(ipaddress.IPv4Address(s))
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch):
     """Any download in a test = a test failure, not a request to the internet."""
-    def refuse(*a, **k): raise AssertionError('uji tidak boleh mengakses jaringan')
+    def refuse(*a, **k): raise AssertionError('tests must not use the network')
     monkeypatch.setattr(urllib.request, 'urlopen', refuse)
     monkeypatch.setattr(urllib.request, 'build_opener', refuse)
 
@@ -49,7 +49,7 @@ def write_ip2asn(path, rows):
 def cfg(tmp_path):
     return dataclasses.replace(config.Config(), log_dir=str(tmp_path / 'logs'), data_dir=str(tmp_path / 'data'),
                                state_dir=str(tmp_path / 'data'), inbox_dir=str(tmp_path / 'inbox'), cache_dir=str(tmp_path / 'cache'),
-                               maxmind_account_id='123', maxmind_license_key='kunci', offline=True,
+                               maxmind_account_id='123', maxmind_license_key='test-license-0001', offline=True,
                                server_ip='44.44.44.228')
 
 
@@ -60,7 +60,7 @@ def ready(cfg):
     write_ip2asn(os.path.join(cfg.cache_dir, 'ip2asn-v4.tsv.gz'), [
         ('1.0.0.0', '1.0.0.255', '13335', 'AU', 'CLOUDFLARENET'),
         ('44.44.44.0', '44.44.44.255', '64501', 'ID', 'EXAMPLE-NET-AS'),
-        ('45.33.0.0', '45.33.0.255', '0', 'ID', 'blok tidak ter-routing'),  # ASN 0: skipped, like the old system
+        ('45.33.0.0', '45.33.0.255', '0', 'ID', 'unrouted block'),  # ASN 0: skipped, like the old system
     ])
     write_geolite(os.path.join(cfg.cache_dir, 'geolite2-city-csv.zip'),
                   blocks=[('1.0.0.0/24', '2077456', '2077456', '-27.5', '153.0'),

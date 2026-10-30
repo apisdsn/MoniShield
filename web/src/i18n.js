@@ -31,7 +31,7 @@ lang.subscribe((l) => {
 export function translate(l, key, params) {
   let s = DICTS[l][key] ?? DICTS.id[key];
   if (s === undefined) {
-    if (import.meta.env?.DEV) console.warn('kunci i18n tidak ada:', key);
+    if (import.meta.env?.DEV) console.warn('missing i18n key:', key);
     return key;
   }
   // {tz} = the site's time zone label (tz.js), in every text without being passed

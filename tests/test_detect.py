@@ -39,12 +39,12 @@ CLEAN = [
 ]
 
 
-@pytest.mark.parametrize('kat, meth, path, ua, capec', ATTACKS, ids=[s[0] for s in ATTACKS])
-def test_known_payloads_are_caught(kat, meth, path, ua, capec):
+@pytest.mark.parametrize('category, meth, path, ua, capec', ATTACKS, ids=[s[0] for s in ATTACKS])
+def test_known_payloads_are_caught(category, meth, path, ua, capec):
     r = detect.classify(meth, path, ua, 1)
-    assert r, f'{kat} tidak terdeteksi: {path}'
+    assert r, f'{category} not detected: {path}'
     assert r['score'] >= detect.THRESHOLD and r['rules'] and r['severity'] in (1, 2, 3)
-    if capec: assert r['capec'] == capec, (kat, r)
+    if capec: assert r['capec'] == capec, (category, r)
     assert detect.CAPEC['capec'].get(str(r['capec']))   # every CAPEC id has a name
 
 
@@ -105,7 +105,7 @@ def test_false_positives_on_normal_traffic(real_db, capsys):
     per_rule = collections.Counter(rid for _, _, r in hits for rid in r['rules'])
     ratio = len(hits) / len(pairs)
     with capsys.disabled():
-        print(f'\n  salah-tuduh PL1: {len(hits)} dari {len(pairs)} path bersih = {ratio:.3%}; aturan penyebab: {per_rule.most_common(8)}')
+        print(f'\n  false positives PL1: {len(hits)} of {len(pairs)} clean paths = {ratio:.3%}; rules that fired: {per_rule.most_common(8)}')
     assert len(pairs) > 10_000 and ratio < 0.005
 
 
@@ -117,6 +117,6 @@ def test_compare_with_the_legacy_rules(real_db, capsys):
         per[cat][0] += n
         if detect.classify(m, p, u, 1): per[cat][1] += n
     with capsys.disabled():
-        print('\n  aturan lama -> juga kena CRS PL1:')
-        for cat, (n, k) in sorted(per.items(), key=lambda x: -x[1][0]): print(f'    {cat:28} {k:6} dari {n:6} ({k / n:.0%})')
+        print('\n  legacy rules -> also caught by CRS PL1:')
+        for cat, (n, k) in sorted(per.items(), key=lambda x: -x[1][0]): print(f'    {cat:28} {k:6} of {n:6} ({k / n:.0%})')
     assert per and sum(k for _, k in per.values()) > 0

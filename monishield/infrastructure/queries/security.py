@@ -34,7 +34,7 @@ def security(cur, folder, cfg):
                               statuses=sorted({c for r in rs for c in r[4]}))
     per_cat, per_org = {}, {}
     for r in atk: per_cat[r[0]] = per_cat.get(r[0], 0) + r[2]
-    for ip, hits, cats, org in aip: per_org[org or 'Tidak diketahui'] = per_org.get(org or 'Tidak diketahui', 0) + hits
+    for ip, hits, cats, org in aip: per_org[org or 'Unknown'] = per_org.get(org or 'Unknown', 0) + hits   # 'Unknown': the UI shows its own word
     ranked = lambda d, n=None: [list(x) for x in sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))[:n]]
     top = cells(cur, [dict(ip=ip, hits=hits, max_severity=max(sev_of(c) for c in cats)) for ip, hits, cats, org in aip[:10]], ('ip',))
     top_login = cells(cur, [dict(ip=r[0], fail=r[1]) for r in sorted(login, key=lambda r: (-r[1], r[0]))[:10] if r[1]], ('ip',))

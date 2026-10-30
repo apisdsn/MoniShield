@@ -15,9 +15,9 @@ from monishield.infrastructure.auth import Base
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
-X = {'X-Requested-With': 'uji'}
-PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
-JOB = 'token-mesin-untuk-uji-backup-0001'
+X = {'X-Requested-With': 'test'}
+PW, PW2 = 'first-admin-password', 'admin-password-after-change'
+JOB = 'machine-token-for-backup-tests-0001'
 
 
 @pytest.fixture

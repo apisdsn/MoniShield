@@ -47,7 +47,7 @@ def settings(port): return dict(host='127.0.0.1', port=port, security='none', us
 
 def letter():
     m = EmailMessage()
-    m['From'], m['To'], m['Subject'] = 'a@example.com', 'b@example.com', 'Uji'
+    m['From'], m['To'], m['Subject'] = 'a@example.com', 'b@example.com', 'Test'
     m.set_content('isi')
     return m
 
@@ -79,7 +79,7 @@ def test_mailer_send_returns_the_note_instead_of_failing(monkeypatch):
     class Cfg:
         smtp_host, smtp_security, smtp_username, smtp_password, smtp_from, dashboard_url = '127.0.0.1', 'none', '', '', 'a@example.com', ''
     Cfg.smtp_port = server('close')
-    lt = dict(subject='Uji', preheader='', heading='Uji', paragraphs=['isi'], lang='id')
+    lt = dict(subject='Test', preheader='', heading='Test', paragraphs=['body'], lang='id')
     monkeypatch.setattr(mailer.render, 'message', lambda lt, sender, to, logo='': letter())
     assert "check the mail provider's log" in mailer.Mailer(Cfg).send(lt, 'b@example.com')
     Cfg.smtp_port = server('ok')

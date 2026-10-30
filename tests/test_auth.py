@@ -9,7 +9,7 @@ from monishield.domain import accounts
 from monishield.infrastructure import auth
 from conftest import JWT_SECRET
 
-PW = 'sandi-yang-cukup-panjang'
+PW = 'password-long-enough'
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def test_invalid_password(a, pw):
 def test_duplicate_name_and_wrong_role(a, admin):
     with pytest.raises(auth.AuthError) as e: a.create_user('ADMIN', 'x', 'user', PW)
     assert e.value.code == 'username_taken' and e.value.status == 409
-    with pytest.raises(auth.AuthError) as e: a.create_user('lain', 'x', 'root', PW)
+    with pytest.raises(auth.AuthError) as e: a.create_user('other', 'x', 'root', PW)
     assert e.value.code == 'invalid_role'
 
 
@@ -69,14 +69,14 @@ def test_sign_in_and_sessions(a, admin):
 
 
 def test_same_error_for_unknown_user_and_wrong_password(a, admin):
-    with pytest.raises(auth.AuthError) as e1: a.login('admin', 'sandi-salah-sekali')
-    with pytest.raises(auth.AuthError) as e2: a.login('tidak-ada', 'sandi-salah-sekali')
+    with pytest.raises(auth.AuthError) as e1: a.login('admin', 'very-wrong-password')
+    with pytest.raises(auth.AuthError) as e2: a.login('does-not-exist', 'very-wrong-password')
     assert (e1.value.code, e1.value.message, e1.value.status) == (e2.value.code, e2.value.message, e2.value.status) == ('invalid_credentials', 'Wrong username or password.', 401)
 
 
 def test_locked_after_five_failures(a, admin):
     for _ in range(5):
-        with pytest.raises(auth.AuthError) as e: a.login('admin', 'salah-salah-salah', '9.9.9.9')
+        with pytest.raises(auth.AuthError) as e: a.login('admin', 'wrong-wrong-wrong', '9.9.9.9')
         assert e.value.status == 401
     with pytest.raises(auth.AuthError) as e: a.login('admin', PW, '9.9.9.9')       # 6th attempt: even the CORRECT password is rejected
     assert (e.value.status, e.value.code) == (429, 'too_many_attempts')
@@ -86,7 +86,7 @@ def test_locked_after_five_failures(a, admin):
 def test_rate_limit_per_ip(a, admin, monkeypatch):
     monkeypatch.setattr(auth, 'IP_MAX_FAILED', 3)
     for i in range(3):
-        with pytest.raises(auth.AuthError): a.login(f'tidak-ada-{i}', 'x' * 12, '7.7.7.7')
+        with pytest.raises(auth.AuthError): a.login(f'does-not-exist-{i}', 'x' * 12, '7.7.7.7')
     with pytest.raises(auth.AuthError) as e: a.login('admin', PW, '7.7.7.7')
     assert e.value.status == 429
     assert a.login('admin', PW, '8.8.8.8')[1]['username'] == 'admin'            # other IPs unaffected
@@ -110,14 +110,14 @@ def test_session_expires_by_idle_time_and_by_age(a, admin, monkeypatch):
 
 def test_password_change_revokes_other_sessions(a, admin):
     t1, u = a.login('admin', PW); t2, _ = a.login('admin', PW)
-    with pytest.raises(auth.AuthError) as e: a.change_password(u, 'sandi-lama-salah', 'sandi-baru-yang-panjang')
+    with pytest.raises(auth.AuthError) as e: a.change_password(u, 'wrong-old-password', 'new-long-password')
     assert e.value.code == 'wrong_password'
     with pytest.raises(auth.AuthError): a.change_password(u, PW, 'pendek')
     with pytest.raises(auth.AuthError): a.change_password(u, PW, PW)
-    a.change_password(u, PW, 'sandi-baru-yang-panjang', keep_token=t1)
+    a.change_password(u, PW, 'new-long-password', keep_token=t1)
     assert a.session_user(t1) and a.session_user(t2) is None
     with pytest.raises(auth.AuthError): a.login('admin', PW)
-    assert a.login('admin', 'sandi-baru-yang-panjang')[1]['must_change_password'] is False
+    assert a.login('admin', 'new-long-password')[1]['must_change_password'] is False
 
 
 def test_reset_and_disable_revoke_sessions(a, admin):
@@ -161,25 +161,25 @@ def test_first_admin_only_when_there_are_no_users(a):
     assert a.bootstrap_admin('', PW) is None and a.bootstrap_admin('admin', '') is None
     u = a.bootstrap_admin('admin', PW)
     assert u['role'] == 'admin' and u['must_change_password'] is True
-    assert a.bootstrap_admin('lain', PW) is None and a.count_users() == 1
+    assert a.bootstrap_admin('other', PW) is None and a.count_users() == 1
 
 
 def test_audit_without_secrets(a, admin):
     b = a.create_user('budi', 'Budi', 'user', PW, by=admin, ip='1.1.1.1')
     token, _ = a.login('budi', PW, '2.2.2.2')
-    with pytest.raises(auth.AuthError): a.login('budi', 'sandi-salah-rahasia', '3.3.3.3')
+    with pytest.raises(auth.AuthError): a.login('budi', 'wrong-secret-password', '3.3.3.3')
     temp = a.reset_password(b['user_id'], admin)
     a.update_user(b['user_id'], admin, role='admin'); a.delete_user(b['user_id'], admin)
     total, rows = a.audit_list(50)
     assert [r['action'] for r in rows][::-1] == ['user.create', 'user.create', 'login.ok', 'login.fail', 'user.reset_password', 'user.update', 'user.delete']  # the first one: admin creation by the fixture
     text = str(rows)
-    assert PW not in text and temp not in text and token not in text and 'sandi-salah-rahasia' not in text
+    assert PW not in text and temp not in text and token not in text and 'wrong-secret-password' not in text
     assert rows[-2]['username'] == 'admin' and rows[-2]['ip'] == '1.1.1.1' and 'role user -> admin' in text
 
 
 def test_machine_token():
-    assert accounts.job_token_ok('rahasia', 'rahasia') and not accounts.job_token_ok('rahasia', 'salah')
-    assert not accounts.job_token_ok('', '') and not accounts.job_token_ok('', 'apa-saja') and not accounts.job_token_ok('rahasia', None)
+    assert accounts.job_token_ok('secret', 'secret') and not accounts.job_token_ok('secret', 'wrong')
+    assert not accounts.job_token_ok('', '') and not accounts.job_token_ok('', 'anything') and not accounts.job_token_ok('secret', None)
 
 
 # ------------------------------------------------------------------ JWT
@@ -199,15 +199,15 @@ def test_forged_jwt_is_rejected(a, admin):
     token, user = a.login('admin', PW)
     c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')
     assert a.session_user(token)
-    assert a.session_user(_forge(c, 'rahasia-lain-yang-juga-panjang-sekali-32')) is None       # wrong signature
+    assert a.session_user(_forge(c, 'another-secret-that-is-long-enough-32')) is None       # wrong signature
     assert a.session_user(jwt.encode(c, None, algorithm='none')) is None                          # alg none
     assert a.session_user(_forge(c, alg='HS512')) is None                                         # other algorithm
     assert a.session_user(token[:-3] + ('aaa' if not token.endswith('aaa') else 'bbb')) is None   # tampered
-    assert a.session_user(_forge({**c, 'iss': 'lain'})) is None
+    assert a.session_user(_forge({**c, 'iss': 'other'})) is None
     assert a.session_user(_forge({k: v for k, v in c.items() if k != 'sid'})) is None             # required claim missing
     assert a.session_user(_forge({**c, 'exp': c['iat'] - 10})) is None                            # expired
-    assert a.session_user(_forge({**c, 'sid': 'sesi-yang-tidak-ada'})) is None                    # valid but its session does not exist
-    for junk in ('', 'a.b.c', 'bukan-jwt', None, 123): assert a.session_user(junk) is None
+    assert a.session_user(_forge({**c, 'sid': 'session-that-does-not-exist'})) is None                    # valid but its session does not exist
+    for junk in ('', 'a.b.c', 'not-a-jwt', None, 123): assert a.session_user(junk) is None
 
 
 def test_valid_jwt_for_another_user_is_rejected(a, admin):
@@ -234,10 +234,10 @@ def test_without_a_secret_no_sign_in(auth_url):
     x = auth.Auth(auth_url)                      # how the command line opens it: account management only
     x.create_user('admin', 'A', 'admin', PW)
     with pytest.raises(RuntimeError, match='S4_JWT_SECRET'): x.login('admin', PW)
-    assert x.session_user('apa.saja.token') is None
+    assert x.session_user('any.random.token') is None
     x.close()
 
 
 def test_database_url_is_redacted():
-    assert auth.redact_url('postgresql+psycopg://monishield:sandi-rahasia@db:5432/monishield') == 'postgresql+psycopg://monishield:***@db:5432/monishield'
+    assert auth.redact_url('postgresql+psycopg://monishield:db-secret@db:5432/monishield') == 'postgresql+psycopg://monishield:***@db:5432/monishield'
     assert auth.redact_url('sqlite:////data/auth.db') == 'sqlite:////data/auth.db'

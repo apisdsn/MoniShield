@@ -1,5 +1,5 @@
 <!-- Full attack endpoint URL (inv. §2.4): per upstream, METHOD + upstream base URL (when known from the
-     hosts configuration) + decoded path; upstream without a host -> "[Host tidak tercatat]" ("-" = rejected at the
+     hosts configuration) + decoded path; upstream without a host -> "[Host not recorded]" ("-" = rejected at the
      ingress). Data text is always rendered as text (Svelte escapes it), so URLs containing <script> or ${jndi:
      are never executed. User-Agent below it. -->
 <script>

@@ -67,6 +67,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 42 | Real visitor IPs behind Cloudflare; WIB as configuration | `S4_TRUST_CLOUDFLARE`; `S4_TIMEZONE_OFFSET` / `S4_TIMEZONE_LABEL` ([`10-user-guide.md`](10-user-guide.md) *Time zone*) | plan stage 51 |
 | 43 | Raw log lines of every service, searchable (all users for now; role per module later), no masking, audited | Raw Logs page in Analysis: text / regex / request ID / IP search over the folder's log files, follow a request across services, lines around an entry, `.log` download; `raw.search` / `raw.download` in the audit log | plan stage 53 |
 | 44 | Scrolling pop-ups cut their own rounded corners | Dialog body scrolls, title and buttons stay | plan stage 53 |
+| 45 | Code still had Indonesian (test data, comments) | Translated; `tests/test_language.py` guards it | CHANGELOG *Maintenance* |
 
 Questions answered along the way, recorded so they are not asked again:
 

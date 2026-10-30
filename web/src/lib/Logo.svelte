@@ -1,5 +1,5 @@
 <!-- MoniShield logo (shield + letter M), a single source for the login page, left navigation, and narrow-screen header
-     (owner request 2026-10-07: "logo navbar samakan seperti logo di halaman login" — make the navbar logo match the login logo). Same as favicon.svg. -->
+     (owner request 2026-10-07: make the navbar logo match the login logo). Same as favicon.svg. -->
 <script>
   let { size = 32, glow = false } = $props();
 </script>
