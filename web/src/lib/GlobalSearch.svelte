@@ -27,7 +27,7 @@
       const my = ++seq;
       busy = true; error = null;
       try {
-        const j = await api.get(`/api/search?q=${encodeURIComponent(text)}${folder ? `&folder=${encodeURIComponent(folder)}` : ''}`);
+        const j = await api.post('/api/search', folder ? { q: text, folder } : { q: text });   // POST: the text stays out of URLs
         if (my === seq) { res = j; active = 0; }
       } catch (e) { if (my === seq) error = e; }
       finally { if (my === seq) busy = false; }

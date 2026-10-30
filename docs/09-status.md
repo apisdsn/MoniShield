@@ -12,7 +12,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Version | 2.0.0 + the *Unreleased* changes in `CHANGELOG.md` |
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
-| Tests | pytest: every test passes on the sample lines in `tests/fixtures/` (2 skip without optional services). Web: build, `tools/check_i18n.mjs`, `tests/test_format.mjs`. |
+| Tests | pytest: every test passes on the sample lines in `tests/fixtures/` (2 skip without optional services). Web: build, `tools/check_i18n.mjs`, `tests/test_format.mjs`, `tests/test_state.mjs` (page addresses). |
 | CI | `.github/workflows/ci.yml`: commit messages, pytest, web build, browser smoke test (`tools/smoke_browser.cjs`, every page for both sources and languages); all four must pass before the deploy job on `prd`. |
 | Deploy | Automatic deploy of `prd` from this repository, first run 2026-10-28 (`2e564e4`, app healthy). Secrets in the GitHub environment `production`. |
 | Server today | `/srv/MoniShield`, a checkout of this repository (compose project `monishield`, profiles `https,kafka`). The site's own values are in its `.env`; the portfolio site is `deploy/sites/portfolio.caddy` there (not in git). |
@@ -68,6 +68,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 43 | Raw log lines of every service, searchable (all users for now; role per module later), no masking, audited | Raw Logs page in Analysis: text / regex / request ID / IP search over the folder's log files, follow a request across services, lines around an entry, `.log` download; `raw.search` / `raw.download` in the audit log | plan stage 53 |
 | 44 | Scrolling pop-ups cut their own rounded corners | Dialog body scrolls, title and buttons stay | plan stage 53 |
 | 45 | Code still had Indonesian (test data, comments) | Translated; `tests/test_language.py` guards it | CHANGELOG *Maintenance* |
+| 46 | Search texts and IPs visible in request URLs (network panel, server and CDN logs) | Those reads are POSTed with an encrypted body; IP and search text in page addresses after `#` | [`10-user-guide.md`](10-user-guide.md) *Encrypted API traffic* |
 
 Questions answered along the way, recorded so they are not asked again:
 

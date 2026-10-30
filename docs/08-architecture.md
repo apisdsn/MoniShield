@@ -48,7 +48,9 @@ Tests build the same graph through `create_app(cfg)`; a service can also be test
 
 Page endpoints are read-only reports over the aggregate tables. They skip the application layer on purpose (light CQRS):
 `interfaces/api/pages.py` checks the role and parameters, then calls a plain function in
-`infrastructure/queries/<page>.py` with a DuckDB cursor. Downloads (block list, attack-IP CSV) return
+`infrastructure/queries/<page>.py` with a DuckDB cursor. A read whose parameters can hold personal data (search text, IP,
+email, request ID, file name) also gets a POST form with the same parameters in the JSON body (`pages._params`); the web
+UI uses only that form so the values travel in the encrypted body and never in a URL. Downloads (block list, attack-IP CSV) return
 `dict(file, media_type, filename)` and the router turns that into an attachment response.
 
 ## Errors
