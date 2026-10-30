@@ -291,8 +291,11 @@ def test_ingest_through_the_api_and_the_dashboard_stays_open(client):
     assert set(during) == {200} and st['error'] is None
     assert (st['last']['status'], st['last']['files_parsed'], st['last']['files_failed']) == ('ok', 9, 0)
     lr = st['last_run']                                                         # from ingest_run: survives a server restart
-    assert (lr['status'], lr['files_changed'], lr['warnings']) == ('ok', st['last']['files_changed'], st['last']['warnings'])
-    assert lr['finished_at'] >= lr['started_at']
+    assert lr['status'] == 'ok' and lr['finished_at'] >= lr['started_at'] and lr['run_id'] >= st['last']['run_id']
+    # this run as stored (a background ingest of an earlier test's server may have finished after it and be the newest)
+    with client.app.state.warehouse._cur() as cur:
+        row = cur.execute('SELECT status, files_changed FROM ingest_run WHERE run_id = ?', [st['last']['run_id']]).fetchone()
+    assert row == ('ok', st['last']['files_changed'])
     assert client.get(f'/api/folders/{B}').json()['services'][0]['lines'] == 11
     assert 'ingest.start' in [x['action'] for x in client.get('/api/admin/audit').json()['rows']]
 
