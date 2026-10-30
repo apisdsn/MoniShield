@@ -1,8 +1,8 @@
-<!-- Configuration (owner request 2026-10-07: "satu halaman untuk semua kredensial" — one page for all credentials), admin only. One place for:
+<!-- Configuration (owner request 2026-10-07: one page for all credentials), admin only. One place for:
      AWS S3 credentials + region, automatic S3 parent folder, MaxMind GeoLite2 key, notifications (Telegram/Discord/email),
      blocklist exclusions, and the status of keys that can only be set via .env. API: /api/admin/config (monishield/
      settings.py), /api/admin/imports/watch, /api/admin/alerts. Secrets are never sent back by the server: their fields
-     show "sudah diisi"; left empty on save = unchanged; "Hapus dari .env" = line disabled (default).
+     show "already set"; left empty on save = unchanged; "Remove from .env" = line disabled (default).
      Every field is WRITTEN TO THE server's .env FILE (owner request 2026-10-07) and takes effect immediately without a restart.
      Since 2026-10-08 each part opens as a pop-up from the sidebar (lib/ConfigDialogs.svelte): only = storage | kafka |
      maxmind | smtp | notif | blocklist | retention | server shows that part alone; embedded = inside the dialog (no cards).

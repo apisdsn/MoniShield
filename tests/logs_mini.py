@@ -45,6 +45,6 @@ def build(root):
     write(log_path(root, b, 'tenant', 'reference-service', 'pod-x'), lines('corrupt'))
     write(log_path(root, b, 'tenant', 'auth-service', 'pod-e'), '')
     write(log_path(root, b, 'tenant', 'unknown-service', 'pod-u'), lines('auth-service'))
-    write(os.path.join(root, 'recovery-file', 'x', 'bukan.log'), 'diabaikan: folder teratas bukan tanggal\n')
-    write(os.path.join(root, b, 'lepas.log'), 'diabaikan: kurang dari 3 komponen path\n')
+    write(os.path.join(root, 'recovery-file', 'x', 'ignored.log'), 'ignored: the top folder is not a date\n')
+    write(os.path.join(root, b, 'loose.log'), 'ignored: fewer than 3 path parts\n')
     return root

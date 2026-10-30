@@ -246,6 +246,20 @@ const ERR_ID = [
   [/^S4_BACKUP_S3 must look like s3:\/\/bucket\/prefix\/\.$/, 'S4_BACKUP_S3 harus berbentuk s3://bucket/awalan/.'],
   [/^Copying the backup to (\S+) failed \((.*)\)\.$/, 'Penyalinan backup ke $1 gagal ($2).'],
   [/^The backup failed: (.*)$/, 'Backup gagal: $1'],
+  // Raw Logs (monishield/domain/rawlog.py, infrastructure/queries/rawlogs.py)
+  [/^Enter something to search for\.$/, 'Isi dulu yang ingin dicari.'],
+  [/^The search text is longer than (\d+) characters\.$/, 'Teks pencarian lebih dari $1 karakter.'],
+  [/^mode must be text, regex, request or ip\.$/, 'Mode harus teks, regex, request ID, atau IP.'],
+  [/^A request ID is 4-100 letters, digits, "\.", ":", "_" or "-"\.$/, 'Request ID terdiri dari 4-100 huruf, angka, ".", ":", "_" atau "-".'],
+  [/^Enter one IP address, e\.g\. (\S+)$/, 'Isi satu alamat IP, mis. $1'],
+  [/^Times are HH:MM, e\.g\. 16:00\.$/, 'Jam ditulis JJ:MM, mis. 16:00.'],
+  [/^The end time must be after the start time\.$/, 'Jam akhir harus setelah jam awal.'],
+  [/^Unknown level or status: (.*)$/, 'Level atau status tidak dikenal: $1'],
+  [/^The pattern is longer than (\d+) characters\.$/, 'Pola lebih dari $1 karakter.'],
+  [/^The pattern has a nested repeat such as \(a\+\)\+, which can hang the parser\.$/, 'Pola punya pengulangan bersarang seperti (a+)+ yang bisa membuat pencarian macet.'],
+  [/^The pattern is not a valid regular expression \((.*)\)\.$/, 'Pola bukan regular expression yang sah ($1).'],
+  [/^No log entry starts at that line\.$/, 'Tidak ada entri log yang dimulai di baris itu.'],
+  [/^File not found\.$/, 'Berkas tidak ditemukan.'],
 ];
 
 // Dictionary prefixes holding translations of API error codes, tried in order.

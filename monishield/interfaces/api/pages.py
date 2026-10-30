@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 
 from monishield.infrastructure.queries import (availability as q_availability, business as q_business, command as q_command, ips as q_ips,
-                                               map as q_map, overview as q_overview, pods as q_pods, rootcause as q_rootcause, search as q_search,
+                                               map as q_map, overview as q_overview, pods as q_pods, rawlogs as q_rawlogs, rootcause as q_rootcause, search as q_search,
                                                security as q_security, service as q_service, tables as q_tables, tracing as q_tracing, trends as q_trends)
-from .common import cursor, folder_param, require_user_ready
+from .common import client_ip, cursor, folder_param, require_user_ready, source_ctx
 
 router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
 
@@ -92,3 +92,31 @@ def service_page(service: str, folder: str = Depends(folder_param), cur=Depends(
 @router.get('/folders/{folder}/tables/{table}')
 def table_page(table: str, request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
     return q_tables.table_page(cur, folder, _cfg(request), table, request.query_params)
+
+
+# ------------------------------------------------------------------ Raw Logs (owner request 2026-10-30)
+# Every signed-in user (role-based access per module comes later); the text is shown as written (no masking). Each new
+# search and each download is recorded in the audit log; paging through the same search and opening context are not.
+def _raw_audit(request, action, folder, q, detail=''):
+    src = source_ctx(request).source
+    request.app.state.auth.audit(action, getattr(request.state, 'user', None),
+                                 f'folder={folder} source={src} {q.describe()}{detail}', client_ip(request))
+
+
+@router.get('/folders/{folder}/raw')
+def raw_search(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
+    r, q = q_rawlogs.search(cur, source_ctx(request).cfg, folder, request.query_params)
+    if not r['offset']: _raw_audit(request, 'raw.search', folder, q, f' matches={r["total"]}')
+    return r
+
+
+@router.get('/folders/{folder}/raw/context')
+def raw_context(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
+    return q_rawlogs.context(cur, source_ctx(request).cfg, folder, request.query_params)
+
+
+@router.get('/folders/{folder}/raw/download')
+def raw_download(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
+    r, q, n = q_rawlogs.download(cur, source_ctx(request).cfg, folder, request.query_params)
+    _raw_audit(request, 'raw.download', folder, q, f' entries={n}')
+    return _file(r)

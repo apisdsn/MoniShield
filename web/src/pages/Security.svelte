@@ -57,7 +57,7 @@
   const sevTok = (s) => (s === 3 ? '--err' : s === 2 ? '--warn' : '--neutral');
   const statusText = (sc) => Object.entries(sc).sort(([a], [b]) => a.localeCompare(b)).map(([c, n]) => `${c}×${n}`).join(' ');   // old form "200×3 401×1"
   const has2xx = (sc) => Object.keys(sc).some((c) => c.startsWith('2'));
-  const org = (o) => (o === 'Tidak diketahui' ? $t('sec.unknown_owner') : o);
+  const org = (o) => (o === 'Unknown' || o === 'Tidak diketahui' ? $t('sec.unknown_owner') : o);   // 'Tidak diketahui': servers before 2026-10-30
   const uniq = (a) => [...new Set(a)];
 
   // ---------------------------------------------------------------- key findings (order and content as in the old one)
@@ -84,7 +84,7 @@
     if (f.cloud_owners.length) {
       const ips = T['attack-ips'], fullIp = ips.rows.length >= ips.total;
       const CLOUD = /CLOUD|OCEAN|AMAZON|AWS|AZURE|MICROSOFT|HETZNER|OVH|LINODE|VULTR|ALIBABA|TENCENT|HOSTING|DATACENTER/i;
-      const owners = fullIp && !crs ? uniq(ips.rows.filter((r) => Object.keys(r.cats).some((c) => sev(c) >= 2)).map((r) => r.ip.org || 'Tidak diketahui').filter((o) => CLOUD.test(o)))
+      const owners = fullIp && !crs ? uniq(ips.rows.filter((r) => Object.keys(r.cats).some((c) => sev(c) >= 2)).map((r) => r.ip.org || 'Unknown').filter((o) => CLOUD.test(o)))
                             : f.cloud_owners;
       out.push({ key: 'cloud', b: {}, t: { owners: owners.map(org).join(', ') } });
     }

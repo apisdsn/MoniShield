@@ -7,7 +7,7 @@
      and every group (Analysis, Services, Configuration) folds open/closed with an animation; the choice is kept per
      browser. In the icon rail the groups are always open (their headings are only separators).
      Redesign 2026-10-27: the Services group lists every service (error badges; "!" for a corrupt file) with a search box
-     when there are more than six (owner: "jadikan layanan saja", no problems-only list). -->
+     when there are more than six (owner: "just make it the services", no problems-only list). -->
 <script>
   import { lang, t } from '../i18n.js';
   import { num, sysName } from '../format.js';
@@ -41,7 +41,7 @@
   const tip = (s) => (collapsed ? s : undefined);
 
   const ICON = { overview: 'overview', 'command-center': 'globe', trends: 'trend', security: 'shield', 'root-causes': 'search',
-                 availability: 'pulse', pods: 'box', business: 'briefcase', tracing: 'route' };
+                 availability: 'pulse', pods: 'box', business: 'briefcase', tracing: 'route', 'raw-logs': 'terminal' };
   const ingestTone = $derived(ingest?.running ? 'accent' : ingest?.last_status === 'ok' ? 'ok' : ingest?.last_status ? 'err' : '');
 
   const href = (patch) => build({ ...route, ...patch, q: null, ...(patch.tab !== 'service' ? { service: null } : {}) });
@@ -75,13 +75,13 @@
   </ul>
   </div></div>
   {#if summary?.services?.length}
-    {@render head('services', 'nav-layanan', $t('nav.services'))}
+    {@render head('services', 'nav-services', $t('nav.services'))}
     <div class="fold" class:shut={!isOpen('services')} id="grp-services" inert={!isOpen('services') || undefined}><div class="in">
     {#if !collapsed && all.length > 6}
       <label class="sr-only" for="svc-q">{$t('nav.svc_search')}</label>
       <input id="svc-q" class="q" type="search" placeholder="{$t('nav.svc_search')}…" bind:value={q} />
     {/if}
-    <ul aria-labelledby="nav-layanan">
+    <ul aria-labelledby="nav-services">
       {#each shownSvc as s}
         <li>
           <a href={href({ tab: 'service', service: s.service })} aria-current={active('service', s.service)} onclick={onpick} title={tip(sysName(s.service))}>

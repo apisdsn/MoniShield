@@ -5,7 +5,7 @@ from monishield import __version__
 from monishield.infrastructure import config
 from monishield.domain import log_formats, rules, services, timezone
 
-RAW = ('nginx_access', 'nginx_error', 'fe_access', 'sl_event', 'spring_line', 'coredns_error', 'log_message')
+RAW = ('nginx_access', 'nginx_error', 'fe_access', 'sl_event', 'spring_line', 'coredns_error', 'log_message', 'http_access', 'app_line')
 
 
 def _n(x): return f'{x:,}'.replace(',', '.')

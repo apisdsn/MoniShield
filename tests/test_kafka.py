@@ -13,8 +13,8 @@ from monishield.domain import kafka_message, parse
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
-X = {'X-Requested-With': 'uji'}
-PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
+X = {'X-Requested-With': 'test'}
+PW, PW2 = 'first-admin-password', 'admin-password-after-change'
 B = '2026-01-02'
 T = datetime.datetime(2026, 1, 1, 5, 0, tzinfo=datetime.timezone.utc)   # 1 Jan 12:00 WIB -> folder 2 Jan (like the S3 export)
 PODS = [('ingress-nginx', 'nginx-ingress-controller', 'pod-n'), ('kube-system', 'coredns', 'pod-d'),
@@ -39,8 +39,8 @@ def messages():
 
 # ------------------------------------------------------------------ messages
 def test_rancher_message_and_its_variants():
-    r, why = kafka_message.parse_message(rancher('tenant', 'report-service', 'report-service-7d9f-abcde', 'baris satu'))
-    assert why is None and (r['ns'], r['svc'], r['pod'], r['line'], r['t']) == ('tenant', 'report-service', 'report-service-7d9f-abcde', 'baris satu', T)
+    r, why = kafka_message.parse_message(rancher('tenant', 'report-service', 'report-service-7d9f-abcde', 'line one'))
+    assert why is None and (r['ns'], r['svc'], r['pod'], r['line'], r['t']) == ('tenant', 'report-service', 'report-service-7d9f-abcde', 'line one', T)
     # no kubernetes block: from the tag
     m = json.loads(rancher('tenant', 'report-service', 'report-service-7d9f-abcde', 'x')); m.pop('kubernetes')
     assert kafka_message.parse_message(json.dumps(m))[0]['pod'] == 'report-service-7d9f-abcde'
@@ -49,7 +49,7 @@ def test_rancher_message_and_its_variants():
         assert kafka_message.parse_message(rancher('a', 'b', 'c', 'x', time=t))[0]['t'] == T
     assert kafka_message.parse_message(rancher('a', 'b', 'c', 'x', time=None), ts_ms=int(T.timestamp() * 1000))[0]['t'] == T
     # rejected with a reason
-    assert kafka_message.parse_message(b'bukan json')[1] == 'not JSON'
+    assert kafka_message.parse_message(b'not json')[1] == 'not JSON'
     assert kafka_message.parse_message(json.dumps(dict(stream='stdout')))[1] == "no 'log' field"
     assert kafka_message.parse_message(json.dumps(dict(log='x')))[1].startswith('no kubernetes')
     assert kafka_message.parse_message(rancher('..', 'svc', 'pod', 'x'))[1] == 'invalid namespace/container/pod name'   # cannot escape the inbox
@@ -87,7 +87,7 @@ def test_ingest_result_same_as_the_s3_logs(tmp_path):
         assert (inbox / rel).read_bytes() == (s3 / rel).read_bytes().rstrip(b'\n') + b'\n', rel
     counts = []
     for name, root in (('s3', s3), ('kafka', inbox)):
-        c = dataclasses.replace(config.Config(), log_dir=str(tmp_path / f'kosong-{name}'), inbox_dir=str(root), data_dir=str(tmp_path / f'data-{name}'),
+        c = dataclasses.replace(config.Config(), log_dir=str(tmp_path / f'empty-{name}'), inbox_dir=str(root), data_dir=str(tmp_path / f'data-{name}'),
                                 cache_dir=str(tmp_path / 'cache'), offline=True)
         con = db.open(c.db_path); r = ingest.run(c, con, workers=0)
         assert r['files_failed'] == 0 and r['folders_changed'] == [B]
@@ -117,7 +117,7 @@ def wait_for_ingest(tc):
         s = tc.get('/api/admin/ingest?source=kafka', headers=X).json()
         if not s['running']: return s
         time.sleep(0.05)
-    raise AssertionError('ingest tidak selesai')
+    raise AssertionError('ingest did not finish')
 
 
 def test_ingest_status_and_folders_appear(client):

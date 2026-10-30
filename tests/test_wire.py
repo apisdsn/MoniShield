@@ -14,7 +14,7 @@ from monishield.infrastructure import config, db, ingest, wirecrypto
 from monishield.interfaces.api import app as appmod
 from conftest import JWT_SECRET
 
-PW, PW2 = 'sandi-admin-pertama', 'sandi-admin-sesudah-diganti'
+PW, PW2 = 'first-admin-password', 'admin-password-after-change'
 WEB = {'X-Requested-With': 'monishield-web'}
 
 
@@ -85,14 +85,14 @@ def test_plain_clients_still_work(tc):
 
 def test_unknown_key_and_tampered_body_rejected(tc):
     b = Browser(tc)
-    r = b.call('GET', '/api/me', kid='tidak-dikenal')
+    r = b.call('GET', '/api/me', kid='unknown')
     assert r.status_code == 400 and r.json()['error']['code'] == 'enc_key_unknown'
     # a body encrypted for one endpoint cannot be replayed on another (method + path are bound)
     nonce = os.urandom(12)
     blob = nonce + b.key.encrypt(nonce, b'{"username": "admin", "password": "x"}', b'req POST /api/auth/login')
     r = tc.post('/api/me/password', content=blob, headers=dict(WEB, **{'X-MS-Enc': b.kid, 'Content-Type': 'application/octet-stream'}))
     assert r.status_code == 400 and r.json()['error']['code'] == 'enc_invalid'
-    r = tc.post('/api/crypto/handshake', json=dict(pub='bukan-kunci'), headers=WEB)
+    r = tc.post('/api/crypto/handshake', json=dict(pub='not-a-key'), headers=WEB)
     assert r.status_code == 400 and r.json()['error']['code'] == 'enc_invalid'
 
 

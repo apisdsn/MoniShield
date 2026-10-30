@@ -1,5 +1,5 @@
 <!-- Attention card (DRD §4.6, §12 style "What needs your attention"): title + count, numbered items with a bold
-     title, one explanatory sentence, and an action link ("Lihat …  →") to the related page/table.
+     title, one explanatory sentence, and an action link ("View …  →") to the related page/table.
      items: [{title, text?, href?, link?, tone?: 'err'|'warn'|'accent'}]. Without items: a plain item list (children). -->
 <script>
   import Icon from './Icon.svelte';

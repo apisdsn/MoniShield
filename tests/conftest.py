@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-JWT_SECRET = 'rahasia-jwt-untuk-uji-minimal-32-karakter'
+JWT_SECRET = 'jwt-secret-for-tests-at-least-32-chars'
 
 
 @pytest.fixture

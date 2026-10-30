@@ -14,7 +14,7 @@
 import { writable, get } from 'svelte/store';
 import { setSource } from './api.js';
 
-export const TABS = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing'];
+export const TABS = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs'];
 export const ADMIN = ['admin/users', 'admin/ingest'];
 const DIALOGS = ['password', 'email', 'admin/configuration', 'admin/notifications'];
 const SERVER = /^\/(api|map|swagger|assets|fonts)(\/|$)/;   // paths the server answers itself (never app pages)

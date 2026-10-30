@@ -1,4 +1,4 @@
-"""Configuration page -> .env file (owner request 2026-10-07: "ubah semua yang berbau configuration … ke dalam .env"
+"""Configuration page -> .env file (owner request 2026-10-07: "move everything configuration-related … into .env"
 (move everything configuration-related … into .env)).
 
 All settings that can be changed from the page (AWS credentials + region, MaxMind, blocklist exclusions, Kafka, automatic

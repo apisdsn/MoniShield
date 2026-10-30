@@ -1,0 +1,2 @@
+127.0.0.1 - frank [10/Oct/2026:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.0" 200 2326 "http://www.example.com/start.html" "Mozilla/4.08 [en] (Win98; I ;Nav)"
+198.51.100.2 - - [10/Oct/2026:13:56:00 -0700] "POST /login HTTP/1.1" 401 - "-" "curl/8.1"

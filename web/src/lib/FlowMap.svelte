@@ -1,6 +1,6 @@
 <!-- "Peta IP Asal → IP Tujuan" card + legend + flow table + notes (DRD §3.2, §7; inv. §2.2). Used by the IP Map
      page and the service page (collapsed). `data` = response of GET /api/folders/{folder}/map[?module=…]. The flow table
-     is the map's alternative (§7.9): the "Lewati peta" link jumps there; "Lihat di tabel" fills its filter.
+     is the map's alternative (§7.9): the "Skip the map" link jumps there; "View in table" fills its filter.
      `aside` (Command Center, Stage 22): card shown beside the map on wide screens, below it on narrow screens;
      `tall`: map as tall as the screen and `aside` always below the map (owner request: Command Center map as wide as the screen). -->
 <script>

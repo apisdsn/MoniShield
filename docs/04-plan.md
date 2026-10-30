@@ -99,12 +99,6 @@ applies in full, including wide tables becoming row cards.
 designs the new screens in TRD §8.4, so that the UI stages do not read assumptions that have been dropped.
 Documents only; no code.
 
-Approved 2026-10-29: public sample formats; rules in a file and on the Configuration page. **Step 1a done**:
-`domain/log_formats.py` (rules, first match wins, validation with the rule's position, regex length and nested-repeat
-checks, stable rule key), `config.log_format_rules` (reads `S4_LOG_FORMATS_FILE`, default `<state dir>/log-formats.toml`;
-without it the built-in rules of the site profile), set at start like the profile; `log-formats.example.toml`. The
-parsers do not use the rules yet (step 1b).
-
 **Files changed**
 
 - `docs/01-prd.md`: A1, A2, A3, A5 become decisions; T01 withdrawn; T03 and part of T05 move into scope;
@@ -1345,11 +1339,54 @@ the offset a folder was derived with and the ingest derives a folder again when 
 The web UI reads the zone from `/api/meta` (`tz.js`); dictionary texts use `{tz}`. DB column names `*_wib` are kept and
 hold local time.
 
-## Stage 52 — Configurable log formats (planned, 2026-10-29)
+## Stage 52 — Configurable log formats (in progress, 2026-10-29)
 
 Owner question: how can someone with 7–10 services in different log formats use MoniShield? Plan in
 [`11-log-formats.md`](11-log-formats.md): one rules file, first matching rule per service, built-in presets plus `json`,
 `logfmt`, `regex`, `auto` and `plain`, a common normal form (`http_access`, `app_line`), the current parsers kept as
-presets so today's numbers do not change. Waiting for the owner's approval and answers to the questions in §10 before any
-code.
+presets so today's numbers do not change.
 
+Approved 2026-10-29: public sample formats; rules in a file and on the Configuration page. **Step 1a done**:
+`domain/log_formats.py` (rules, first match wins, validation with the rule's position, regex length and nested-repeat
+checks, stable rule key), `config.log_format_rules` (reads `S4_LOG_FORMATS_FILE`, default `<state dir>/log-formats.toml`;
+without it the built-in rules of the site profile), set at start like the profile; `log-formats.example.toml`.
+
+**Step 1b done**: `domain/formats.py` reads `nginx-combined`, `apache-combined`, `json` (dotted `fields`, common key
+names of pino / winston / zap / logrus / Serilog), `logfmt`, `syslog` (RFC 3164 and 5424), `regex` and `plain`; times
+`iso`, `epoch`, `epoch_ms`, `clf` or strptime (no zone = the site's zone); level words and numbers (pino, syslog
+severity) plus the rule's `levels`; `multiline` joins stack traces to their entry. `parse.parse_lines` takes the rules:
+the five legacy presets keep their own parsers and tables, the common formats fill the new raw tables `http_access` and
+`app_line` (5xx and ERROR count as errors, WARN as warnings, ERROR/WARN messages go to the Messages table), and every
+entry the format cannot read is counted in `ingest_file.lines_unmatched`. `auto` reads as `plain` until step 1d. With the
+built-in rules the parse result is identical to before (tested file by file). Pages do not read the new tables yet
+(step 1c). Tests: `tests/test_formats.py` on public sample lines in `tests/fixtures/formats/`.
+
+
+## Stage 53 — Raw Logs page (done, 2026-10-30)
+
+Owner request: read the raw log text of any service from the dashboard (first for OTP checks, then for every service).
+Mockup approved on 2026-10-30 with these decisions: every signed-in user may use it (role-based access per module is a
+later stage), the text is shown exactly as written (no masking), every search and download is recorded in the audit
+log, and the page sits in the Analysis group after Request Tracing.
+
+- `domain/rawlog.py` (pure): entries (a stack trace stays with its line; a rule's `multiline` regex when the rules file
+  has one), the time written in a line (CLF, ISO, nginx error, JSON / logfmt time keys; no zone = UTC for today's parsers,
+  the site zone for rules-file formats), the level or HTTP status class, request ID / IP / status / method / path of a
+  line, the four search modes (text, regex checked like log-formats.toml patterns, request ID, one IP address), local
+  time window -> UTC, context around a line.
+- `infrastructure/queries/rawlogs.py`: lists the folder's files like ingest (log folder before inbox, `.log` before
+  `.log.gz`), reads them within a 20-second budget and keeps at most 20,000 matching entries (answer marked partial
+  otherwise). JSON event lines have no time: they take the time of the ingress line with the same request ID
+  (`nginx_access`), else of the line above them in their file.
+- API (`interfaces/api/pages.py`, every signed-in user): `GET /api/folders/{folder}/raw` (`q`, `mode`, `services`,
+  `pods`, `kinds`, `from`/`to` local HH:MM, `order`, `limit` ≤ 1,000, `offset`), `…/raw/context` (`file` must be a file
+  of that folder, `line`, `n` ≤ 20), `…/raw/download` (up to 100,000 entries, `<file>:<line>: <text>`). Audit:
+  `raw.search` (first page only) and `raw.download`, detail = folder, source, mode, text, services, kinds, window and
+  the number of matches.
+- Web: `pages/RawLogs.svelte` (`/raw-logs`), sidebar icon `terminal`, header search `?search=` fills and runs it.
+  Selected entry: fields, IP profile link, "Follow request" (request ID mode, every service, oldest first), lines around.
+- `lib/Dialog.svelte`: only the body scrolls; title and buttons stay; the scrollbar stops short of the rounded corners.
+  Checked on all 15 pop-ups (desktop and phone): no nested scroll area, title visible after scrolling, dialog on screen.
+- Tests: `tests/test_rawlogs.py`; smoke test opens `/raw-logs`.
+
+Later: live tail for the Kafka source, links from Request Tracing / IP profile / Messages rows, role per module.

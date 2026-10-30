@@ -35,20 +35,31 @@
 </dialog>
 
 <style>
+  /* Only the body scrolls: the title and buttons stay in place, and the scrollbar stops short of the rounded corners
+     (owner report 2026-10-30: a scrolling dialog cut its own corners). */
   .dlg {
     width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; color: var(--fg);
-    border: 1px solid var(--line-strong); overflow: auto;
+    border: 1px solid var(--line-strong); overflow: hidden;
   }
+  .dlg[open] { display: flex; flex-direction: column; }
+  .dlg:focus-visible { outline: none; }   /* focus lands on the dialog itself when it has no field: no ring around the whole box */
   .dlg.wide { width: min(860px, calc(100vw - 32px)); }
   .dlg[open] { animation: dlg-in 0.18s ease-out; }
   @keyframes dlg-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } }
   @media (prefers-reduced-motion: reduce) { .dlg[open] { animation: none; } }
   .dlg::backdrop { background: rgba(3, 7, 10, 0.62); }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 6px; }
+  header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 6px; }
   .dlg h2 { font-size: 1.0625rem; font-weight: 600; color: var(--heading); text-transform: none; }   /* title contains the user name: as is */
   .x { width: 36px; height: 36px; font-size: 1.25rem; }
-  .body { padding: 6px 20px 20px; }
-  footer { display: flex; gap: 10px; flex-wrap: wrap; padding: 0 20px 20px; }
+  .body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    padding: 6px 14px 14px 20px; margin: 0 6px 6px 0;   /* 14 + 6 = the 20 px edge of the header; the bar ends above the corner */
+    scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; scrollbar-gutter: stable;
+  }
+  .body::-webkit-scrollbar { width: 8px; }
+  .body::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 8px; }
+  .body::-webkit-scrollbar-track { background: transparent; margin: 4px 0; }
+  footer { flex: none; display: flex; gap: 10px; flex-wrap: wrap; padding: 12px 20px 20px; border-top: 1px solid var(--line); }
   @media (max-width: 560px) {
     .dlg, .dlg.wide { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; border: 0; }
   }

@@ -40,7 +40,7 @@ def test_first_ingest(env):
     assert sorted(r_[0] for r_ in q(con, "SELECT status FROM ingest_file WHERE service = 'auth-service'")) == ['empty', 'ok']
     assert f['unknown-service'][5] == 'ok' and any("unknown service 'unknown-service'" in w for w in r['warnings'])  # A10
     n = {t: q(con, f'SELECT count(*) FROM {t}')[0][0] for t in ingest.RAW_TABLES}
-    assert n == dict(nginx_access=7, nginx_error=4, fe_access=2, sl_event=4, spring_line=18, coredns_error=1, log_message=19)
+    assert n == dict(nginx_access=7, nginx_error=4, fe_access=2, sl_event=4, spring_line=18, coredns_error=1, log_message=19, http_access=0, app_line=0)   # built-in rules: the new tables stay empty
     assert q(con, "SELECT len(up_addrs), len(up_statuses), pod_final = up_addrs[2] FROM nginx_access WHERE len(up_addrs) > 1") == [(2, 2, True)]  # retry line
     assert q(con, "SELECT folder::VARCHAR, status, is_uptime_kuma, ts_utc::VARCHAR FROM nginx_access WHERE line_no = 2") == [(B, 200, True, '2026-09-27 17:02:58')]
     assert q(con, "SELECT kind, key, n FROM file_counter c JOIN ingest_file f USING (file_id) WHERE service = 'event-api' AND kind <> 'level' ORDER BY 1") == \
@@ -61,7 +61,7 @@ def test_file_id_line_no_key_is_unique(env):
 def test_ingest_twice_is_the_same(env, monkeypatch):
     cfg, con, _ = env
     go(cfg, con); before = ingest.checksums(con)
-    monkeypatch.setattr(logfiles, 'work', lambda *a: pytest.fail('file yang tidak berubah tidak boleh dibaca'))
+    monkeypatch.setattr(logfiles, 'work', lambda *a: pytest.fail('an unchanged file must not be read'))
     r = go(cfg, con)
     assert (r['files_seen'], r['files_changed'], r['folders_changed']) == (9, 0, []) and ingest.checksums(con) == before
 
@@ -221,8 +221,8 @@ def test_read_copy_for_dbgate(env):
     ro = duckdb.connect(path, read_only=True)
     try: assert ingest.checksums(ro) == ingest.checksums(con)
     finally: ro.close()
-    open(path + '.tmp', 'wb').write(b'sisa salinan yang terputus')   # a previously interrupted copy does not interfere
-    open(path + '.wal', 'wb').write(b'wal penampil atas salinan lama')  # must not be rotated into the new copy
+    open(path + '.tmp', 'wb').write(b'leftover of an interrupted copy')   # a previously interrupted copy does not interfere
+    open(path + '.wal', 'wb').write(b'viewer wal of the old copy')  # must not be rotated into the new copy
     shutil.copytree(os.path.join(root, B), os.path.join(root, '2026-01-09'))
     go(cfg, con); db.snapshot(con, cfg)
     ro = duckdb.connect(path, read_only=True)

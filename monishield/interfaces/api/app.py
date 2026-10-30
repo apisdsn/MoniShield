@@ -31,7 +31,7 @@ class SpaFiles(StaticFiles):
     """The built web app. App addresses are plain paths (/security?folder=…, owner request 2026-10-12): a path whose
     first segment is an app page (web/src/state.js) gets index.html and the app reads the path; anything else that is
     not a file stays 404."""
-    PAGES = {'overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing',
+    PAGES = {'overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
              'services', 'ips', 'admin', 'password', 'email', 'login'}
 
     async def get_response(self, path, scope):

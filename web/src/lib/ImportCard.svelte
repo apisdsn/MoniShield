@@ -1,4 +1,4 @@
-<!-- "Impor dari S3" card on the Ingest & import screen (DRD §3.11, TRD §3.8): credential status (only available/not and
+<!-- "Import from S3" card on the Ingest & import screen (DRD §3.11, TRD §3.8): credential status (only available/not and
      its source), form for pasting temporary credentials (server memory only), link field with the accepted shapes,
      "Coba dulu" (dry run: lists objects only), "Impor" (confirmation, progress, then ingest), and import history.
      Credential values are never sent back by the server; the fields are cleared as soon as they are sent.
@@ -41,8 +41,9 @@
 
   let wUrl = $state(''), wMin = $state(60), wBusy = $state(false), wErr = $state(null), wInit = false;
   $effect(() => { if (ov?.watch && !wInit) { wInit = true; wUrl = ov.watch.url || ''; wMin = ov.watch.minutes || 60; } });
-  // trigger names from the server ('(sinkron S3 otomatis)', '(token mesin)') are translated; user names as is
-  const who = (by) => ({ '(sinkron S3 otomatis)': $t('imp.w.by_auto'), '(token mesin)': $t('imp.w.by_job') })[by] || $srv(by);
+  // trigger names from the server are translated (jobs stored before 2026-10-08 carry the Indonesian ones); user names as is
+  const who = (by) => ({ '(automatic S3 sync)': $t('imp.w.by_auto'), '(machine token)': $t('imp.w.by_job'),
+                         '(sinkron S3 otomatis)': $t('imp.w.by_auto'), '(token mesin)': $t('imp.w.by_job') })[by] || $srv(by);
 
   async function saveWatch(enabled) {
     wErr = null; wBusy = true;

@@ -1,6 +1,6 @@
 <!-- Table with filter (DRD §4.3, §8.2, §9.4).
      Two sources: `rows` (static, filter/sort in the browser) or `table` (TRD §5.4 table endpoint: filter, sort, and
-     more are searched across ALL data on the server). Initial count = old limit; "Menampilkan N dari M" + "Tampilkan
+     more are searched across ALL data on the server). Initial count = old limit; "Showing N of M" + "Show
      100 berikutnya" (B04). Sticky header; numbers right-aligned; per-column sort (U11, aria-sort); long cells expand
      on click/focus. > 4 columns: row cards at ≤ 560 px, horizontal scroll with the first column locked at 561–900 px. -->
 <script>
@@ -20,7 +20,7 @@
    *   status?: key of the status code shown colored in front of the cell text (e.g. '401 /path').
    *   type: 'text' (default) | 'num' | 'ip' | 'ips' | 'status' | 'statuses' | 'sev' | 'time' | 'range' | 'dur' | 'pct' | 'bytes' | 'code' | 'tags'
    * Static source: rows. Server source: folder + table (+ params), initial = {total, rows} from the page response.
-   * search = {text, seq, scroll?}: filter content from outside (map "Lihat di tabel"; global search: scroll = scroll to the table).
+   * search = {text, seq, scroll?}: filter content from outside (map "View in table"; global search: scroll = scroll to the table).
    */
   let { title, columns, rows = null, folder = null, table = null, params = {}, initial = null, limit = null,
         bar = null, wide = true, maxHeight = 440, rowId = null, highlight = null, chip = null, cell = null, search = null } = $props();
@@ -49,7 +49,7 @@
     return r;
   });
 
-  // filter filled from outside (e.g. map "Lihat di tabel"): search = {text, seq}; seq changes so the same text can be sent again
+  // filter filled from outside (e.g. map "View in table"): search = {text, seq}; seq changes so the same text can be sent again
   let lastSearch = null, rootEl = $state();
   $effect(() => {
     const s = search;

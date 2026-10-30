@@ -1,4 +1,4 @@
-"""Object storage providers (owner request 2026-10-08: "object storage dengan banyak pilihan"). Pure rules: which
+"""Object storage providers (owner request 2026-10-08: "object storage with many choices"). Pure rules: which
 providers exist, which endpoint each uses, and what their keys look like. The S3 API is spoken by most of them
 (AWS S3, Cloudflare R2, MinIO, Wasabi, Google Cloud Storage with HMAC keys, DigitalOcean Spaces, any other
 S3-compatible service); Azure Blob Storage has its own API. The connection itself is monishield/infrastructure/importer.py.

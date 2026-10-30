@@ -8846,163 +8846,163 @@
    "id": 931130,
    "file": "REQUEST-931-APPLICATION-ATTACK-RFI.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 932180,
    "file": "REQUEST-932-APPLICATION-ATTACK-RCE.conf",
    "pl": 1,
-   "reason": "sasaran tidak ada di log nginx: FILES|REQUEST_HEADERS:X-Filename|REQUEST_HEADERS:X_Filename|REQUEST_HEADERS:X-Fi"
+   "reason": "target not in the nginx log: FILES|REQUEST_HEADERS:X-Filename|REQUEST_HEADERS:X_Filename|REQUEST_HEADERS:X-Fi"
   },
   {
    "id": 932200,
    "file": "REQUEST-932-APPLICATION-ATTACK-RCE.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 932205,
    "file": "REQUEST-932-APPLICATION-ATTACK-RCE.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 932206,
    "file": "REQUEST-932-APPLICATION-ATTACK-RCE.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 932207,
    "file": "REQUEST-932-APPLICATION-ATTACK-RCE.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 932240,
    "file": "REQUEST-932-APPLICATION-ATTACK-RCE.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 933110,
    "file": "REQUEST-933-APPLICATION-ATTACK-PHP.conf",
    "pl": 1,
-   "reason": "sasaran tidak ada di log nginx: FILES|REQUEST_HEADERS:X-Filename|REQUEST_HEADERS:X_Filename|REQUEST_HEADERS:X.Fi"
+   "reason": "target not in the nginx log: FILES|REQUEST_HEADERS:X-Filename|REQUEST_HEADERS:X_Filename|REQUEST_HEADERS:X.Fi"
   },
   {
    "id": 933111,
    "file": "REQUEST-933-APPLICATION-ATTACK-PHP.conf",
    "pl": 3,
-   "reason": "sasaran tidak ada di log nginx: FILES|REQUEST_HEADERS:X-Filename|REQUEST_HEADERS:X_Filename|REQUEST_HEADERS:X.Fi"
+   "reason": "target not in the nginx log: FILES|REQUEST_HEADERS:X-Filename|REQUEST_HEADERS:X_Filename|REQUEST_HEADERS:X.Fi"
   },
   {
    "id": 933150,
    "file": "REQUEST-933-APPLICATION-ATTACK-PHP.conf",
    "pl": 1,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 933220,
    "file": "REQUEST-933-APPLICATION-ATTACK-PHP.conf",
    "pl": 1,
-   "reason": "sasaran tidak ada di log nginx: FILES|FILES_NAMES|REQUEST_HEADERS:X-Filename|REQUEST_HEADERS:X_Filename|REQUEST_"
+   "reason": "target not in the nginx log: FILES|FILES_NAMES|REQUEST_HEADERS:X-Filename|REQUEST_HEADERS:X_Filename|REQUEST_"
   },
   {
    "id": 941010,
    "file": "REQUEST-941-APPLICATION-ATTACK-XSS.conf",
    "pl": null,
-   "reason": "operator negasi !@validateByteRange"
+   "reason": "negated operator !@validateByteRange"
   },
   {
    "id": 941100,
    "file": "REQUEST-941-APPLICATION-ATTACK-XSS.conf",
    "pl": 1,
-   "reason": "operator @detectXSS tidak didukung (mis. libinjection)"
+   "reason": "operator @detectXSS not supported (e.g. libinjection)"
   },
   {
    "id": 941101,
    "file": "REQUEST-941-APPLICATION-ATTACK-XSS.conf",
    "pl": 2,
-   "reason": "operator @detectXSS tidak didukung (mis. libinjection)"
+   "reason": "operator @detectXSS not supported (e.g. libinjection)"
   },
   {
    "id": 941310,
    "file": "REQUEST-941-APPLICATION-ATTACK-XSS.conf",
    "pl": 1,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 942100,
    "file": "REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
    "pl": 1,
-   "reason": "operator @detectSQLi tidak didukung (mis. libinjection)"
+   "reason": "operator @detectSQLi not supported (e.g. libinjection)"
   },
   {
    "id": 942101,
    "file": "REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
    "pl": 2,
-   "reason": "operator @detectSQLi tidak didukung (mis. libinjection)"
+   "reason": "operator @detectSQLi not supported (e.g. libinjection)"
   },
   {
    "id": 942130,
    "file": "REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 942131,
    "file": "REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 942200,
    "file": "REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 942420,
    "file": "REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
    "pl": 3,
-   "reason": "sasaran tidak ada di log nginx: REQUEST_COOKIES|REQUEST_COOKIES_NAMES"
+   "reason": "target not in the nginx log: REQUEST_COOKIES|REQUEST_COOKIES_NAMES"
   },
   {
    "id": 942421,
    "file": "REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
    "pl": 4,
-   "reason": "sasaran tidak ada di log nginx: REQUEST_COOKIES|REQUEST_COOKIES_NAMES"
+   "reason": "target not in the nginx log: REQUEST_COOKIES|REQUEST_COOKIES_NAMES"
   },
   {
    "id": 942440,
    "file": "REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 942521,
    "file": "REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
    "pl": 2,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 944110,
    "file": "REQUEST-944-APPLICATION-ATTACK-JAVA.conf",
    "pl": 1,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 944120,
    "file": "REQUEST-944-APPLICATION-ATTACK-JAVA.conf",
    "pl": 1,
-   "reason": "rantai aturan (chain)"
+   "reason": "rule chain"
   },
   {
    "id": 944140,
    "file": "REQUEST-944-APPLICATION-ATTACK-JAVA.conf",
    "pl": 1,
-   "reason": "sasaran tidak ada di log nginx: FILES|REQUEST_HEADERS:X-Filename|REQUEST_HEADERS:X_Filename|REQUEST_HEADERS:X.Fi"
+   "reason": "target not in the nginx log: FILES|REQUEST_HEADERS:X-Filename|REQUEST_HEADERS:X_Filename|REQUEST_HEADERS:X.Fi"
   }
  ]
 }

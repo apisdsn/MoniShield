@@ -1,4 +1,4 @@
-// Flow animation on the map (owner request 2026-10-07: "garis peta diberi animasi gerak agar kelihatan ke arah IP tujuan",
+// Flow animation on the map (owner request 2026-10-07: "animate the map lines so they visibly move towards the destination IP",
 // i.e. animate the map lines so the direction to the target IP is visible; Kafka realtime preparation). Glowing particles
 // travel along the arcs from the origin location to the server dot, with a fading tail; every particle that arrives
 // triggers a ripple at the server dot.

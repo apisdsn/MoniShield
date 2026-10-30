@@ -1,4 +1,4 @@
-<!-- Page header (DRD §2.1 U3, §8.2; redesign 2026-10-27, mockup "Overview — sebelum & sesudah"). Wide screen: one sticky
+<!-- Page header (DRD §2.1 U3, §8.2; redesign 2026-10-27, mockup "Overview: before & after"). Wide screen: one sticky
      row: title + compact status line (left), then source switch, date picker (◀ date ▶, details in its tooltip), search,
      Sync (admin) and the avatar menu holding language, theme, reload and the account items (right). The date is shown once,
      in the picker. ≤ 900 px: sticky bar [☰] [search] [sync] [avatar] with a second row [S3 | Kafka] [◀ date ▶]; the title

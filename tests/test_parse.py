@@ -105,11 +105,11 @@ def test_events_service(tmp_path):
 
 
 def test_events_service_text_lines(tmp_path):
-    s, t = run(tmp_path, 'event-api', lines=['[APP-ERROR] Failed to send mail: timeout', '[APP-WARN] lambat 12 ms', '[APP-INFO] {bukan json',
+    s, t = run(tmp_path, 'event-api', lines=['[APP-ERROR] Failed to send mail: timeout', '[APP-WARN] slow 12 ms', '[APP-INFO] {not json',
                                                     '[APP-ERROR] {"event":"http.request.failed","statusCode":500,"path":"/x/12"}'])
     assert (s['err'], s['warn']) == (2, 1)
     assert ['biz', 'emails_failed', 1] in s['counters'] and ['level', 'ERROR', 2] in s['counters']
-    assert [r['msg_key'] for r in t['log_message']] == ['ERROR | Failed to send mail: timeout', 'WARN | lambat # ms', 'ERROR | # None: None']
+    assert [r['msg_key'] for r in t['log_message']] == ['ERROR | Failed to send mail: timeout', 'WARN | slow # ms', 'ERROR | # None: None']
     assert t['sl_event'] == [dict(line_no='4', level='ERROR', request_id=None, event='http.request.failed', method='None', path='/x/12', path_key='/x/:n',
                                   status='500', ip=None, duration_ms='0', failed='true', err_name=None, err_message=None)]
 

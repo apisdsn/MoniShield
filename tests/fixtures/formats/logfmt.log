@@ -1,0 +1,4 @@
+time=2026-10-10T13:55:36Z level=info msg="server started" port=8080
+time=2026-10-10T13:55:37Z level=warn msg="slow query" duration_ms=1520 request_id=abc123
+time=2026-10-10T13:55:38Z level=error msg="connection refused" logger=db.pool
+garbage

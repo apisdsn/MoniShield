@@ -65,6 +65,9 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 40 | No client data in the code: service names, event tag, business endpoints, hosts, server IP, upstream prefix, own network and the source link come from `.env`; tests, fixtures, examples and docs use example names, `example.com` and synthetic IPs; old-system comparison tools removed | `.env.example` §9, [`10-user-guide.md`](10-user-guide.md) *Site profile* | plan stage 50 |
 | 41 | Every function, variable, file, i18n key and stored key in the code in English, following common naming practice | Renamed tools and tests; business metric keys migrated in place; `S4_ATTACK_RULES=legacy` | plan stage 50 |
 | 42 | Real visitor IPs behind Cloudflare; WIB as configuration | `S4_TRUST_CLOUDFLARE`; `S4_TIMEZONE_OFFSET` / `S4_TIMEZONE_LABEL` ([`10-user-guide.md`](10-user-guide.md) *Time zone*) | plan stage 51 |
+| 43 | Raw log lines of every service, searchable (all users for now; role per module later), no masking, audited | Raw Logs page in Analysis: text / regex / request ID / IP search over the folder's log files, follow a request across services, lines around an entry, `.log` download; `raw.search` / `raw.download` in the audit log | plan stage 53 |
+| 44 | Scrolling pop-ups cut their own rounded corners | Dialog body scrolls, title and buttons stay | plan stage 53 |
+| 45 | Code still had Indonesian (test data, comments) | Translated; `tests/test_language.py` guards it | CHANGELOG *Maintenance* |
 
 Questions answered along the way, recorded so they are not asked again:
 
@@ -92,7 +95,8 @@ Questions answered along the way, recorded so they are not asked again:
 5. The old checkout `/srv/dashboard-logging/v2` on the server can be removed once nothing points to it.
 
 6. **Configurable log formats** (stage 52, [`11-log-formats.md`](11-log-formats.md)): approved; step 1a (rules model,
-   file, validation) done, next 1b (presets and the two common tables).
+   file, validation) and 1b (common formats read into `http_access` / `app_line`, unread lines counted) done; next 1c
+   (derive and pages read the new tables, CRS detection and map on `http_access`, unread-line rate).
 
 ## Known issues
 

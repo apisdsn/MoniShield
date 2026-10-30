@@ -1,0 +1,6 @@
+[10/10/2026 13:55:36] INFO Batch started
+[10/10/2026 13:55:40] SEVERE Connection to ledger lost
+java.net.SocketException: Connection reset
+	at java.net.SocketInputStream.read(SocketInputStream.java:210)
+	at com.example.erp.Ledger.sync(Ledger.java:88)
+[10/10/2026 13:55:41] WARNING Retrying in 5 s

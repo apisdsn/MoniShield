@@ -2,7 +2,7 @@
      messages), folder summary from App (/api/folders/{f}: KPIs, services, files), and /services/nginx-ingress-controller
      for the "Traffic HTTP seluruh sistem" section (nginx service cards without the map and without the message card). The two
      page requests run concurrently and are shown together (U31).
-     Redesign 2026-10-27 (mockup "Overview — sebelum & sesudah"): a status card first (Critical / Needs a look / All clear,
+     Redesign 2026-10-27 (mockup "Overview: before & after"): a status card first (Critical / Needs a look / All clear,
      with up to three reasons and links), the four main numbers large, then the hourly error chart next to "Services to
      check". Total log lines and HTTP requests are in the volume band above every page (lib/VolumeBand.svelte, 2026-10-28). The "incomplete folder" and "not compared" notes are in the status
      card, once. -->

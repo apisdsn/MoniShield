@@ -27,6 +27,23 @@ CREATE TABLE IF NOT EXISTS ingest_file (
     ingested_at   TIMESTAMP NOT NULL
 );
 
+ALTER TABLE ingest_file ADD COLUMN IF NOT EXISTS lines_unmatched BIGINT DEFAULT 0;   -- entries its format could not read (log-formats.toml)
+
+-- common formats of log-formats.toml (domain/formats.py): any access log, any application log
+CREATE TABLE IF NOT EXISTS http_access (
+    file_id INTEGER NOT NULL, line_no INTEGER NOT NULL, folder DATE NOT NULL,
+    service VARCHAR NOT NULL, ts_utc TIMESTAMP NOT NULL, ip VARCHAR NOT NULL, method VARCHAR, path VARCHAR NOT NULL,
+    path_key VARCHAR, status INTEGER, bytes BIGINT, duration_ms DOUBLE, request_id VARCHAR, user_name VARCHAR, ua VARCHAR,
+    referer VARCHAR, upstream VARCHAR,
+    PRIMARY KEY (file_id, line_no)
+);
+CREATE TABLE IF NOT EXISTS app_line (
+    file_id INTEGER NOT NULL, line_no INTEGER NOT NULL, folder DATE NOT NULL,
+    service VARCHAR NOT NULL, ts_utc TIMESTAMP, level VARCHAR NOT NULL, logger VARCHAR, message VARCHAR, msg_key VARCHAR,
+    request_id VARCHAR, method VARCHAR, path_key VARCHAR, status INTEGER, duration_ms DOUBLE, user_name VARCHAR,
+    PRIMARY KEY (file_id, line_no)
+);
+
 CREATE TABLE IF NOT EXISTS file_counter (
     file_id INTEGER NOT NULL,
     kind    VARCHAR NOT NULL,                -- level | biz | mail

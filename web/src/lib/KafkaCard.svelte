@@ -1,8 +1,7 @@
-<!-- "Log dari Kafka" card (owner request 2026-10-07: "bagaimana cara mengecek hasil logging dari Kafka? bisa dibuat
-     seperti logging yang sekarang?" — how to check the logging results from Kafka, like the current logging; API monishield/api/kafka.py).
+<!-- "Logs from Kafka" card (owner request 2026-10-07: how to check the logging results from Kafka, like the current logging; API monishield/api/kafka.py).
      Shows the consumer status (connected / error), messages received, written to folders, skipped (+ sample reasons),
      per service, last ingest, and the last 50 messages.
-     "Cek pesan di topic" fetches the LATEST messages directly from Kafka (without moving the read position) and shows each one's
+     "Check topic messages" fetches the LATEST messages directly from Kafka (without moving the read position) and shows each one's
      target file — a way to confirm the Rancher format is readable before/without waiting for ingest.
      Used on the Ingest & import screen and in the Kafka section of the Configuration page (`compact`). -->
 <script>

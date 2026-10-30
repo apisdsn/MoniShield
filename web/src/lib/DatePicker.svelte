@@ -1,6 +1,6 @@
 <!-- MoniShield-styled date picker (owner request 2026-10-07: the browser's built-in date input is "kurang bagus").
      Button holding the formatted date (ID/EN) -> popup calendar: previous/next month, Monday on the left, today
-     ringed, selected in accent color, dates after `max` disabled, "Hari ini" and "Kosongkan".
+     ringed, selected in accent color, dates after `max` disabled, "Today" and "Clear".
      Keyboard (ARIA grid pattern): arrows ±1 day/±1 week, PageUp/PageDown ±1 month, Home/End start/end of week,
      Enter/Space selects, Esc closes and returns focus to the button. Value = 'YYYY-MM-DD' or ''. -->
 <script>
