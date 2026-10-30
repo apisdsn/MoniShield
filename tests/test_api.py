@@ -673,9 +673,15 @@ def test_crs_rule_descriptions(user):
         assert all(isinstance(m, str) and m for m in sec['rule_msgs'].values())
 
 
-def test_data_endpoints_are_get_only(user):
-    for u in (f'/api/folders/{B}/security', f'/api/folders/{B}/tables/c401', '/api/trends'):
+def test_data_endpoints_are_read_only(user):
+    """Pages only read. POST exists only for the reads whose parameters can hold personal data (body encrypted, not in URLs)."""
+    for u in (f'/api/folders/{B}/security', '/api/trends'):
         assert user.post(u, json={}, headers=X).status_code == 405
+    assert user.put(f'/api/folders/{B}/tables/c401', json={}, headers=X).status_code == 405
+    from monishield.interfaces.api import pages
+    posts = {r.path for r in pages.router.routes if 'POST' in r.methods}
+    assert posts == {'/api/search', '/api/folders/{folder}/tables/{table}', '/api/folders/{folder}/ip-profile', '/api/folders/{folder}/raw',
+                     '/api/folders/{folder}/raw/context', '/api/folders/{folder}/raw/download'}
 
 
 # ------------------------------------------------------------------ API documentation (Swagger, owner request 2026-10-07)

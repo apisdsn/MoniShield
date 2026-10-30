@@ -51,7 +51,7 @@
       <button type="button" aria-pressed={preset === 'world'} onclick={() => (preset = 'world')}>{$t('map.world')}</button>
     </div>
   </header>
-  <a class="skip" href="#{uid}-flows">{$t('map.skip')}</a>
+  <a class="skip" href="#{uid}-flows" onclick={(e) => { e.preventDefault(); const el = document.getElementById(`${uid}-flows`); el?.focus(); el?.scrollIntoView({ block: 'start' }); }}>{$t('map.skip')}</a>
   <MapView points={data.points} {server} {tall} bind:preset onpick={pick} label={$t('map.aria')} live={liveOn} bind:this={mapRef} />
   <div class="legend">
     <span><i class="dot loc"></i>{$t('map.lg.loc')}</span>
@@ -63,7 +63,7 @@
 </section>
 {/snippet}
 {#if aside}<div class="wide-slot side-row" class:stack={tall}>{@render mapCard()}{@render aside()}</div>{:else}{@render mapCard()}{/if}
-<div id="{uid}-flows" class="wide-slot">
+<div id="{uid}-flows" class="wide-slot" tabindex="-1">
   <DataTable title={$t('map.flows')} {folder} table="flows" params={module ? { module } : {}} initial={data.tables.flows} {search} columns={[
     { key: 'src', label: $t('map.col.src'), type: 'ip', sort: true },
     { key: 'location', label: $t('map.col.location'), fmt: (r) => where(r), minw: 180 },

@@ -42,6 +42,10 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   (`lama` still accepted). The sidebar now names a failed last ingest instead of showing a raw dictionary key.
 
 ### Security
+- No personal data in URLs: the global search, table filters, the IP profile and Raw Logs (search, context, download) are
+  sent as POST with the parameters in the encrypted body (new POST forms of those reads; the GET forms stay for scripts),
+  and page addresses carry an IP or a search text after `#` (`/ips?folder=…#ip=…`, `#search=…`), which browsers never
+  send to a server. Old addresses still open.
 - Behind Cloudflare the visitor's own address is used for the audit log and the login limits per IP: `S4_TRUST_CLOUDFLARE=true`
   reads `CF-Connecting-IP`, believed only from Cloudflare's ranges (`S4_CLOUDFLARE_IPS`, built-in list), so a request sent
   straight to the server cannot pick its own address.

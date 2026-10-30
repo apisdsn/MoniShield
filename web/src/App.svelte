@@ -60,7 +60,8 @@
     if (location.pathname !== '/login') {
       const here = location.pathname + location.search, prev = new URLSearchParams(location.search).get('next');
       const next = prev || (keep && here !== '/' && here !== '/overview' ? here : null);
-      history.replaceState(null, '', '/login' + (next ? '?next=' + encodeURIComponent(next) : ''));
+      // personal data after "#" (an IP, a search text) stays there, outside ?next=, so it is never sent to the server
+      history.replaceState(null, '', '/login' + (next ? '?next=' + encodeURIComponent(next) : '') + (next && location.hash.includes('=') ? location.hash : ''));
     }
     screen = 'login';
   }

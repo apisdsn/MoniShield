@@ -6,7 +6,7 @@
 <script>
   import { tick, untrack } from 'svelte';
   import { lang, t } from '../i18n.js';
-  import { api, tablePath } from '../api.js';
+  import { api, compact } from '../api.js';
   import { num, tLocal, tRange, durMs, pct, bytes } from '../format.js';
   import IpCell from './IpCell.svelte';
   import StatusCode from './StatusCode.svelte';
@@ -63,8 +63,8 @@
   async function load({ append = false } = {}) {
     busy = true; error = null;
     try {
-      const j = await api.get(tablePath(folder, table, { ...params, q: qSent, sort, dir: sort ? dir : null,
-        limit: append ? STEP : Math.max(baseLimit, 1), offset: append ? data.rows.length : 0 }));
+      const j = await api.post(`/api/folders/${encodeURIComponent(folder)}/tables/${encodeURIComponent(table)}`, compact({ ...params, q: qSent,
+        sort, dir: sort ? dir : null, limit: append ? STEP : Math.max(baseLimit, 1), offset: append ? data.rows.length : 0 }));
       data = append ? { ...j, rows: [...data.rows, ...j.rows] } : j;
     } catch (e) {
       error = e;

@@ -466,7 +466,13 @@ panel or in proxy and CDN logs that record bodies (passive readers):
 Cost: about 0.1 ms per page load for the key exchange and about 0.1 ms per 200 KB response.
 
 Not encrypted: URLs (paths, query strings), headers and cookies, file downloads (CSV, block list), log file uploads and
-the live map stream (coordinates only). Requests without `X-MS-Enc` (Swagger, the cron job, curl, other systems with the
+the live map stream (coordinates only). So that personal data never sits in a URL, the UI sends every read whose
+parameters can hold it as a POST with the parameters in the encrypted body: the global search, table filters, the IP
+profile and Raw Logs (search, lines around an entry, and the `.log` download, which arrives as encrypted JSON and is
+saved by the browser). In page addresses an IP and a search text come after `#` (`/ips?folder=…#ip=203.0.113.5`,
+`#search=…`): browsers never send that part to a server, so it stays out of the Caddy and Cloudflare logs, and the
+address can still be bookmarked or shared. Old addresses (`/ips/<ip>`, `?search=`) still open and are rewritten. The GET
+forms of those reads remain for Swagger, curl and scripts. Requests without `X-MS-Enc` (Swagger, the cron job, curl, other systems with the
 job token) are served as plain JSON, so this is **not an access control**.
 
 What it does not protect against:

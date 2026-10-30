@@ -6,7 +6,7 @@
   import { untrack } from 'svelte';
   import { t, lang } from '../i18n.js';
   import { errText } from '../srv.js';
-  import { api, withSource } from '../api.js';
+  import { api, compact } from '../api.js';
   import { route, build } from '../state.js';
   import { num } from '../format.js';
   import Icon from '../lib/Icon.svelte';
@@ -22,22 +22,16 @@
   let picked = $state([]), kinds = $state([]), pod = $state('');
   let data = $state.raw(null), rows = $state.raw([]), busy = $state(false), more = $state(false), error = $state(null);
   let sel = $state(null), ctx = $state.raw(null), ctxN = $state(3), ctxBusy = $state(false);
-  let asked = null;   // parameters of the search on screen (paging and download repeat them)
+  let asked = $state.raw(null);   // parameters of the search on screen (paging and download repeat them)
   let seq = 0;
 
   const serviceNames = $derived(data?.services?.map((s) => s.service) || summary?.services?.map((s) => s.service) || []);
   const matchesOf = $derived(Object.fromEntries((data?.services || []).map((s) => [s.service, s.matches])));
   const pods = $derived([...new Set((data?.services || []).filter((s) => !picked.length || picked.includes(s.service)).flatMap((s) => s.pods))].sort());
 
+  // every call is a POST: the search text, IPs and file names travel in the encrypted body, never in a URL
   function params(extra = {}) {
-    const p = new URLSearchParams({ q: text.trim(), mode, order });
-    if (picked.length) p.set('services', picked.join(','));
-    if (kinds.length) p.set('kinds', kinds.join(','));
-    if (pod) p.set('pods', pod);
-    if (from) p.set('from', from);
-    if (to) p.set('to', to);
-    for (const [k, v] of Object.entries(extra)) p.set(k, v);
-    return p;
+    return compact({ q: text.trim(), mode, order, services: picked.join(','), kinds: kinds.join(','), pods: pod, from, to, ...extra });
   }
   const base = () => `/api/folders/${encodeURIComponent(folder)}/raw`;
 
@@ -47,7 +41,7 @@
     busy = true; error = null; sel = null; ctx = null;
     asked = params();
     try {
-      const j = await api.get(`${base()}?${params({ limit: PAGE })}`);
+      const j = await api.post(base(), params({ limit: PAGE }));
       if (my === seq) { data = j; rows = j.rows; if (rows.length) pick(0); }
     } catch (e) {
       if (my === seq) error = e;
@@ -60,8 +54,7 @@
     if (!asked || more) return;
     more = true;
     try {
-      const p = new URLSearchParams(asked); p.set('limit', PAGE); p.set('offset', rows.length);
-      const j = await api.get(`${base()}?${p}`);
+      const j = await api.post(base(), { ...asked, limit: PAGE, offset: rows.length });
       rows = [...rows, ...j.rows];
     } catch (e) { error = e; } finally { more = false; }
   }
@@ -73,7 +66,7 @@
     ctxBusy = true;
     const my = ++ctxSeq;
     try {
-      const j = await api.get(`${base()}/context?${new URLSearchParams({ file: r.file, line: r.line, n: ctxN })}`);
+      const j = await api.post(`${base()}/context`, { file: r.file, line: r.line, n: ctxN });
       if (my === ctxSeq) ctx = j;
     } catch { if (my === ctxSeq) ctx = null; } finally { if (my === ctxSeq) ctxBusy = false; }
   }
@@ -91,7 +84,19 @@
   }
 
   const toggle = (list, v) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
-  const downloadHref = $derived(asked ? withSource(`${base()}/download?${asked}`) : null);
+  /** The matches as a .log file: fetched as encrypted JSON, saved by the browser (no plain file over the network). */
+  let saving = $state(false);
+  async function download() {
+    if (!asked || saving) return;
+    saving = true; error = null;
+    try {
+      const j = await api.post(`${base()}/download`, asked);
+      const url = URL.createObjectURL(new Blob([j.text], { type: 'text/plain;charset=utf-8' }));
+      const a = Object.assign(document.createElement('a'), { href: url, download: j.filename });
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { error = e; } finally { saving = false; }
+  }
 
   /** Entry text -> pieces with the matches marked (spans are offsets from the server). */
   function pieces(s, spans) {
@@ -196,7 +201,7 @@
           f: num(data.files_searched, $lang), sec: num(data.seconds, $lang, 1) })}
         {#if data.partial}<span class="part">{$t(data.partial === 'time' ? 'raw.partial_time' : 'raw.partial_many')}</span>{/if}
       </p>
-      {#if downloadHref && data.total}<a class="btn" href={downloadHref} download><Icon name="download" />{$t('raw.download')}</a>{/if}
+      {#if asked && data.total}<button class="btn" onclick={download} disabled={saving}><Icon name="download" />{$t('raw.download')}</button>{/if}
     </div>
 
     {#if !rows.length}

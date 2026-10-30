@@ -24,7 +24,7 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
-      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/ips/${encodeURIComponent(ip)}`);
+      const j = await api.post(`/api/folders/${encodeURIComponent(folder)}/ip-profile`, { ip });   // POST: the IP stays out of URLs
       if (my === seq) data = j;
     } catch (e) { if (my === seq) { error = e; data = null; } }
     finally { if (my === seq) { busy = false; onready?.(true); } }

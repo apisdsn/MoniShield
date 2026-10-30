@@ -8,7 +8,7 @@ Start with `docs/09-status.md` (state and next steps), then `docs/08-architectur
 ```sh
 .venv/bin/pip install -e ".[test,s3,kafka]"      # once
 env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN .venv/bin/python -m pytest -q
-(cd web && npm ci && npm run build) && node tools/check_i18n.mjs && node --test tests/test_format.mjs
+(cd web && npm ci && npm run build) && node tools/check_i18n.mjs && node --test tests/test_format.mjs tests/test_state.mjs
 .venv/bin/python -m monishield serve             # http://127.0.0.1:8000
 tools/check_commit.sh origin/dev..HEAD             # commit messages before pushing
 ```
