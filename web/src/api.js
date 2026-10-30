@@ -88,12 +88,10 @@ export const api = {
   del: (path) => request('DELETE', withSource(path)),
 };
 
-/** Path to the table endpoint (TRD §5.4); empty parameters are not sent. */
-export function tablePath(folder, table, params = {}) {
-  const q = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) if (v !== null && v !== undefined && v !== '') q.set(k, v);
-  const s = q.toString();
-  return `/api/folders/${encodeURIComponent(folder)}/tables/${encodeURIComponent(table)}${s ? '?' + s : ''}`;
+/** Parameters of a POST read without the empty ones. Reads whose parameters can hold personal data (search text, IP,
+ *  email, request ID, file name) are POSTed so they travel in the encrypted body, never in the URL. */
+export function compact(params = {}) {
+  return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== ''));
 }
 
 // ---------------------------------------------------------------- not connected
