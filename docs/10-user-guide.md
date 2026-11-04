@@ -60,9 +60,9 @@ kept.
 
 ### Configuration
 
-Sidebar → **Configuration** (admins). Every item opens as a pop-up over the current page: **Object storage**
-(provider, keys, region, automatic sync), **Kafka broker**, **GeoIP (MaxMind)**, **Mail server (SMTP)**,
-**Notifications**, **Block list**, **Data retention** and **Server keys (.env)**. Each has **Save** and, where it
+Sidebar → **Configuration** (admins). Every item opens as a pop-up over the current page: **Object Storage**
+(provider, keys, region, automatic sync), **Kafka Broker**, **GeoIP**, **Mail Server**,
+**Notifications**, **Block List**, **Data Retention** and **Server Keys**. Each has **Save** and, where it
 applies, **Test connection**. The sidebar groups (Analysis, Services, Configuration) fold open and closed with the
 arrow next to their name; the choice is kept per browser. The addresses `/admin/configuration` and
 `/admin/notifications` (and the old `#/…` ones) open the matching pop-up. **Save writes directly to the `.env` file** (existing lines are replaced,
@@ -102,7 +102,7 @@ saving time. After a change, the next ingest derives every folder again from the
 
 ### Object storage providers
 
-Configuration → **Object storage** → *Provider*: Amazon S3, Cloudflare R2, MinIO, Wasabi, Google Cloud Storage (HMAC
+Configuration → **Object Storage** → *Provider*: Amazon S3, Cloudflare R2, MinIO, Wasabi, Google Cloud Storage (HMAC
 keys), DigitalOcean Spaces, any other S3-compatible service, or Azure Blob Storage.
 
 | Provider | Endpoint | Region (free text) | Keys |
