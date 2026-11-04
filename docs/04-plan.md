@@ -1431,3 +1431,14 @@ and while streaming, gunzip in pieces with an output limit; a rate limit per col
 separate per-IP limit for wrong keys. Lines go through `infrastructure/collector_inbox.py` (one locked, `fsync`ed write
 per file) and `application/collector_feed.py` (counts per collector, folders written since the last ingest). New settings
 `S4_COLLECTOR_INBOX_DIR`, `_MAX_BODY_MB`, `_MAX_RAW_MB` (16), `_RATE_PER_MIN`, `_MAX_CONCURRENT` (4, 503 `busy`), `_MIN_FREE_MB`.
+
+**Step 4 done.** The collector is the third data source, built like Kafka: `COLLECTOR` in `application/sources.py`,
+`config_model.collector_config` (inbox `S4_COLLECTOR_INBOX_DIR`, database `<data_dir>/collector/monishield.duckdb`), a
+`SourceCtx` in `wire` with its own warehouse, folders (`kind='collector'`), ingest and retention, and its database opened
+and closed in `lifespan`. `CollectorFeed` ingests the folders in `pending` through the collector source's ingest at most
+every `S4_COLLECTOR_INGEST_SECONDS` (300) from a thread started and stopped in `lifespan`; `pending` is cleared only when
+the ingest succeeded, and on start one ingest of the whole collector inbox runs (catch-up). Retention,
+notifications (key `…@collector`, title `(Collector)`; like Kafka only the day in progress), the daily report (S3, else
+Kafka, else collector; any source on request), the backup (`collector.duckdb.gz`), `monishield ingest|derive --source
+collector`, `?source=collector` on every route, and the third option in the header switch (offered when a collector is
+registered or the database knows a day). The S3-replaces-Kafka rule was already limited to those two sources.

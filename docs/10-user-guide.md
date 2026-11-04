@@ -28,21 +28,25 @@ the page title, Trends, the IP profile, Command Center, sync and upload messages
 day is therefore listed as today. Folder names stay as they are in web addresses (`?folder=2026-10-21`), the API, on
 disk and in the `monishield sync` output. The exact time range of the data is under the page title.
 
-### Two data sources: S3 and Kafka
+### Data sources: S3, Kafka and collector
 
-S3 and Kafka are two separate sources. Each has its own database and its own folders (`<inbox>/<date>/` for S3 imports and
-uploads, `<inbox>/kafka/<date>/` for Kafka), so a day is never a mix of both. The page header has a switch **S3 | Kafka**
-(it appears once Kafka is set up or already holds days): the date list, every page, Trends, search, downloads and the admin
+S3, Kafka and collector are separate sources. Each has its own database and its own folders (`<inbox>/<date>/` for S3 imports and
+uploads, `<inbox>/kafka/<date>/` for Kafka), so a day is never a mix of both. The page header has a switch **S3 | Kafka | Collector**
+(Kafka appears once it is set up or already holds days, Collector once a collector is registered or its database holds days): the date list, every page, Trends, search, downloads and the admin
 folder tools show the source you chose, and the address carries it (`?source=kafka`). Both sources can hold the same day, each
 complete on its own: S3's with the services of the export, Kafka's with everything the cluster logging sent, so the Kafka
 view also has the services the S3 export lacks. The S3 sync and import never touch Kafka's files, and Kafka does not stop
 writing when S3 has the day.
 
-Notifications (Telegram, Discord, email) come from both sources: the title names it (`(S3)` or `(Kafka)`) and the link opens
-that source. Spike and critical alerts fire for the day in progress on Kafka, so you learn early; the daily summary, the "folder
-has not arrived" check and the S3 sync warning are S3 only. Retention days apply to both sources.
+Notifications (Telegram, Discord, email) come from every source: the title names it (`(S3)`, `(Kafka)` or `(Collector)`) and the link opens
+that source. Spike and critical alerts fire for the day in progress on Kafka and collector, so you learn early; the daily summary, the "folder
+has not arrived" check and the S3 sync warning are S3 only. Retention days apply to every source.
 
-`monishield ingest --source kafka` ingests the Kafka source from the command line.
+The **Collector** source holds the logs that collectors send from servers and clusters (`<inbox>/collector/<date>/`, its own
+database). What a collector sends is ingested every `S4_COLLECTOR_INGEST_SECONDS` (5 minutes by default), and after a restart
+the inbox is ingested at once. Notifications, retention and backups treat it like Kafka.
+
+`monishield ingest --source kafka` (or `collector`) ingests that source from the command line.
 
 ### Automatic S3 sync
 
@@ -225,7 +229,7 @@ Every day at 02:00 WIB (`S4_BACKUP_HOUR`) the server writes a backup folder `<da
 
 | File | Contents |
 |---|---|
-| `s3.duckdb.gz`, `kafka.duckdb.gz` | the databases of both sources (rows and aggregates of every folder) |
+| `s3.duckdb.gz`, `kafka.duckdb.gz`, `collector.duckdb.gz` | the databases of the three sources (rows and aggregates of every folder) |
 | `accounts.json.gz` | every table of the account database: users, password hashes, sessions, audit log, settings |
 | `manifest.json` | size and SHA-256 of each file, time, MoniShield version |
 
@@ -502,7 +506,7 @@ cd web && npm run dev                         # terminal 2: Vite on :5173, /api 
 .venv/bin/pytest -q                       # includes tests/test_import.py (local fake S3, no AWS)
 ```
 
-Browser smoke test (also a CI job, it must pass before a deploy): it opens every page for both sources and both languages
+Browser smoke test (also a CI job, it must pass before a deploy): it opens every page for all three sources and both languages
 and fails on a script error, a 5xx answer or an error card.
 
 ```sh

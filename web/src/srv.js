@@ -11,7 +11,7 @@ import { lang, translate } from './i18n.js';
 const ID = [
   // audit details of the daily report button (monishield/interfaces/api/notify.py)
   [/^reports not sent yet: (\d+) sent, (\d+) failed$/, 'laporan yang belum terkirim: $1 terkirim, $2 gagal'],
-  [/^(\S+) \((s3|kafka)\): (\d+) sent, (\d+) failed$/, '$1 ($2): $3 terkirim, $4 gagal'],
+  [/^(\S+) \((s3|kafka|collector)\): (\d+) sent, (\d+) failed$/, '$1 ($2): $3 terkirim, $4 gagal'],
   // derived trace label: "Slow 5.2 s"
   [/^Slow ([\d.,]+) s$/, 'Lambat $1 dtk'],
   // ingest / refdata warnings
@@ -61,7 +61,7 @@ const ID = [
   [/^folder (\S+) already exists in the main log folder \(that one is used\)$/, 'folder $1 sudah ada di folder log utama (yang itu yang dipakai)'],
   // ingest / import triggers
   [/^\(server start\)$/, '(mulai server)'], [/^\(daily\)$/, '(harian)'], [/^import #(\d+)$/, 'impor #$1'], [/^upload by (.+)$/, 'unggah oleh $1'],
-  [/^\(machine token\)$/, '(token mesin)'], [/^\(automatic S3 sync\)$/, '(sinkron S3 otomatis)'], [/^\(kafka\)$/, '(kafka)'],
+  [/^\(machine token\)$/, '(token mesin)'], [/^\(automatic S3 sync\)$/, '(sinkron S3 otomatis)'], [/^\(kafka\)$/, '(kafka)'], [/^\(collector\)$/, '(collector)'],
   // audit details
   [/^folder=all/, 'folder=semua'], [/ by (\S+)$/, ' oleh $1'], [/\((\d+) data files/, '($1 file data'], [/\((\d+) files\)/, '($1 file)'],
   [/^inbox deleted$/, 'kotak masuk dihapus'], [/^ignored\)?/, (m) => m.replace('ignored', 'diabaikan')],
@@ -141,6 +141,19 @@ export const srv = derived(lang, (l) => (s) => (typeof s !== 'string' || !s ? s 
 // Error messages that carry details (allowed buckets, limits, names): in Indonesian mode the whole sentence is translated
 // so the details are kept; errors not listed here use the per-code dictionary. [English sentence, Indonesian]
 const ERR_ID = [
+  // collectors (monishield/domain/collectors.py, infrastructure/auth.py)
+  [/^Collector name must be 1–63 characters: lowercase letters, digits and hyphen, starting with a letter or digit\.$/, 'Nama collector 1–63 karakter: huruf kecil, angka, dan tanda hubung, diawali huruf atau angka.'],
+  [/^Platform must be one of: (.*)\.$/, 'Platform harus salah satu dari: $1.'],
+  [/^A collector with this name already exists\.$/, 'Sudah ada collector dengan nama ini.'],
+  [/^This collector is revoked\.$/, 'Collector ini sudah dicabut.'],
+  [/^This collector is already revoked\.$/, 'Collector ini sudah dicabut.'],
+  [/^This collector is already enrolled; replace its key instead\.$/, 'Collector ini sudah terdaftar; ganti kuncinya.'],
+  [/^This collector has not enrolled yet\.$/, 'Collector ini belum mendaftar.'],
+  [/^Revoke the collector before deleting it\.$/, 'Cabut collector sebelum menghapusnya.'],
+  [/^Enrollment token is not valid\.$/, 'Token pendaftaran tidak valid.'],
+  [/^Collector key is not valid\.$/, 'Kunci collector tidak valid.'],
+  [/^Too many wrong collector keys\. Try again later\.$/, 'Terlalu banyak kunci collector yang salah. Coba lagi nanti.'],
+  [/^source must be s3, kafka or collector\.$/, 'source harus s3, kafka, atau collector.'],
   [/^Change your own email under Account email: it needs codes sent to the old and the new address\.$/, 'Email akun Anda sendiri diganti lewat Email akun: perlu kode ke alamat lama dan baru.'],
   [/^A new email is set through the email change, which sends a code to it\.$/, 'Email baru diatur lewat penggantian email yang mengirim kode ke alamat itu.'],
   [/^Your password is wrong\.$/, 'Kata sandi Anda salah.'],

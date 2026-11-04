@@ -1,5 +1,5 @@
 // Browser smoke test (CI job "Browser smoke test"): signs in to the server of tools/smoke_server.py, changes the forced
-// first password, then opens every page for both data sources (S3, Kafka) and both languages. A page fails when the
+// first password, then opens every page for all data sources (S3, Kafka, collector) and both languages. A page fails when the
 // browser throws a script error, the server answers 5xx, the page shows its error card, or it does not finish loading.
 //
 //   node tools/smoke_browser.cjs [base URL, default http://127.0.0.1:8777] [folder for failure screenshots]
@@ -10,7 +10,7 @@ const SHOTS = process.argv[3] || '';
 const PW0 = 'smoke-test-first-password', PW1 = 'Smoke-Test-Second-Password-2026!';
 const PAGES = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
   'services/event-api', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
-const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'en', source: '' }];
+const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'id', source: 'collector' }, { lang: 'en', source: '' }];
 
 (async () => {
   // software WebGL (bundled SwiftShader): the maps draw in a headless browser too, so a broken map shows up here

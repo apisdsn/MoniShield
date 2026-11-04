@@ -42,7 +42,7 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 | 1 (done) | `domain/otlp_logs.py` (pure): OTLP/JSON log records → namespace, service, pod/host, line, time. Kubernetes attributes as for Kafka (`service_of`); plain servers by `host.name` and `service.name`; journald (`MESSAGE`, unit) and Windows Event Log (one JSON line); a structured body becomes one JSON line; names checked so they cannot leave the folder; times far in the future capped at the receive time. Tests on sample payloads in `tests/fixtures/otlp/`. Done: `parse_logs(payload, collector, now)` returns the records (`ns`, `svc`, `pod`, `line`, `t`, `relpath`) and the rejected counts by reason; `partial_success` builds the OTLP answer; journald lines are written as RFC 5424 so the `syslog` preset reads their time and level |
 | 2 (done) | Collector registry (accounts database): name, platform, version, last seen, revoked; one-time enrollment token (24 h) exchanged for a long-lived key, both stored as hashes; replace and revoke the key; audit `collector.add`, `collector.enroll`, `collector.rotate`, `collector.revoke`. Application service + port |
 | 3 (done) | Receiver `POST /v1/logs`: Bearer key, outside the CSRF guard and the payload encryption (a machine client), size limits before and after gunzip, rate limit per collector, written to disk before the 200, OTLP partial-success answer, 401 / 413 / 429 with `Retry-After` |
-| 4 | Third source `collector`: database, inbox, retention, notifications, ingest schedule; hourly files; source switch in the header; dictionaries id/en |
+| 4 (done) | Third source `collector`: database, inbox, retention, notifications, ingest schedule; hourly files; source switch in the header; dictionaries id/en. See "Collector source" below |
 | 5 | Configuration writer and install: collector YAML per platform and chosen data (file logs, journald, Windows Event Log, Docker, Kubernetes), `otlphttp` exporter with a disk queue and retries; `install.sh` (systemd), `install.ps1` (Windows service), Helm values |
 | 6 | Admin › Collectors page (after the mockup): list, status counts, add dialog with platform tabs and the install command, details, replace / revoke key |
 | 7 | End-to-end check with a real `otelcol-contrib`: lines reach Raw Logs and the pages; data queued while the link is down arrives later; a revoked key is refused |
@@ -93,6 +93,27 @@ configuration of step 5 must keep batches under the limit (batch processor `send
 Wrong keys have their own per-IP limit in memory (not the login's), so bad keys never lock people out of sign-in. The rate
 limit is a per-minute window per collector. A batch with a write error halfway can leave lines of its first files behind;
 the retry then writes them again (see known limits).
+
+### Collector source (step 4)
+
+The collector is a data source like S3 and Kafka (`?source=collector`, option **Collector** in the header switch). It has its
+own database `<data_dir>/collector/monishield.duckdb` (`collector_db_path`), its own inbox (`S4_COLLECTOR_INBOX_DIR`, default
+`<inbox>/collector`) and its own ingest, retention, notifications and backup (`collector.duckdb.gz`). The switch offers it
+once a collector is registered or its database holds a day.
+
+- **Ingest.** The receiver adds the folders it wrote to `CollectorFeed.pending`. A small thread (`collector-ingest`, started
+  and stopped with the server) ingests them through the collector source's ingest at most every `S4_COLLECTOR_INGEST_SECONDS`
+  (default 300): one folder alone, several as one ingest of the inbox, where only changed files are read again (the current
+  hour's file). It waits for other ingests like Kafka's does (one ingest at a time, one DuckDB owner) and does not start
+  while the source's own ingest is running. A folder leaves `pending` only when its ingest succeeded; after a failure it is
+  tried again at the next round.
+- **Catch-up.** When the server starts, one ingest of the whole collector inbox runs at once (only files whose size or time
+  changed are read again), so lines received before a restart show up, also in a folder the database already knows, without
+  waiting for a new batch.
+- **Days.** Folder D holds (D-1 00:00, D 00:00] local time, like Kafka's, so the folder dated tomorrow is still filling up:
+  notifications look at the day in progress only and the daily report waits for a complete folder.
+- **Left to Kafka.** The consumer, "Check messages" and the live map belong to Kafka. The rule "S3 replaces Kafka's files" never
+  applied to the collector inbox.
 
 ### Log format rules for collector data
 

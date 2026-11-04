@@ -125,6 +125,7 @@ class Config:
     collector_max_raw_mb: int = 16    # body after gunzip
     collector_rate_per_min: int = 600   # requests per collector per minute
     collector_max_concurrent: int = 4   # requests being read and stored at once (memory); more get 503 busy
+    collector_ingest_seconds: int = 300   # interval of the ingest of the folders the receiver wrote to
     collector_min_free_mb: int = 1024   # free disk under the inbox below which the receiver answers 503
     # download source & external service addresses (formerly hard-coded; default = official addresses)
     url_maxmind: str = 'https://download.maxmind.com/geoip/databases/{}/download?suffix=zip'   # {} = GeoLite2 edition name
@@ -165,6 +166,9 @@ class Config:
 
     @property
     def kafka_db_path(self): return os.path.join(self.data_dir, 'kafka', 'monishield.duckdb')
+
+    @property
+    def collector_db_path(self): return os.path.join(self.data_dir, 'collector', 'monishield.duckdb')
 
     @property
     def auth_url(self):
@@ -213,3 +217,8 @@ class SourceConfig:
 def kafka_config(cfg):
     """Config for the Kafka source: own database and own inbox, no main log folder, no DbGate copy."""
     return SourceConfig(cfg, log_dir='', inbox_dir=cfg.kafka_inbox, db_path=cfg.kafka_db_path, duckdb_snapshot=False)
+
+
+def collector_config(cfg):
+    """Config for the collector source: own database and own inbox, no main log folder, no DbGate copy."""
+    return SourceConfig(cfg, log_dir='', inbox_dir=cfg.collector_inbox, db_path=cfg.collector_db_path, duckdb_snapshot=False)

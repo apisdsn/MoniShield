@@ -481,12 +481,15 @@ def report_due(cfg, now_wib):
     return bool(cfg['events']['summary']) and now_wib.hour >= int(cfg['summary_hour'])
 
 
-def report_target(s3_newest, kafka_folders, today_local):
+def report_target(s3_newest, kafka_folders, today_local, collector_folders=()):
     """Folder of the scheduled daily report -> (folder, source) or None. S3 when it has data (an S3 folder arrives complete);
-    otherwise the newest complete Kafka folder: dated today or earlier (the folder dated tomorrow is still filling up)."""
+    otherwise the newest complete Kafka folder, then the newest complete collector folder: dated today or earlier (the folder
+    dated tomorrow is still filling up). A source that is not the first with data gets its report on request (page button)."""
     if s3_newest: return s3_newest, 's3'
-    done = [f for f in kafka_folders if f <= today_local.isoformat()]
-    return (max(done), 'kafka') if done else None
+    for folders, source in ((kafka_folders, 'kafka'), (collector_folders, 'collector')):
+        done = [f for f in folders if f <= today_local.isoformat()]
+        if done: return max(done), source
+    return None
 
 
 def active(cfg): return bool(cfg) and any(c['enabled'] for c in cfg['channels'].values())

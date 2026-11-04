@@ -158,10 +158,10 @@ ROLE_DEPS = (public, require_user, require_user_ready, require_admin, require_ad
 
 # ------------------------------------------------------------------ DuckDB
 def source_ctx(request: Request):
-    """The data source of the request: `?source=s3` (default) or `?source=kafka` (owner request 2026-10-23). Each source has
+    """The data source of the request: `?source=s3` (default), `kafka` or `collector` (owner request 2026-10-23). Each source has
     its own database and folders; everything a page reads (and the admin folder tools) goes through the source's ctx."""
     name = request.query_params.get('source') or sources.S3
-    if not sources.valid(name): raise ApiError(400, 'invalid_parameter', 'source must be s3 or kafka.')
+    if not sources.valid(name): raise ApiError(400, 'invalid_parameter', 'source must be s3, kafka or collector.')
     return request.app.state.sources[name]
 
 

@@ -68,6 +68,7 @@ def load(env=None, dotenv=None):
     for k in ('collector_max_body_mb', 'collector_max_raw_mb', 'collector_rate_per_min'):
         if not 1 <= getattr(cfg, k) <= 100000: raise SystemExit(f'{env_name(k)} must be 1..100000')
     if not 1 <= cfg.collector_max_concurrent <= 64: raise SystemExit('S4_COLLECTOR_MAX_CONCURRENT must be 1..64')
+    if not 1 <= cfg.collector_ingest_seconds <= 86400: raise SystemExit('S4_COLLECTOR_INGEST_SECONDS must be 1..86400')
     if cfg.collector_min_free_mb < 0: raise SystemExit('S4_COLLECTOR_MIN_FREE_MB must be 0 or more')
     if cfg.collector_inbox_dir: cfg.collector_inbox_dir = os.path.abspath(cfg.collector_inbox_dir)
     if msg := timezone.validate(cfg.timezone_offset, cfg.timezone_label): raise SystemExit(f'S4_TIMEZONE_OFFSET / S4_TIMEZONE_LABEL: {msg}')

@@ -7,6 +7,9 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Collector step 4 (`docs/12-collector.md`): the collector is the third data source next to S3 and Kafka, with its own
+  database, inbox, ingest (`S4_COLLECTOR_INGEST_SECONDS`, folders the receiver wrote, plus an ingest of the whole inbox at start), retention,
+  notifications, backup and a third option "Collector" in the header switch (`?source=collector`, `--source collector`).
 - Collector step 3 (`docs/12-collector.md`): `POST /api/collector/v1/logs` receives OTLP/JSON log batches (Bearer key, gzip,
   size, rate and free-disk limits, OTLP partial-success answer) and appends the lines to the collector inbox
   (`S4_COLLECTOR_INBOX_DIR`, `S4_COLLECTOR_MAX_BODY_MB`, `_MAX_RAW_MB`, `_RATE_PER_MIN`, `_MAX_CONCURRENT`, `_MIN_FREE_MB`).

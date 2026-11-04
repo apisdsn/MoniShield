@@ -75,7 +75,7 @@ def wire(state, cfg, env_path):
     state.uploads = uploads.Uploads(cfg)
     state.maxmind = refdata.probe_maxmind
     state.wire = wirecrypto.WireCrypto(ttl_hours=cfg.session_max_hours)
-    state.source = sources.S3   # this ctx is the S3 source; the Kafka source is state.sources['kafka'] (own database, own folders)
+    state.source = sources.S3   # this ctx is the S3 source; Kafka and collector are state.sources['kafka'] / ['collector'] (own database, own folders)
     state.ingest = ingest_service.IngestService(state)
     state.imports = import_service.ImportService(state)
     state.alerts = alert_service.Notifier(state)
@@ -85,7 +85,11 @@ def wire(state, cfg, env_path):
     k = sources.SourceCtx(state, sources.KAFKA, cfg=kcfg)
     k.warehouse, k.logfolders = warehouse.DuckWarehouse(k), logfolders.LogFolders(kcfg, kind='kafka')
     k.ingest, k.retention = ingest_service.IngestService(k), retention_service.RetentionService(k)
-    state.sources = {sources.S3: state, sources.KAFKA: k}
+    ccfg = config_model.collector_config(cfg)
+    c = sources.SourceCtx(state, sources.COLLECTOR, cfg=ccfg)
+    c.warehouse, c.logfolders = warehouse.DuckWarehouse(c), logfolders.LogFolders(ccfg, kind='collector')
+    c.ingest, c.retention = ingest_service.IngestService(c), retention_service.RetentionService(c)
+    state.sources = {sources.S3: state, sources.KAFKA: k, sources.COLLECTOR: c}
     state.kafka = kafka_service.KafkaFeed(k)   # the consumer belongs to the Kafka source
     state.backups = backup.Backups(cfg)
     state.backup = backup_service.BackupService(state)
@@ -125,6 +129,8 @@ def create_app(cfg=None, env_path=None):
         app.state.con = db.open(cfg.db_path)
         kafka = app.state.sources[sources.KAFKA]
         kafka.con = db.open(cfg.kafka_db_path)
+        collector = app.state.sources[sources.COLLECTOR]
+        collector.con = db.open(cfg.collector_db_path)
         if len(cfg.jwt_secret) < authmod.JWT_SECRET_MIN:
             raise RuntimeError(f'S4_JWT_SECRET is required (at least {authmod.JWT_SECRET_MIN} random characters); see .env.example')
         app.state.auth = authmod.Auth(cfg.auth_url, cfg.jwt_secret, cfg.session_idle_minutes, cfg.session_max_hours)
@@ -137,23 +143,29 @@ def create_app(cfg=None, env_path=None):
             kafka.ingest.start(by='(server start)')   # waits for the S3 ingest: one ingest at a time
         app.state.imports.start_watch()
         app.state.alerts.start()
+        app.state.collector_feed.start()   # ingest of what the receiver wrote (and a catch-up of folders not in the database yet)
         app.state.kafka.start()   # logs from Kafka (when S4_KAFKA_BROKERS + S4_KAFKA_TOPIC are set)
         app.state.retention.start()   # daily cleanup when S4_RETENTION_DAYS / S4_RETENTION_INBOX_DAYS are set
         kafka.retention.start()       # the same rules for the Kafka source
+        collector.retention.start()   # and for the collector source
         app.state.backup.start()      # daily backup at S4_BACKUP_HOUR (WIB)
         yield
         app.state.retention.stop()
         app.state.backup.stop()
         kafka.retention.stop()
+        collector.retention.stop()
+        app.state.collector_feed.stop()
         app.state.imports.stop_watch()
         app.state.alerts.stop()
         app.state.kafka.stop()
         app.state.imports.wait(timeout=600)
         app.state.ingest.wait(timeout=600)
         kafka.ingest.wait(timeout=600)
+        collector.ingest.wait(timeout=600)
         app.state.auth.close()
         app.state.con.close()
         kafka.con.close()
+        collector.con.close()
 
     app = FastAPI(title='MoniShield', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     wire(app.state, cfg, env_path)

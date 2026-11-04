@@ -1,4 +1,4 @@
-"""Daily backup (owner request 2026-10-27): both DuckDB databases (S3 and Kafka sources) and the account database, kept for
+"""Daily backup (owner request 2026-10-27): the DuckDB databases (S3, Kafka and collector sources) and the account database, kept for
 S4_BACKUP_KEEP days, optionally copied to object storage. The files are written by the Backups adapter
 (monishield/infrastructure/backup.py). A failure is notified (event 'backup_failed') and shown on the Ingest & import page.
 """

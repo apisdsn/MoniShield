@@ -9,6 +9,7 @@ test('IP and search text go after "#"', () => {
   assert.equal(build({ ...base, tab: 'ip', service: '203.0.113.5' }), '/ips?folder=2026-10-30#ip=203.0.113.5');
   assert.equal(build({ ...base, tab: 'security', q: 'rina@example.com' }), '/security?folder=2026-10-30#search=rina%40example.com');
   assert.equal(build({ ...base, tab: 'raw-logs', q: 'verify-otp', source: 'kafka' }), '/raw-logs?folder=2026-10-30&source=kafka#search=verify-otp');
+  assert.equal(build({ ...base, tab: 'overview', source: 'collector' }), '/overview?folder=2026-10-30&source=collector');
   assert.equal(build({ ...base, tab: 'overview' }), '/overview?folder=2026-10-30');
 });
 

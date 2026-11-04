@@ -13,7 +13,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
 | Tests | pytest: every test passes on the sample lines in `tests/fixtures/` (2 skip without optional services). Web: build, `tools/check_i18n.mjs`, `tests/test_format.mjs`, `tests/test_state.mjs` (page addresses). |
-| CI | `.github/workflows/ci.yml`: commit messages, pytest, web build, browser smoke test (`tools/smoke_browser.cjs`, every page for both sources and languages); all four must pass before the deploy job on `prd`. |
+| CI | `.github/workflows/ci.yml`: commit messages, pytest, web build, browser smoke test (`tools/smoke_browser.cjs`, every page for all three sources and both languages); all four must pass before the deploy job on `prd`. |
 | Deploy | Automatic deploy of `prd` from this repository, first run 2026-10-28 (`2e564e4`, app healthy). Secrets in the GitHub environment `production`. |
 | Server today | `/srv/MoniShield`, a checkout of this repository (compose project `monishield`, profiles `https,kafka`). The site's own values are in its `.env`; the portfolio site is `deploy/sites/portfolio.caddy` there (not in git). |
 
@@ -100,7 +100,7 @@ Questions answered along the way, recorded so they are not asked again:
    detection and map read the new tables, unread-line rate on the Service page; existing folders are derived once more
    after the upgrade) done. Collector (stage 54, [`12-collector.md`](12-collector.md)): steps 1 (OTLP/JSON log records read into lines),
    2 (collector registry, enrollment tokens, keys) and 3 (the `POST /api/collector/v1/logs` receiver writing to the collector
-   inbox) done; step 4 (the third source: database, ingest of `CollectorFeed.pending`, retention, header switch) is next. Then 1d
+   inbox) done; 4 (the third source `collector`: own database, ingest of `CollectorFeed.pending`, catch-up, retention, notifications, backup, header switch) done; step 5 (configuration writer and install scripts) is next. Then 1d
    (`auto` detection, per-file re-parse, CLI) and 1e (Log formats page, docs).
 
 ## Known issues
