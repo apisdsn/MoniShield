@@ -1390,3 +1390,12 @@ log, and the page sits in the Analysis group after Request Tracing.
 - Tests: `tests/test_rawlogs.py`; smoke test opens `/raw-logs`.
 
 Later: live tail for the Kafka source, links from Request Tracing / IP profile / Messages rows, role per module.
+
+## Stage 54 — Collector (planned, 2026-11-04)
+
+Owner request: connect servers and clusters to MoniShield directly, without S3 or Kafka. Plan in
+[`12-collector.md`](12-collector.md): the OpenTelemetry Collector with a configuration MoniShield writes, OTLP/HTTP JSON
+to `/v1/logs` with one key per collector, the lines written to a third source's inbox in the S3 folder layout so ingest
+and the parsers stay as they are; metrics later. Decided 2026-11-04: log formats step 1c first; a third source of its
+own; the receiver on a subdomain without the Cloudflare proxy; logs before metrics; install scripts named MoniShield
+until the rename.
