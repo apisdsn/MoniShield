@@ -1,5 +1,5 @@
 """Shared by all routers: errors, roles, parameter validation (TRD §8.1), DuckDB access."""
-import datetime, re
+import datetime, re, threading, time
 
 from fastapi import Depends, HTTPException, Request, Response
 
@@ -12,7 +12,7 @@ DATE = re.compile(r'\d{4}-\d\d-\d\d')
 
 
 class ApiError(HTTPException):
-    def __init__(self, status, code, message): super().__init__(status_code=status, detail=dict(code=code, message=message))
+    def __init__(self, status, code, message, headers=None): super().__init__(status_code=status, detail=dict(code=code, message=message), headers=headers)
 
 
 def client_ip(request: Request):
@@ -72,7 +72,88 @@ def require_admin_or_job(request: Request):
     return require_admin(require_user_ready(require_user(request)))
 
 
-ROLE_DEPS = (public, require_user, require_user_ready, require_admin, require_admin_or_job)
+class FailureLimiter:
+    """Failed collector keys per IP: more than `limit` within `window` seconds blocks the IP for `block` seconds. Kept apart from
+    the login's limit so bad keys of a collector never lock people out of sign-in. In memory, thread-safe."""
+
+    def __init__(self, limit=60, window=60, block=300, clock=time.monotonic):
+        self.limit, self.window, self.block, self.clock = limit, window, block, clock
+        self._lock, self._fails, self._blocked = threading.Lock(), {}, {}
+
+    def retry_after(self, ip):
+        """Seconds the IP is still blocked, or 0."""
+        with self._lock:
+            until = self._blocked.get(ip, 0)
+            if until > (t := self.clock()): return int(until - t) + 1
+            self._blocked.pop(ip, None)
+            return 0
+
+    def failed(self, ip):
+        """Record one failure. -> True when this one blocks the IP."""
+        with self._lock:
+            t = self.clock()
+            recent = [x for x in self._fails.get(ip, ()) if t - x < self.window] + [t]
+            if len(recent) > self.limit:
+                self._fails.pop(ip, None); self._blocked[ip] = t + self.block
+                return True
+            self._fails[ip] = recent
+            if len(self._fails) > 10000: self._prune(t)
+            return False
+
+    def _prune(self, t):
+        for k in [k for k, v in self._fails.items() if t - v[-1] >= self.window]: del self._fails[k]
+        for k in [k for k, v in self._blocked.items() if v <= t]: del self._blocked[k]
+
+
+class RateWindow:
+    """At most `limit` hits per key in each clock minute (a fixed window: simple, and good enough to stop a runaway client)."""
+
+    def __init__(self, clock=time.time):
+        self.clock, self._lock, self._count = clock, threading.Lock(), {}
+
+    def hit(self, key, limit):
+        """-> True when this hit is within the limit."""
+        with self._lock:
+            minute = int(self.clock() // 60)
+            if len(self._count) > 10000: self._count = {k: v for k, v in self._count.items() if v[0] == minute}
+            m, n = self._count.get(key, (minute, 0))
+            n = n + 1 if m == minute else 1
+            self._count[key] = (minute, n)
+            return n <= limit
+
+
+class Slots:
+    """A fixed number of requests at a time, never waiting: `take()` is False when all are in use."""
+
+    def __init__(self): self._lock, self._used = threading.Lock(), 0
+
+    def take(self, limit):
+        with self._lock:
+            if self._used >= limit: return False
+            self._used += 1
+            return True
+
+    def release(self):
+        with self._lock: self._used = max(0, self._used - 1)
+
+
+def _bearer(request: Request):
+    h = request.headers.get('authorization', '')
+    return h[7:].strip() if h[:7].lower() == 'bearer ' else ''
+
+
+def require_collector(request: Request):
+    """A collector with a valid key (`Authorization: Bearer msk_…`). A machine client: no session, no CSRF check, no audit.
+    Wrong keys are counted per IP (not on the login's limit); the key is never logged or returned."""
+    ip, limiter = client_ip(request), request.app.state.collector_failures
+    if wait := limiter.retry_after(ip): raise ApiError(429, 'too_many_attempts', 'Too many wrong collector keys. Try again later.', {'Retry-After': str(wait)})
+    info = request.app.state.collectors.authenticate(_bearer(request), ip, request.headers.get('user-agent'))
+    if info: return info
+    if limiter.failed(ip): raise ApiError(429, 'too_many_attempts', 'Too many wrong collector keys. Try again later.', {'Retry-After': str(limiter.block)})
+    raise ApiError(401, 'invalid_collector_key', 'Collector key is not valid.', {'WWW-Authenticate': 'Bearer'})
+
+
+ROLE_DEPS = (public, require_user, require_user_ready, require_admin, require_admin_or_job, require_collector)
 
 
 # ------------------------------------------------------------------ DuckDB

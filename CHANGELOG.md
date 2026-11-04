@@ -7,6 +7,9 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Collector step 3 (`docs/12-collector.md`): `POST /api/collector/v1/logs` receives OTLP/JSON log batches (Bearer key, gzip,
+  size, rate and free-disk limits, OTLP partial-success answer) and appends the lines to the collector inbox
+  (`S4_COLLECTOR_INBOX_DIR`, `S4_COLLECTOR_MAX_BODY_MB`, `_MAX_RAW_MB`, `_RATE_PER_MIN`, `_MAX_CONCURRENT`, `_MIN_FREE_MB`).
 - Collector step 2 (`docs/12-collector.md`): admins register collectors; a one-time enrollment token (24 h) is exchanged once
   for the collector's own key (stored as a hash); keys can be replaced (old key works 24 h more) and revoked; audited.
 - Collector step 1 (`docs/12-collector.md`): OTLP/HTTP JSON log records are read into namespace, service, pod or host, line,

@@ -119,6 +119,13 @@ class Config:
     kafka_ca_file: str = ''           # CA certificate (PEM) for ssl/sasl_ssl; empty = system CA
     kafka_offset_reset: str = 'earliest'   # a new group starts from: earliest (all messages still retained) | latest
     kafka_ingest_minutes: int = 5     # interval of periodic ingest of files grown from Kafka
+    # logs from collectors (OpenTelemetry Collector -> POST /api/collector/v1/logs; docs/12-collector.md)
+    collector_inbox_dir: str = ''     # default: <inbox>/collector
+    collector_max_body_mb: int = 8    # request body as sent (usually gzip)
+    collector_max_raw_mb: int = 16    # body after gunzip
+    collector_rate_per_min: int = 600   # requests per collector per minute
+    collector_max_concurrent: int = 4   # requests being read and stored at once (memory); more get 503 busy
+    collector_min_free_mb: int = 1024   # free disk under the inbox below which the receiver answers 503
     # download source & external service addresses (formerly hard-coded; default = official addresses)
     url_maxmind: str = 'https://download.maxmind.com/geoip/databases/{}/download?suffix=zip'   # {} = GeoLite2 edition name
     url_ip2asn: str = rules.IP2ASN_URL
@@ -152,6 +159,9 @@ class Config:
 
     @property
     def kafka_inbox(self): return os.path.join(self.inbox_dir, 'kafka')   # Kafka's own folders: <inbox>/kafka/<date>/…
+
+    @property
+    def collector_inbox(self): return self.collector_inbox_dir or os.path.join(self.inbox_dir, 'collector')   # collector's own folders
 
     @property
     def kafka_db_path(self): return os.path.join(self.data_dir, 'kafka', 'monishield.duckdb')

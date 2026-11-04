@@ -12,18 +12,18 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import account_service, alert_service, collector_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
+from monishield.application import account_service, alert_service, collector_feed, collector_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
 from monishield.domain import config_model, detect, log_formats, services, timezone
-from monishield.infrastructure import auth as authmod, backup, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
+from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
-from monishield.interfaces.api import admin, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
-from .common import ROLE_DEPS
+from monishield.interfaces.api import admin, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
+from .common import ROLE_DEPS, FailureLimiter, RateWindow, Slots
 
 WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
-ROUTERS = (meta.router, session.router, payload.router, users.router, collectors.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
+ROUTERS = (meta.router, session.router, payload.router, users.router, collectors.router, collector_logs.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
 
 
 
@@ -92,6 +92,11 @@ def wire(state, cfg, env_path):
     state.resets = password_service.PasswordResets(state)
     state.emails = account_service.EmailChanges(state)
     state.collectors = collector_service.CollectorService(state)
+    state.collector_inbox = collector_inbox.CollectorInbox(cfg.collector_inbox)
+    state.collector_feed = collector_feed.CollectorFeed(state)
+    state.collector_failures = FailureLimiter()   # wrong collector keys per IP (receiver only)
+    state.collector_slots = Slots()               # requests being read and stored (memory)
+    state.collector_rates = RateWindow()          # requests per collector per minute
     return state
 
 
@@ -104,7 +109,7 @@ def migrate_kafka_layout(state):
         except Exception: pass   # noqa: BLE001  nothing to forget; the folder is Kafka's from now on
 
 
-def _error(status, code, message): return JSONResponse(dict(error=dict(code=code, message=message)), status_code=status)
+def _error(status, code, message, headers=None): return JSONResponse(dict(error=dict(code=code, message=message)), status_code=status, headers=headers)
 
 
 def create_app(cfg=None, env_path=None):
@@ -168,7 +173,7 @@ def create_app(cfg=None, env_path=None):
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request, exc):
         d = exc.detail if isinstance(exc.detail, dict) else dict(code={404: 'not_found', 405: 'method_not_allowed'}.get(exc.status_code, 'error'), message=str(exc.detail))
-        return _error(exc.status_code, d['code'], d['message'])
+        return _error(exc.status_code, d['code'], d['message'], exc.headers)
 
     @app.exception_handler(Fail)
     async def domain_error(request, exc):   # domain/application errors (accounts, queries, import, …) -> the same JSON as ApiError

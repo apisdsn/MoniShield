@@ -1424,3 +1424,10 @@ collector and gets a one-time enrollment token (`mse_<id>_<secret>`, 24 h) that 
 working for 24 h. Wrong enrollment attempts count toward the login's per-IP limit. Audit: `collector.add`, `.token`,
 `.enroll`, `.enroll_fail`, `.rotate`, `.revoke`, `.delete` (never a secret). Step 6 must add `web/src/srv.js` `ERR_ID`
 entries for the new messages.
+
+**Step 3 done.** `POST /api/collector/v1/logs` (`interfaces/api/collector_logs.py`, `require_collector` in `common.py`):
+Bearer key, no CSRF or session, no audit; Content-Type and Content-Encoding checks; body size limited by `Content-Length`
+and while streaming, gunzip in pieces with an output limit; a rate limit per collector; 503 when the disk is low; a
+separate per-IP limit for wrong keys. Lines go through `infrastructure/collector_inbox.py` (one locked, `fsync`ed write
+per file) and `application/collector_feed.py` (counts per collector, folders written since the last ingest). New settings
+`S4_COLLECTOR_INBOX_DIR`, `_MAX_BODY_MB`, `_MAX_RAW_MB` (16), `_RATE_PER_MIN`, `_MAX_CONCURRENT` (4, 503 `busy`), `_MIN_FREE_MB`.

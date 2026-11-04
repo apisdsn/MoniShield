@@ -164,12 +164,13 @@ def test_role_matrix_covers_every_route(client):
     user = as_user(client, 'rina', 'rina-initial-password-123')
     anon, machine = TestClient(client.app), TestClient(client.app)
     expected = {common.public: (1, 1, 1, 1), common.require_user: (0, 1, 1, 0), common.require_user_ready: (0, 1, 1, 0),
-             common.require_admin: (0, 0, 1, 0), common.require_admin_or_job: (0, 0, 1, 1)}
-    rejected = {'unauthenticated', 'forbidden', 'must_change_password'}
+             common.require_admin: (0, 0, 1, 0), common.require_admin_or_job: (0, 0, 1, 1),
+             common.require_collector: (0, 0, 0, 0)}          # only a collector key opens the receiver (tests/test_collector_receiver.py)
+    rejected = {'unauthenticated', 'forbidden', 'must_change_password', 'invalid_collector_key'}
     routes = appmod.check_roles(appmod.ROUTERS)
     assert len(routes) >= 28 and {'/api/trends', '/api/folders/{folder}/tables/{table}', '/api/folders/{folder}/services/{service}'} <= {r.path for r in routes}
     for r in sorted(routes, key=lambda r: r.path == '/api/auth/logout'):            # logout is tested last
-        dep = next(d for d in (common.require_admin_or_job, common.require_admin, common.require_user_ready, common.require_user, common.public)
+        dep = next(d for d in (common.require_collector, common.require_admin_or_job, common.require_admin, common.require_user_ready, common.require_user, common.public)
                    if d in set(appmod._deps(r.dependant)))
         f = '2030-01-01' if r.path.startswith('/api/admin/folders/') else B   # folder delete/restore routes: a date that does not exist (do not delete test data)
         path = r.path.replace('{folder}', f).replace('{user_id}', '999999').replace('{job_id}', '999999').replace('{cid}', '999999').replace('{table}', 'c401').replace('{service}', NG)

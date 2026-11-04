@@ -41,7 +41,7 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 | 0 | Log formats step 1c (prerequisite) |
 | 1 (done) | `domain/otlp_logs.py` (pure): OTLP/JSON log records → namespace, service, pod/host, line, time. Kubernetes attributes as for Kafka (`service_of`); plain servers by `host.name` and `service.name`; journald (`MESSAGE`, unit) and Windows Event Log (one JSON line); a structured body becomes one JSON line; names checked so they cannot leave the folder; times far in the future capped at the receive time. Tests on sample payloads in `tests/fixtures/otlp/`. Done: `parse_logs(payload, collector, now)` returns the records (`ns`, `svc`, `pod`, `line`, `t`, `relpath`) and the rejected counts by reason; `partial_success` builds the OTLP answer; journald lines are written as RFC 5424 so the `syslog` preset reads their time and level |
 | 2 (done) | Collector registry (accounts database): name, platform, version, last seen, revoked; one-time enrollment token (24 h) exchanged for a long-lived key, both stored as hashes; replace and revoke the key; audit `collector.add`, `collector.enroll`, `collector.rotate`, `collector.revoke`. Application service + port |
-| 3 | Receiver `POST /v1/logs`: Bearer key, outside the CSRF guard and the payload encryption (a machine client), size limits before and after gunzip, rate limit per collector, written to disk before the 200, OTLP partial-success answer, 401 / 413 / 429 with `Retry-After` |
+| 3 (done) | Receiver `POST /v1/logs`: Bearer key, outside the CSRF guard and the payload encryption (a machine client), size limits before and after gunzip, rate limit per collector, written to disk before the 200, OTLP partial-success answer, 401 / 413 / 429 with `Retry-After` |
 | 4 | Third source `collector`: database, inbox, retention, notifications, ingest schedule; hourly files; source switch in the header; dictionaries id/en |
 | 5 | Configuration writer and install: collector YAML per platform and chosen data (file logs, journald, Windows Event Log, Docker, Kubernetes), `otlphttp` exporter with a disk queue and retries; `install.sh` (systemd), `install.ps1` (Windows service), Helm values |
 | 6 | Admin › Collectors page (after the mockup): list, status counts, add dialog with platform tabs and the install command, details, replace / revoke key |
@@ -64,6 +64,35 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 - Status: `revoked`, `waiting`, `online` (seen within 5 min), `late` (within 60 min), `offline`. `last_seen` is written at
   most once a minute per collector. Step 3 calls `CollectorService.authenticate(key, ip, version)`.
 - Step 6 must add Indonesian entries for the new messages to `web/src/srv.js` (`ERR_ID`).
+
+### Step 3: the receiver
+
+The OpenTelemetry Collector's `otlphttp` exporter uses `endpoint: https://<host>/api/collector`, `encoding: json`,
+`compression: gzip` and the header `Authorization: Bearer <key>`; it posts to `POST /api/collector/v1/logs`. The route needs
+no session and no `X-Requested-With`, is not audited and is not touched by the payload encryption (no `X-MS-Enc`). The lines
+are appended to the **collector inbox** (`S4_COLLECTOR_INBOX_DIR`, default `<inbox>/collector`), one write per file under a
+lock, flushed and `fsync`ed before the 200. Step 4 turns that inbox into the third source.
+
+| Code | `error.code` | When | Collector |
+|---|---|---|---|
+| 200 | | taken; `{}`, or `partialSuccess` with `rejectedLogRecords` and the reasons (the rest was written) | done |
+| 400 | `invalid_body` | corrupt gzip, not UTF-8 / JSON, not a JSON object | drops the batch |
+| 401 | `invalid_collector_key` | missing, wrong, revoked or expired key | drops the batch |
+| 413 | `body_too_large` | body over `S4_COLLECTOR_MAX_BODY_MB` (by `Content-Length` and while reading), or over `S4_COLLECTOR_MAX_RAW_MB` after gunzip (stopped while unpacking) | drops the batch |
+| 415 | `unsupported_media_type` | not `application/json` (protobuf gets the hint to set `encoding: json`), or an encoding other than gzip / identity | drops the batch |
+| 429 | `rate_limited` | more than `S4_COLLECTOR_RATE_PER_MIN` requests in a minute from one collector; `Retry-After: 30` | retries |
+| 429 | `too_many_attempts` | more than 60 wrong keys in a minute from one address: blocked 5 minutes; `Retry-After: 300` | retries |
+| 503 | `disk_full` | free space under the inbox below `S4_COLLECTOR_MIN_FREE_MB`; `Retry-After: 60` | retries, keeps its queue |
+| 503 | `busy` | `S4_COLLECTOR_MAX_CONCURRENT` requests are already being read and stored; `Retry-After: 5` | retries |
+| 503 | `storage_error` | the lines could not be written; `Retry-After: 60` | retries |
+
+Memory: a raw JSON body becomes about ten times as many bytes of Python objects, so peak memory is roughly
+`S4_COLLECTOR_MAX_CONCURRENT` x `S4_COLLECTOR_MAX_RAW_MB` x 10 (default 4 x 16 MB x 10 = about 640 MB). The collector
+configuration of step 5 must keep batches under the limit (batch processor `send_batch_max_size`).
+
+Wrong keys have their own per-IP limit in memory (not the login's), so bad keys never lock people out of sign-in. The rate
+limit is a per-minute window per collector. A batch with a write error halfway can leave lines of its first files behind;
+the retry then writes them again (see known limits).
 
 ### Log format rules for collector data
 
@@ -94,7 +123,8 @@ rule of their service name (`service.name` of the collector's file group, else t
 
 ## 6. Known limits
 
-- A retried batch whose answer was lost can be written twice; rare, accepted for now.
+- A retried batch whose answer was lost, or that failed halfway through its files, can be written twice; rare, accepted for now.
+- The receiver's counts (`CollectorFeed.status()`) are in memory and start again at every restart.
 - Metrics (part 2) need their own storage and pages; they do not touch the log parsers.
 - Replacing a key twice within 24 h ends the grace of the first key at once (only one previous key is kept).
 - Wrong enrollment tokens share the login's per-IP limit (20 per 15 minutes), so many bad installs from one address can

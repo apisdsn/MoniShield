@@ -65,6 +65,11 @@ def load(env=None, dotenv=None):
     if cfg.kafka_sasl_mechanism.upper() not in ('PLAIN', 'SCRAM-SHA-256', 'SCRAM-SHA-512'): raise SystemExit('S4_KAFKA_SASL_MECHANISM must be PLAIN, SCRAM-SHA-256, or SCRAM-SHA-512')
     if cfg.kafka_offset_reset not in ('earliest', 'latest'): raise SystemExit("S4_KAFKA_OFFSET_RESET must be 'earliest' or 'latest'")
     if not 1 <= cfg.kafka_ingest_minutes <= 1440: raise SystemExit('S4_KAFKA_INGEST_MINUTES must be 1..1440')
+    for k in ('collector_max_body_mb', 'collector_max_raw_mb', 'collector_rate_per_min'):
+        if not 1 <= getattr(cfg, k) <= 100000: raise SystemExit(f'{env_name(k)} must be 1..100000')
+    if not 1 <= cfg.collector_max_concurrent <= 64: raise SystemExit('S4_COLLECTOR_MAX_CONCURRENT must be 1..64')
+    if cfg.collector_min_free_mb < 0: raise SystemExit('S4_COLLECTOR_MIN_FREE_MB must be 0 or more')
+    if cfg.collector_inbox_dir: cfg.collector_inbox_dir = os.path.abspath(cfg.collector_inbox_dir)
     if msg := timezone.validate(cfg.timezone_offset, cfg.timezone_label): raise SystemExit(f'S4_TIMEZONE_OFFSET / S4_TIMEZONE_LABEL: {msg}')
     if not 0 <= cfg.backup_hour <= 23: raise SystemExit('S4_BACKUP_HOUR must be 0..23 (local time)')
     if not 1 <= cfg.backup_keep <= 365: raise SystemExit('S4_BACKUP_KEEP must be 1..365')
