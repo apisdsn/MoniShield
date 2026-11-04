@@ -40,7 +40,7 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 |---|---|
 | 0 | Log formats step 1c (prerequisite) |
 | 1 (done) | `domain/otlp_logs.py` (pure): OTLP/JSON log records → namespace, service, pod/host, line, time. Kubernetes attributes as for Kafka (`service_of`); plain servers by `host.name` and `service.name`; journald (`MESSAGE`, unit) and Windows Event Log (one JSON line); a structured body becomes one JSON line; names checked so they cannot leave the folder; times far in the future capped at the receive time. Tests on sample payloads in `tests/fixtures/otlp/`. Done: `parse_logs(payload, collector, now)` returns the records (`ns`, `svc`, `pod`, `line`, `t`, `relpath`) and the rejected counts by reason; `partial_success` builds the OTLP answer; journald lines are written as RFC 5424 so the `syslog` preset reads their time and level |
-| 2 | Collector registry (accounts database): name, platform, version, last seen, revoked; one-time enrollment token (24 h) exchanged for a long-lived key, both stored as hashes; replace and revoke the key; audit `collector.add`, `collector.enroll`, `collector.rotate`, `collector.revoke`. Application service + port |
+| 2 (done) | Collector registry (accounts database): name, platform, version, last seen, revoked; one-time enrollment token (24 h) exchanged for a long-lived key, both stored as hashes; replace and revoke the key; audit `collector.add`, `collector.enroll`, `collector.rotate`, `collector.revoke`. Application service + port |
 | 3 | Receiver `POST /v1/logs`: Bearer key, outside the CSRF guard and the payload encryption (a machine client), size limits before and after gunzip, rate limit per collector, written to disk before the 200, OTLP partial-success answer, 401 / 413 / 429 with `Retry-After` |
 | 4 | Third source `collector`: database, inbox, retention, notifications, ingest schedule; hourly files; source switch in the header; dictionaries id/en |
 | 5 | Configuration writer and install: collector YAML per platform and chosen data (file logs, journald, Windows Event Log, Docker, Kubernetes), `otlphttp` exporter with a disk queue and retries; `install.sh` (systemd), `install.ps1` (Windows service), Helm values |
@@ -49,6 +49,21 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 | 8 | Deploy and docs: receiver subdomain, new `.env` settings, user guide, status, changelog |
 | 9 | Part 2: `POST /v1/metrics`, time-series tables in DuckDB (minute → hour roll-up, retention) |
 | 10 | Part 2: Servers and Kubernetes pages, z-score anomalies |
+
+### Step 2: registry, enrollment and keys
+
+- Texts: enrollment token `mse_<id>_<secret>`, key `msk_<id>_<secret>`; `<id>` is the collector's row id (so the server
+  finds the row without scanning), `<secret>` is `secrets.token_urlsafe(32)` (43 characters). Only the SHA-256 of the
+  secret is stored and compared in constant time; the texts are shown once (create, new token, enroll, rotate).
+- Flow: `POST /api/admin/collectors` (admin) returns the token (valid 24 h); the install script calls
+  `POST /api/collector/enroll` with `X-Requested-With: monishield-collector` and gets the key. The token works once.
+  Every bad token gives the same error and counts toward the login's per-IP limit (20 per 15 minutes).
+- Rotate: the new key is returned once; the previous key keeps working for 24 h (`previous_valid_until`), so a running
+  collector can be updated without losing data. Revoke refuses every key at once. Delete only after revoke (or before
+  enrolling).
+- Status: `revoked`, `waiting`, `online` (seen within 5 min), `late` (within 60 min), `offline`. `last_seen` is written at
+  most once a minute per collector. Step 3 calls `CollectorService.authenticate(key, ip, version)`.
+- Step 6 must add Indonesian entries for the new messages to `web/src/srv.js` (`ERR_ID`).
 
 ### Log format rules for collector data
 
@@ -81,3 +96,6 @@ rule of their service name (`service.name` of the collector's file group, else t
 
 - A retried batch whose answer was lost can be written twice; rare, accepted for now.
 - Metrics (part 2) need their own storage and pages; they do not touch the log parsers.
+- Replacing a key twice within 24 h ends the grace of the first key at once (only one previous key is kept).
+- Wrong enrollment tokens share the login's per-IP limit (20 per 15 minutes), so many bad installs from one address can
+  also block sign-ins from that address for 15 minutes, and the reverse.

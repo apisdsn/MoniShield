@@ -12,18 +12,18 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import account_service, alert_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
+from monishield.application import account_service, alert_service, collector_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
 from monishield.domain import config_model, detect, log_formats, services, timezone
 from monishield.infrastructure import auth as authmod, backup, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
-from monishield.interfaces.api import admin, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
+from monishield.interfaces.api import admin, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
 from .common import ROLE_DEPS
 
 WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
-ROUTERS = (meta.router, session.router, payload.router, users.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
+ROUTERS = (meta.router, session.router, payload.router, users.router, collectors.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
 
 
 
@@ -91,6 +91,7 @@ def wire(state, cfg, env_path):
     state.backup = backup_service.BackupService(state)
     state.resets = password_service.PasswordResets(state)
     state.emails = account_service.EmailChanges(state)
+    state.collectors = collector_service.CollectorService(state)
     return state
 
 

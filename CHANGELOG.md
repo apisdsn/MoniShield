@@ -7,6 +7,8 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Collector step 2 (`docs/12-collector.md`): admins register collectors; a one-time enrollment token (24 h) is exchanged once
+  for the collector's own key (stored as a hash); keys can be replaced (old key works 24 h more) and revoked; audited.
 - Collector step 1 (`docs/12-collector.md`): OTLP/HTTP JSON log records are read into namespace, service, pod or host, line,
   time and an hourly inbox file path (Kubernetes, Windows Event Log, journald, Docker, plain files), with rejected
   records counted by reason.

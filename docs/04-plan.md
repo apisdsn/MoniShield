@@ -1416,3 +1416,11 @@ until the rename.
 **Step 1 done.** `monishield/domain/otlp_logs.py` turns an OTLP/HTTP JSON logs request into records (namespace, service,
 pod or host, line, time, hour file path) for Kubernetes, Windows Event Log, journald, Docker and plain files, rejects
 what is malformed with a reason, and builds the partial-success answer. Sample payloads are in `tests/fixtures/otlp/`.
+
+**Step 2 done.** Collector registry in the accounts database (`monishield/domain/collectors.py`, `Collector` in
+`infrastructure/auth.py`, `application/collector_service.py`, `interfaces/api/collectors.py`): an admin registers a
+collector and gets a one-time enrollment token (`mse_<id>_<secret>`, 24 h) that the collector exchanges once, at
+`POST /api/collector/enroll`, for its key (`msk_<id>_<secret>`); only SHA-256 hashes are stored. A replaced key keeps
+working for 24 h. Wrong enrollment attempts count toward the login's per-IP limit. Audit: `collector.add`, `.token`,
+`.enroll`, `.enroll_fail`, `.rotate`, `.revoke`, `.delete` (never a secret). Step 6 must add `web/src/srv.js` `ERR_ID`
+entries for the new messages.

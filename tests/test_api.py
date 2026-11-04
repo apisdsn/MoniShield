@@ -151,8 +151,10 @@ def test_user_sees_the_dashboard_but_not_admin(client):
     assert a == b and len(b['services']) == 7                                    # user sees the same as admin
     assert tc.get('/api/meta').status_code == 200
     for method, path in (('get', '/api/admin/users'), ('get', '/api/admin/audit'), ('get', '/api/admin/ingest'), ('post', '/api/admin/ingest'),
-                         ('post', '/api/admin/derive'), ('post', '/api/admin/forget'), ('post', '/api/admin/users')):
-        r = getattr(tc, method)(path, headers=X) if method == 'get' else getattr(tc, method)(path, json={}, headers=X)
+                         ('post', '/api/admin/derive'), ('post', '/api/admin/forget'), ('post', '/api/admin/users'),
+                         ('get', '/api/admin/collectors'), ('post', '/api/admin/collectors'), ('post', '/api/admin/collectors/1/token'),
+                         ('post', '/api/admin/collectors/1/rotate'), ('post', '/api/admin/collectors/1/revoke'), ('delete', '/api/admin/collectors/1')):
+        r = getattr(tc, method)(path, headers=X) if method in ('get', 'delete') else getattr(tc, method)(path, json={}, headers=X)
         assert (r.status_code, error_code(r)) == (403, 'forbidden'), path
 
 
@@ -170,7 +172,7 @@ def test_role_matrix_covers_every_route(client):
         dep = next(d for d in (common.require_admin_or_job, common.require_admin, common.require_user_ready, common.require_user, common.public)
                    if d in set(appmod._deps(r.dependant)))
         f = '2030-01-01' if r.path.startswith('/api/admin/folders/') else B   # folder delete/restore routes: a date that does not exist (do not delete test data)
-        path = r.path.replace('{folder}', f).replace('{user_id}', '999999').replace('{job_id}', '999999').replace('{table}', 'c401').replace('{service}', NG)
+        path = r.path.replace('{folder}', f).replace('{user_id}', '999999').replace('{job_id}', '999999').replace('{cid}', '999999').replace('{table}', 'c401').replace('{service}', NG)
         method = sorted(r.methods)[0].lower()
         for i, (tc, hdr) in enumerate(((anon, X), (user, X), (client, X), (machine, {**X, 'Authorization': f'Bearer {TOKEN}'}))):
             kw = dict(headers=hdr) if method in ('get', 'delete') else dict(headers=hdr, json={})
