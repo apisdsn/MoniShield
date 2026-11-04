@@ -82,6 +82,7 @@
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --r-card: 16px;
   --r-box: 12px;
+  --r-ctl: 12px;      /* buttons, icon buttons, segmented controls, the user button, the date picker, search fields */
   --side-w: 236px;
   --side-w-c: 68px;   /* left navigation collapsed into an icon rail */
   --touch: 44px;

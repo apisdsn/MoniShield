@@ -102,6 +102,36 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.evaluate(() => { document.documentElement.dataset.theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; });
   console.log('ok   select lists readable in the dark and light themes');
 
+  // header language menu: opens, Esc closes and returns focus to the button, choosing a row switches the language and closes the menu
+  await page.goto(BASE + '/overview');
+  await page.waitForSelector('main#main[aria-busy="false"]');
+  const langBtn = page.locator('button[aria-controls="lang-menu"]');
+  await langBtn.click();
+  if ((await langBtn.getAttribute('aria-expanded')) !== 'true') throw new Error('language menu did not open');
+  await page.keyboard.press('Escape');
+  if (await page.locator('#lang-menu').count()) throw new Error('Esc did not close the language menu');
+  if (!(await langBtn.evaluate((b) => document.activeElement === b))) throw new Error('focus did not return to the language button');
+  const want = (await page.evaluate(() => document.documentElement.lang)) === 'en' ? 'id' : 'en';
+  await langBtn.click();
+  await page.locator(`#lang-menu [role=menuitemradio]:has(.code:text-is("${want.toUpperCase()}"))`).click();
+  if (await page.evaluate(() => document.documentElement.lang) !== want) throw new Error('the language menu did not switch the language');
+  if (await page.locator('#lang-menu').count()) throw new Error('the language menu stayed open after a choice');
+  console.log('ok   header language menu (open, Esc, choose)');
+
+  // dark theme switch: toggles data-theme, both themes render the Overview without script errors
+  const sw = page.locator('button[role=switch]');
+  const errsBefore = problems.length;
+  for (let i = 0; i < 2; i++) {
+    const was = await page.evaluate(() => document.documentElement.dataset.theme);
+    await sw.click();
+    const now = await page.evaluate(() => document.documentElement.dataset.theme);
+    if (now === was || (await sw.getAttribute('aria-checked')) !== String(now === 'dark')) throw new Error(`theme switch: ${was} -> ${now}`);
+    await page.waitForTimeout(400);
+    await page.locator('main#main[aria-busy="false"]').waitFor();
+  }
+  if (problems.length !== errsBefore) throw new Error(`errors while switching themes: ${problems.slice(errsBefore).join('; ')}`);
+  console.log('ok   dark theme switch (both themes render the Overview)');
+
   let failed = 0, checked = 0;
   for (const run of RUNS) {
     await page.evaluate((l) => localStorage.setItem('lang', l), run.lang);

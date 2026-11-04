@@ -1,13 +1,15 @@
 <!-- Page header (DRD §2.1 U3, §8.2; redesign 2026-10-27, mockup "Overview: before & after"). Wide screen: one sticky
      row: title + compact status line (left), then source switch, date picker (◀ date ▶, details in its tooltip), search,
-     Sync (admin) and the avatar menu holding language, theme, reload and the account items (right). The date is shown once,
-     in the picker. ≤ 900 px: sticky bar [☰] [search] [sync] [avatar] with a second row [S3 | Kafka] [◀ date ▶]; the title
+     Sync (admin), the language menu, the dark-theme switch and the avatar menu holding reload and the account items (right). The date is shown once,
+     in the picker. ≤ 900 px: sticky bar [☰] [search] [sync] [language] [theme] [avatar] with a second row [S3 | Kafka] [◀ date ▶]; the title
      flows below it. DOM order = Tab order: tools first, title (h1, tabindex -1) after; visual placement set by the grid. -->
 <script>
   import Logo from './Logo.svelte';
   import { lang, t } from '../i18n.js';
   import FolderPicker from './FolderPicker.svelte';
   import UserMenu from './UserMenu.svelte';
+  import LangMenu from './LangMenu.svelte';
+  import ThemeSwitch from './ThemeSwitch.svelte';
   import GlobalSearch from './GlobalSearch.svelte';
   import SyncButton from './SyncButton.svelte';
   import { APP_NAME } from '../brand.js';
@@ -41,6 +43,8 @@
       </div>
       {#if folders?.length}<GlobalSearch {folder} />{/if}
       {#if me?.role === 'admin'}<SyncButton {onsynced} />{/if}
+      <LangMenu />
+      <ThemeSwitch />
       <UserMenu {me} {route} {onlogout} {onreload} />
     </div>
   </div>
@@ -92,5 +96,5 @@
     .ttl { margin: 6px 0 12px; }
     h1 { font-size: 1.5rem; }
   }
-  @media (max-width: 420px) { .brand { visibility: hidden; } }
+  @media (max-width: 420px) { .brand { visibility: hidden; } .bar { gap: 4px; } }
 </style>
