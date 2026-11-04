@@ -95,7 +95,7 @@
   .sync { position: relative; }
   .badge {
     position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
-    display: grid; place-items: center; font-size: 0.6875rem; font-weight: 700; line-height: 1;
+    display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; line-height: 1;
     background: var(--accent); color: var(--brand-fg); box-shadow: 0 0 0 2px var(--card);
   }
   .spin :global(svg) { animation: putar 1s linear infinite; }

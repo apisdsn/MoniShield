@@ -828,7 +828,7 @@
  "map.lg.loc": "Lokasi IP asal",
  "map.lg.sentence": "{abroad} request dari luar Indonesia · {unloc} request dari IP internal / tanpa lokasi (tidak digambar)",
  "map.lg.srv": "Server tujuan",
- "map.live": "LANGSUNG",
+ "map.live": "Langsung",
  "map.live_tip": "Partikel = request yang baru masuk dari Kafka (realtime)",
  "map.module": "Modul tujuan",
  "map.no_nginx": "Peta butuh log ingress nginx; folder ini tidak memilikinya.",

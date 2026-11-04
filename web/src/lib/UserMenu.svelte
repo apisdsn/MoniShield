@@ -74,7 +74,7 @@
     width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
     font-size: 0.75rem; font-weight: 700; color: var(--brand-fg); background: var(--brand-bg);
   }
-  .car { color: var(--muted); font-size: 0.7rem; }
+  .car { color: var(--muted); font-size: 0.75rem; }
   @media (max-width: 900px) {
     .who { padding: 0; min-width: var(--touch); }
     .car { display: none; }

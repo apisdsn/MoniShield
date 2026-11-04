@@ -67,8 +67,8 @@
   .readout { margin: 0 0 8px; font-size: 0.8125rem; min-height: 1.3em; color: var(--fg); }
   .scroll { overflow-x: auto; }
   .grid24 { display: grid; grid-template-columns: max-content repeat(24, minmax(14px, 1fr)); gap: 2px; min-width: 520px; }
-  .hx { font-size: 0.625rem; color: var(--muted); text-align: left; }
-  .dy { font-size: 0.6875rem; color: var(--kpi-label); padding-right: 8px; white-space: nowrap; align-self: center; }
+  .hx { font-size: 0.75rem; color: var(--muted); text-align: left; }
+  .dy { font-size: 0.75rem; color: var(--kpi-label); padding-right: 8px; white-space: nowrap; align-self: center; }
   .cell { height: 18px; border-radius: 4px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 60%, transparent); }
   .cell:hover { outline: 2px solid var(--focus); outline-offset: 0; }
   .legend { display: flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 0.75rem; flex-wrap: wrap; }

@@ -246,7 +246,7 @@
   table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
   th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--row-line); vertical-align: top; }
   th {
-    color: var(--th-fg); font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--th-fg); font-weight: 600; font-size: 0.75rem;
     position: sticky; top: 0; background: var(--th-bg); z-index: 2;
   }
   th.n, td.n { text-align: right; width: 1%; white-space: nowrap; padding-left: 16px; font-variant-numeric: tabular-nums; }
@@ -267,7 +267,7 @@
   .raw { position: relative; }
   .cp {
     position: absolute; top: 14px; right: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--muted);
-    border-radius: 8px; font-size: 0.6875rem; padding: 2px 8px; cursor: pointer; min-height: 26px;
+    border-radius: 8px; font-size: 0.75rem; padding: 2px 8px; cursor: pointer; min-height: 26px;
   }
   details pre {
     white-space: pre-wrap; word-break: break-all; background: var(--pre-bg); border: 1px solid var(--line);
@@ -301,5 +301,10 @@
     .cards td.none { display: block; }
     .cards td.none::before { content: none; }
     .foot .btn { width: 100%; min-height: var(--touch); }
+  }
+  @media (max-width: 900px), (pointer: coarse) {
+    .sort { min-height: var(--touch); min-width: var(--touch); justify-content: center; }
+    .cp { min-height: var(--touch); min-width: var(--touch); }
+    .clip, details summary { min-height: var(--touch); }
   }
 </style>

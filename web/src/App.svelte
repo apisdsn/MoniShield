@@ -386,7 +386,7 @@
 
 <style>
   .skip {
-    position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: 999px;
+    position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: var(--r-ctl);
     background: var(--accent); color: var(--brand-fg); font-weight: 600; text-decoration: none;
   }
   .skip:focus { top: 12px; }

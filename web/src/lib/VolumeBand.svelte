@@ -74,7 +74,7 @@
   .bars span { width: 10px; border-radius: 2px; background: var(--line-strong); opacity: 0.45; }
   .bars span.now { background: var(--c1); opacity: 1; }
   .bars.req span.now { background: var(--c2); }
-  .days { font-size: 0.6875rem; color: var(--muted); }
+  .days { font-size: 0.75rem; color: var(--muted); }
   @media (max-width: 900px) {
     .vb { grid-template-columns: minmax(0, 1fr); }
     .cell { padding: 14px 16px; }

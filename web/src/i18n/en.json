@@ -828,7 +828,7 @@
  "map.lg.loc": "Source IP location",
  "map.lg.sentence": "{abroad} requests from outside Indonesia · {unloc} requests from internal / unlocated IPs (not drawn)",
  "map.lg.srv": "Destination server",
- "map.live": "LIVE",
+ "map.live": "Live",
  "map.live_tip": "Particles = requests just arriving from Kafka (realtime)",
  "map.module": "Destination module",
  "map.no_nginx": "The map needs ingress nginx logs; this folder has none.",

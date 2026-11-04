@@ -79,7 +79,7 @@
   .sep { color: var(--line-strong); }
   .where { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .burger, .brand { display: none; }
-  .seg button { min-width: 2.5rem; }
+  .seg button { min-width: var(--touch); }
   @media (max-width: 900px) {
     .top { display: contents; }
     .bar {

@@ -306,7 +306,7 @@
   .mb:hover { background: var(--nav-hover); }
   .fs { display: none; }
   .attr {
-    position: absolute; right: 0; bottom: 0; z-index: 2; font-size: 0.6875rem; padding: 3px 8px; border-top-left-radius: 8px;
+    position: absolute; right: 0; bottom: 0; z-index: 2; font-size: 0.75rem; padding: 3px 8px; border-top-left-radius: 8px;
     background: color-mix(in srgb, var(--card) 88%, transparent); color: var(--muted);
   }
   .attr a { color: inherit; }
