@@ -11,6 +11,7 @@
   import { cmpNote } from './lib/compare.js';
   import { APP_NAME } from './brand.js';
   import { load, save } from './store.js';
+  import { followScale } from './scale.js';
   import Sidebar from './lib/Sidebar.svelte';
   import VolumeBand from './lib/VolumeBand.svelte';
   import Header from './lib/Header.svelte';
@@ -118,6 +119,9 @@
     const off2 = onReconnect(() => reload());
     return () => { off1(); off2(); };
   });
+
+  // very wide screens: the signed-in app is drawn larger (scale.js); the public home page and the sign-in screens stay at 1
+  $effect(() => { if (screen === 'app') return followScale(); });
 
   // back/forward between the home page and the app (links between them reload the page: data-reload)
   $effect(() => {
@@ -390,7 +394,7 @@
     position: fixed; inset: 0 auto 0 0; width: var(--side-w); background: var(--side-bg); border-right: 1px solid var(--line);
     display: flex; flex-direction: column; padding: 18px 12px; gap: 14px; z-index: 30;
   }
-  .wrap { margin-left: var(--side-w); padding: 0 28px 40px; max-width: calc(1560px + var(--side-w)); }
+  .wrap { margin-left: var(--side-w); padding: 0 min(28px, calc(36px / var(--ui-scale, 1))) 40px; }   /* the side gutter stays under 40 px on screen when the app is scaled up */
   .sub { margin: 0 4px 16px; color: var(--muted); font-size: 0.78rem; text-align: right; }
   main:focus { outline: none; }
   .cmpnote { margin: 0 0 12px; font-size: 0.8125rem; color: var(--muted); }
@@ -407,7 +411,7 @@
     .side { transition: width 0.18s ease; }
     .side.collapsed { width: var(--side-w-c); padding-inline: 10px; }
     .wrap { transition: margin-left 0.18s ease; }
-    .wrap.collapsed { margin-left: var(--side-w-c); max-width: calc(1560px + var(--side-w-c)); }
+    .wrap.collapsed { margin-left: var(--side-w-c); }
   }
   @media (prefers-reduced-motion: reduce) { .side, .wrap { transition: none !important; } }
 

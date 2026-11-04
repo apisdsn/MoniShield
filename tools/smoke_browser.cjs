@@ -132,6 +132,20 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   if (problems.length !== errsBefore) throw new Error(`errors while switching themes: ${problems.slice(errsBefore).join('; ')}`);
   console.log('ok   dark theme switch (both themes render the Overview)');
 
+  // wide and narrow screens: at 3840 x 2160 the Overview fills the width (scaled up, no empty right side, no sideways scroll);
+  // at 390 px nothing scrolls sideways
+  for (const [w, h] of [[3840, 2160], [390, 844]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(BASE + '/overview');
+    await page.waitForSelector('main#main[aria-busy="false"]');
+    await page.waitForTimeout(600);
+    const m = await page.evaluate(() => ({ right: document.querySelector('main').getBoundingClientRect().right, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, wide: [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 2).slice(0, 3).map((e) => `${e.tagName}.${e.className}`).join(', '), w: innerWidth, zoom: document.documentElement.style.zoom }));
+    if (m.over > 0) throw new Error(`horizontal scroll of ${m.over}px at ${w}px (${m.wide})`);
+    if (w >= 3000 && (m.w - m.right > 40 || m.zoom !== '1.6')) throw new Error(`Overview main ends ${m.w - m.right}px before the right edge (zoom "${m.zoom}") at ${w}px`);
+    console.log(`ok   Overview at ${w}px (right gap ${Math.round(m.w - m.right)}px, zoom ${m.zoom || '1'}, no sideways scroll)`);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+
   let failed = 0, checked = 0;
   for (const run of RUNS) {
     await page.evaluate((l) => localStorage.setItem('lang', l), run.lang);

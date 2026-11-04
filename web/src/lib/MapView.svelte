@@ -324,7 +324,7 @@
   .sm { min-height: 32px; margin-top: 8px; padding: 0.3rem 0.8rem; font-size: 0.75rem; }
   .fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; font-size: 0.875rem; }
   .compact { aspect-ratio: 2.4 / 1; }
-  .mapwrap.tall { aspect-ratio: auto; height: calc(100vh - 300px); height: calc(100dvh - 300px); min-height: 440px; }
+  .mapwrap.tall { aspect-ratio: auto; height: calc(100vh / var(--ui-scale, 1) - 300px); height: calc(100dvh / var(--ui-scale, 1) - 300px); min-height: 440px; }
   .mapwrap :global(.maplibregl-cooperative-gesture-screen) { font-family: inherit; font-size: 1rem; background: rgba(0, 0, 0, 0.45); }
   @media (max-width: 900px) {
     .mapwrap { aspect-ratio: 4 / 3; min-height: 300px; }
