@@ -1,8 +1,8 @@
 # Plan — configurable log formats (stage 1 of "any log")
 
 Status: approved by the owner 2026-10-29 (public sample formats; rules in a file **and** on the Configuration page).
-Steps 1a (rules model, file, validation, built-in rules) and 1b (common formats, `http_access` / `app_line`) are built;
-1c–1e follow.
+Steps 1a (rules model, file, validation, built-in rules), 1b (common formats, `http_access` / `app_line`) and 1c (pages,
+attack detection and map read the new tables) are built; 1d–1e follow.
 
 ## 1. Goal
 
@@ -170,7 +170,7 @@ edit from there. No re-parse is needed after the upgrade.
 |---|---|
 | 1a | **Done.** Rules model + loader + validation (`domain/log_formats.py`, `config.log_format_rules`, `S4_LOG_FORMATS_FILE`, `log-formats.example.toml`), today's rules built from the site profile; tests |
 | 1b | **Done.** Presets `nginx-combined`, `apache-combined`, `json`, `logfmt`, `regex`, `plain`, `syslog`, multiline (`domain/formats.py`); `http_access` / `app_line`; `ingest_file.lines_unmatched`; `auto` reads as `plain` until 1d; tests with sample lines per preset |
-| 1c | Derive and pages read the new tables; CRS detection and map on `http_access`; unread-line rate |
+| 1c | **Done.** Derive SQL reads `http_access` / `app_line` (service, hour, status, endpoint, IP, map flow); CRS detection and `agg_crs_*` on `http_access`; IP profile and search; format and unread-line rate on the Service page; folders are derived once more after the upgrade (`derive_version`), no re-parse; tests |
 | 1d | `auto` detection; per-file `format_key` re-parse; CLI `formats list/test` |
 | 1e | Configuration → Log formats page (after the mockup), docs, `.env.example`, user guide |
 

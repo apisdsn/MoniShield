@@ -38,9 +38,11 @@ def search(cur, params):
                                        ORDER BY fail DESC, account LIMIT {PER_TYPE}""", folder, like):
         out.append(dict(type='account', label=acc, n=fail, ok=ok, target=dict(tab='security', q=acc)))
     if len(q) >= 6 and re.fullmatch(r'[0-9A-Za-z-]+', q):   # requestId (ingress log tail)
-        for rid, ip, m, p, st in _all(cur, f"""SELECT request_id, ip, method, path_key, status FROM nginx_access
-                                               WHERE folder = ? AND request_id LIKE ? ESCAPE '\\' ORDER BY ts_utc LIMIT {PER_TYPE}""",
-                                      folder, _like(q)[1:]):
+        # the ingress log and the services read as an access log (log-formats.toml)
+        for rid, ip, m, p, st in cur.execute(f"""SELECT request_id, ip, method, path_key, status
+                                               FROM (SELECT request_id, ip, method, path_key, status, ts_utc FROM nginx_access WHERE folder = $f AND request_id LIKE $q ESCAPE '\\'
+                                                     UNION ALL SELECT request_id, ip, coalesce(method, ''), path_key, status, ts_utc FROM http_access WHERE folder = $f AND request_id LIKE $q ESCAPE '\\')
+                                               ORDER BY ts_utc LIMIT {PER_TYPE}""", dict(f=folder, q=_like(q)[1:])).fetchall():
             out.append(dict(type='request', label=rid, sub=f'{m} {p} · {st}', ip=ip, target=dict(tab='ip', service=ip, q=rid)))
     if not re.fullmatch(r'[0-9.:]+', q):   # URL/endpoint fragment in any service
         for svc, key, n in _all(cur, f"""SELECT service, key, requests FROM agg_endpoint WHERE folder = ? AND key ILIKE ? ESCAPE '\\'

@@ -155,6 +155,7 @@ def _db_date(path):
 
 IP_SOURCES = """SELECT ip FROM nginx_access WHERE ip IS NOT NULL
                 UNION SELECT ip FROM fe_access WHERE ip IS NOT NULL
+                UNION SELECT ip FROM http_access WHERE ip IS NOT NULL
                 UNION SELECT ip FROM sl_event WHERE ip IS NOT NULL
                 UNION SELECT login_ip FROM spring_line WHERE login_ip IS NOT NULL"""
 

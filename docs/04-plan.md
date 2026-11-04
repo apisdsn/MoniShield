@@ -1361,6 +1361,19 @@ entry the format cannot read is counted in `ingest_file.lines_unmatched`. `auto`
 built-in rules the parse result is identical to before (tested file by file). Pages do not read the new tables yet
 (step 1c). Tests: `tests/test_formats.py` on public sample lines in `tests/fixtures/formats/`.
 
+**Step 1c done**: the derive SQL adds `http_access` (own `service` column) and `app_line` to the per-service aggregates
+(`agg_service`, `agg_hour`, `agg_status`, `agg_endpoint`, `agg_endpoint_error`; `agg_ip` and `agg_flow` from
+`http_access` only, since `app_line` keeps no IP). `agg_level` and `agg_message` need no new branch: the parser already
+writes the level counters and `log_message` rows of application logs. An `app_line` row counts as a request only when it
+has a status; its 5xx is not added to `err_http` (its ERROR level is already in `err`). `http_access` gets the `crs_*`
+columns and `derive/steps.crs` classifies it with the same rules (no method = `GET`); `agg_crs_*` include it, the old
+`attack_*` rules stay ingress-only. IPs of `http_access` go to the owner / location lookup and to the map
+(`upstream` = the service when the log has none, pod `-`); the IP profile and the search read it. The Service page returns
+`format` (preset, kind, unread-line rate = `lines_unmatched` / `lines`) and shows it above the KPIs; the rate is hidden at
+0 and for the legacy presets. `folder_state.derive_version` (`derive.DERIVE_VERSION`) makes ingest derive older folders once
+from the stored raw tables (`RULES_VERSION` unchanged, nothing re-parsed). Tests: `tests/test_formats_pages.py`, including
+a snapshot of every aggregate of the legacy fixtures taken before the change (`tests/fixtures/derive_snapshot.json`).
+
 
 ## Stage 53 — Raw Logs page (done, 2026-10-30)
 

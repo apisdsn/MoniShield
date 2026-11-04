@@ -16,6 +16,10 @@ import glob, os, re, time
 from monishield.domain import detect, services, timezone
 from monishield.infrastructure.derive import steps
 
+# Raise it when the derive SQL / steps change what the aggregates hold: ingest then derives every older folder once
+# (from the stored raw tables, no re-parse). 2 = the common formats (http_access, app_line) feed the pages (step 1c).
+DERIVE_VERSION = 2
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -52,13 +56,15 @@ def run(con, folder, now, rules_version):
     rng = con.execute("""SELECT min(a), max(b) FROM (
         SELECT min(ts_utc) a, max(ts_utc) b FROM nginx_access WHERE folder = $f UNION ALL
         SELECT min(ts_utc), max(ts_utc) FROM fe_access WHERE folder = $f UNION ALL
-        SELECT min(ts_utc), max(ts_utc) FROM spring_line WHERE folder = $f)""", {'f': folder}).fetchone()
+        SELECT min(ts_utc), max(ts_utc) FROM spring_line WHERE folder = $f UNION ALL
+        SELECT min(ts_utc), max(ts_utc) FROM http_access WHERE folder = $f UNION ALL
+        SELECT min(ts_utc), max(ts_utc) FROM app_line WHERE folder = $f)""", {'f': folder}).fetchone()
     con.execute('DELETE FROM folder_state WHERE folder = ?', [folder])
-    con.execute("""INSERT INTO folder_state (folder, derived_at, rules_version, range_start_utc, range_end_utc, lines, files, files_empty, files_corrupt, crs_version, tz_minutes)
+    con.execute("""INSERT INTO folder_state (folder, derived_at, rules_version, range_start_utc, range_end_utc, lines, files, files_empty, files_corrupt, crs_version, tz_minutes, derive_version)
         SELECT $f, $now, $v, $a, $b, coalesce(sum(lines), 0), count(*),
-               count(*) FILTER (WHERE lines = 0), count(*) FILTER (WHERE status = 'corrupt'), $crs, $tz
+               count(*) FILTER (WHERE lines = 0), count(*) FILTER (WHERE status = 'corrupt'), $crs, $tz, $dv
         FROM ingest_file WHERE folder = $f HAVING count(*) > 0""", {'f': folder, 'now': now, 'v': rules_version, 'a': rng[0], 'b': rng[1], 'crs': detect.version_key(),
-                                                        'tz': timezone.current().minutes})
+                                                        'tz': timezone.current().minutes, 'dv': DERIVE_VERSION})
     return timings
 
 

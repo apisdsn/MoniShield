@@ -317,7 +317,14 @@ ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS capec VARCHAR;            -- C
 ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_attack VARCHAR;       -- CRS attack family (sqli, xss, rce, ...)
 ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_severity TINYINT;     -- 1..3 (display tag)
 ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_score SMALLINT;       -- anomaly score (>= threshold 5)
+-- the same columns for the common access-log formats (log-formats.toml, step 1c); filled by derive/steps.crs
+ALTER TABLE http_access ADD COLUMN IF NOT EXISTS crs_rules INTEGER[];
+ALTER TABLE http_access ADD COLUMN IF NOT EXISTS capec VARCHAR;
+ALTER TABLE http_access ADD COLUMN IF NOT EXISTS crs_attack VARCHAR;
+ALTER TABLE http_access ADD COLUMN IF NOT EXISTS crs_severity TINYINT;
+ALTER TABLE http_access ADD COLUMN IF NOT EXISTS crs_score SMALLINT;
 ALTER TABLE folder_state ADD COLUMN IF NOT EXISTS tz_minutes INTEGER;       -- local time offset the aggregates were derived with (NULL = +7 h, before 2026-10-28)
+ALTER TABLE folder_state ADD COLUMN IF NOT EXISTS derive_version INTEGER;     -- derive.DERIVE_VERSION of the SQL the aggregates were derived with (NULL = before step 1c)
 ALTER TABLE folder_state ADD COLUMN IF NOT EXISTS crs_version VARCHAR;      -- CRS version + paranoia level when the CRS aggregates were derived
 
 CREATE TABLE IF NOT EXISTS agg_crs_url (

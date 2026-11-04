@@ -7,7 +7,10 @@ WITH e AS (
            CASE WHEN status <> 101 THEN request_time END AS d FROM nginx_access WHERE folder = $f
     UNION ALL SELECT $fe, method || ' ' || path_key, status, NULL FROM fe_access WHERE folder = $f
     UNION ALL SELECT $sl, method || ' ' || path_key, status, duration_ms / 1000 FROM sl_event WHERE folder = $f
-    UNION ALL SELECT 'coredns', domain, 0, NULL FROM coredns_error WHERE folder = $f),
+    UNION ALL SELECT 'coredns', domain, 0, NULL FROM coredns_error WHERE folder = $f
+    -- common formats: a log without a method (rare) is keyed by the path alone; status NULL counts as a request without a class
+    UNION ALL SELECT service, coalesce(method || ' ', '') || path_key, status, duration_ms / 1000 FROM http_access WHERE folder = $f
+    UNION ALL SELECT service, coalesce(method || ' ', '') || path_key, status, duration_ms / 1000 FROM app_line WHERE folder = $f AND path_key IS NOT NULL AND status IS NOT NULL),
 g AS (
     SELECT service, key, count(*) AS requests,
            count(*) FILTER (WHERE status BETWEEN 400 AND 499) AS n4xx, count(*) FILTER (WHERE status BETWEEN 500 AND 599) AS n5xx,

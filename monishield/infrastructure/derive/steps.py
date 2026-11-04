@@ -42,24 +42,35 @@ def attack(con, folder):  # old:71 add_attack + the atk/atk_ip/atk_h part of sum
     insert_rows(con, 'agg_attack_hour', [[folder, h + ':00:00', n] for h, n in atk_h.items()])
 
 
+# Tables with the crs_* columns. http_access (common formats, step 1c) may lack a method, a User-Agent, a size, a status or an
+# upstream: the method counts as 'GET' (CRS only reads it for the request line), the others as '' / 0 / the service name.
+CRS_TABLES = ('nginx_access', 'http_access')
+_NULLS = dict(method="coalesce(a.method, 'GET')", ua="coalesce(a.ua, '')", bytes='coalesce(a.bytes, 0)', status='coalesce(a.status, 0)',
+              upstream='coalesce(a.upstream, a.service)')
+
+
 def crs(con, folder):  # Stage 21, TRD §4.6: OWASP CRS classification per unique (method, path, UA), then CAPEC aggregates
-    """Fill the crs_* columns of this folder's nginx_access and agg_crs_url/ip/hour. Old rules (attack_cat, agg_attack_*) are untouched."""
-    con.execute('UPDATE nginx_access SET crs_rules = NULL, capec = NULL, crs_attack = NULL, crs_severity = NULL, crs_score = NULL '
-                'WHERE folder = ? AND crs_score IS NOT NULL', [folder])
+    """Fill the crs_* columns of this folder's nginx_access and http_access and agg_crs_url/ip/hour. Old rules (attack_cat, agg_attack_*) are untouched."""
     found = []
-    for meth, path, ua in con.execute('SELECT DISTINCT method, path, ua FROM nginx_access WHERE folder = ?', [folder]).fetchall():
-        r = detect.classify(meth, path, ua, detect.PARANOIA)
-        if r: found.append([meth, path, ua, r['rules'], r['capec'], r['attack'], r['severity'], r['score']])
+    for table in CRS_TABLES:
+        con.execute(f'UPDATE {table} SET crs_rules = NULL, capec = NULL, crs_attack = NULL, crs_severity = NULL, crs_score = NULL '
+                    'WHERE folder = ? AND crs_score IS NOT NULL', [folder])
+        for meth, path, ua in con.execute(f"SELECT DISTINCT {_NULLS['method']}, a.path, {_NULLS['ua']} FROM {table} a WHERE a.folder = ?", [folder]).fetchall():
+            r = detect.classify(meth, path, ua, detect.PARANOIA)
+            if r: found.append([table, meth, path, ua, r['rules'], r['capec'], r['attack'], r['severity'], r['score']])
     if found:
-        con.execute('CREATE OR REPLACE TEMP TABLE _crs (method VARCHAR, path VARCHAR, ua VARCHAR, rules INTEGER[], capec VARCHAR, attack VARCHAR, sev TINYINT, score SMALLINT)')
+        con.execute('CREATE OR REPLACE TEMP TABLE _crs (tbl VARCHAR, method VARCHAR, path VARCHAR, ua VARCHAR, rules INTEGER[], capec VARCHAR, attack VARCHAR, sev TINYINT, score SMALLINT)')
         insert_rows(con, '_crs', found)
-        con.execute("""UPDATE nginx_access a SET crs_rules = c.rules, capec = c.capec, crs_attack = c.attack, crs_severity = c.sev, crs_score = c.score
-                       FROM _crs c WHERE a.folder = ? AND a.method = c.method AND a.path = c.path AND a.ua = c.ua""", [folder])
+        for table in CRS_TABLES:
+            con.execute(f"""UPDATE {table} a SET crs_rules = c.rules, capec = c.capec, crs_attack = c.attack, crs_severity = c.sev, crs_score = c.score
+                            FROM _crs c WHERE c.tbl = '{table}' AND a.folder = ? AND {_NULLS['method']} = c.method AND a.path = c.path AND {_NULLS['ua']} = c.ua""", [folder])
         con.execute('DROP TABLE _crs')
-    rows = con.execute(f"""SELECT a.capec, a.crs_attack, a.crs_severity, a.crs_rules, {local_minute('a.ts_utc')}, a.ip, a.method, a.path, a.status::VARCHAR,
-                                  a.bytes, a.ua, a.upstream
-                           FROM nginx_access a JOIN ingest_file f USING (file_id)
-                           WHERE a.folder = ? AND a.crs_score IS NOT NULL ORDER BY f.relpath, a.line_no""", [folder]).fetchall()
+    rows = []
+    for table in CRS_TABLES:
+        rows += con.execute(f"""SELECT a.capec, a.crs_attack, a.crs_severity, a.crs_rules, {local_minute('a.ts_utc')}, a.ip, {_NULLS['method']}, a.path, {_NULLS['status']}::VARCHAR,
+                                       {_NULLS['bytes']}, {_NULLS['ua']}, {_NULLS['upstream'] if table == 'http_access' else 'a.upstream'}
+                                FROM {table} a JOIN ingest_file f USING (file_id)
+                                WHERE a.folder = ? AND a.crs_score IS NOT NULL ORDER BY f.relpath, a.line_no""", [folder]).fetchall()
     url, ipa, hour = {}, {}, C()
     for capec, fam, sev, rids, h, ip, meth, path, st, size, ua, up in rows:   # same shape as attack() above
         h, cat = h[:16], f'{capec}/{fam}'   # category = CAPEC/CRS family: XSS and PHP injection are both CAPEC-242, kept apart

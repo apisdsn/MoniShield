@@ -15,6 +15,10 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   `regex` or `plain` are read into the new tables `http_access` and `app_line` (multiline stack traces, level words, time
   formats); lines a format cannot read are counted per file (`lines_unmatched`). The pages read these tables from step 1c on;
   sites without `log-formats.toml` are read exactly as before.
+- Pages read the common log formats (step 1c): services read as `nginx-combined`, `json`, … now appear in the service
+  numbers, hours, status codes, endpoints, IPs, the map and (access logs) OWASP CRS attack detection; the IP profile and
+  search find them. The Service page shows the format in use and the share of unread lines. Existing folders are derived
+  once more after the upgrade, without re-parsing.
 - Raw Logs page (Analysis): search the original lines of every service in the folder's log files by text, regular
   expression, request ID or IP, filtered by service, pod, level/status and local time; follow one request across
   services, see the lines around an entry, download the matches as a `.log` file. Open to every signed-in user, text as

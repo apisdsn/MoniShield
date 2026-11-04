@@ -33,7 +33,7 @@ def test_csv_columns_match_the_schema():
     con = db.open(':memory:')
     for table, cols in parse.TABLES.items():
         schema_cols = [r[0] for r in con.execute(f"select column_name from information_schema.columns where table_name = '{table}' order by ordinal_position").fetchall()]
-        derived = ['crs_rules', 'capec', 'crs_attack', 'crs_severity', 'crs_score'] if table == 'nginx_access' else []   # Stage 21: filled by derive, not the parser
+        derived = ['crs_rules', 'capec', 'crs_attack', 'crs_severity', 'crs_score'] if table in ('nginx_access', 'http_access') else []   # Stage 21: filled by derive, not the parser
         assert schema_cols == ['file_id', 'line_no', 'folder'] + cols[1:] + derived, table
     db.open(':memory:').execute(open(db.SCHEMA).read())  # schema is safe to run twice
 
