@@ -98,7 +98,8 @@ Questions answered along the way, recorded so they are not asked again:
 6. **Configurable log formats** (stage 52, [`11-log-formats.md`](11-log-formats.md)): approved; step 1a (rules model,
    file, validation), 1b (common formats read into `http_access` / `app_line`, unread lines counted) and 1c (pages, CRS
    detection and map read the new tables, unread-line rate on the Service page; existing folders are derived once more
-   after the upgrade) done. Next: the collector ([`12-collector.md`](12-collector.md), stage 54, step 1), then 1d
+   after the upgrade) done. Collector (stage 54, [`12-collector.md`](12-collector.md)): step 1 done (OTLP/JSON log records read into lines);
+   step 2 (collector registry and keys) is next. Then 1d
    (`auto` detection, per-file re-parse, CLI) and 1e (Log formats page, docs).
 
 ## Known issues

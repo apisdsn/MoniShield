@@ -1,0 +1,114 @@
+{
+ "resourceLogs": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "web-01"
+      }
+     },
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "payments"
+      }
+     }
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "test"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1793786136000000000",
+       "body": {
+        "stringValue": "ts=2026-11-04T09:55:36Z level=info msg=charged\r\n"
+       },
+       "attributes": [
+        {
+         "key": "log.file.name",
+         "value": {
+          "stringValue": "pay.log"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "web-01"
+      }
+     }
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "test"
+     },
+     "logRecords": [
+      {
+       "observedTimeUnixNano": "1793786160000000000",
+       "body": {
+        "stringValue": "GET / 200"
+       },
+       "attributes": [
+        {
+         "key": "log.file.name",
+         "value": {
+          "stringValue": "/var/log/app-2026-11-04.log"
+         }
+        }
+       ]
+      },
+      {
+       "timeUnixNano": "1793786161000000000",
+       "body": {
+        "stringValue": "rotated line"
+       },
+       "attributes": [
+        {
+         "key": "log.file.name",
+         "value": {
+          "stringValue": "access.log.1.gz"
+         }
+        }
+       ]
+      },
+      {
+       "timeUnixNano": "1793786162000000000",
+       "body": {
+        "bytesValue": "cGxhaW4gYnl0ZXMgbGluZQ=="
+       },
+       "attributes": [
+        {
+         "key": "log.file.name",
+         "value": {
+          "stringValue": "Access Log.txt"
+         }
+        }
+       ]
+      },
+      {
+       "timeUnixNano": "1793786163000000000",
+       "body": {
+        "stringValue": "no file name"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

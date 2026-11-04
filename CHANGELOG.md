@@ -7,6 +7,9 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Collector step 1 (`docs/12-collector.md`): OTLP/HTTP JSON log records are read into namespace, service, pod or host, line,
+  time and an hourly inbox file path (Kubernetes, Windows Event Log, journald, Docker, plain files), with rejected
+  records counted by reason.
 - Log format rules per service (step 1a of `docs/11-log-formats.md`): `log-formats.toml` (`S4_LOG_FORMATS_FILE`, example
   `log-formats.example.toml`) lists, first match wins, which preset or format (`json`, `logfmt`, `regex`, …) reads each
   service; a file that cannot be used stops the start with the rule's position. Without the file the built-in rules

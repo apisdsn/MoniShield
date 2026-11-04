@@ -1,0 +1,147 @@
+{
+ "resourceLogs": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "web-01"
+      }
+     }
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "test"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1793786136000000000",
+       "body": {
+        "kvlistValue": {
+         "values": [
+          {
+           "key": "MESSAGE",
+           "value": {
+            "stringValue": "Accepted publickey for deploy from 198.51.100.7"
+           }
+          },
+          {
+           "key": "_SYSTEMD_UNIT",
+           "value": {
+            "stringValue": "sshd.service"
+           }
+          },
+          {
+           "key": "SYSLOG_IDENTIFIER",
+           "value": {
+            "stringValue": "sshd"
+           }
+          },
+          {
+           "key": "PRIORITY",
+           "value": {
+            "stringValue": "6"
+           }
+          },
+          {
+           "key": "_PID",
+           "value": {
+            "stringValue": "812"
+           }
+          },
+          {
+           "key": "_HOSTNAME",
+           "value": {
+            "stringValue": "web-01"
+           }
+          }
+         ]
+        }
+       }
+      },
+      {
+       "timeUnixNano": "1793786137000000000",
+       "body": {
+        "kvlistValue": {
+         "values": [
+          {
+           "key": "MESSAGE",
+           "value": {
+            "stringValue": "disk almost full"
+           }
+          },
+          {
+           "key": "SYSLOG_IDENTIFIER",
+           "value": {
+            "stringValue": "kernel"
+           }
+          },
+          {
+           "key": "PRIORITY",
+           "value": {
+            "stringValue": "3"
+           }
+          }
+         ]
+        }
+       }
+      },
+      {
+       "timeUnixNano": "1793786138000000000",
+       "body": {
+        "kvlistValue": {
+         "values": [
+          {
+           "key": "MESSAGE",
+           "value": {
+            "stringValue": "something happened"
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "resource": {
+    "attributes": []
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "test"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1793786139000000000",
+       "body": {
+        "kvlistValue": {
+         "values": [
+          {
+           "key": "MESSAGE",
+           "value": {
+            "stringValue": "no host anywhere"
+           }
+          },
+          {
+           "key": "_SYSTEMD_UNIT",
+           "value": {
+            "stringValue": "user@1000.service"
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -39,7 +39,7 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 | Step | Delivers |
 |---|---|
 | 0 | Log formats step 1c (prerequisite) |
-| 1 | `domain/otlp_logs.py` (pure): OTLP/JSON log records → namespace, service, pod/host, line, time. Kubernetes attributes as for Kafka (`service_of`); plain servers by `host.name` and `service.name`; journald (`MESSAGE`, unit) and Windows Event Log (one JSON line); a structured body becomes one JSON line; names checked so they cannot leave the folder; times far in the future capped at the receive time. Tests on sample payloads in `tests/fixtures/otlp/` |
+| 1 (done) | `domain/otlp_logs.py` (pure): OTLP/JSON log records → namespace, service, pod/host, line, time. Kubernetes attributes as for Kafka (`service_of`); plain servers by `host.name` and `service.name`; journald (`MESSAGE`, unit) and Windows Event Log (one JSON line); a structured body becomes one JSON line; names checked so they cannot leave the folder; times far in the future capped at the receive time. Tests on sample payloads in `tests/fixtures/otlp/`. Done: `parse_logs(payload, collector, now)` returns the records (`ns`, `svc`, `pod`, `line`, `t`, `relpath`) and the rejected counts by reason; `partial_success` builds the OTLP answer; journald lines are written as RFC 5424 so the `syslog` preset reads their time and level |
 | 2 | Collector registry (accounts database): name, platform, version, last seen, revoked; one-time enrollment token (24 h) exchanged for a long-lived key, both stored as hashes; replace and revoke the key; audit `collector.add`, `collector.enroll`, `collector.rotate`, `collector.revoke`. Application service + port |
 | 3 | Receiver `POST /v1/logs`: Bearer key, outside the CSRF guard and the payload encryption (a machine client), size limits before and after gunzip, rate limit per collector, written to disk before the 200, OTLP partial-success answer, 401 / 413 / 429 with `Retry-After` |
 | 4 | Third source `collector`: database, inbox, retention, notifications, ingest schedule; hourly files; source switch in the header; dictionaries id/en |
@@ -49,6 +49,25 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 | 8 | Deploy and docs: receiver subdomain, new `.env` settings, user guide, status, changelog |
 | 9 | Part 2: `POST /v1/metrics`, time-series tables in DuckDB (minute → hour roll-up, retention) |
 | 10 | Part 2: Servers and Kubernetes pages, z-score anomalies |
+
+### Log format rules for collector data
+
+Records from the collector arrive as plain lines, so a rule in `log-formats.toml` tells the parsers how to read them.
+Windows Event Log records are one JSON object per line, journald records are RFC 5424 syslog lines:
+
+```toml
+[[service]]
+match = "windows-*"
+format = "json"
+fields = { time = "system_time", level = "level", message = "message" }
+
+[[service]]
+match = "sshd"             # a journald unit or syslog identifier; list the services of the host
+format = "syslog"
+```
+
+Kubernetes and Docker records keep the original line, so they use the same rule as the Kafka source. Plain files use the
+rule of their service name (`service.name` of the collector's file group, else the file name without rotation suffix).
 
 ## 5. Safety
 

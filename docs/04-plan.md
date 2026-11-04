@@ -1412,3 +1412,7 @@ to `/v1/logs` with one key per collector, the lines written to a third source's 
 and the parsers stay as they are; metrics later. Decided 2026-11-04: log formats step 1c first; a third source of its
 own; the receiver on a subdomain without the Cloudflare proxy; logs before metrics; install scripts named MoniShield
 until the rename.
+
+**Step 1 done.** `monishield/domain/otlp_logs.py` turns an OTLP/HTTP JSON logs request into records (namespace, service,
+pod or host, line, time, hour file path) for Kubernetes, Windows Event Log, journald, Docker and plain files, rejects
+what is malformed with a reason, and builds the partial-success answer. Sample payloads are in `tests/fixtures/otlp/`.
