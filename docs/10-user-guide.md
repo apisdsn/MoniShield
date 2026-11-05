@@ -313,20 +313,20 @@ retention*). Every search and download is written to the audit log with who sear
 straight to MoniShield. The row of counts shows how many are Online (seen in the last 5 minutes), Late (5 to 60 minutes),
 Offline (longer) and Waiting (added, not installed yet). The table shows what each one sends, its version and when it was
 last seen (the exact time is in the tooltip); on a phone it becomes a list. Choose a row to open its details beside the
-table (below the list on a phone): platform, last address, what it sends, how many lines it received, wrote and rejected since
+table (below the list on a phone): platform, last address, what it sends, how many lines it received, stored and rejected since
 the server started, and the reason of the last rejection.
 
-- **Add collector**: type a name, choose Linux, Windows, Docker or Kubernetes and choose what it sends (files with the service
+- **Add Collector**: type a name, choose Linux, Windows, Docker or Kubernetes and choose what it sends (files with the service
   name their lines get, the system journal, Docker containers, Windows Event Log channels; Kubernetes always sends the pod
-  logs). **Create collector** shows the enrollment token (it works once, for 24 hours) and the commands for the platform with
+  logs). **Create Collector** shows the enrollment token (it works once, for 24 hours) and the commands for the platform with
   copy buttons: download the install script, read it, run it with the name and the token. For Kubernetes the page gives the
   `helm` and `kubectl` commands and the `values.yaml` to download. The collector appears as Waiting until it has enrolled.
-- **Replace key**: makes a new key, shown once, with the exact place to put it for the platform. The old key keeps working
+- **Replace Key**: makes a new key, shown once, with the exact place to put it for the platform. The old key keeps working
   for 24 hours.
-- **Change inputs**: changes what the collector sends. The server then needs its new configuration; the page shows the command.
-- **Open its logs in Raw Logs**: opens Raw Logs for the collector source (filtered to the host when the collector has sent
+- **Change Inputs**: changes what the collector sends. The server then needs its new configuration; the page shows the command.
+- **Open in Raw Logs**: opens Raw Logs for the collector source (filtered to the host when the collector has sent
   for exactly one).
-- **Revoke collector**: its key stops working at once; the lines already received stay. **Delete collector** removes a
+- **Revoke Collector**: its key stops working at once; the lines already received stay. **Delete Collector** removes a
   revoked collector, or one that never enrolled, from the list.
 
 How a server is connected, step by step, is in [`12-collector.md`](12-collector.md).

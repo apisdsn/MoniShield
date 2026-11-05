@@ -166,7 +166,7 @@ file recreates them. Owner steps: `docs/07-deploy-vps.md`, "Collector receiver s
 
 ### How to connect a server
 
-The Collectors page (Configuration › Collectors › Add collector) shows the commands below with the token filled in. The token works
+The Collectors page (Configuration › Collectors › Add Collector) shows the commands below with the token filled in. The token works
 once, for 24 hours.
 
 - **Linux (systemd; deb or rpm):** `curl -fsSLo install.sh https://<host>/collector/install.sh`, read it, then
@@ -201,9 +201,9 @@ with `lib/CollectorForm.svelte` (the inputs), `lib/CollectorInstall.svelte` (tok
 the server checks and the command texts are in `web/src/collectors.js` (tested by `tests/test_collectors.mjs`). `GET /api/admin/collectors`
 returns, per collector, `options` and `stats` (received, written, rejected by reason, last reject reason, the latest hosts or pods;
 from `CollectorFeed`, in memory) and the receiver address and release the commands use; `GET /api/admin/collectors/{id}/config`
-downloads the configuration or Helm values (no key). The "Open its logs in Raw Logs" link uses the new address part `#pod=<host>`
+downloads the configuration or Helm values (no key). The "Open in Raw Logs" link uses the new address part `#pod=<host>`
 (Raw Logs then shows that pod's latest lines through a regex search `.`). Choices: Revoke asks with a clear destructive
-confirmation (not a typed name); a Waiting collector offers "New enrollment token"; actions that do not apply are not shown.
+confirmation (not a typed name); a Waiting collector offers "New Enrollment Token"; actions that do not apply are not shown.
 
 ### Log format rules for collector data
 

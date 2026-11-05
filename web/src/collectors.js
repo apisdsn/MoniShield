@@ -115,7 +115,7 @@ export function installSteps(platform, base, name, token) {
   ];
 }
 
-/** Where the new key goes after "Replace key": [{id, lines}] and the file or object it belongs to. */
+/** Where the new key goes after "Replace Key": [{id, lines}] and the file or object it belongs to. */
 export function keySteps(platform, key) {
   if (platform === 'windows') return [{ id: 'set', lines: [
     `$reg = 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\otelcol-contrib'`,
@@ -130,7 +130,7 @@ export function keySteps(platform, key) {
     'sudo systemctl restart otelcol-contrib'] }];
 }
 
-/** After "Change inputs": how the collector gets its new configuration. Kubernetes: download values.yaml, then helm. */
+/** After "Change Inputs": how the collector gets its new configuration. Kubernetes: download values.yaml, then helm. */
 export function updateSteps(platform, base) {
   if (platform === 'windows') return [{ id: 'update', lines: [
     `$key = ((Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\otelcol-contrib').Environment | Where-Object { $_ -like 'MONISHIELD_COLLECTOR_KEY=*' }).Split('=', 2)[1]`,
