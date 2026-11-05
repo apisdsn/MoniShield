@@ -127,6 +127,8 @@ class Config:
     collector_max_concurrent: int = 4   # requests being read and stored at once (memory); more get 503 busy
     collector_ingest_seconds: int = 300   # interval of the ingest of the folders the receiver wrote to
     collector_min_free_mb: int = 1024   # free disk under the inbox below which the receiver answers 503
+    collector_otel_version: str = '0.163.2'   # otelcol-contrib release the install scripts and the Helm values use (released 2026-10-21)
+    collector_public_url: str = ''    # address collectors send to (https://logs.example.com); empty = the address the request used
     # download source & external service addresses (formerly hard-coded; default = official addresses)
     url_maxmind: str = 'https://download.maxmind.com/geoip/databases/{}/download?suffix=zip'   # {} = GeoLite2 edition name
     url_ip2asn: str = rules.IP2ASN_URL

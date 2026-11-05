@@ -43,7 +43,7 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 | 2 (done) | Collector registry (accounts database): name, platform, version, last seen, revoked; one-time enrollment token (24 h) exchanged for a long-lived key, both stored as hashes; replace and revoke the key; audit `collector.add`, `collector.enroll`, `collector.rotate`, `collector.revoke`. Application service + port |
 | 3 (done) | Receiver `POST /v1/logs`: Bearer key, outside the CSRF guard and the payload encryption (a machine client), size limits before and after gunzip, rate limit per collector, written to disk before the 200, OTLP partial-success answer, 401 / 413 / 429 with `Retry-After` |
 | 4 (done) | Third source `collector`: database, inbox, retention, notifications, ingest schedule; hourly files; source switch in the header; dictionaries id/en. See "Collector source" below |
-| 5 | Configuration writer and install: collector YAML per platform and chosen data (file logs, journald, Windows Event Log, Docker, Kubernetes), `otlphttp` exporter with a disk queue and retries; `install.sh` (systemd), `install.ps1` (Windows service), Helm values |
+| 5 (done) | Configuration writer and install: collector YAML per platform and chosen data (file logs, journald, Windows Event Log, Docker, Kubernetes), `otlphttp` exporter with a disk queue and retries; `install.sh` (systemd), `install.ps1` (Windows service), Helm values |
 | 6 | Admin › Collectors page (after the mockup): list, status counts, add dialog with platform tabs and the install command, details, replace / revoke key |
 | 7 | End-to-end check with a real `otelcol-contrib`: lines reach Raw Logs and the pages; data queued while the link is down arrives later; a revoked key is refused |
 | 8 | Deploy and docs: receiver subdomain, new `.env` settings, user guide, status, changelog |
@@ -114,6 +114,74 @@ once a collector is registered or its database holds a day.
   notifications look at the day in progress only and the daily report waits for a complete folder.
 - **Left to Kafka.** The consumer, "Check messages" and the live map belong to Kafka. The rule "S3 replaces Kafka's files" never
   applied to the collector inbox.
+
+### Configuration and install (step 5)
+
+`monishield/domain/collector_config.py` (pure) writes the collector's YAML from the platform, MoniShield's address and the log
+inputs the admin chose (`options`, stored with the collector, changed with `PUT /api/admin/collectors/{id}/options`, audit
+`collector.options`):
+
+| Platform | Inputs (`options`) | Receivers |
+|---|---|---|
+| `linux` | `files` (up to 30 groups of absolute path glob + service name), `journald` (+ `units`) | `filelog/<n>`, `journald` |
+| `docker` | the same, plus `containers` | also `filelog/docker` on `/var/lib/docker/containers/*/*-json.log` |
+| `windows` | `channels` (application, system, security), `files` | `windowseventlog/<channel>`, `filelog/<n>` |
+| `kubernetes` | none (pod logs are always on) | Helm values; the chart's `logsCollection` preset adds the receiver |
+
+Only log inputs exist; host metrics and endpoint checks come with part 2. Choices:
+
+- **The body is the original line.** The only operators are `container` (unwraps Docker's JSON-file format) and one `add` that
+  sets `container.name`. Docker's log files are named by container id and hold no name, so the first 12 characters of the id
+  (what `docker ps` shows) name the container; a nicer name needs the Docker API and stays a later option.
+- **Always:** `resourcedetection` (`system`, so `host.name` is set), `batch` (`send_batch_size` 500, `send_batch_max_size`
+  1000, `timeout` 5 s; far below the receiver's 16 MB raw limit), exporter `otlphttp` (`encoding: json`, `compression: gzip`,
+  retry without a time limit, `sending_queue` on the `file_storage` extension, so data waits on disk while MoniShield is
+  unreachable). The queue directory is `/var/lib/otelcol-contrib/queue` (Linux, Docker), `C:\ProgramData\OpenTelemetry
+  Collector\queue` (Windows) or a hostPath `/var/lib/otelcol-monishield/queue` (Kubernetes).
+- **The key is never in the YAML.** The exporter reads `Authorization: Bearer ${env:MONISHIELD_COLLECTOR_KEY}`; the variable is
+  filled from a systemd environment file (`/etc/otelcol-contrib/monishield.env`, mode 0600), the service's own registry
+  environment (Windows) or a Kubernetes secret.
+- Validation: absolute paths without quotes, control characters, backticks or `${`; service names with the Kafka name rule;
+  at most 30 file groups and 30 journald units; at least one input. Every string is written double quoted.
+- **Setting `S4_COLLECTOR_OTEL_VERSION`** pins the `otelcol-contrib` release (default 0.163.2, released 2026-10-21, taken at
+  least two weeks after its release). **`S4_COLLECTOR_PUBLIC_URL`** is the address collectors send to; empty means the address
+  of the request (step 8 sets it to the receiver subdomain).
+
+Enrollment now answers `{collector, key, config}`; `GET /api/collector/config` (collector key) returns the current YAML, so a
+collector can be updated after the options change. The install scripts call `POST /api/collector/enroll?format=install`, which
+answers the YAML as text with the key, platform and name in the headers `X-Collector-Key`, `X-Collector-Platform` and
+`X-Collector-Name` (no JSON parser is needed in a shell). The scripts are public (`GET /collector/install.sh` and
+`/collector/install.ps1`, no secret in them) and filled in with the pinned version and the receiver address.
+
+### How to connect a server
+
+The Collectors page (Configuration › Collectors › Add collector) shows the commands below with the token filled in. The token works
+once, for 24 hours.
+
+- **Linux (systemd; deb or rpm):** `curl -fsSLo install.sh https://<host>/collector/install.sh`, read it, then
+  `sudo sh install.sh --name <name> --token <token>`. The script downloads the package of the pinned version for the machine
+  (amd64 or arm64), compares its SHA-256 with the release's `<asset>.sha256` file and stops on a difference, installs it, enrolls,
+  writes `/etc/otelcol-contrib/config.yaml` (0640) and `monishield.env` (0600) plus a systemd drop-in, creates the queue
+  directory, adds the service user to `adm` and `systemd-journal` (so it can read `/var/log` and the journal), checks the
+  configuration with `otelcol-contrib validate`, enables and restarts the service and prints its status. Files in other places
+  must be readable by the user `otelcol-contrib`. `--dry-run` prints the steps and changes nothing.
+- **Docker host:** the same script. Docker's log files belong to root, so the drop-in runs this service as root.
+- **Windows Server (PowerShell 5.1+, as Administrator):** `Invoke-WebRequest -UseBasicParsing -OutFile install.ps1
+  https://<host>/collector/install.ps1`, then `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Name <name> -Token <token>`.
+  Same flow with the MSI; the key goes into the `Environment` value of the `otelcol-contrib` service in the registry, which only
+  administrators and the system can read (a machine-wide variable would be readable by every user). `-DryRun` prints the steps.
+- **Kubernetes:** no script. The page shows `helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts`,
+  one `curl` that enrolls and saves `values.yaml` and the key (`kubectl create secret generic monishield-collector
+  --from-literal=key=…`), and `helm upgrade --install monishield-collector open-telemetry/opentelemetry-collector -f values.yaml`.
+  The Helm values are not run through `otelcol-contrib validate` (there is no cluster here); their exporter, processor and
+  extension parts are the same text as the host configurations'.
+- **Changing the inputs later:** change them on the page, then on the server download the new file with the key
+  (`curl -fsS -H "Authorization: Bearer $KEY" https://<host>/api/collector/config -o config.yaml`) and restart the service.
+- **Checked here:** `tools/fetch_otelcol.py` downloads the pinned release (SHA-256 from the release's `.sha256` file) into the ignored
+  `tools/otelcol/`; `tests/test_collector_config.py` runs `otelcol-contrib validate` on several Linux, Docker and Windows
+  configurations when the binary is there. The Windows Event Log receiver can only be built on Windows, so there the test checks that
+  the collector reads the whole file and only then refuses that receiver. The scripts are tested with `bash -n`, `sh -n` and
+  `--dry-run`; `install.ps1` and a real install on a server are not run in CI.
 
 ### Log format rules for collector data
 

@@ -7,6 +7,11 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Collector step 5 (`docs/12-collector.md`): the collector's YAML (Helm values for Kubernetes) is written per platform and
+  chosen log inputs (file groups, journald, Docker, Windows Event Log), with a disk queue and the key kept out of the file;
+  the choice is stored with the collector (`options`, `PUT /api/admin/collectors/{id}/options`); enrollment answers the
+  configuration, `GET /api/collector/config` returns the current one; public `install.sh` (systemd) and `install.ps1`
+  (Windows) with a SHA-256 check; `S4_COLLECTOR_OTEL_VERSION` (0.163.2) and `S4_COLLECTOR_PUBLIC_URL`; `tools/fetch_otelcol.py`.
 - Collector step 4 (`docs/12-collector.md`): the collector is the third data source next to S3 and Kafka, with its own
   database, inbox, ingest (`S4_COLLECTOR_INGEST_SECONDS`, folders the receiver wrote, plus an ingest of the whole inbox at start), retention,
   notifications, backup and a third option "Collector" in the header switch (`?source=collector`, `--source collector`).

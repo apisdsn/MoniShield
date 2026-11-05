@@ -12,7 +12,7 @@ DuckDB stays for log analytics only and must be rebuildable without losing accou
 
 Two roles: 'admin' and 'user'. Per-module restrictions are deferred (TRD §8.3).
 """
-import contextlib, datetime, hmac, re, secrets, threading, time
+import contextlib, datetime, hmac, json, re, secrets, threading, time
 
 import jwt
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, create_engine, delete, func, inspect, select, text, update
@@ -161,6 +161,7 @@ class Collector(Base):
     version: Mapped[str | None] = mapped_column(String(80))
     revoked_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
     revoked_by: Mapped[str | None] = mapped_column(String(40))
+    options: Mapped[str | None] = mapped_column(Text)   # JSON: the log inputs the admin chose (domain/collector_config.py); NULL = defaults
 
 
 def now(): return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)   # all times UTC
@@ -198,6 +199,8 @@ class Auth:
             c.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS ux_app_user_email ON app_user (email)'))
             if 'requested_by' not in {x['name'] for x in inspect(c).get_columns('email_change')}:
                 c.execute(text('ALTER TABLE email_change ADD COLUMN requested_by VARCHAR(64)'))
+            if 'options' not in {x['name'] for x in inspect(c).get_columns('collector')}:
+                c.execute(text('ALTER TABLE collector ADD COLUMN options TEXT'))
 
     @contextlib.contextmanager
     def _tx(self):
@@ -634,7 +637,7 @@ class Auth:
         t = now()
         return dict(id=c.id, name=c.name, platform=c.platform, status=collectors.status(t, c.enrolled_at, c.last_seen, c.revoked_at),
                     created_at=iso(c.created_at), created_by=c.created_by, enrolled_at=iso(c.enrolled_at), last_seen=iso(c.last_seen),
-                    last_ip=c.last_ip, version=c.version, revoked_at=iso(c.revoked_at), revoked_by=c.revoked_by,
+                    last_ip=c.last_ip, version=c.version, options=json.loads(c.options) if c.options else None, revoked_at=iso(c.revoked_at), revoked_by=c.revoked_by,
                     enroll_expires=iso(c.enroll_expires) if c.enroll_hash and c.enroll_expires and c.enroll_expires > t else None,
                     previous_valid_until=iso(c.prev_until) if c.prev_key_hash and c.prev_until and c.prev_until > t else None)
 
@@ -649,9 +652,10 @@ class Auth:
         c.enroll_hash, c.enroll_expires = collectors.secret_hash(secret), now() + datetime.timedelta(hours=collectors.ENROLL_HOURS)
         return text
 
-    def collector_create(self, name, platform, by=None, ip=None):
+    def collector_create(self, name, platform, by=None, ip=None, options=None):
         with self._tx() as s:
-            c = Collector(name=name, platform=platform, created_at=now(), created_by=(by or {}).get('username'))
+            c = Collector(name=name, platform=platform, created_at=now(), created_by=(by or {}).get('username'),
+                          options=json.dumps(options) if options is not None else None)
             s.add(c)
             try: s.flush()
             except IntegrityError:
@@ -665,6 +669,14 @@ class Auth:
 
     def collector_get(self, cid):
         with self._tx() as s: return self._collector(self._collector_row(s, cid))
+
+    def collector_set_options(self, cid, options, by=None, ip=None):
+        with self._tx() as s:
+            c = self._collector_row(s, cid)
+            if c.revoked_at: raise AuthError('collector_revoked', 'This collector is revoked.', 409)
+            c.options = json.dumps(options)
+            self._audit(s, 'collector.options', by, c.name, ip)
+            return self._collector(c)
 
     def collector_new_token(self, cid, by=None, ip=None):
         with self._tx() as s:

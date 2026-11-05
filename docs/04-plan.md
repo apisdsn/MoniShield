@@ -1443,6 +1443,14 @@ Kafka, else collector; any source on request), the backup (`collector.duckdb.gz`
 collector`, `?source=collector` on every route, and the third option in the header switch (offered when a collector is
 registered or the database knows a day). The S3-replaces-Kafka rule was already limited to those two sources.
 
+**Step 5 done.** `monishield/domain/collector_config.py` writes the collector YAML per platform and chosen log inputs (Helm values
+for Kubernetes); `Collector.options` (JSON text, added to existing databases at start) holds the choice, set on create and by
+`PUT /api/admin/collectors/{id}/options`; enrollment answers `{collector, key, config}` and `GET /api/collector/config` returns the
+current YAML. Public `GET /collector/install.sh` and `/install.ps1` (`infrastructure/assets/collector/`) check the SHA-256 of the
+release package, enroll, write the configuration and the key (outside the YAML) and start the service. Settings
+`S4_COLLECTOR_OTEL_VERSION` (0.163.2) and `S4_COLLECTOR_PUBLIC_URL`. `tools/fetch_otelcol.py` downloads the binary for the real
+`otelcol-contrib validate` test.
+
 ## Stage 55 — Wide screens, header language and theme, anti-slop audit (2026-11-04)
 
 Owner-approved UI changes, one commit each:

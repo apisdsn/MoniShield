@@ -8,7 +8,8 @@ import dataclasses, os, re, tomllib
 
 from monishield.domain.config_model import SECRETS, Config, env_name   # noqa: F401  (re-exported through this module)
 from monishield.domain.config_model import cast as _cast
-from monishield.domain import alerts, client_address, log_formats, retention, services, timezone
+from monishield.domain import alerts, client_address, collector_config, log_formats, retention, services, timezone
+from monishield.domain.errors import Fail
 
 V2_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # project root (formerly the v2/ folder in the dashboard-logging repo)
 DOTENV = os.path.join(V2_DIR, '.env')   # read by load(); the Configuration page writes here (monishield/envfile.py)
@@ -70,6 +71,10 @@ def load(env=None, dotenv=None):
     if not 1 <= cfg.collector_max_concurrent <= 64: raise SystemExit('S4_COLLECTOR_MAX_CONCURRENT must be 1..64')
     if not 1 <= cfg.collector_ingest_seconds <= 86400: raise SystemExit('S4_COLLECTOR_INGEST_SECONDS must be 1..86400')
     if cfg.collector_min_free_mb < 0: raise SystemExit('S4_COLLECTOR_MIN_FREE_MB must be 0 or more')
+    if not re.fullmatch(r'\d{1,3}\.\d{1,3}\.\d{1,3}', cfg.collector_otel_version): raise SystemExit('S4_COLLECTOR_OTEL_VERSION must look like 0.163.2')
+    if cfg.collector_public_url:
+        try: cfg.collector_public_url = collector_config.base_url(cfg.collector_public_url)
+        except Fail as e: raise SystemExit(f'S4_COLLECTOR_PUBLIC_URL: {e.message}') from None
     if cfg.collector_inbox_dir: cfg.collector_inbox_dir = os.path.abspath(cfg.collector_inbox_dir)
     if msg := timezone.validate(cfg.timezone_offset, cfg.timezone_label): raise SystemExit(f'S4_TIMEZONE_OFFSET / S4_TIMEZONE_LABEL: {msg}')
     if not 0 <= cfg.backup_hour <= 23: raise SystemExit('S4_BACKUP_HOUR must be 0..23 (local time)')

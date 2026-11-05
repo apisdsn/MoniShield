@@ -16,14 +16,14 @@ from monishield.application import account_service, alert_service, collector_fee
 from monishield.domain import config_model, detect, log_formats, services, timezone
 from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
-from monishield.interfaces.api import admin, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
+from monishield.interfaces.api import admin, collector_install, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
 from .common import ROLE_DEPS, FailureLimiter, RateWindow, Slots
 
 WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
-ROUTERS = (meta.router, session.router, payload.router, users.router, collectors.router, collector_logs.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
+ROUTERS = (meta.router, session.router, payload.router, users.router, collectors.router, collector_install.router, collector_logs.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
 
 
 
@@ -32,7 +32,7 @@ class SpaFiles(StaticFiles):
     first segment is an app page (web/src/state.js) gets index.html and the app reads the path; anything else that is
     not a file stays 404."""
     PAGES = {'overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
-             'services', 'ips', 'admin', 'password', 'email', 'login'}
+             'services', 'ips', 'collectors', 'admin', 'password', 'email', 'login'}
 
     async def get_response(self, path, scope):
         try: return await super().get_response(path, scope)
