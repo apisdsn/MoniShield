@@ -1,6 +1,6 @@
 <!-- Page header (DRD §2.1 U3, §8.2; redesign 2026-10-27, mockup "Overview: before & after"). Wide screen: one sticky
      row: title + compact status line (left), then source switch, date picker (◀ date ▶, details in its tooltip), search,
-     Sync (admin), the language menu, the dark-theme switch and the avatar menu holding reload and the account items (right). The date is shown once,
+     Sync (admin), the language menu, the dark-theme icon button and the avatar menu holding reload and the account items (right). The date is shown once,
      in the picker. ≤ 900 px: sticky bar [☰] [search] [sync] [language] [theme] [avatar] with a second row [S3 | Kafka] [◀ date ▶]; the title
      flows below it. DOM order = Tab order: tools first, title (h1, tabindex -1) after; visual placement set by the grid. -->
 <script>

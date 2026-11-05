@@ -120,7 +120,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
 
   // header controls are one family (same height, border colour and radius), and a dialog closed with the mouse gives the focus back
   // to its button without a ring (with the keyboard it keeps one)
-  const family = await page.evaluate(() => ['.where .seg', '.fp', 'button[aria-keyshortcuts]', '.lbtn', '.sw', '.who'].map((s) => {
+  const family = await page.evaluate(() => ['.where .seg', '.fp', 'button[aria-keyshortcuts]', '.lbtn', 'header.top button[aria-pressed]', '.who'].map((s) => {
     const e = document.querySelector(s), c = e && getComputedStyle(e), r = e && e.getBoundingClientRect();
     return e && `${s}: ${Math.round(r.height)}px ${c.borderTopWidth} ${c.borderTopColor} ${c.borderTopLeftRadius}`;
   }));
@@ -139,19 +139,22 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   if (!st.on || !st.ring) throw new Error(`search button after closing the dialog with Esc: focused ${st.on}, ring ${st.ring}`);
   console.log('ok   header controls look alike; focus ring only after the keyboard');
 
-  // dark theme switch: toggles data-theme, both themes render the Overview without script errors
-  const sw = page.locator('button[role=switch]');
+  // dark theme button (an icon button with aria-pressed): toggles data-theme, shows a moon or a sun, and both themes render the Overview
+  // without script errors
+  const sw = page.locator('header.top button[aria-pressed]');
+  const box = await sw.boundingBox();
+  if (Math.round(box.width) !== 44 || Math.round(box.height) !== 44) throw new Error(`theme button is ${box.width} x ${box.height}, not 44 x 44`);
   const errsBefore = problems.length;
   for (let i = 0; i < 2; i++) {
     const was = await page.evaluate(() => document.documentElement.dataset.theme);
     await sw.click();
     const now = await page.evaluate(() => document.documentElement.dataset.theme);
-    if (now === was || (await sw.getAttribute('aria-checked')) !== String(now === 'dark')) throw new Error(`theme switch: ${was} -> ${now}`);
+    if (now === was || (await sw.getAttribute('aria-pressed')) !== String(now === 'dark')) throw new Error(`theme button: ${was} -> ${now}`);
     await page.waitForTimeout(400);
     await page.locator('main#main[aria-busy="false"]').waitFor();
   }
   if (problems.length !== errsBefore) throw new Error(`errors while switching themes: ${problems.slice(errsBefore).join('; ')}`);
-  console.log('ok   dark theme switch (both themes render the Overview)');
+  console.log('ok   dark theme button (both themes render the Overview)');
 
   // wide and narrow screens: at 3840 x 2160 the Overview fills the width (scaled up, no empty right side, no sideways scroll);
   // at 390 px nothing scrolls sideways

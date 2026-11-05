@@ -1103,6 +1103,8 @@
  "table.showing": "Showing {n} of {m}",
  "theme.dark": "Dark theme",
  "theme.light": "Light theme",
+ "theme.to_light": "Switch to light theme",
+ "theme.to_dark": "Switch to dark theme",
  "title.overview": "Log Overview",
  "tr.absent": "None",
  "tr.attack_requests": "Attack requests",

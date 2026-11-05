@@ -1103,6 +1103,8 @@
  "table.showing": "Menampilkan {n} dari {m}",
  "theme.dark": "Tema gelap",
  "theme.light": "Tema terang",
+ "theme.to_light": "Ganti ke tema terang",
+ "theme.to_dark": "Ganti ke tema gelap",
  "title.overview": "Log Overview",
  "tr.absent": "Tidak ada",
  "tr.attack_requests": "Request serangan",
