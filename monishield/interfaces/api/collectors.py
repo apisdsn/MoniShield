@@ -44,7 +44,17 @@ def receiver_url(request: Request):
 @router.get('/admin/collectors')
 def list_collectors(request: Request, admin=Depends(require_admin)):
     stats = request.app.state.collector_feed.status()['collectors']   # counts of the receiver since the server started
-    return dict(rows=[dict(c, stats=stats.get(c['id'])) for c in _svc(request).list()])
+    return dict(rows=[dict(c, stats=stats.get(c['id'])) for c in _svc(request).list()],
+                receiver=receiver_url(request), otel_version=request.app.state.cfg.collector_otel_version)
+
+
+@router.get('/admin/collectors/{cid}/config')
+def download_config(cid: int, request: Request, admin=Depends(require_admin)):
+    """The configuration of this collector for download (Helm values for Kubernetes). It holds no key."""
+    info = _svc(request).get(cid)
+    name = 'values.yaml' if info['platform'] == 'kubernetes' else 'config.yaml'
+    return PlainTextResponse(_svc(request).config(info, receiver_url(request)), media_type='text/yaml; charset=utf-8',
+                             headers={'Cache-Control': 'no-store', 'Content-Disposition': f'attachment; filename="{name}"'})
 
 
 @router.post('/admin/collectors', status_code=201)

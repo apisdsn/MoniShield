@@ -7,6 +7,9 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Collector step 6 (`docs/12-collector.md`): the Collectors page (Configuration group, admins): status counts, table or list with
+  what each collector sends, a details panel, add dialog per platform with the enrollment token and install commands, replace
+  key, change inputs, revoke, delete; the list answer carries the receiver's counts; Raw Logs opens at `#pod=<host>`.
 - Collector step 5 (`docs/12-collector.md`): the collector's YAML (Helm values for Kubernetes) is written per platform and
   chosen log inputs (file groups, journald, Docker, Windows Event Log), with a disk queue and the key kept out of the file;
   the choice is stored with the collector (`options`, `PUT /api/admin/collectors/{id}/options`); enrollment answers the

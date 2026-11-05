@@ -17,6 +17,8 @@ class CollectorService:
 
     def list(self): return [self._open(c) for c in self.store.collector_list()]
 
+    def get(self, cid): return self._open(self.store.collector_get(cid))
+
     def add(self, name, platform, admin, ip=None, options=None):
         """-> (collector, enrollment token, token expiry). The token is shown once."""
         platform = collectors.check_platform(platform)

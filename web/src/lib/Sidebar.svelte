@@ -110,6 +110,11 @@
           </button>
         </li>
       {/each}
+      <li>
+        <a href={href({ tab: 'collectors' })} aria-current={active('collectors')} onclick={onpick} title={tip($t('nav.collectors'))}>
+          <Icon name="radio" /><span class="lbl">{$t('nav.collectors')}</span>
+        </a>
+      </li>
     </ul>
     </div></div>
   {/if}

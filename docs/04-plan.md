@@ -1451,6 +1451,13 @@ release package, enroll, write the configuration and the key (outside the YAML) 
 `S4_COLLECTOR_OTEL_VERSION` (0.163.2) and `S4_COLLECTOR_PUBLIC_URL`. `tools/fetch_otelcol.py` downloads the binary for the real
 `otelcol-contrib validate` test.
 
+**Step 6 done.** Page `web/src/pages/Collectors.svelte` (route `/collectors`, sidebar entry in the Configuration group, `ADMIN` list in
+`state.js`, `PAGES` in `app.py`): counts by status, table (list on phones), details panel, add / replace key / change inputs /
+revoke / delete dialogs, secrets shown once. New: `GET /api/admin/collectors/{id}/config`, `stats` and `receiver` in the list answer,
+`#pod=` for Raw Logs, `ERR_ID` entries for the collector messages (the first one lacked a comma and hid the Platform entry: fixed).
+The browser smoke test opens the page for both languages and three sources, opens and closes the add dialog with Esc and creates
+a collector.
+
 ## Stage 55 — Wide screens, header language and theme, anti-slop audit (2026-11-04)
 
 Owner-approved UI changes, one commit each:

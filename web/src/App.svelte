@@ -31,6 +31,7 @@
   import IpProfile from './pages/IpProfile.svelte';
   import AdminUsers from './pages/AdminUsers.svelte';
   import AdminIngest from './pages/AdminIngest.svelte';
+  import Collectors from './pages/Collectors.svelte';
   import Overview from './pages/Overview.svelte';
   import Service from './pages/Service.svelte';
   import Trends from './pages/Trends.svelte';
@@ -215,6 +216,7 @@
     if (r.tab === 'ip') return $t('ipp.title', { ip: r.service });
     if (r.tab === 'admin/users') return $t('menu.users');
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
+    if (r.tab === 'collectors') return $t('nav.collectors');
     return $t(`tab.${r.tab}`);
   });
   // Trends covers every folder: one line under the header says so
@@ -345,6 +347,8 @@
         <AdminUsers {me} onme={refreshMe} />
       {:else if $route.tab === 'admin/ingest'}
         <AdminIngest onfinished={reload} />
+      {:else if $route.tab === 'collectors'}
+        <Collectors {onready} />
       {:else if !folders.length}
         <EmptyState title={$t('state.no_data')} text={me.role === 'admin' ? '' : $t('state.no_data_user')}>
           {#if me.role === 'admin'}<a class="btn primary" href={build({ tab: 'admin/ingest', service: null })}>{$t('menu.ingest')}</a>{/if}

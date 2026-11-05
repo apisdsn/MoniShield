@@ -146,3 +146,32 @@ def test_old_database_gets_the_options_column(tmp_path):
     assert info['options'] == dict(journald=True) and again.collector_list()[0]['options'] == dict(journald=True)
     again.close()
     authmod.Auth(url, 'j' * 40).close()                                               # a second start does not try to add it again
+
+
+def test_admin_lists_the_receiver_and_downloads_the_configuration(client):
+    admin(client); make_user(client)
+    cid = new(client, 'k8s', 'kubernetes').json()['collector']['id']
+    rows = client.get('/api/admin/collectors').json()
+    assert rows['receiver'] == 'http://testserver' and rows['otel_version'] == Config().collector_otel_version
+    r = client.get(f'/api/admin/collectors/{cid}/config')
+    assert r.status_code == 200 and 'values.yaml' in r.headers['content-disposition'] and r.headers['cache-control'] == 'no-store'
+    assert 'mode: "daemonset"' in r.text and 'msk_' not in r.text and 'mse_' not in r.text
+    assert 'config.yaml' in client.get(f"/api/admin/collectors/{new(client, 'web-9').json()['collector']['id']}/config").headers['content-disposition']
+    assert client.get('/api/admin/collectors/999/config').status_code == 404
+    user, anon = as_user(client, 'rina', 'rina-initial-password-123'), TestClient(client.app)
+    assert user.get(f'/api/admin/collectors/{cid}/config').status_code == 403 and anon.get(f'/api/admin/collectors/{cid}/config').status_code == 401
+
+
+def test_stats_name_the_hosts_the_collector_sent_for(client):
+    admin(client)
+    c = new(client, 'web-01').json()
+    anon = TestClient(client.app)
+    key = enroll(anon, c['enroll_token']).json()['key']
+    def line(host, n):
+        return {'resourceLogs': [{'resource': {'attributes': [{'key': 'host.name', 'value': {'stringValue': host}}]},
+                                   'scopeLogs': [{'logRecords': [{'body': {'stringValue': f'line {n}'}}]}]}]}
+    for i, host in enumerate(['h1', 'h2', 'h1', 'h3', 'h4', 'h5', 'h6']):
+        r = anon.post('/api/collector/v1/logs', json=line(host, i), headers={'Authorization': f'Bearer {key}'})
+        assert r.status_code == 200, r.text
+    stats = client.get('/api/admin/collectors').json()['rows'][0]['stats']
+    assert stats['hosts'] == ['h6', 'h5', 'h4', 'h3', 'h1'] and stats['received'] == 7 and stats['written'] == 7

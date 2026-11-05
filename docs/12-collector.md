@@ -44,7 +44,7 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 | 3 (done) | Receiver `POST /v1/logs`: Bearer key, outside the CSRF guard and the payload encryption (a machine client), size limits before and after gunzip, rate limit per collector, written to disk before the 200, OTLP partial-success answer, 401 / 413 / 429 with `Retry-After` |
 | 4 (done) | Third source `collector`: database, inbox, retention, notifications, ingest schedule; hourly files; source switch in the header; dictionaries id/en. See "Collector source" below |
 | 5 (done) | Configuration writer and install: collector YAML per platform and chosen data (file logs, journald, Windows Event Log, Docker, Kubernetes), `otlphttp` exporter with a disk queue and retries; `install.sh` (systemd), `install.ps1` (Windows service), Helm values |
-| 6 | Admin › Collectors page (after the mockup): list, status counts, add dialog with platform tabs and the install command, details, replace / revoke key |
+| 6 (done) | Admin › Collectors page (after the mockup): list, status counts, add dialog with platform tabs and the install command, details, replace / revoke key |
 | 7 | End-to-end check with a real `otelcol-contrib`: lines reach Raw Logs and the pages; data queued while the link is down arrives later; a revoked key is refused |
 | 8 | Deploy and docs: receiver subdomain, new `.env` settings, user guide, status, changelog |
 | 9 | Part 2: `POST /v1/metrics`, time-series tables in DuckDB (minute → hour roll-up, retention) |
@@ -182,6 +182,17 @@ once, for 24 hours.
   configurations when the binary is there. The Windows Event Log receiver can only be built on Windows, so there the test checks that
   the collector reads the whole file and only then refuses that receiver. The scripts are tested with `bash -n`, `sh -n` and
   `--dry-run`; `install.ps1` and a real install on a server are not run in CI.
+
+### Collectors page (step 6)
+
+Route `/collectors` (admin), entry **Collectors** in the Configuration group (a page, not a pop-up). `web/src/pages/Collectors.svelte`
+with `lib/CollectorForm.svelte` (the inputs), `lib/CollectorInstall.svelte` (token and commands) and `lib/CopyBlock.svelte`; the rules
+the server checks and the command texts are in `web/src/collectors.js` (tested by `tests/test_collectors.mjs`). `GET /api/admin/collectors`
+returns, per collector, `options` and `stats` (received, written, rejected by reason, last reject reason, the latest hosts or pods;
+from `CollectorFeed`, in memory) and the receiver address and release the commands use; `GET /api/admin/collectors/{id}/config`
+downloads the configuration or Helm values (no key). The "Open its logs in Raw Logs" link uses the new address part `#pod=<host>`
+(Raw Logs then shows that pod's latest lines through a regex search `.`). Choices: Revoke asks with a clear destructive
+confirmation (not a typed name); a Waiting collector offers "New enrollment token"; actions that do not apply are not shown.
 
 ### Log format rules for collector data
 

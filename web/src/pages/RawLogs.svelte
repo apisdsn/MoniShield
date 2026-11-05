@@ -118,7 +118,8 @@
     void folder;
     untrack(() => {
       onready?.(true);
-      if ($route.q) { text = $route.q; run(); }
+      if ($route.pod && !asked) { pod = $route.pod; if ($route.q) text = $route.q; else { text = '.'; mode = 'regex'; } run(); }   // link from Collectors: the latest lines of that host or pod
+      else if ($route.q) { text = $route.q; run(); }
       else if (asked) run();
     });
   });

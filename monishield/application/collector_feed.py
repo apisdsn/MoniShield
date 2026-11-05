@@ -10,6 +10,7 @@ from monishield.domain import otlp_logs
 
 MB = 1024 * 1024
 MAX_REJECT_TEXT = 300
+MAX_HOSTS = 5
 TICK = 1   # seconds between two looks at `pending`
 
 
@@ -33,22 +34,23 @@ class CollectorFeed:
         records, rejected = otlp_logs.parse_logs(payload, collector['name'], now)
         written = self.inbox.append(records) if records else {}
         answer = otlp_logs.partial_success(rejected)
-        self._count(collector, len(records) + sum(rejected.values()), rejected, answer, written, now)
+        self._count(collector, len(records) + sum(rejected.values()), rejected, answer, written, now, [r['pod'] for r in records])
         return answer, written
 
-    def _count(self, collector, received, rejected, answer, written, now):
+    def _count(self, collector, received, rejected, answer, written, now, hosts=()):
         stamp = now.isoformat(timespec='seconds')   # text, so status() can go straight to JSON
         with self._lock:
-            s = self.stats.setdefault(collector['id'], dict(name=collector['name'], received=0, rejected={}, written=0, last_batch_at=None, last_reject=None))
+            s = self.stats.setdefault(collector['id'], dict(name=collector['name'], received=0, rejected={}, written=0, last_batch_at=None, last_reject=None, hosts=[]))
             s['name'], s['received'], s['last_batch_at'] = collector['name'], s['received'] + received, stamp
             s['written'] += sum(written.values())
+            s['hosts'] = list(dict.fromkeys([*dict.fromkeys(reversed(hosts)), *s['hosts']]))[:MAX_HOSTS]   # the latest hosts or pods first (names the Raw Logs link can use)
             for why, n in rejected.items(): s['rejected'][why] = s['rejected'].get(why, 0) + n
             if rejected: s['last_reject'] = dict(at=stamp, text=answer['partialSuccess']['errorMessage'][:MAX_REJECT_TEXT])   # reasons only, no log text
             self.pending.update(written)
 
     def status(self):
         with self._lock:
-            return dict(collectors={k: dict(v, rejected=dict(v['rejected'])) for k, v in self.stats.items()}, pending=sorted(self.pending),
+            return dict(collectors={k: dict(v, rejected=dict(v['rejected']), hosts=list(v['hosts'])) for k, v in self.stats.items()}, pending=sorted(self.pending),
                         ingest_seconds=self.ctx.cfg.collector_ingest_seconds, last_ingest_at=self.last_ingest_at, running=self.running())
 
     # Ingest into the collector source

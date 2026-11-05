@@ -9,7 +9,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8777';
 const SHOTS = process.argv[3] || '';
 const PW0 = 'smoke-test-first-password', PW1 = 'Smoke-Test-Second-Password-2026!';
 const PAGES = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
-  'services/event-api', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
+  'services/event-api', 'collectors', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
 const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'id', source: 'collector' }, { lang: 'en', source: '' }];
 
 (async () => {
@@ -158,6 +158,34 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     console.log(`ok   date picker shows the whole date at ${w}px`);
   }
   await page.setViewportSize({ width: 1280, height: 900 });
+
+  // Collectors page: the add dialog opens and closes with Esc, creating a collector shows the token and the install command,
+  // the new collector is listed and its panel opens (no sideways scroll on a phone either)
+  await page.goto(BASE + '/collectors');
+  await page.waitForSelector('main#main[aria-busy="false"]');
+  await page.click('button.add');
+  await page.waitForSelector('dialog[open] #cl-name');
+  await page.keyboard.press('Escape');
+  if (await page.locator('dialog[open]').count()) throw new Error('Esc did not close the add collector dialog');
+  await page.click('button.add');
+  await page.fill('#cl-name', 'smoke-web-01');
+  await page.click('dialog .addf');
+  await page.fill('#add-p0', '/var/log/app/*.log'); await page.fill('#add-s0', 'app');
+  await page.click('dialog button[type=submit]');
+  await page.waitForSelector('dialog code.tok');
+  const token = await page.locator('dialog code.tok').first().innerText();
+  const cmd = await page.locator('dialog pre').allInnerTexts();
+  if (!/^mse_\d+_/.test(token) || !cmd.join('\n').includes(`--token ${token}`) || !cmd.join('\n').includes('/collector/install.sh')) throw new Error(`token / command not shown: ${token} ${cmd}`);
+  await page.click('dialog .acts button.primary');
+  await page.waitForSelector('tr:has-text("smoke-web-01")');
+  if (!(await page.locator('#cl-panel').count())) throw new Error('the new collector was not selected');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(BASE + '/collectors');
+  await page.waitForSelector('tr:has-text("smoke-web-01")');
+  const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (over > 0) throw new Error(`Collectors page scrolls sideways by ${over}px at 390px`);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  console.log('ok   Collectors: add dialog (Esc), token and command, list, no sideways scroll at 390px');
 
   let failed = 0, checked = 0;
   for (const run of RUNS) {
