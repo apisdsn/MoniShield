@@ -1,0 +1,42 @@
+{
+ "comment": "Keys that the capitalisation check (tools/i18n_case.mjs) leaves alone. `keys`: fragments and sentences whose name does not say so, no period needed. `sentences`: full sentences (messages) that must end with a period. See docs/08-architecture.md, UI text.",
+ "keys": [
+  "bz.no_log",
+  "cf.kf.brokers",
+  "imp.w.last",
+  "ipp.period",
+  "home.title_a",
+  "home.priv.1.t",
+  "home.priv.2.t",
+  "home.priv.3.t",
+  "home.priv.4.t",
+  "vb.rates",
+  "sv.seen",
+  "sv.col.network",
+  "cl.show",
+  "svc.format_unread",
+  "home.arch.1.b",
+  "home.arch.1.c",
+  "home.arch.2.b",
+  "home.arch.2.c",
+  "home.arch.3.b",
+  "home.arch.3.c",
+  "home.arch.4.b",
+  "home.arch.4.c",
+  "sec.f.cloud.b",
+  "sec.f.log4shell.b",
+  "sec.f.rancher.b",
+  "rc.s.c401.b"
+ ],
+ "sentences": [
+  "imp.cred_saved",
+  "ing.started",
+  "kf.ingest_started",
+  "imp.cred_cleared",
+  "cf.cleared",
+  "map.live_tip",
+  "ipp.not_found",
+  "ov.st.r4xx",
+  "adm.email_pending"
+ ]
+}

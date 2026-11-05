@@ -47,7 +47,7 @@
     width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none;
     background: var(--icon-bg); border: 1px solid var(--icon-border); color: var(--kpi-label);
   }
-  .l { color: var(--kpi-label); font-size: 0.84375rem; font-weight: 500; text-transform: capitalize; min-width: 0; }
+  .l { color: var(--kpi-label); font-size: 0.84375rem; font-weight: 500; min-width: 0; }
   .vrow { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
   .v { font-size: 1.875rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; line-height: 1.15; color: var(--fg); overflow-wrap: anywhere; }
   .v.err { color: var(--err); } .v.warn { color: var(--warn); } .v.ok { color: var(--ok); } .v.muted, .v.none { color: var(--muted); }

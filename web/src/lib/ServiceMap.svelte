@@ -34,6 +34,6 @@
   .sm summary::before { content: '▸'; color: var(--accent-text); }
   .sm[open] summary::before { content: '▾'; }
   .sm summary::-webkit-details-marker { display: none; }
-  .h { font-size: 0.9375rem; font-weight: 600; color: var(--heading); text-transform: capitalize; }
+  .h { font-size: 0.9375rem; font-weight: 600; color: var(--heading); }
   .muted { font-size: 0.8125rem; }
 </style>

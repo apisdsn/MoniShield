@@ -176,7 +176,7 @@
   .chg { font-size: 0.75rem; color: var(--ok-text); }
   .chg.up { color: var(--err); }
   .muted { color: var(--muted); }
-  .comp h2 { font-size: 0.9375rem; font-weight: 600; color: var(--heading); text-transform: capitalize; margin: 0 0 8px; }
+  .comp h2 { font-size: 0.9375rem; font-weight: 600; color: var(--heading); margin: 0 0 8px; }
   .comp ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 6px; font-size: 0.8125rem; }
   .comp li.warn::marker { color: var(--warn); }
   .comp b { font-weight: 600; }

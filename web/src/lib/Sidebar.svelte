@@ -153,7 +153,7 @@
   .item { background: none; font: inherit; cursor: pointer; text-align: left; text-transform: none !important; }
   a, .item {
     font-size: 0.84375rem; display: flex; align-items: center; gap: 10px; width: 100%; text-decoration: none;
-    color: var(--nav-fg); padding: 8px 10px; border-radius: 10px; min-height: 38px; text-transform: capitalize;
+    color: var(--nav-fg); padding: 8px 10px; border-radius: 10px; min-height: 38px;
     border: 1px solid transparent; transition: background 0.15s, color 0.15s;
   }
   a :global(svg), .item :global(svg) { color: var(--muted); }
@@ -170,7 +170,6 @@
     display: flex; flex-direction: column; gap: 6px; font-size: 0.75rem;
   }
   .row { display: flex; align-items: center; gap: 8px; color: var(--muted); }
-  .tz { text-transform: capitalize; }
   @media (max-width: 900px) {
     a, .item { min-height: var(--touch); }
     .tog { display: none; }   /* narrow screen: drawer with ☰ in the page header, not collapsed */
