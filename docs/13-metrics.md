@@ -1,7 +1,7 @@
 # 13 — Server and container metrics (stage 56)
 
-Status: backend in progress (2026-11-05). The collector ([`12-collector.md`](12-collector.md)) can send the load of a server and of its
-Docker containers next to the logs. This page is completed when the Servers page is built.
+Status: done (2026-11-05). The collector ([`12-collector.md`](12-collector.md)) can send the load of a server and of its
+Docker containers next to the logs; the Servers page shows it (section 10).
 
 ## 1. What is collected, and what never is
 
@@ -137,3 +137,22 @@ block of `/etc/otelcol-contrib/config.yaml` by hand (an upgrade overwrites the f
 - Notifications for unusual values and almost-full disks.
 - Endpoint and SSL checks.
 - Process metrics: never (command lines are personal data).
+
+## 10. The Servers page
+
+`web/src/pages/Servers.svelte`, helpers in `web/src/servers.js` (tested by `tests/test_servers.mjs`), route `/servers`, sidebar entry in
+the Analysis group after Raw Logs. No folder and no data source: the header hides the source switch. Reads `GET /api/servers?range=` and
+`GET /api/servers/host` through `api.js` every 30 seconds (the answers are encrypted like every browser call).
+
+- **Banner**: `unusual` items (a container gets "Open Its Logs", Raw Logs of the collector source at `#pod=<host>&svc=<container>`; a
+  server has no link) then `disk_full`; at most 3, then "and N more".
+- **Cards**: CPU, memory (used of total) and the disk of `/` (else the first mount point). Bar colour: teal below 70 %, amber 70 to 85, red
+  from 85, with the number next to it. Status: the collector's own state first (Late, Offline, Revoked), then Disk Almost Full (90 %), Memory
+  High and CPU High (70 %), No Data.
+- **Charts** (Chart.js, `lib/MetricChart.svelte`, with the pointer fix of `scale.js`): CPU, memory used and total, disk of `/` in percent,
+  network received and sent; times in the configured time zone (`axisLabel`).
+- **Containers table**: container, image, CPU, memory used of the limit, network in and out, restarts and a 24-hour memory sparkline; a container
+  not seen for 2 minutes is greyed with "Last seen"; at 480 px and below a list of cards.
+- **Groups**: hosts carry the `group` of their collector; cards sit under the group headings (alphabetical, No Group last) with the filter buttons.
+- Sample data for the smoke test and for screenshots: `tools/seed_metrics.py` (seven servers in three groups and one without, one container
+  with a jump in memory, one disk at 93 %).

@@ -308,6 +308,20 @@ with the line it belongs to. Event lines that carry no time get the time of the 
 saves every match as `file:line: text`. Lines are only available while the log files are on disk (see *Data
 retention*). Every search and download is written to the audit log with who searched what.
 
+### Servers
+
+**Servers** (Analysis group, after Raw Logs, every signed-in user) shows the load that collectors report: CPU, memory, disk and network
+of each server, and CPU, memory, network and restarts of the Docker containers on it, every 30 seconds. The range buttons (1 h, 24 h, 7 d,
+30 d) set the charts; this page has no date or data source. A **banner** lists what is unusual now: a CPU or memory value far above the
+same hour of the earlier days (a container has "Open Its Logs"), and disks that are 90 % full or more; at most three, then "and N more".
+Each server is a card with bars for CPU, memory and the disk of `/` (teal below 70 %, amber from 70, red from 85, the number always
+shown) and a status (OK, CPU High, Memory High, Disk Almost Full, Late, Offline). Choose a card to see its four charts and its containers
+table (image, CPU, memory used of the limit, network in and out, restarts, memory of the last 24 hours; a container that is not running is
+greyed with when it was last seen; on a phone each is a card). When collectors have groups, the cards sit under the group headings and
+the **group buttons** (All Groups and one per group) filter them. With no metrics yet the page says so, and admins get a link to
+Collectors. A new collector sends metrics by default; a collector registered before this stage has them off: turn them on under
+Change Inputs, then run the upgrade command on the server. Details of what is collected and never collected: [`13-metrics.md`](13-metrics.md).
+
 ### Collectors
 
 **Collectors** (Configuration group in the left navigation, admins only) lists the servers and clusters that send their logs
@@ -327,7 +341,16 @@ the server started, and the reason of the last rejection.
   it: the details panel of an enrolled collector shows an upgrade command (`sudo sh install.sh --upgrade`, no token needed).
 - **Replace Key**: makes a new key, shown once, with the exact place to put it for the platform. The old key keeps working
   for 24 hours.
-- **Change Inputs**: changes what the collector sends. The server then needs its new configuration; the page shows the command.
+- **Metrics** (in Add Collector and Change Inputs): **Server Metrics** for every platform and **Container Metrics** for Docker hosts only
+  (the reason shows on the others; Kubernetes per-container metrics come later). The note under them says what the server stores:
+  one point every 30 seconds for 7 days, then one value per hour for 90 days, about 80 MB for one server with 20 containers.
+- **Group** (optional, in Add Collector and **Change Group** in the details): up to 40 letters, digits, spaces, dots, underscores or
+  hyphens. Existing groups are buttons under the field; a name that differs only in case joins that group. The list shows one section per
+  group in alphabetical order and "No Group" last; each header is a button that folds the section (remembered in this browser) and shows
+  how many collectors are offline or late. Search by name or host (it opens the matching sections), filter by status, Collapse All /
+  Expand All.
+- **Change Inputs**: changes what the collector sends. The server then needs its new configuration: run the upgrade command shown
+  on the server (`sudo sh install.sh --upgrade`; Windows `install.ps1 -Upgrade`; Kubernetes: download `values.yaml` and run `helm`).
 - **Open in Raw Logs**: opens Raw Logs for the collector source (filtered to the host when the collector has sent
   for exactly one).
 - **Revoke Collector**: its key stops working at once; the lines already received stay. **Delete Collector** removes a

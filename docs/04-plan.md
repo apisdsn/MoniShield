@@ -1478,7 +1478,7 @@ Owner-approved UI changes, one commit each:
 - Plain section comments; animations `spin` and `shimmer`; `putar` and `kilau` added to `tests/test_language.py`.
 - Smoke test: header language menu, theme switch, 3840 px width (no gap, no sideways scroll) and 390 px.
 
-## Stage 56 — Server and container metrics (in progress, 2026-11-05)
+## Stage 56 — Server and container metrics (done, 2026-11-05)
 
 Part 2 of the collector ([`12-collector.md`](12-collector.md), steps 9 and 10; details in [`13-metrics.md`](13-metrics.md)): CPU, memory,
 disk, network and load of servers and nodes, and CPU, memory, network and restarts of Docker containers, from the same collector.
@@ -1487,5 +1487,8 @@ Built and committed in parts so the backend can be reviewed before the page:
 1. Collector configuration: the options `host_metrics` and `container_metrics`, the `metrics` pipeline, the `hostmetrics` and
    `docker_stats` receivers, checked with the real `otelcol-contrib validate`. **Done.**
 2. Receiver `POST /api/collector/v1/metrics`, the pure parser (`domain/otlp_metrics.py`), the feed and the store (`metrics.duckdb`). **Done.**
-3. Roll-up to hours, retention, unusual values, and the read API (`/api/servers`).
-4. Servers page. 5. Metric options on the Collectors page. 6. Docs.
+3. Roll-up to hours, retention, unusual values, and the read API (`/api/servers`). **Done.**
+4. Servers page (`web/src/pages/Servers.svelte`, `web/src/servers.js`), the Metrics group in the Collectors dialogs, collector groups
+   (column `group_name`, sections on both pages), the metrics database in the backup, the counter-memory bound, the current component names,
+   encrypted-body tests for the collector and Servers calls, and one capitalisation rule for the UI text (`docs/08-architecture.md`, "UI text"). **Done.**
+5. Left for later: Kubernetes per-container metrics, notifications for unusual values and almost-full disks, endpoint and SSL checks (see `13-metrics.md` §9).

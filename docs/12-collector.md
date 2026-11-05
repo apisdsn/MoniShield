@@ -268,6 +268,15 @@ program, so the record is named by its `SYSLOG_IDENTIFIER` (`sudo`, `sshd`, `sys
 Kubernetes and Docker records keep the original line, so they use the same rule as the Kafka source. Plain files use the
 rule of their service name (`service.name` of the collector's file group, else the file name without rotation suffix).
 
+## Groups
+
+A collector can have a group (`collector.group_name`, nullable, 40 characters, trimmed; letters, digits, space, dot, underscore and hyphen,
+starting with a letter or digit; empty = no group). `domain/collectors.check_group` returns `invalid_group` for anything else; a name that
+matches an existing group without regard to case takes that group's spelling; the list of groups is the distinct non-empty values (no table).
+`POST /api/admin/collectors` and `PUT /api/admin/collectors/{id}/options` accept `group` (the second one `options`, `group` or both); the list
+answer carries `group` per collector and `groups`; a change is audited as `collector.group` (`name: old -> new`); admins only. An older
+database gets the column at start. The Collectors page shows sections per group; `GET /api/servers` returns the group of each server.
+
 ## 5. Safety
 
 - One key per collector, stored as a hash, revocable; enrollment tokens work once and expire.
