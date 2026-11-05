@@ -1486,6 +1486,6 @@ Built and committed in parts so the backend can be reviewed before the page:
 
 1. Collector configuration: the options `host_metrics` and `container_metrics`, the `metrics` pipeline, the `hostmetrics` and
    `docker_stats` receivers, checked with the real `otelcol-contrib validate`. **Done.**
-2. Receiver `POST /api/collector/v1/metrics`, the pure parser and the store (`metrics.duckdb`).
+2. Receiver `POST /api/collector/v1/metrics`, the pure parser (`domain/otlp_metrics.py`), the feed and the store (`metrics.duckdb`). **Done.**
 3. Roll-up to hours, retention, unusual values, and the read API (`/api/servers`).
 4. Servers page. 5. Metric options on the Collectors page. 6. Docs.

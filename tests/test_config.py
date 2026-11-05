@@ -90,3 +90,13 @@ def test_site_profile_from_env():
                       ({'S4_EVENT_TAG': 'a b'}, 'event tag'), ({'S4_BUSINESS_ENDPOINTS': '{"orders": "reports_created"}'}, 'METHOD /path'),
                       ({'S4_BUSINESS_ENDPOINTS': '{"POST /x": "Sales"}'}, 'not a business metric')):
         with pytest.raises(SystemExit, match=word): config.load(env=env, dotenv=False)
+
+
+def test_metrics_retention_settings(tmp_path):
+    from monishield.domain.config_model import Config
+    from monishield.infrastructure import config
+    c = Config()
+    assert (c.metrics_raw_days, c.metrics_hour_days) == (7, 90) and c.metrics_db_path.endswith('metrics.duckdb')
+    for env, msg in ((dict(S4_METRICS_RAW_DAYS='0'), 'S4_METRICS_RAW_DAYS'), (dict(S4_METRICS_RAW_DAYS='5000'), 'S4_METRICS_RAW_DAYS'),
+                     (dict(S4_METRICS_RAW_DAYS='30', S4_METRICS_HOUR_DAYS='10'), 'S4_METRICS_HOUR_DAYS')):
+        with pytest.raises(SystemExit, match=msg): config.load(env=env, dotenv=False)

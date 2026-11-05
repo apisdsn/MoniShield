@@ -79,6 +79,8 @@ def load(env=None, dotenv=None):
     elif dom := (get('DOCKER_INGEST_DOMAIN') or '').strip():   # the receiver subdomain served by Caddy (docs/07-deploy-vps.md)
         if not re.fullmatch(r'[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+', dom): raise SystemExit('DOCKER_INGEST_DOMAIN must be a host name such as ingest.example.com')
         cfg.collector_public_url = f'https://{dom}'
+    if not 1 <= cfg.metrics_raw_days <= 3650: raise SystemExit('S4_METRICS_RAW_DAYS must be 1..3650')
+    if not cfg.metrics_raw_days <= cfg.metrics_hour_days <= 36500: raise SystemExit('S4_METRICS_HOUR_DAYS must be S4_METRICS_RAW_DAYS..36500')
     if cfg.collector_inbox_dir: cfg.collector_inbox_dir = os.path.abspath(cfg.collector_inbox_dir)
     if msg := timezone.validate(cfg.timezone_offset, cfg.timezone_label): raise SystemExit(f'S4_TIMEZONE_OFFSET / S4_TIMEZONE_LABEL: {msg}')
     if not 0 <= cfg.backup_hour <= 23: raise SystemExit('S4_BACKUP_HOUR must be 0..23 (local time)')

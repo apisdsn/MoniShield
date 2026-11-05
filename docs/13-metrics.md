@@ -34,7 +34,28 @@ New collectors have the options on. A collector registered before this stage has
 
 Checked with the real `otelcol-contrib` 0.163.2 (`tools/fetch_otelcol.py`; the tests skip only when the binary is absent).
 
-## 3. Docker API version
+## 3. Receiver and storage
+
+`POST /api/collector/v1/metrics` (`interfaces/api/collector_logs.py`, next to the log receiver) uses the same key, content-type and
+encoding checks, rate window, request slots, size limits before and after gunzip and 503 answers (`disk_full`, `busy`,
+`storage_error`) as the log receiver, and the same `S4_COLLECTOR_*` limits and `S4_COLLECTOR_MAX_AGE_HOURS`.
+
+- `domain/otlp_metrics.py` reads only the metric names in the table above (everything else is ignored and only counted, histograms
+  too). A broken point is rejected with a reason (`malformed point`, `invalid time`, `too old`, `invalid name`, …) in the OTLP answer
+  (`partialSuccess.rejectedDataPoints`); the collector does not retry it. Kept from the resource: host name (the node name on
+  Kubernetes), OS description, container name and image name. Dropped: everything else, so no IP address, container id or process
+  data is ever stored.
+- Values: `cpu` = 100 x (1 - mean idle share); `mem_used`, `mem_total` (the `system.memory.limit` metric, else the sum of the states
+  except `inactive`); `disk_used`, `disk_total` per mount point (at most 10, `/` first; total = used + free, like `df`, the
+  reserved blocks are not counted); `net_rx`, `net_tx` in bytes per second summed over the devices; `load1`. Containers: `cpu` as
+  Docker reports it, `mem_used`, `mem_limit`, `net_rx`, `net_tx`, `restarts`.
+- Network values are counters. `application/metrics_feed.py` keeps the last sample of every device in memory and sends no rate for
+  the first sample, after a counter reset or a changed start time, or after a gap of more than 5 minutes. A restart of MoniShield
+  loses one point per series.
+- `infrastructure/metrics_store.py`: its own file `<data dir>/metrics.duckdb`, one connection, one lock; tables `metric_point`,
+  `metric_hour`, `metric_target`; a request inserts its points in one statement.
+
+## 4. Docker API version
 
 The `docker_stats` receiver of 0.163.2 talks to the Docker Engine with API version 1.44. If the collector's log says
 `client version ... is too old`, the Docker Engine raised its minimum API version: add `api_version: "<version>"` to the `docker_stats`

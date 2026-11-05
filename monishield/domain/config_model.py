@@ -130,6 +130,9 @@ class Config:
     collector_max_age_hours: int = 24   # a log record whose own time is older than this is rejected as "too old" (0 = no limit)
     collector_otel_version: str = '0.163.2'   # otelcol-contrib release the install scripts and the Helm values use (released 2026-10-21)
     collector_public_url: str = ''    # address collectors send to (https://logs.example.com); empty = the address the request used
+    # server and container metrics from collectors (POST /api/collector/v1/metrics; docs/13-metrics.md)
+    metrics_raw_days: int = 7         # values as they arrived (about every 30 seconds) are kept this long
+    metrics_hour_days: int = 90       # hourly averages are kept this long
     # download source & external service addresses (formerly hard-coded; default = official addresses)
     url_maxmind: str = 'https://download.maxmind.com/geoip/databases/{}/download?suffix=zip'   # {} = GeoLite2 edition name
     url_ip2asn: str = rules.IP2ASN_URL
@@ -172,6 +175,9 @@ class Config:
 
     @property
     def collector_db_path(self): return os.path.join(self.data_dir, 'collector', 'monishield.duckdb')
+
+    @property
+    def metrics_db_path(self): return os.path.join(self.data_dir, 'metrics.duckdb')
 
     @property
     def auth_url(self):

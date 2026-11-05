@@ -7,6 +7,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Collector metrics (stage 56, part 2): `POST /api/collector/v1/metrics` receives the OTLP/JSON metrics of the collector (same key, gzip, size, rate, busy and free-disk rules as the log receiver) and stores server values (CPU, memory, disk per mount point, network bytes per second, load) and container values (CPU, memory and its limit, network, restarts) in their own file `metrics.duckdb`. Other metrics, process data and addresses are never kept. New settings `S4_METRICS_RAW_DAYS` (7) and `S4_METRICS_HOUR_DAYS` (90).
 - Collector metrics (stage 56, part 1): the options `host_metrics` (every platform) and `container_metrics` (Docker hosts) add a `metrics` pipeline to the collector configuration: the `hostmetrics` receiver (CPU, memory, load, file systems, network traffic; never process data), the `docker_stats` receiver and the exporter's `metrics_endpoint`. New collectors have them on; existing ones stay off until an admin turns them on and runs `install.sh --upgrade`. The upgrade also recognises a Docker host that sends container metrics only.
 - Collector: `install.sh --upgrade` (Windows: `install.ps1 -Upgrade`) refreshes an installed collector in place with its installed key: current configuration, Docker name helper and timer, restart. The Collectors page shows the command for every enrolled collector.
 - Collector: Docker containers are named like `docker ps` instead of the first 12 characters of the id. The installer adds a small

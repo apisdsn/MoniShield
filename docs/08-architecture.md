@@ -36,9 +36,11 @@ FastAPI's `app.state`. Application services receive that object as `ctx` and onl
 | `kafka_client` | KafkaClient | `infrastructure/kafka_client.KafkaClient` |
 | `inbox` | Inbox factory | `infrastructure/inbox.Spool` |
 | `uploads` | UploadStore | `infrastructure/uploads.Uploads` |
+| `metrics` | MetricsStore | `infrastructure/metrics_store.MetricsStore` (own file `metrics.duckdb`) |
 | `maxmind` | MaxMind probe | `infrastructure/refdata.probe_maxmind` |
 | `mailer` | Mailer | `infrastructure/mailer.Mailer` (letters from `domain/letters.py`, rendered by `infrastructure/letter.py`) |
 | `ingest`, `imports`, `alerts`, `kafka`, `retention`, `resets`, `emails` | services | `application/*_service.py` (`resets` = `password_service.PasswordResets`, `emails` = `account_service.EmailChanges`) |
+| `metrics_feed` | service | `application/metrics_feed.MetricsFeed` (receives collector metrics through the `metrics` port) |
 | `wire` | (interfaces only) | `infrastructure/wirecrypto.WireCrypto`, used by the `interfaces/api/wire.py` middleware for encrypted API bodies |
 
 Tests build the same graph through `create_app(cfg)`; a service can also be tested with a hand-made `ctx` holding fakes

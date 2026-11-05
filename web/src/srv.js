@@ -54,6 +54,8 @@ const ID = [
   [/invalid time \(/, 'waktu tidak sah ('], [/malformed record \(/, 'record rusak ('], [/too many records \(/, 'terlalu banyak record ('],
   [/malformed attributes \(/, 'atribut rusak ('], [/malformed request \(/, 'permintaan rusak ('],
   [/^too old$/, 'terlalu lama'], [/too old \(/, 'terlalu lama ('],
+  // collector metrics: last reject reason (monishield/domain/otlp_metrics.py; the reasons above also apply)
+  [/^(\d+) data points rejected: /, '$1 titik data ditolak: '], [/malformed point \(/, 'titik data rusak ('], [/too many points \(/, 'terlalu banyak titik data ('],
   // import job summary
   [/^(\d+) objects would be fetched, (\d+) skipped/, '$1 objek akan diambil, $2 dilewati'],
   [/^(\d+) objects fetched, (\d+) skipped/, '$1 objek diambil, $2 dilewati'],

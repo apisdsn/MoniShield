@@ -12,9 +12,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import account_service, alert_service, collector_feed, collector_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
+from monishield.application import account_service, alert_service, collector_feed, collector_service, metrics_feed, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
 from monishield.domain import config_model, detect, log_formats, services, timezone
-from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
+from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, metrics_store, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
 from monishield.interfaces.api import admin, collector_install, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
 from .common import ROLE_DEPS, FailureLimiter, RateWindow, Slots
@@ -98,6 +98,8 @@ def wire(state, cfg, env_path):
     state.collectors = collector_service.CollectorService(state)
     state.collector_inbox = collector_inbox.CollectorInbox(cfg.collector_inbox)
     state.collector_feed = collector_feed.CollectorFeed(state)
+    state.metrics = metrics_store.MetricsStore(cfg.metrics_db_path)   # opened on first use; closed in lifespan
+    state.metrics_feed = metrics_feed.MetricsFeed(state)
     state.collector_failures = FailureLimiter()   # wrong collector keys per IP (receiver only)
     state.collector_slots = Slots()               # requests being read and stored (memory)
     state.collector_rates = RateWindow()          # requests per collector per minute
@@ -162,6 +164,7 @@ def create_app(cfg=None, env_path=None):
         app.state.ingest.wait(timeout=600)
         kafka.ingest.wait(timeout=600)
         collector.ingest.wait(timeout=600)
+        app.state.metrics.close()
         app.state.auth.close()
         app.state.con.close()
         kafka.con.close()
