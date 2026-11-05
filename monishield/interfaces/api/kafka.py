@@ -3,7 +3,8 @@
   POST /api/admin/kafka/peek     "Check messages": the LAST n messages of the topic (no consumer group; does not move the read position)
   POST /api/admin/kafka/ingest   ingest now (without waiting for the S4_KAFKA_INGEST_MINUTES interval)
   GET  /api/live/map             Server-Sent Events for the realtime map animation: {p: [[lat, lon, count, module], …]} per
-                                 second. Location coordinates only (from the local IP database), no IP addresses. 204 when Kafka is off.
+                                 second. Location coordinates only (from the local IP database), no IP addresses. ?source=kafka (default) or
+                                 ?source=collector picks the hub; 204 when that source is not running.
   GET  /api/public/map           public (home page): coarse request origins, live (last minute) or of the newest folder;
                                  cells of ~55 km, no IP addresses (monishield/domain/public_map.py). {enabled: false} when turned off.
 """
@@ -13,6 +14,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
+from monishield.application import sources
 from monishield.domain.errors import Fail
 from .admin import _audit
 from .common import public, require_admin, require_user_ready
@@ -51,10 +53,17 @@ def public_map(request: Request, response: Response):
     return request.app.state.public_map.snapshot()
 
 
+def live_feed(request, source):
+    """The feed (with its `live` hub, `running()` and `live_folder()`) of the page's source, or None when it is not running."""
+    st = request.app.state
+    feed = {sources.KAFKA: getattr(st, 'kafka', None), sources.COLLECTOR: getattr(st, 'collector_feed', None)}.get(source)
+    return feed if feed is not None and feed.running() else None
+
+
 @router.get('/api/live/map')
 async def live_map(request: Request, user=Depends(require_user_ready)):
-    feed = request.app.state.kafka
-    if not feed.running(): return Response(status_code=204)   # EventSource does not reconnect
+    feed = live_feed(request, request.query_params.get('source') or sources.KAFKA)   # no ?source=: Kafka, as before the collector had a map
+    if feed is None: return Response(status_code=204)   # EventSource does not reconnect
 
     async def events():
         seq, _ = feed.live.since(10 ** 12)          # start from now

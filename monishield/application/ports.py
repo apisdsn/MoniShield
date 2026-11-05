@@ -14,6 +14,7 @@ Services receive `ctx` (on the server: `app.state`, assembled in monishield/inte
   inbox          Inbox (factory)    buffer of Kafka lines -> inbox files            infrastructure/inbox.py (Spool)
   uploads        UploadStore        temporary upload files                          infrastructure/uploads.py (Uploads)
   maxmind        MaxMindProbe       MaxMind key test                                infrastructure/refdata.py (probe_maxmind)
+  geo            GeoLocator         offline location of a client address (live map) infrastructure/geo_lookup.py
   ingest, imports, alerts, kafka, retention, resets, emails, collectors    other application services (calling each other through ctx)
 
 User-facing errors are raised as monishield.domain.errors.Fail (code + message + status); the interface layer
@@ -127,6 +128,11 @@ class Inbox(Protocol):
     n: int
     def add(self, rec: dict) -> str: ...
     def flush(self) -> dict: ...
+
+
+class GeoLocator(Protocol):
+    """Offline location of one client address for the live map (infrastructure/geo_lookup.py). Never calls out."""
+    def locate(self, ip: str) -> Optional[tuple]: ...   # (lat, lon, city, country) or None
 
 
 class CollectorInbox(Protocol):

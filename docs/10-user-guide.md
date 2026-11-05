@@ -272,7 +272,7 @@ The Command Center compares the numbers with the **average of the previous 7** c
 Particles move from the source location to the server point (destination IP), with a ripple on arrival; the
 more requests, the more frequent the particles. The ❚❚/▶ button in the map corner pauses it (remembered per browser; paused by default when
 the system asks for reduced motion). With Kafka, every new nginx-ingress request also sends one pulse to the page as a
-`monishield:map-pulse` `{lat, lon, n}` event (see `web/src/lib/mapFlow.js`), shown with the **LIVE** badge.
+`monishield:map-pulse` `{lat, lon, n}` event (see `web/src/lib/mapFlow.js`), shown with the **LIVE** badge. The same happens in the **Collector** source for the access lines of services whose log-formats rule is an HTTP access log (for example `caddy-json` for MoniShield's own Caddy), see `docs/12-collector.md`, "Live map".
 
 ### Block list
 

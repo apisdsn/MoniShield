@@ -14,7 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from monishield import __version__
 from monishield.application import account_service, alert_service, collector_feed, collector_service, metrics_feed, metrics_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
 from monishield.domain import config_model, detect, log_formats, services, timezone
-from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, metrics_store, notify_channels, refdata, uploads, warehouse, wirecrypto
+from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, geo_lookup, importer, inbox, kafka_client, letter, logfolders, mailer, metrics_store, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
 from monishield.interfaces.api import admin, collector_install, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, servers, session, upload, users, wire as payload
 from .common import ROLE_DEPS, FailureLimiter, RateWindow, Slots
@@ -74,6 +74,7 @@ def wire(state, cfg, env_path):
     state.inbox = inbox.Spool
     state.uploads = uploads.Uploads(cfg)
     state.maxmind = refdata.probe_maxmind
+    state.geo = geo_lookup.GeoLookup(cfg)   # offline location of a new visitor for the live map
     state.wire = wirecrypto.WireCrypto(ttl_hours=cfg.session_max_hours)
     state.source = sources.S3   # this ctx is the S3 source; Kafka and collector are state.sources['kafka'] / ['collector'] (own database, own folders)
     state.ingest = ingest_service.IngestService(state)

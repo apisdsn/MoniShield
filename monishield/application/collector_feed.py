@@ -2,11 +2,12 @@
 its lines are appended to the collector inbox (CollectorInbox port). Keeps counts per collector for the status page (step 6)
 and the folders written since the last ingest. Step 4: those folders are ingested into the collector source's own database
 (`ctx.sources['collector']`) from a small background thread, at most every S4_COLLECTOR_INGEST_SECONDS, and folders in the
-inbox that the database does not know yet are ingested once when the server starts (catch-up after a restart)."""
+inbox that the database does not know yet are ingested once when the server starts (catch-up after a restart).
+Stage 57: the access lines among them also feed the live map (`live`, application/live_map.py)."""
 import datetime, threading, time
 
-from monishield.application import ingest_service, sources
-from monishield.domain import otlp_logs
+from monishield.application import ingest_service, live_map, sources
+from monishield.domain import kafka_message, otlp_logs
 
 MB = 1024 * 1024
 MAX_REJECT_TEXT = 300
@@ -20,6 +21,9 @@ class CollectorFeed:
         self.stats = {}          # collector id -> counts
         self.pending = set()     # folders written since the last ingest (kept when that ingest fails)
         self.thread, self._stop = None, threading.Event()
+        src = (getattr(ctx, 'sources', None) or {}).get(sources.COLLECTOR, ctx)   # the collector source's database knows the visitors
+        self.live = live_map.LiveHub(src)   # realtime map of the Command Center: access lines of http rules, coordinates only
+        self.access = live_map.AccessLines(self.live, getattr(getattr(ctx, 'cfg', None), 'upstream_prefix', '') or '')
         self._last, self.last_ingest_at = None, None   # monotonic time of the last ingest start; UTC text of the last success
 
     @property
@@ -37,6 +41,7 @@ class CollectorFeed:
         """-> (OTLP answer, {folder: lines written}). The lines are on disk when this returns."""
         records, rejected = otlp_logs.parse_logs(payload, collector['name'], now, self.max_age())
         written = self.inbox.append(records) if records else {}
+        if records: self.access.feed(records)   # the live map (never raises; after the lines are on disk)
         answer = otlp_logs.partial_success(rejected)
         self._count(collector, len(records) + sum(rejected.values()), rejected, answer, written, now, [r['pod'] for r in records])
         return answer, written
@@ -99,6 +104,10 @@ class CollectorFeed:
         self.thread = None
 
     def running(self): return bool(self.thread and self.thread.is_alive())
+
+    def live_folder(self):
+        """The folder the day in progress is written to (the page shows LIVE only for it)."""
+        return kafka_message.folder_of(datetime.datetime.now(datetime.timezone.utc))
 
     def _loop(self):
         try:   # catch-up: one ingest of the whole inbox (only files that changed are read again), so lines written into a known

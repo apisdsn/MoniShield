@@ -210,6 +210,20 @@ dashboard is not available there), bodies are limited to 10 MB and no request is
    - with the guard on, `curl -k --resolve <main domain>:443:<server ip> https://<main domain>/` is refused (empty reply)
 4. **Then on the Collectors page:** Add collector, copy the commands, run them on the server to watch.
 
+### Access log of the main site (`DOCKER_ACCESS_LOG`)
+
+The `https` profile writes a JSON access log of the main site to stdout, the container log that a collector on the Docker host reads
+(`docs/12-collector.md`, "Live map"; rule `format = "caddy-json"`, `docs/11-log-formats.md`). `DOCKER_ACCESS_LOG=1` is the default,
+`0` turns it off. It is generated at every start like the other optional files (`deploy/caddy/access-log.caddy`), and a changed value or
+file recreates the Caddy container. Cookies, `Authorization`, `Proxy-Authorization`, the encrypted-body header (`X-Ms-Enc`), the answer
+headers and the TLS details are removed from every entry; the path (with its query), the user agent and the referer stay, so
+treat the container log like the other logs. The collector receiver host is never logged (machine traffic).
+
+Behind Cloudflare the connection comes from a Cloudflare server. Caddy therefore trusts the Cloudflare ranges as proxies and takes the
+visitor from `Cf-Connecting-Ip` (`trusted_proxies static …` and `client_ip_headers Cf-Connecting-Ip` in the global options, generated into
+`deploy/caddy/trusted-proxies.caddy` by `tools/cloudflare_ips.py` from the same list as the origin guard), so `request.client_ip` in the
+log is the visitor. A request that does not come from a Cloudflare address keeps its own address; the header is not believed.
+
 With `DOCKER_INGEST_DOMAIN` empty nothing changes and no certificate is requested. The app sees the collector's own address
 (Caddy replaces `X-Forwarded-For`) and never believes a `Cf-Connecting-Ip` sent there.
 

@@ -268,6 +268,29 @@ program, so the record is named by its `SYSLOG_IDENTIFIER` (`sudo`, `sshd`, `sys
 Kubernetes and Docker records keep the original line, so they use the same rule as the Kafka source. Plain files use the
 rule of their service name (`service.name` of the collector's file group, else the file name without rotation suffix).
 
+## Live map
+
+With a collector and no Kafka, the Command Center map used to stay empty. Since stage 57 the HTTP access lines that arrive through the
+receiver feed the same live map as Kafka's nginx lines (the **LIVE** badge, one pulse per request).
+
+- **What is read.** After the lines of a request are on disk, every record whose service matches a rule of kind `http` in
+  `log-formats.toml` is read with that rule's reader (`domain/live_map.py`): `ingress-nginx`, `nginx-frontend`, `nginx-combined`,
+  `apache-combined`, `caddy-json` and a `json` / `logfmt` / `regex` rule with `kind = "http"`. Records of other services, lines that
+  do not read, and Caddy's own non-access lines are ignored. At most 2,000 lines of one request go to the map (the lines are all stored).
+  A failure on the map side is swallowed: a receive never fails or waits because of it.
+- **Where the location comes from.** The visitors the collector database knows (`ip_info`), else the offline lookup of the GeoLite2
+  file the ingest downloads (`infrastructure/geo_lookup.py`): read once in a background thread into compact arrays, searched by
+  binary search, with a bounded LRU cache (20,000 addresses). A new visitor therefore shows at once instead of after the next
+  ingest. Until the file is loaded, or when there is none (no MaxMind key), the lines are not drawn. The address never leaves the process.
+- **Hubs.** One `LiveHub` per live source (`application/live_map.py`): `state.kafka.live` and `state.collector_feed.live`.
+  `GET /api/v1/live/map?source=kafka|collector` streams the hub of the page's source as Server-Sent Events:
+  `{p: [[lat, lon, count, module], …]}` per second, with the module = the line's upstream, else the service. 204 when that source is
+  not running (`s3` has no live stream). The browser sends the page's `?source=` (`FlowMap.svelte`).
+- **Privacy.** The stream carries coordinates, counts and the module only; no IP address is sent to the browser or to a third party.
+- **Caddy of MoniShield itself.** The `https` profile writes a JSON access log to the container log (`DOCKER_ACCESS_LOG`,
+  `docs/07-deploy-vps.md`); a collector on that Docker host reads it, and the rule `match = "monishield-https-1"`,
+  `format = "caddy-json"` (`docs/11-log-formats.md`, section 2a) turns it into map pulses and normal log pages.
+
 ## Groups
 
 A collector can have a group (`collector.group_name`, nullable, 40 characters, trimmed; letters, digits, space, dot, underscore and hyphen,

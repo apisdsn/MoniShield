@@ -1492,3 +1492,17 @@ Built and committed in parts so the backend can be reviewed before the page:
    (column `group_name`, sections on both pages), the metrics database in the backup, the counter-memory bound, the current component names,
    encrypted-body tests for the collector and Servers calls, and one capitalisation rule for the UI text (`docs/08-architecture.md`, "UI text"). **Done.**
 5. Left for later: Kubernetes per-container metrics, notifications for unusual values and almost-full disks, endpoint and SSL checks (see `13-metrics.md` §9).
+
+## Stage 57 — Live map from collector logs (done, 2026-11-05)
+
+Owner request: with a collector and no Kafka the Command Center live map stayed empty. Built in four commits:
+
+1. `feat(deploy)`: JSON access log of MoniShield's own Caddy (`DOCKER_ACCESS_LOG`, `deploy/caddy/access-log.caddy`), the visitor behind
+   Cloudflare as `request.client_ip` (`trusted-proxies.caddy`, generated from the same list as the origin guard). **Done.**
+2. `feat(log-formats)`: the `caddy-json` preset (client IP with fallback, first list element, seconds to milliseconds via the new
+   `duration_unit` key); Caddy's own lines count as unread. **Done.**
+3. `feat(collector)`: `LiveHub` moved to `application/live_map.py`, one hub per live source; the collector feed turns the access lines of
+   http rules into coordinates-only events (offline lookup `infrastructure/geo_lookup.py`, LRU cache, 2,000 lines per request at most);
+   `/api/v1/live/map?source=` serves the hub of the page's source. **Done.**
+4. Real check with `otelcol-contrib` and a Caddy JSON file, screenshots, docs. **Done** (`docs/09-status.md`).
+

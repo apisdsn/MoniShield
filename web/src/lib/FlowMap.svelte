@@ -7,19 +7,20 @@
   import { tick } from 'svelte';
   import { lang, t, countryName } from '../i18n.js';
   import { num } from '../format.js';
+  import { withSource } from '../api.js';
   import MapView from './MapView.svelte';
   import DataTable from './DataTable.svelte';
   import Note from './Note.svelte';
 
   let { data, folder, module = null, server = null, aside = null, tall = false } = $props();
   let preset = $state('id'), search = $state(null), seq = 0;
-  // realtime (Kafka): /api/live/map sends event locations per second (no IPs). Only for the folder currently being filled by
-  // Kafka ("hello".folder); 204 = Kafka not in use -> EventSource stops, the map uses the normal animation.
+  // realtime (Kafka or collector, the page's source): /api/live/map sends event locations per second (no IPs). Only for the folder
+  // currently being filled ("hello".folder); 204 = that source is not running -> EventSource stops, the map uses the normal animation.
   let liveOn = $state(false), mapRef = $state();
   $effect(() => {
     const f = folder, mod = module;
     if (typeof EventSource === 'undefined') return;
-    const es = new EventSource('/api/live/map');
+    const es = new EventSource(withSource('/api/live/map'));
     es.addEventListener('hello', (e) => { try { liveOn = JSON.parse(e.data).folder === f; } catch { liveOn = false; } });
     es.onmessage = (e) => {
       if (!liveOn) return;
