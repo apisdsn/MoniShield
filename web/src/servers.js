@@ -1,6 +1,7 @@
 // Servers page helpers (docs/13-metrics.md): what the cards, the banner, the charts and the containers table show, worked out from
 // the answers of GET /api/servers and /api/servers/host. Pure: no DOM, no stores; the time zone and the language come in as arguments.
 import { bytes, num } from './format.js';
+import { groupItems } from './collectors.js';
 
 export const RANGES = ['1h', '24h', '7d', '30d'];
 export const WARN_AT = 70, HIGH_AT = 85, FULL_AT = 90;       // percent: amber, red, "disk almost full" (the server uses the same 90)
@@ -127,3 +128,11 @@ export function usualBand(item, lang) {
   return lu === hu ? `${lv}–${hi}` : `${lo}–${hi}`;
 }
 
+
+// Groups
+/** The host cards under their group headings: [{name, hosts}] (group names alphabetical, "No Group" = '' last). `pick` is 'all' or one group;
+ *  a group that no longer exists counts as 'all'. */
+export function hostSections(hosts, pick = 'all') {
+  const all = groupItems((hosts || []).map((h) => ({ ...h, group: h.group || '' }))).map((g) => ({ name: g.name, hosts: g.items }));
+  return pick === 'all' || !all.some((g) => g.name === pick) ? all : all.filter((g) => g.name === pick);
+}

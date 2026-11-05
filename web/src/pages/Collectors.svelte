@@ -9,11 +9,13 @@
   import { api } from '../api.js';
   import { route, build } from '../state.js';
   import { locale, num, tLocal, utcToLocal } from '../format.js';
-  import { PLATFORMS, ago, checkName, checkOptions, counts, defaults, editable, keySteps, payload, sends, updateSteps, upgradeSteps } from '../collectors.js';
+  import { NONE_KEY, PLATFORMS, ago, checkGroup, checkName, checkOptions, counts, defaults, editable, filterRows, foldAll, groupNames, keySteps, payload, sections, sends, statusTally, updateSteps, upgradeSteps } from '../collectors.js';
+  import { load as stored, save } from '../store.js';
   import { toast } from '../lib/Toast.svelte';
   import Dialog from '../lib/Dialog.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
   import CollectorForm from '../lib/CollectorForm.svelte';
+  import GroupField from '../lib/GroupField.svelte';
   import CollectorInstall from '../lib/CollectorInstall.svelte';
   import CopyBlock from '../lib/CopyBlock.svelte';
   import Icon from '../lib/Icon.svelte';
@@ -39,6 +41,22 @@
   const base = $derived(data?.receiver || location.origin);
   const selected = $derived(rows.find((r) => r.id === selId) || null);
   const tally = $derived(counts(rows));
+  const groups = $derived(data?.groups || groupNames(rows));
+
+  // Sections per group: search, status filter and the folded sections (kept per browser; storage can be blocked)
+  let q = $state(''), status = $state('all');
+  let folded = $state(readClosed());
+  function readClosed() { try { const o = JSON.parse(stored('cl-closed', '{}')); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; } }
+  function setClosed(c) { folded = c; save('cl-closed', JSON.stringify(c)); }
+  const secs = $derived(sections(rows, q, status, folded));
+  const byStatus = $derived(statusTally(rows));
+  const headed = $derived(groups.length > 0);          // with no group at all the list is one plain table
+  const names = $derived(sections(rows, '', 'all', {}).map((s) => s.name));
+  const anyOpen = $derived(secs.some((s) => s.open));
+  function fold(name) { setClosed({ ...folded, [name || NONE_KEY]: !folded[name || NONE_KEY] }); }
+  const PILL = { offline: 3, late: 2, waiting: 1, revoked: 1, all_online: 'ok' };
+  const pillText = (p) => $t(`cl.pill.${p.key}`, { n: num(p.n ?? 0, $lang) });
+  const countText = (n) => $t(n === 1 ? 'cl.group.count_one' : 'cl.group.count', { n: num(n, $lang) });
   const TONE = { online: 'ok', late: 2, offline: 3, waiting: 1, revoked: 1 };
   const DOT = { online: 'ok', late: 'warn', offline: 'err', waiting: '', revoked: '' };
 
@@ -70,10 +88,10 @@
   function closed() { dlg = null; load(); }   // tokens and keys are dropped with dlg
 
   // Add
-  let f = $state({ name: '', platform: 'linux' }), byPlatform = $state({}), tried = $state(false), nameErr = $state('');
+  let f = $state({ name: '', platform: 'linux', group: '' }), byPlatform = $state({}), tried = $state(false), nameErr = $state('');
   const opts = $derived(byPlatform[f.platform]);
   function openAdd() {
-    f = { name: '', platform: 'linux' }; tried = false; nameErr = '';
+    f = { name: '', platform: 'linux', group: '' }; tried = false; nameErr = '';
     byPlatform = Object.fromEntries(PLATFORMS.map((p) => [p, editable(p, defaults(p))]));
     show('add', { done: null });
   }
@@ -89,10 +107,10 @@
   async function create(e) {
     e.preventDefault();
     tried = true; nameErr = ''; general = null;
-    if (checkName(f.name) || Object.keys(checkOptions(f.platform, opts)).length) { general = $t('cl.err.fix'); return; }
+    if (checkName(f.name) || checkGroup(f.group) || Object.keys(checkOptions(f.platform, opts)).length) { general = $t('cl.err.fix'); return; }
     busy = true;
     try {
-      const r = await api.post('/api/admin/collectors', { name: f.name, platform: f.platform, options: payload(f.platform, opts) });
+      const r = await api.post('/api/admin/collectors', { name: f.name, platform: f.platform, group: f.group.trim(), options: payload(f.platform, opts) });
       dlg = { kind: 'add', done: { id: r.collector.id, name: r.collector.name, platform: r.collector.platform, token: r.enroll_token, expires: r.expires } };
       selId = r.collector.id;
       await load();
@@ -123,11 +141,19 @@
     const r = dlg.r;
     await act(async () => { await api.put(`/api/admin/collectors/${r.id}/options`, { options: payload(r.platform, inOpts) }); dlg = { ...dlg, saved: true }; toast($t('cl.in.saved', { name: r.name })); });
   }
+  let gval = $state('');
+  function openGroup(r) { gval = r.group || ''; show('group', { r }); }
+  async function saveGroup(e) {
+    e.preventDefault();
+    if (checkGroup(gval)) { general = $t('cl.err.fix'); return; }
+    const r = dlg.r;
+    await act(async () => { await api.put(`/api/admin/collectors/${r.id}/options`, { group: gval.trim() }); open = false; toast($t('cl.gr.saved', { name: r.name })); });
+  }
   const revoke = (r) => act(async () => { await api.post(`/api/admin/collectors/${r.id}/revoke`); open = false; toast($t('cl.rv.done', { name: r.name })); });
   const remove = (r) => act(async () => { await api.del(`/api/admin/collectors/${r.id}`); open = false; if (selId === r.id) selId = null; toast($t('cl.del.done', { name: r.name })); });
 
   const title = $derived(!dlg ? '' : dlg.kind === 'add' ? (dlg.done ? $t('cl.tok.title', { name: dlg.done.name }) : $t('cl.add'))
-    : dlg.kind === 'token' ? $t('cl.tok.title', { name: dlg.r.name }) : $t(`cl.${{ key: 'key', 'key-ask': 'key', inputs: 'in', revoke: 'rv', delete: 'del' }[dlg.kind]}.title`, { name: dlg.r.name }));
+    : dlg.kind === 'token' ? $t('cl.tok.title', { name: dlg.r.name }) : $t(`cl.${{ key: 'key', 'key-ask': 'key', inputs: 'in', group: 'gr', revoke: 'rv', delete: 'del' }[dlg.kind]}.title`, { name: dlg.r.name }));
   const canDelete = (r) => r.status === 'revoked' || !r.enrolled_at;
   const rejected = (s) => Object.values(s?.rejected || {}).reduce((a, b) => a + b, 0);
 </script>
@@ -163,33 +189,67 @@
     </div>
   {:else}
     <div class="layout" class:two={!!selected}>
-      <div class="card list">
-        <table>
-          <caption class="sr-only">{$t('cl.list')}</caption>
-          <thead>
-            <tr><th scope="col">{$t('cl.col.name')}</th><th scope="col">{$t('cl.col.sends')}</th><th scope="col">{$t('cl.col.version')}</th>
-              <th scope="col">{$t('cl.col.seen')}</th><th scope="col">{$t('col.status')}</th></tr>
-          </thead>
-          <tbody>
-            {#each rows as r (r.id)}
-              <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-              <tr class:sel={r.id === selId} onclick={() => pick(r.id)}>
-                <td class="nm">
-                  <button type="button" class="rowbtn" aria-current={r.id === selId ? 'true' : undefined} aria-controls="cl-panel"
-                    aria-label={$t('cl.show', { name: r.name })} onclick={(e) => { e.stopPropagation(); pick(r.id); }}>
-                    <b class="sys">{r.name}</b><span class="plat">{$t(`cl.platform.${r.platform}`)}</span>
-                  </button>
-                </td>
-                <td class="snd" data-label={$t('cl.col.sends')}>
-                  <span class="chips">{#each chips(r) as c}<span class="chip">{chipText(c)}</span>{:else}<span class="muted">{$t('cl.sends.nothing')}</span>{/each}</span>
-                </td>
-                <td data-label={$t('cl.col.version')} class="ver">{r.version || $t('cl.none')}</td>
-                <td data-label={$t('cl.col.seen')} class="seen" title={exact(r.last_seen)}>{seen(r)}</td>
-                <td data-label={$t('col.status')}><SeverityTag level={TONE[r.status]} text={$t(`cl.st.${r.status}`)} /></td>
-              </tr>
+      <div class="secs">
+        <div class="tools">
+          <label class="find">
+            <Icon name="search" size={18} />
+            <span class="sr-only">{$t('cl.search')}</span>
+            <input type="search" bind:value={q} placeholder={$t('cl.search_ph')} autocomplete="off" spellcheck="false" maxlength="100" />
+          </label>
+          <div class="seg flt" role="group" aria-label={$t('cl.filter')}>
+            {#each ['all', 'online', 'late', 'offline'] as s}
+              <button type="button" aria-pressed={status === s} onclick={() => (status = s)}>{$t(`cl.flt.${s}`)} <span class="fn">{num(byStatus[s], $lang)}</span></button>
             {/each}
-          </tbody>
-        </table>
+          </div>
+          {#if headed}<button type="button" class="btn all" onclick={() => setClosed(foldAll(names, anyOpen))}>{$t(anyOpen ? 'cl.collapse_all' : 'cl.expand_all')}</button>{/if}
+        </div>
+
+        {#each secs as g (g.name)}
+          <section class="card list" aria-label={g.name || $t('cl.no_group')}>
+            {#if headed}
+              <h2 class="gh">
+                <button type="button" class="ghb" aria-expanded={g.open} aria-controls="cl-g-{g.name || 'none'}" onclick={() => fold(g.name)}>
+                  <span class="chev" class:up={g.open}><Icon name="chevron" size={16} /></span>
+                  <span class="gn">{g.name || $t('cl.no_group')}</span>
+                  <span class="gc muted">{countText(g.total)}</span>
+                  <span class="gp">{#each g.pills as p}<SeverityTag level={PILL[p.key]} text={pillText(p)} />{/each}</span>
+                </button>
+              </h2>
+            {/if}
+            {#if g.open || !headed}
+            <div id="cl-g-{g.name || 'none'}" class="tw">
+            <table>
+              <caption class="sr-only">{g.name || $t('cl.no_group')}</caption>
+              <thead>
+                <tr><th scope="col">{$t('cl.col.name')}</th><th scope="col">{$t('cl.col.sends')}</th><th scope="col">{$t('cl.col.version')}</th>
+                  <th scope="col">{$t('cl.col.seen')}</th><th scope="col">{$t('col.status')}</th></tr>
+              </thead>
+              <tbody>
+                {#each g.rows as r (r.id)}
+                  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+                  <tr class:sel={r.id === selId} onclick={() => pick(r.id)}>
+                    <td class="nm">
+                      <button type="button" class="rowbtn" aria-current={r.id === selId ? 'true' : undefined} aria-controls="cl-panel"
+                        aria-label={$t('cl.show', { name: r.name })} onclick={(e) => { e.stopPropagation(); pick(r.id); }}>
+                        <b class="sys">{r.name}</b><span class="plat">{$t(`cl.platform.${r.platform}`)}</span>
+                      </button>
+                    </td>
+                    <td class="snd" data-label={$t('cl.col.sends')}>
+                      <span class="chips">{#each chips(r) as c}<span class="chip">{chipText(c)}</span>{:else}<span class="muted">{$t('cl.sends.nothing')}</span>{/each}</span>
+                    </td>
+                    <td data-label={$t('cl.col.version')} class="ver">{r.version || $t('cl.none')}</td>
+                    <td data-label={$t('cl.col.seen')} class="seen" title={exact(r.last_seen)}>{seen(r)}</td>
+                    <td data-label={$t('col.status')}><SeverityTag level={TONE[r.status]} text={$t(`cl.st.${r.status}`)} /></td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+            </div>
+            {/if}
+          </section>
+        {:else}
+          <div class="card nomatch" role="status">{$t('cl.nomatch')}</div>
+        {/each}
       </div>
 
       {#if selected}
@@ -202,6 +262,7 @@
           <p class="pst"><SeverityTag level={TONE[r.status]} text={$t(`cl.st.${r.status}`)} /> <span class="muted">{$t(`cl.hint.${r.status}`)}</span></p>
           <dl>
             <dt>{$t('cl.p.platform')}</dt><dd>{$t(`cl.platform.${r.platform}`)}</dd>
+            <dt>{$t('cl.p.group')}</dt><dd>{r.group || $t('cl.no_group')}</dd>
             <dt>{$t('cl.p.version')}</dt><dd>{r.version || $t('cl.none')}</dd>
             <dt>{$t('cl.p.seen')}</dt><dd title={exact(r.last_seen)}>{r.last_seen && r.enrolled_at ? `${rel(r.last_seen)} · ${exact(r.last_seen)}` : $t('cl.never')}</dd>
             <dt>{$t('cl.p.ip')}</dt><dd class="mono">{r.last_ip || $t('cl.none')}</dd>
@@ -235,6 +296,7 @@
             {#if r.enrolled_at}<a class="btn accent" href={logsHref(r)}><Icon name="terminal" size={16} />{$t('cl.a.logs')}</a>{/if}
             {#if r.status === 'waiting'}<button class="btn" disabled={busy} onclick={() => newToken(r)}><Icon name="key" size={16} />{$t('cl.a.token')}</button>{/if}
             {#if r.enrolled_at && r.status !== 'revoked'}<button class="btn" disabled={busy} onclick={() => show('key-ask', { r })}><Icon name="key" size={16} />{$t('cl.a.key')}</button>{/if}
+            <button class="btn" onclick={() => openGroup(r)}><Icon name="users" size={16} />{$t('cl.a.group')}</button>
             {#if r.status !== 'revoked'}<button class="btn" onclick={() => openInputs(r)}><Icon name="settings" size={16} />{$t('cl.a.inputs')}</button>{/if}
             {#if r.status !== 'revoked'}<a class="btn" href="/api/admin/collectors/{r.id}/config" download={r.platform === 'kubernetes' ? 'values.yaml' : 'config.yaml'}><Icon name="download" size={16} />{$t('cl.a.config')}</a>{/if}
             {#if r.status !== 'revoked'}<button class="btn danger" onclick={() => show('revoke', { r })}><Icon name="ban" size={16} />{$t('cl.a.revoke')}</button>{/if}
@@ -255,6 +317,8 @@
         aria-invalid={!!nameMsg} aria-describedby="cl-name-r{nameMsg ? ' cl-name-e' : ''}" />
       <p id="cl-name-r" class="rule">{$t('cl.f.name_rule')}</p>
       {#if nameMsg}<p id="cl-name-e" class="err">{nameMsg}</p>{/if}
+
+      <GroupField bind:value={f.group} {groups} idp="cl-add-g" />
 
       <p class="lbl" id="cl-pl">{$t('cl.f.platform')}</p>
       <div class="tabs" role="tablist" aria-labelledby="cl-pl" tabindex="-1" onkeydown={tabKey}>
@@ -313,6 +377,15 @@
       {#if dlg.r.enrolled_at}{#each (dlg.r.platform === 'kubernetes' ? updateSteps : upgradeSteps)(dlg.r.platform, base) as s}<CopyBlock label={$t(dlg.r.platform === 'kubernetes' ? 'cl.a.inputs' : 'cl.a.upgrade')} lines={s.lines} />{/each}{/if}
       <div class="acts"><button class="btn primary" onclick={() => (open = false)}>{$t('adm.done_btn')}</button></div>
     {/if}
+  {:else if dlg?.kind === 'group'}
+    <form onsubmit={saveGroup} novalidate>
+      <GroupField bind:value={gval} {groups} idp="cl-gr" />
+      {#if general}<p class="err" role="alert">{general}</p>{/if}
+      <div class="acts">
+        <button class="btn primary" type="submit" disabled={busy}>{busy ? $t('action.saving') : $t('cl.gr.save')}</button>
+        <button class="btn" type="button" onclick={() => (open = false)}>{$t('action.cancel')}</button>
+      </div>
+    </form>
   {:else if dlg?.kind === 'revoke' || dlg?.kind === 'delete'}
     {@const del = dlg.kind === 'delete'}
     <p>{$t(del ? 'cl.del.text' : 'cl.rv.text')}</p>
@@ -338,7 +411,30 @@
   .tl { color: var(--kpi-label); font-size: 0.875rem; }
   .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
   .layout.two { grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); }
-  .list { padding: 6px 8px; overflow-x: auto; }
+  .secs { display: grid; gap: 14px; min-width: 0; align-content: start; }
+  .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .find { flex: 1 1 240px; display: flex; align-items: center; gap: 8px; min-height: var(--touch); padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); color: var(--muted); }
+  .find input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font-size: 1rem; outline: none; min-height: 40px; padding: 0; }
+  .find:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .flt button { min-height: var(--touch); padding: 0 12px; font-size: 0.8125rem; }
+  .fn { font-family: var(--mono); font-weight: 500; }
+  .all { min-height: var(--touch); }
+  .list { padding: 6px 8px; }
+  .list table { table-layout: fixed; min-width: 720px; }
+  .list th:nth-child(3), .list td:nth-child(3) { width: 110px; }
+  .list th:nth-child(4), .list td:nth-child(4) { width: 150px; }
+  .list th:nth-child(5), .list td:nth-child(5) { width: 120px; }
+  .list th:nth-child(1), .list td:nth-child(1) { width: 24%; }
+  .tw { overflow-x: auto; }
+  .gh { margin: 0; font-size: inherit; text-transform: none; }
+  .ghb { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 0; background: transparent; color: var(--fg); cursor: pointer; text-align: left; font: inherit; border-radius: 12px; }
+  .ghb:hover { background: var(--row-hover); }
+  .gn { font-size: 1rem; font-weight: 600; color: var(--heading); overflow-wrap: anywhere; }
+  .gc { font-size: 0.8125rem; }
+  .gp { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .chev { display: inline-flex; flex: none; transition: transform 0.15s; color: var(--muted); transform: rotate(-90deg); }
+  .chev.up { transform: none; }
+  .nomatch { text-align: center; color: var(--muted); padding: 28px; border-style: dashed; }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; font-size: 0.75rem; font-weight: 500; color: var(--th-fg); padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   td { padding: 6px 12px; border-bottom: 1px solid var(--row-line); vertical-align: middle; }
@@ -396,7 +492,13 @@
   @media (max-width: 1100px) { .layout.two { grid-template-columns: minmax(0, 1fr); } .panel { position: static; } }
   @media (max-width: 900px) {
     .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .list { padding: 0; overflow: visible; background: none; border: 0; box-shadow: none; }
+    .list { padding: 0; background: none; border: 0; box-shadow: none; }
+    .tw { overflow: visible; }
+    .gh { margin-bottom: 8px; }
+    .ghb { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-card); flex-wrap: wrap; }
+    .gp { margin-left: 0; flex-basis: 100%; justify-content: flex-start; padding-left: 28px; }
+    .list table { table-layout: auto; min-width: 0; }
+    .list td:nth-child(n) { width: auto; }
     table, tbody { display: block; }
     thead { display: none; }
     tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 16px; margin-bottom: 10px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-card); box-shadow: var(--glow); }

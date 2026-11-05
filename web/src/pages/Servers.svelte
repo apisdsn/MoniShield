@@ -9,8 +9,8 @@
   import { bytes, locale, num } from '../format.js';
   import { TZ } from '../tz.js';
   import { load, save } from '../store.js';
-  import { ago } from '../collectors.js';
-  import { RANGES, alignTo, axisLabel, bannerItems, bars, barTone, clockAt, diskPercent, fullLabel, hostKey, hostStatus, last, mainDisk, memoryShare, memoryText, pctText, points,
+  import { ago, groupNames } from '../collectors.js';
+  import { RANGES, alignTo, hostSections, axisLabel, bannerItems, bars, barTone, clockAt, diskPercent, fullLabel, hostKey, hostStatus, last, mainDisk, memoryShare, memoryText, pctText, points,
            rate, share, sparkPoints, unusualValue, usualBand } from '../servers.js';
   import MetricChart from '../lib/MetricChart.svelte';
   import EmptyState from '../lib/EmptyState.svelte';
@@ -63,6 +63,13 @@
   const logsHref = (host, ctr) => build({ tab: 'raw-logs', source: 'collector', service: null, folder: null, q: null, module: null, pod: host, svc: ctr });
   const itemText = (it) => it.kind === 'disk' ? $t('sv.u.disk', { mount: it.mount, pct: pctText(it.pct, $lang) })
     : $t(it.what === 'memory' ? 'sv.u.memory' : 'sv.u.cpu', { current: unusualValue(it, it.current, $lang), band: usualBand(it, $lang), z: num(Math.round(it.z * 10) / 10, $lang) });
+
+  // Groups: headings over the cards and a filter (only when a collector has a group)
+  let pick = $state('all');
+  const groupList = $derived(groupNames(hosts));
+  const secs = $derived(hostSections(hosts, pick));
+  const headed = $derived(groupList.length > 0);
+  const serverCount = (n) => $t(n === 1 ? 'sv.group.count_one' : 'sv.group.count', { n: num(n, $lang) });
 
   // Cards
   const barTitle = (b) => $t(`sv.bar.${b.key}`);
@@ -138,24 +145,37 @@
     </section>
   {/if}
 
-  <section class="hosts" aria-label={$t('sv.hosts')}>
-    {#each hosts as h (hostKey(h))}
-      {@const st = hostStatus(h)}
-      <button type="button" class="hc" aria-pressed={current && hostKey(current) === hostKey(h)} onclick={() => (sel = hostKey(h))}>
-        <span class="top">
-          <span class="nm"><b>{h.host}</b><small>{[h.os, cardCount(h)].filter(Boolean).join(' · ') || h.collector}</small></span>
-          <SeverityTag level={st.level} text={$t(`sv.st.${st.key}`)} />
-        </span>
-        {#each bars(h) as b}
-          <span class="b3">
-            <span class="lb">{barTitle(b)}</span>
-            <span class="trk" aria-hidden="true">{#if b.pct !== null}<span class="fill {barTone(b.pct)}" style:width="{Math.max(2, b.pct)}%"></span>{/if}</span>
-            <span class="v">{b.pct === null ? '–' : `${pctText(b.pct, $lang)}%`}</span>
-          </span>
+  {#if headed}
+    <div class="gfilter" role="group" aria-label={$t('sv.group.filter')}>
+      <button type="button" class="gb" aria-pressed={pick === 'all' || (pick !== '' && !groupList.includes(pick))} onclick={() => (pick = 'all')}>{$t('sv.group.all')}</button>
+      {#each groupList as g}<button type="button" class="gb" aria-pressed={pick === g} onclick={() => (pick = g)}>{g}</button>{/each}
+      {#if hosts.some((h) => !h.group)}<button type="button" class="gb" aria-pressed={pick === ''} onclick={() => (pick = '')}>{$t('sv.group.none')}</button>{/if}
+    </div>
+  {/if}
+
+  {#each secs as g (g.name)}
+    <section class="gsec" aria-label={headed ? g.name || $t('sv.group.none') : $t('sv.hosts')}>
+      {#if headed}<h2 class="gh">{g.name || $t('sv.group.none')} <span class="muted gc">{serverCount(g.hosts.length)}</span></h2>{/if}
+      <div class="hosts">
+        {#each g.hosts as h (hostKey(h))}
+          {@const st = hostStatus(h)}
+          <button type="button" class="hc" aria-pressed={current && hostKey(current) === hostKey(h)} onclick={() => (sel = hostKey(h))}>
+            <span class="top">
+              <span class="nm"><b>{h.host}</b><small>{[h.os, cardCount(h)].filter(Boolean).join(' · ') || h.collector}</small></span>
+              <SeverityTag level={st.level} text={$t(`sv.st.${st.key}`)} />
+            </span>
+            {#each bars(h) as b}
+              <span class="b3">
+                <span class="lb">{barTitle(b)}</span>
+                <span class="trk" aria-hidden="true">{#if b.pct !== null}<span class="fill {barTone(b.pct)}" style:width="{Math.max(2, b.pct)}%"></span>{/if}</span>
+                <span class="v">{b.pct === null ? '–' : `${pctText(b.pct, $lang)}%`}</span>
+              </span>
+            {/each}
+          </button>
         {/each}
-      </button>
-    {/each}
-  </section>
+      </div>
+    </section>
+  {/each}
 
   {#if detailError && !d}
     <ErrorState error={detailError} onretry={loadDetail} />
@@ -242,7 +262,13 @@
   .st { margin-left: 0.4em; }
   .more { margin: 8px 0 0; font-size: 0.8125rem; }
 
-  .hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; margin-bottom: 16px; }
+  .gfilter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .gb { min-height: var(--touch); padding: 0 14px; border-radius: var(--r-ctl); font: inherit; font-size: 0.875rem; cursor: pointer; color: var(--fg); background: var(--bg2); border: 1px solid var(--line-strong); }
+  .gb[aria-pressed='true'] { border: 1.5px solid var(--accent); background: var(--seg-on); color: var(--accent-text); font-weight: 600; }
+  .gsec { margin-bottom: 16px; }
+  .gh { margin: 6px 0 10px; font-size: 1rem; font-weight: 600; color: var(--heading); text-transform: none; }
+  .gc { font-weight: 400; font-size: 0.8125rem; }
+  .hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
   .hc {
     display: flex; flex-direction: column; gap: 10px; padding: 16px; text-align: left; color: var(--fg); cursor: pointer; font: inherit;
     background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-card); box-shadow: var(--glow); min-width: 0;

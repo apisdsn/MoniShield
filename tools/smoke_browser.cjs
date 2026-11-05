@@ -235,6 +235,82 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.setViewportSize({ width: 1280, height: 900 });
   console.log('ok   Collectors: add dialog (Esc), token and command, list, no sideways scroll at 390px');
 
+  // Collector groups and the Servers page (the sample servers of tools/seed_metrics.py: three groups and one collector without a group).
+  // Every /api answer these pages read must be encrypted (X-MS-Enc, application/octet-stream); only the public key exchange and /api/health are plain JSON.
+  const plain = [];
+  const watch = (r) => {
+    const u = new URL(r.url());
+    if (u.pathname.startsWith('/api/') && !/^\/api\/(crypto\/handshake|health)$/.test(u.pathname) && (r.headers()['content-type'] || '').startsWith('application/json')) plain.push(`${r.request().method()} ${u.pathname}`);
+  };
+  page.on('response', watch);
+  await page.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.removeItem('cl-closed'); });
+  await page.goto(BASE + '/collectors');
+  await page.waitForSelector('h2.gh');
+  const heads = await page.locator('h2.gh .gn').allInnerTexts();
+  if (heads.join('|') !== 'Client A|Client B|Internal|No Group') throw new Error(`collector sections: ${heads.join('|')}`);
+  const hb = page.locator('h2.gh button').first();
+  if ((await hb.getAttribute('aria-expanded')) !== 'true' || (await hb.evaluate((b) => b.getBoundingClientRect().height)) < 56) throw new Error('section header: not open or under 56 px');
+  await hb.click();
+  if ((await hb.getAttribute('aria-expanded')) !== 'false' || (await page.locator('tr:has-text("db-01")').count()) !== 0) throw new Error('a section did not fold');
+  await page.reload();
+  await page.waitForSelector('h2.gh');
+  if ((await page.locator('h2.gh button').first().getAttribute('aria-expanded')) !== 'false') throw new Error('the folded section was not remembered');
+  await page.fill('.find input', 'web-01');          // a search opens every matching section
+  if ((await page.locator('h2.gh button').first().getAttribute('aria-expanded')) !== 'true' || (await page.locator('tbody tr').count()) < 1) throw new Error('a search did not open the matching section');
+  await page.fill('.find input', 'no-such-collector');
+  if (!(await page.locator('.nomatch').count())) throw new Error('no "nothing matches" line');
+  await page.fill('.find input', '');
+  await page.click('.flt button:has-text("Offline")');
+  if ((await page.locator('.flt button[aria-pressed=true]').count()) !== 1 || (await page.locator('h2.gh .gn').allInnerTexts()).join('|') !== 'No Group') throw new Error('status filter Offline');
+  await page.click('.flt button:has-text("All")');
+  await page.click('button.all');
+  if ((await page.locator('h2.gh button[aria-expanded=true]').count()) !== 0) throw new Error('Collapse All');
+  await page.click('button.all');
+  if ((await page.locator('h2.gh button[aria-expanded=false]').count()) !== 0) throw new Error('Expand All');
+  await page.click('tr:has-text("web-02") .rowbtn');         // the panel: change the group, the metric options and the upgrade note
+  await page.click('#cl-panel button:has-text("Change Group")');
+  await page.waitForSelector('dialog[open] #cl-gr-in');
+  await page.fill('#cl-gr-in', 'client b');
+  if (!(await page.locator('dialog .note:has-text("Joins the existing group Client B")').count())) throw new Error('group note');
+  await page.click('dialog button[type=submit]');
+  await page.waitForSelector('tr:has-text("web-02")');
+  await page.waitForFunction(() => [...document.querySelectorAll('h2.gh')].some((h) => h.textContent.includes('Client B') && h.textContent.includes('3 collectors')));
+  await page.waitForSelector('#cl-panel');                  // still selected: the panel stays open after the group changed
+  await page.click('#cl-panel button:has-text("Change Inputs")');
+  await page.waitForSelector('dialog[open] fieldset.met');
+  await page.click('dialog fieldset.met label:has-text("Server Metrics") input');
+  await page.click('dialog button[type=submit]');
+  await page.waitForSelector('dialog:has-text("Run the upgrade command on the server to apply this")');
+  if (!(await page.locator('dialog pre:has-text("install.sh --upgrade")').count())) throw new Error('upgrade command not shown after a metrics change');
+  await page.keyboard.press('Escape');
+  console.log('ok   Collectors: sections per group, fold (remembered), search, status filter, change group, metric options and the upgrade command');
+
+  await page.goto(BASE + '/servers');
+  await page.waitForSelector('.hc');
+  await page.waitForSelector('.charts canvas');
+  if ((await page.locator('.hc').count()) < 6 || (await page.locator('section.banner li').count()) < 1) throw new Error('Servers: cards or banner missing');
+  if ((await page.locator('.seg[role=radiogroup]').count()) !== 0) throw new Error('the source switch is shown on the Servers page');
+  const groupBtns = await page.locator('.gfilter .gb').allInnerTexts();
+  if (groupBtns[0] !== 'All Groups' || groupBtns.length < 4) throw new Error(`group filter: ${groupBtns.join('|')}`);
+  await page.click('.gfilter .gb:text-is("Client B")');
+  if ((await page.locator('.hc').count()) !== 3 || (await page.locator('.gfilter .gb[aria-pressed=true]').count()) !== 1) throw new Error('Servers: group filter Client B');
+  await page.click('.gfilter .gb:text-is("All Groups")');
+  await page.click('.hc:has-text("VM-23-71-ubuntu")');
+  await page.waitForSelector('.ct tbody tr');
+  if ((await page.locator('.ct tbody tr').count()) !== 4 || !(await page.locator('.ct tr.off').count())) throw new Error('Servers: containers table');
+  await page.click('.rng button:text-is("7 d")');
+  await page.waitForSelector('.charts canvas');
+  for (const w of [390, 1280]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.waitForTimeout(300);
+    const o = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (o > 0) throw new Error(`Servers page scrolls sideways by ${o}px at ${w}px`);
+  }
+  console.log('ok   Servers: cards, banner, group filter, charts, containers, ranges, no sideways scroll');
+  page.off('response', watch);
+  if (plain.length) throw new Error(`these /api answers were plain JSON, not encrypted: ${[...new Set(plain)].join(', ')}`);
+  console.log('ok   Collectors and Servers read only encrypted /api answers');
+
   let failed = 0, checked = 0;
   for (const run of RUNS) {
     await page.evaluate((l) => localStorage.setItem('lang', l), run.lang);

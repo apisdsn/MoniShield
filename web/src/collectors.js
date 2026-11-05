@@ -174,3 +174,70 @@ export function counts(rows) {
   for (const r of rows) if (r.status in c) c[r.status]++;
   return c;
 }
+
+// Groups (docs/12-collector.md): a collector can be listed under a group; "No Group" (the empty name) comes last.
+export const NO_GROUP = '';
+export const GROUP = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/;
+
+/** '' for a name that is fine (an empty one is fine: no group), else 'invalid'. */
+export const checkGroup = (g) => { const t = String(g ?? '').trim(); return !t || GROUP.test(t) ? '' : 'invalid'; };
+
+/** The groups of a list in order: alphabetical without regard to case, "No Group" last. -> [name] (no '' in it). */
+export const groupNames = (items) => [...new Set(items.map((x) => x.group || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || (a < b ? -1 : 1));
+
+/** Items grouped for sections: [{name, items}] in the order of groupNames, the ungrouped ones last (name ''). Empty sections are left out. */
+export function groupItems(items) {
+  const out = groupNames(items).map((name) => ({ name, items: items.filter((x) => x.group === name) }));
+  const rest = items.filter((x) => !x.group);
+  if (rest.length) out.push({ name: NO_GROUP, items: rest });
+  return out;
+}
+
+/** What the Group field of the add dialog says: join the existing group (case does not matter), create a new one, or none. */
+export function groupNote(input, existing) {
+  const g = String(input ?? '').trim();
+  if (!g) return { kind: 'none', name: '' };
+  const hit = existing.find((e) => e.toLowerCase() === g.toLowerCase());
+  return hit ? { kind: 'join', name: hit } : { kind: 'new', name: g };
+}
+
+/** Count by status for the filter: {all, online, late, offline}. Collectors that are waiting or revoked count under "all" only. */
+export function statusTally(rows) {
+  const c = { all: rows.length, online: 0, late: 0, offline: 0 };
+  for (const r of rows) if (r.status in c) c[r.status]++;
+  return c;
+}
+
+/** The text a search looks in: the name and the host(s) the collector reported logs for. */
+const haystack = (r) => `${r.name} ${(r.stats?.hosts || []).join(' ')}`.toLowerCase();
+
+/** Rows that pass the search (name or host, any case) and the status filter ('all' or one status). */
+export const filterRows = (rows, q, status) => {
+  const t = String(q ?? '').trim().toLowerCase();
+  return rows.filter((r) => (status === 'all' || r.status === status) && (!t || haystack(r).includes(t)));
+};
+
+/** The pills of a section header: [{key, n?}] where key is 'offline', 'late', 'waiting', 'revoked' or 'all_online'. */
+export function groupPills(rows) {
+  const t = { offline: 0, late: 0, waiting: 0, revoked: 0, online: 0 };
+  for (const r of rows) if (r.status in t) t[r.status]++;
+  const out = ['offline', 'late', 'waiting', 'revoked'].filter((k) => t[k]).map((key) => ({ key, n: t[key] }));
+  return out.length ? out : [{ key: 'all_online' }];
+}
+
+/**
+ * The sections to show: [{name, total, rows, pills, open}]. A group is listed when at least one of its collectors passes the filters;
+ * `total` and the pills count all of its collectors. `closed` = {name: true} for the folded ones; an active search opens every section.
+ */
+export function sections(rows, q, status, closed) {
+  const searching = !!String(q ?? '').trim();
+  const shown = new Set(filterRows(rows, q, status).map((r) => r.id));
+  return groupItems(rows).map((g) => ({ name: g.name, total: g.items.length, rows: g.items.filter((r) => shown.has(r.id)), pills: groupPills(g.items),
+    open: searching || !closed[g.name || NONE_KEY] })).filter((s) => s.rows.length);
+}
+
+/** The key of "No Group" in the folded-state object (a real group cannot start with this character). */
+export const NONE_KEY = '\u0000';
+
+/** Folded state -> every section folded, or every one open (Collapse All / Expand All). */
+export const foldAll = (names, fold) => (fold ? Object.fromEntries(names.map((n) => [n || NONE_KEY, true])) : {});

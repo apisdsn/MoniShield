@@ -97,3 +97,54 @@ test('metric options: defaults, who can have container metrics, and "nothing cho
   assert.deepEqual(checkOptions('linux', { ...only, host_metrics: true }), {});                                      // metrics alone are an input
   assert.deepEqual(checkOptions('docker', { ...only, containers: false, container_metrics: true }), {});
 });
+
+// Groups
+import { NO_GROUP, NONE_KEY, checkGroup, groupNames, groupItems, groupNote, statusTally, filterRows, groupPills, sections, foldAll } from '../web/src/collectors.js';
+
+const R = (id, name, group, status, hosts = []) => ({ id, name, group, status, stats: { hosts } });
+const ROWS = [R(1, 'web-01', 'Client B', 'online'), R(2, 'web-02', 'client a', 'offline'), R(3, 'db-01', 'Client A', 'late', ['dbhost']), R(4, 'test-vm', '', 'offline'),
+  R(5, 'api-01', 'Client B', 'online', ['api-host']), R(6, 'new-1', 'Internal', 'waiting')];
+
+test('group names follow the server rule', () => {
+  for (const ok of ['', '  ', 'Client A', 'a', 'Team_1.north-2', 'x'.repeat(40)]) assert.equal(checkGroup(ok), '', ok);
+  for (const bad of ['-a', '.a', 'a'.repeat(41), 'a/b', 'é']) assert.equal(checkGroup(bad), 'invalid', bad);
+});
+
+test('sections: alphabetical without regard to case, No Group last, empty sections left out', () => {
+  assert.deepEqual(groupNames([{ group: 'b' }, { group: 'A' }, { group: '' }, { group: 'a2' }]), ['A', 'a2', 'b']);
+  const g = groupItems([{ group: '', n: 1 }, { group: 'Zed', n: 2 }, { group: 'alpha', n: 3 }]);
+  assert.deepEqual(g.map((x) => x.name), ['alpha', 'Zed', NO_GROUP]);
+  assert.deepEqual(groupItems([]), []);
+});
+
+test('the note under the Group field', () => {
+  assert.deepEqual(groupNote('  ', ['A']), { kind: 'none', name: '' });
+  assert.deepEqual(groupNote('client a', ['Client A']), { kind: 'join', name: 'Client A' });
+  assert.deepEqual(groupNote('New One', ['Client A']), { kind: 'new', name: 'New One' });
+});
+
+test('search by name or host, status filter and the counts', () => {
+  assert.deepEqual(statusTally(ROWS), { all: 6, online: 2, late: 1, offline: 2 });
+  assert.deepEqual(filterRows(ROWS, 'WEB', 'all').map((r) => r.id), [1, 2]);
+  assert.deepEqual(filterRows(ROWS, 'api-host', 'all').map((r) => r.id), [5]);          // a host the collector reported
+  assert.deepEqual(filterRows(ROWS, '', 'offline').map((r) => r.id), [2, 4]);
+  assert.deepEqual(filterRows(ROWS, 'db', 'online'), []);
+});
+
+test('section pills: offline, late, otherwise all online', () => {
+  assert.deepEqual(groupPills([R(1, 'a', '', 'online'), R(2, 'b', '', 'online')]), [{ key: 'all_online' }]);
+  assert.deepEqual(groupPills([R(1, 'a', '', 'offline'), R(2, 'b', '', 'late'), R(3, 'c', '', 'offline')]), [{ key: 'offline', n: 2 }, { key: 'late', n: 1 }]);
+});
+
+test('sections to show: filters, folded state, a search opens every section', () => {
+  // "client a" and "Client A" are two spellings here only because this helper does not merge them (the server does)
+  const all = sections(ROWS, '', 'all', {});
+  assert.deepEqual(all.map((s) => s.name), ['Client A', 'client a', 'Client B', 'Internal', NO_GROUP]);
+  const some = sections(ROWS, '', 'offline', {});
+  assert.deepEqual(some.map((s) => [s.name, s.rows.length, s.total]), [['client a', 1, 1], [NO_GROUP, 1, 1]]);      // totals count the whole group
+  assert.deepEqual(sections(ROWS, '', 'all', { 'Client B': true, [NONE_KEY]: true }).map((s) => [s.name, s.open]).filter(([n]) => n === 'Client B' || n === NO_GROUP), [['Client B', false], [NO_GROUP, false]]);
+  assert.equal(sections(ROWS, 'web-01', 'all', { 'Client B': true })[0].open, true);                              // searching opens it
+  assert.deepEqual(sections(ROWS, 'nothing', 'all', {}), []);
+  assert.deepEqual(foldAll(['A', NO_GROUP], true), { A: true, [NONE_KEY]: true });
+  assert.deepEqual(foldAll(['A'], false), {});
+});

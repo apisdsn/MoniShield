@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { barTone, hostStatus, bars, axisLabel, fullLabel, points, alignTo, diskPercent, last, sparkPoints, bannerItems, usualBand, memoryText, memoryShare, pctText, rate } from '../web/src/servers.js';
+import { hostSections } from '../web/src/servers.js';
 import { parse, build } from '../web/src/state.js';
 
 test('bar colours: teal below 70, amber from 70, red from 85; no value has none', () => {
@@ -77,4 +78,13 @@ test('Raw Logs link of a container: host as pod, container as service, after "#"
   assert.equal(parse(url).svc, 'api');
   assert.equal(parse('/security?source=collector#svc=api').svc, null);
   assert.equal(parse('/servers').tab, 'servers');
+});
+
+test('host cards under group headings, with the group filter', () => {
+  const hosts = [{ host: 'a', group: 'Client B' }, { host: 'b', group: 'Client A' }, { host: 'c', group: '' }, { host: 'd' }, { host: 'e', group: 'Client A' }];
+  assert.deepEqual(hostSections(hosts).map((s) => [s.name, s.hosts.map((h) => h.host)]), [['Client A', ['b', 'e']], ['Client B', ['a']], ['', ['c', 'd']]]);
+  assert.deepEqual(hostSections(hosts, 'Client B').map((s) => s.name), ['Client B']);
+  assert.deepEqual(hostSections(hosts, '').map((s) => s.name), ['']);
+  assert.equal(hostSections(hosts, 'Gone').length, 3);                      // a group that no longer exists shows everything
+  assert.deepEqual(hostSections([]), []);
 });
