@@ -157,6 +157,14 @@ def test_geo_lookup_reads_the_downloaded_file(geo):
     assert geo.locate('2001:db8::1') is None and geo.locate('not an address') is None
 
 
+def test_geo_lookup_sorts_blocks_that_come_unsorted(tmp_path):
+    class C: cache_dir = str(tmp_path)
+    write_geolite(str(tmp_path / 'geolite2-city-csv.zip'), blocks=[('66.66.66.0/24', '1', '1', '-6.2', '106.8'), ('1.0.0.0/24', '2', '2', '1.29', '103.85')],
+                  locations=[('1', 'ID', 'Jakarta', 'Jakarta'), ('2', 'SG', '', 'Singapore')])
+    g = geo_lookup.GeoLookup(C); g.load_now()
+    assert g.locate('66.66.66.5')[2] == 'Jakarta' and g.locate('1.0.0.9')[2] == 'Singapore'
+
+
 def test_geo_lookup_cache_is_bounded(geo, monkeypatch):
     monkeypatch.setattr(geo_lookup, 'CACHE_SIZE', 5)
     for i in range(20): geo.locate(f'44.44.44.{i}')

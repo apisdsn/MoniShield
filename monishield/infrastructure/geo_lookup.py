@@ -26,6 +26,9 @@ class GeoLookup:
             starts.append(start); ends.append(end)
             which.append(ids.setdefault(key, len(locs)))
             if len(locs) < len(ids): locs.append(key)
+        if any(a > b for a, b in zip(starts, starts[1:])):   # the file is sorted by network; sort anyway if it ever is not
+            order = sorted(range(len(starts)), key=starts.__getitem__)
+            starts, ends, which = (array.array('I', (x[i] for i in order)) for x in (starts, ends, which))
         return starts, ends, which, locs
 
     def _load(self):
