@@ -131,3 +131,32 @@ def test_ingest_fills_the_common_tables(tmp_path):
     assert sorted(q("SELECT service, count(*) FROM app_line GROUP BY 1")) == [('legacy-erp', 3), ('orders-api', 3)]
     assert dict(q("SELECT service, lines_unmatched FROM ingest_file")) == {'web-shop': 1, 'orders-api': 1, 'legacy-erp': 0}
     assert dict(q("SELECT service, err FROM ingest_file")) == {'web-shop': 1, 'orders-api': 1, 'legacy-erp': 1}
+
+
+def test_caddy_json_access_log():
+    """tests/fixtures/formats/caddy-json.log: the first line is the example entry of the Caddy documentation (log directive,
+    JSON encoder); the others are written the same way (client_ip behind a proxy, a Referer, no client_ip, Caddy's own lines)."""
+    rules = lf.rules_from({'service': [{'match': 'monishield-https-1', 'format': 'caddy-json'}]})
+    assert rules[0].kind == 'http'
+    o = parse.Out('monishield-https-1', namespace='docker', format_rules=rules)
+    with open(os.path.join(FIX, 'caddy-json.log'), encoding='utf-8') as fh: s = parse.parse_lines(fh, o)
+    rows = o.data['http_access']
+    assert len(rows) == 3 and s['unmatched_lines'] == 3   # Caddy's certificate line, its error line and the text line are unread, not errors
+    first, second, third = rows
+    assert first[3] == '127.0.0.1' and first[4] == 'GET' and first[5] == '/' and first[7] == 200
+    assert first[8] == 10900 and abs(first[9] - 0.929675) < 1e-6 and first[12] == 'curl/7.82.0'   # seconds became milliseconds
+    assert second[3] == '203.0.113.9' and second[5] == '/api/v1/login?next=%2F' and second[7] == 401 and second[13] == 'https://example.com/'
+    assert abs(second[9] - 42.1) < 1e-6
+    assert third[3] == '198.51.100.7' and third[7] == 502 and third[12] is None   # no client_ip: the socket's address
+
+
+def test_duration_unit_and_list_index_for_json_rules():
+    rule = lf.rules_from({'service': [{'match': 'x', 'format': 'json', 'duration_unit': 's',
+                                       'fields': {'duration_ms': 'took', 'ua': 'h.agent[1]'}}]})[0]
+    d = F.reader(rule)('{"time":"2026-10-10T13:55:36Z","msg":"m","took":0.25,"h":{"agent":["a","b"]}}')
+    assert d['duration_ms'] == 250 and d['ua'] == 'b'
+    assert F.dig({'a': [1]}, 'a[3]') is None and F.dig({'a': 1}, 'a[0]') is None
+    for bad in ({'format': 'json', 'duration_unit': 'h'}, {'format': 'nginx-combined', 'duration_unit': 's'}):
+        try: lf.rules_from({'service': [dict(match='x', **bad)]})
+        except lf.FormatError as e: assert 'duration_unit' in str(e)
+        else: raise AssertionError(bad)

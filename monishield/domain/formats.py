@@ -120,13 +120,23 @@ def read_combined(text, rule):
 
 
 # Json lines
+INDEX = re.compile(r'(.+)\[(\d+)\]$')
+DURATION_UNITS = {'ms': 1, 's': 1000, 'us': 0.001, 'ns': 0.000001}   # one unit in milliseconds (a rule's duration_unit)
+
+
 def dig(obj, path):
-    """'req.url' -> obj['req']['url']; a key that itself has a dot ('http.status') wins over nesting."""
+    """'req.url' -> obj['req']['url']; a key that itself has a dot ('http.status') wins over nesting. A part may end in
+    [n] to take the n-th element of a list ('request.headers.User-Agent[0]', the way Caddy writes header values)."""
     if path in obj: return obj[path]
     cur = obj
     for part in path.split('.'):
+        index = None
+        if (m := INDEX.match(part)) and part not in (cur if isinstance(cur, dict) else ()): part, index = m[1], int(m[2])
         if not isinstance(cur, dict) or part not in cur: return None
         cur = cur[part]
+        if index is not None:
+            if not isinstance(cur, list) or index >= len(cur): return None
+            cur = cur[index]
     return cur
 
 
@@ -146,9 +156,20 @@ JSON_DEFAULTS = {  # tried in order when the rule does not map a column
 }
 
 
+# Caddy's JSON access log (`log { format json }`): the field names of its documented example entry. The first source
+# that holds a value wins (the client IP behind a trusted proxy, else the socket's address).
+CADDY_FIELDS = {'time': ('ts',), 'ip': ('request.client_ip', 'request.remote_ip'), 'method': ('request.method',),
+                'path': ('request.uri',), 'status': ('status',), 'bytes': ('size',), 'duration_ms': ('duration',),
+                'ua': ('request.headers.User-Agent[0]',), 'referer': ('request.headers.Referer[0]',)}
+PRESET_FIELDS = {'caddy-json': CADDY_FIELDS}
+
+
 def _pick(obj, rule, col):
     mapped = dict(rule.fields).get(col)
     if mapped: return dig(obj, mapped)
+    for k in PRESET_FIELDS.get(rule.format, {}).get(col, ()):
+        v = dig(obj, k)
+        if v not in (None, ''): return v
     for k in JSON_DEFAULTS.get(col, ()):
         v = dig(obj, k)
         if v is not None: return v
@@ -158,7 +179,9 @@ def _pick(obj, rule, col):
 def from_mapping(obj, rule):
     d = {c: _pick(obj, rule, c) for c in JSON_DEFAULTS}
     for c in ('bytes', 'upstream', 'referer'):
-        if (mapped := dict(rule.fields).get(c)): d[c] = dig(obj, mapped)
+        d[c] = _pick(obj, rule, c) if c in PRESET_FIELDS.get(rule.format, {}) or c in dict(rule.fields) else None
+    unit = 's' if rule.format == 'caddy-json' else rule.duration_unit   # Caddy writes seconds
+    if unit != 'ms' and (secs := _num(d['duration_ms'])) is not None: d['duration_ms'] = secs * DURATION_UNITS[unit]
     d['time'] = parse_time(d['time'], rule.time_format) if d['time'] is not None else None
     if d['message'] is not None and not isinstance(d['message'], str): d['message'] = json.dumps(d['message'], ensure_ascii=False)
     if d['message'] is None and d.get('method') and d.get('path'): d['message'] = f'{d["method"]} {d["path"]} {d.get("status") or ""}'.strip()
@@ -173,6 +196,13 @@ def read_json(text, rule):
     try: obj = json.loads(s[i:])
     except ValueError: return None
     return from_mapping(obj, rule) if isinstance(obj, dict) else None
+
+
+def read_caddy(text, rule):
+    """An access entry of Caddy's JSON log. Caddy's own lines on the same stream (certificates, errors with a request but no
+    answer) have no status: they are unread lines, not errors."""
+    d = read_json(text, rule)
+    return d if d and d.get('status') is not None else None
 
 
 # Logfmt
@@ -245,6 +275,7 @@ def reader(rule):
     f = rule.format
     if f in ('nginx-combined', 'apache-combined'): return lambda t: read_combined(t, rule)
     if f == 'json': return lambda t: read_json(t, rule)
+    if f == 'caddy-json': return lambda t: read_caddy(t, rule)
     if f == 'logfmt': return lambda t: read_logfmt(t, rule)
     if f == 'syslog': return lambda t: read_syslog(t, rule)
     if f == 'regex':
