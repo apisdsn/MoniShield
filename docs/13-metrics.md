@@ -103,6 +103,10 @@ For every signed-in user (like the Pods page); host and container names and numb
   rows, weighted by their number of points, with the hour in progress added from the points. Times are ISO 8601 UTC with a Z.
 - Errors: `invalid_parameter` (400) for a range that is not one of the four, `not_found` (404) for an unknown collector or server.
 
+The two read calls are used by the Servers page through `api.js`, so their answers are encrypted like every other browser call
+(`tests/test_wire_collectors.py`). The receiver `POST /api/collector/v1/metrics` is a machine endpoint used by `otelcol-contrib`: it is
+protected by HTTPS on the ingest subdomain and the collector key, not by the page key.
+
 ## 7. Storage size (measured)
 
 Simulated with `MetricsStore` on this code: 1 server (3 mount points) and 20 containers, one point of every value each 30 seconds for

@@ -275,6 +275,13 @@ rule of their service name (`service.name` of the collector's file group, else t
   consumer's, no path built from unchecked input.
 - The receiver only writes inbox files; ingest keeps the database lock as today.
 - Logs go from the client's server to MoniShield only (no third party on the way).
+- Two kinds of endpoint, two kinds of protection. What the **web UI** reads (`/api/admin/collectors…`, `/api/servers…`) goes through
+  `web/src/api.js` and carries the page key (ECDH + AES-GCM bodies, `X-MS-Enc`, `interfaces/api/wire.py`): requests and answers, errors
+  included, are `application/octet-stream` ciphertext, which `tests/test_wire_collectors.py` checks and the browser smoke test repeats on
+  the Collectors and Servers pages. The configuration download is a plain file link (YAML), not JSON, and holds no key. What the
+  **machines** call (the receivers `/api/collector/v1/logs` and `/metrics`, `/api/collector/enroll`, `/api/collector/config` and the
+  install scripts) is used by `otelcol-contrib` and `curl`, which do not run the page's script: it is protected by HTTPS on the DNS-only
+  ingest subdomain and by the collector's own key (`Authorization: Bearer msk_…`), not by the page key.
 
 ## 6. Known limits
 
