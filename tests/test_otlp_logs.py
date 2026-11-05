@@ -143,6 +143,22 @@ def test_docker_name_that_is_nothing_but_odd_characters_falls_back_to_the_servic
     assert rej == {} and where(recs[0]) == ('docker-01', 'api', 'docker-01')
 
 
+def test_records_older_than_max_age_are_rejected_as_too_old():
+    hour = datetime.timedelta(hours=1)
+    recs, rej = one('line', t='1793786136000000000', now=NOW + 24 * hour)                   # 24 h 5 min old
+    assert len(recs) == 1 and rej == {}                                                        # no limit given: kept
+    p = {'resourceLogs': [{'scopeLogs': [{'logRecords': [
+        {'timeUnixNano': '1793786136000000000', 'body': {'stringValue': 'old'}},               # 09:55:36, 24 h 5 min before the next day's 10:00
+        {'timeUnixNano': '1793872200000000000', 'body': {'stringValue': 'fresh'}},             # 2026-11-05T09:50:00Z
+        {'body': {'stringValue': 'no time'}}]}]}]}                                             # no time of its own: the receive time, never old
+    later = NOW + 24 * hour
+    recs, rej = otlp.parse_logs(p, 'c', later, 24 * hour)
+    assert [r['line'] for r in recs] == ['fresh', 'no time'] and rej == {'too old': 1}
+    recs, rej = otlp.parse_logs(p, 'c', later, None)
+    assert len(recs) == 3 and rej == {}
+    assert otlp.partial_success({'too old': 2})['partialSuccess']['errorMessage'] == '2 log records rejected: too old (2)'
+
+
 def test_bad_records_are_rejected_with_a_reason():
     recs, rej = run('bad')
     assert [r['line'] for r in recs] == ['good line', 'from the future']

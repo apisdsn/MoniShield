@@ -147,7 +147,14 @@ Only log inputs exist; host metrics and endpoint checks come with part 2. Choice
   offsets keep a restart from reading a file twice (a file is told apart by its first bytes, so a link that now points to another
   file reads the new file and not the old one again). The `container` operator (format `docker`) is the only parser, and one `add`
   sets `container.name` from the file name without `.log`; the server uses it as the service and the host as namespace and pod.
-  The first run on a host reads the existing log files from their start. A first design with the `docker_observer` extension and
+  **First run.** `start_at: beginning` is needed so a new container does not lose its first lines, but on a host whose containers ran
+  for months it would send their whole history. Two limits keep that out: the receiver has `exclude_older_than: 24h` (a log file not
+  written for a day is not read; checked with 0.163.2: the age of the link's target counts), and MoniShield rejects every record whose
+  own time is older than `S4_COLLECTOR_MAX_AGE_HOURS` (default 24, 0 = no limit) as `too old`. A rejected record is answered inside
+  a 200 (`partialSuccess`), so the collector does not retry it, and it shows in the rejected counts of the Collectors page. This also
+  means a collector that was offline for more than that many hours loses the older part of its queue; raise the setting if that
+  matters more than a flood. A running container's file is read from its start once (only the last 24 hours are kept).
+  A first design with the `docker_observer` extension and
   `receiver_creator` was dropped (checked with 0.163.2 against a real Docker daemon): it finds only containers with an exposed port
   and finds a container once per exposed port.
   **An existing Docker collector keeps its id names until it is upgraded:** `sudo sh install.sh --upgrade` (see "Upgrade in place").

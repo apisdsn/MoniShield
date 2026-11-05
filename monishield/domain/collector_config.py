@@ -170,8 +170,9 @@ def _docker_receiver():
     # keeps `<container name>.log` links to them in DOCKER_LINKS, so the file name is the container name. The `container` operator
     # unwraps Docker's JSON-file format and is the only parser, so the body stays the original line; one `add` copies the file name
     # (without `.log`) to `container.name`. start_at beginning + storage: a new link is read from its first line, and the saved offsets
-    # keep a restart from reading a file twice (a file is told apart by its first bytes, not by its path).
-    return dict(include=[DOCKER_LINKS + '/*.log'], start_at='beginning', storage='file_storage', include_file_name=True, include_file_path=False,
+    # keep a restart from reading a file twice (a file is told apart by its first bytes, not by its path). exclude_older_than: the first
+    # run on a host whose containers ran for months does not send their history; only files written in the last day are read.
+    return dict(include=[DOCKER_LINKS + '/*.log'], start_at='beginning', exclude_older_than='24h', storage='file_storage', include_file_name=True, include_file_path=False,
                 operators=[dict(type='container', id='container-parser', format='docker', add_metadata_from_filepath=False),
                            dict(type='add', id='container-name', field='resource["container.name"]',
                                 value='EXPR(attributes["log.file.name"][:-4])')])

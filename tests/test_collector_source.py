@@ -73,7 +73,7 @@ def boot(cfg, auth_url, tmp_path, monkeypatch):
 
     def start(prefill=None, s3=False, register=True, **over):
         c = dataclasses.replace(cfg, auth_database_url=auth_url, inbox_dir=str(tmp_path / 'inbox'), data_dir=str(tmp_path / 'data'),
-                                state_dir=str(tmp_path / 'state'), collector_min_free_mb=0, **over)
+                                state_dir=str(tmp_path / 'state'), collector_min_free_mb=0, collector_max_age_hours=0, **over)
         if s3:
             con = db.open(c.db_path); ingest.run(dataclasses.replace(c, retention_days=0, retention_inbox_days=0), con, workers=0); con.close()   # keeps every day
         if prefill: prefill(c.collector_inbox)
@@ -256,7 +256,7 @@ def test_backup_includes_the_collector_database(boot, tmp_path):
 def test_start_ingests_new_lines_of_a_known_folder_without_a_new_batch(cfg, auth_url, tmp_path, monkeypatch):
     monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     c = dataclasses.replace(cfg, auth_database_url=auth_url, inbox_dir=str(tmp_path / 'inbox'), data_dir=str(tmp_path / 'data'),
-                            state_dir=str(tmp_path / 'state'), collector_min_free_mb=0)
+                            state_dir=str(tmp_path / 'state'), collector_min_free_mb=0, collector_max_age_hours=0)
     lay_down(c.collector_inbox)
     lines = lambda tc: src(tc, 'collector').con.cursor().execute('SELECT coalesce(sum(lines), 0) FROM ingest_file WHERE folder = ?', [DAY]).fetchone()[0]
     with TestClient(appmod.create_app(c)) as tc:

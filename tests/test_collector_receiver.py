@@ -1,5 +1,5 @@
 """Collector receiver (docs/12-collector.md, step 3): POST /api/collector/v1/logs on the sample payloads in fixtures/otlp."""
-import asyncio, collections, dataclasses, gzip, json, os, shutil, threading, zlib
+import asyncio, collections, dataclasses, gzip, json, os, shutil, threading, time, zlib
 
 import pytest
 from fastapi.testclient import TestClient
@@ -35,7 +35,7 @@ def make(cfg, auth_url, tmp_path, monkeypatch):
     clients = []
 
     def build(**over):
-        small = dict(collector_max_body_mb=1, collector_max_raw_mb=1, collector_rate_per_min=1000, collector_min_free_mb=0)
+        small = dict(collector_max_body_mb=1, collector_max_raw_mb=1, collector_rate_per_min=1000, collector_min_free_mb=0, collector_max_age_hours=0)
         c = dataclasses.replace(cfg, auth_database_url=auth_url, inbox_dir=str(tmp_path / 'inbox'), **{**small, **over})
         tc = TestClient(appmod.create_app(c)); tc.__enter__(); clients.append(tc)
         admin(tc)
@@ -91,6 +91,31 @@ def test_rejected_records_are_reported_but_the_rest_is_kept(make):
     only = next(iter(s['collectors'].values()))
     assert (only['received'], only['written'], only['rejected']['empty line']) == (10, 2, 1) and only['last_reject']['text'].startswith('8 log records rejected')
     assert only['last_batch_at'] and '2026-11-05' in s['pending']      # the future-dated record is kept at the receive time, so its folder depends on the clock
+
+
+def at(hours_ago, line, svc='old'):
+    nano = int((time.time() - hours_ago * 3600) * 1e9)
+    res = {'attributes': [{'key': 'host.name', 'value': {'stringValue': 'web-01'}}, {'key': 'service.name', 'value': {'stringValue': svc}}]}
+    rec = {'timeUnixNano': str(nano), 'body': {'stringValue': line}}
+    return {'resource': res, 'scopeLogs': [{'logRecords': [rec]}]}
+
+
+def test_records_older_than_the_limit_are_rejected_once_and_not_stored(make):
+    tc, key, root = make(collector_max_age_hours=24)
+    body = json.dumps({'resourceLogs': [at(48, 'history'), at(25, 'older'), at(23, 'recent'), at(0.1, 'new')]}).encode()
+    r = post(tc, key, body)
+    ps = r.json()['partialSuccess']                                       # 200: the collector must not retry what is too old
+    assert r.status_code == 200 and ps['rejectedLogRecords'] == '2' and 'too old (2)' in ps['errorMessage']
+    assert sorted(v for lines in lines_of(root).values() for v in lines) == ['new', 'recent']
+    only = next(iter(tc.app.state.collector_feed.status()['collectors'].values()))
+    assert (only['received'], only['written'], only['rejected']) == (4, 2, {'too old': 2})
+
+
+def test_no_limit_keeps_every_record(make):
+    tc, key, root = make(collector_max_age_hours=0)
+    r = post(tc, key, json.dumps({'resourceLogs': [at(24 * 400, 'ancient'), at(1, 'new')]}).encode())
+    assert (r.status_code, r.json()) == (200, {})
+    assert sorted(v for lines in lines_of(root).values() for v in lines) == ['ancient', 'new']
 
 
 def test_multi_line_entries_are_written_as_they_are(make):

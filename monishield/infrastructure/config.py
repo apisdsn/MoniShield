@@ -70,6 +70,7 @@ def load(env=None, dotenv=None):
         if not 1 <= getattr(cfg, k) <= 100000: raise SystemExit(f'{env_name(k)} must be 1..100000')
     if not 1 <= cfg.collector_max_concurrent <= 64: raise SystemExit('S4_COLLECTOR_MAX_CONCURRENT must be 1..64')
     if not 1 <= cfg.collector_ingest_seconds <= 86400: raise SystemExit('S4_COLLECTOR_INGEST_SECONDS must be 1..86400')
+    if not 0 <= cfg.collector_max_age_hours <= 87600: raise SystemExit('S4_COLLECTOR_MAX_AGE_HOURS must be 0..87600')
     if cfg.collector_min_free_mb < 0: raise SystemExit('S4_COLLECTOR_MIN_FREE_MB must be 0 or more')
     if not re.fullmatch(r'\d{1,3}\.\d{1,3}\.\d{1,3}', cfg.collector_otel_version): raise SystemExit('S4_COLLECTOR_OTEL_VERSION must look like 0.163.2')
     if cfg.collector_public_url:

@@ -137,6 +137,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   ingest shows where the time went.
 
 ### Fixed
+- Collector: no flood on the first run of a Docker collector: the file receiver skips log files not written for 24 hours, and MoniShield rejects records older than `S4_COLLECTOR_MAX_AGE_HOURS` (default 24, 0 = no limit) as "too old" (not retried, counted on the Collectors page).
 - The "only N log lines" banner on the Overview and the other pages no longer shows for the folder of the Kafka or collector source that is still filling up during the day; complete folders and S3 folders keep it.
 - Collector: one journald service per program: names are lower case (`CRON` and `cron` were two services), scopes such as `session-55608.scope` and `user@1000.service` use the `SYSLOG_IDENTIFIER` (else `systemd-session` / `systemd`), and `.service` and the `@instance` of template units are dropped. Data already stored keeps its old names.
 - Home page map: when the newest folder has no located requests yet (empty, still arriving), the map uses the newest

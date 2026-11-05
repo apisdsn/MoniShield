@@ -3,7 +3,7 @@ its lines are appended to the collector inbox (CollectorInbox port). Keeps count
 and the folders written since the last ingest. Step 4: those folders are ingested into the collector source's own database
 (`ctx.sources['collector']`) from a small background thread, at most every S4_COLLECTOR_INGEST_SECONDS, and folders in the
 inbox that the database does not know yet are ingested once when the server starts (catch-up after a restart)."""
-import threading, time
+import datetime, threading, time
 
 from monishield.application import ingest_service, sources
 from monishield.domain import otlp_logs
@@ -29,9 +29,13 @@ class CollectorFeed:
         """True when the disk is too full to take more: the receiver answers 503 and the collector keeps its queue."""
         return self.inbox.free_bytes() < self.ctx.cfg.collector_min_free_mb * MB
 
+    def max_age(self):
+        h = self.ctx.cfg.collector_max_age_hours
+        return datetime.timedelta(hours=h) if h else None
+
     def receive(self, collector, payload, now):
         """-> (OTLP answer, {folder: lines written}). The lines are on disk when this returns."""
-        records, rejected = otlp_logs.parse_logs(payload, collector['name'], now)
+        records, rejected = otlp_logs.parse_logs(payload, collector['name'], now, self.max_age())
         written = self.inbox.append(records) if records else {}
         answer = otlp_logs.partial_success(rejected)
         self._count(collector, len(records) + sum(rejected.values()), rejected, answer, written, now, [r['pod'] for r in records])

@@ -96,7 +96,7 @@ def test_linux_files_and_journald():
 def test_docker_names_come_from_the_name_links():
     y = build('docker', dict(containers=True, journald=False, files=[]))
     assert '  filelog/docker:\n    include:\n      - "/var/lib/otelcol-contrib/containers/*.log"' in y
-    assert 'start_at: "beginning"' in y and 'storage: "file_storage"' in y and 'include_file_name: true' in y
+    assert 'exclude_older_than: "24h"' in y and 'start_at: "beginning"' in y and 'storage: "file_storage"' in y and 'include_file_name: true' in y
     assert 'container.name' in y and 'attributes[\\"log.file.name\\"][:-4]' in y            # the file name without .log
     assert y.count('type:') == 2 and 'type: "container"' in y and 'format: "docker"' in y and 'add_metadata_from_filepath: false' in y
     assert 'parser' not in y.replace('container-parser', '')                                   # the body stays the original line

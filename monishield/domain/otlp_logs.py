@@ -206,11 +206,12 @@ def _plain(body):
     return text_line(body) if isinstance(body, str) else compact(body)
 
 
-def read_record(rec, res_attrs, collector, now):
+def read_record(rec, res_attrs, collector, now, max_age=None):
     """One logRecord -> dict(ns, svc, pod, line, t, relpath). Bad with the reason when it cannot be used."""
     if not isinstance(rec, dict): raise Bad('malformed record')
     attrs = {**res_attrs, **pairs(rec.get('attributes'))}          # a record's own attribute wins over its resource's
     body, t = _body(rec), time_of(rec, now)
+    if max_age and t < now - max_age: raise Bad('too old')          # history of a container that ran for months, or a long outage
     ns, svc, pod, line = _where(attrs, body, t, collector)
     ns, svc, pod = _name(ns), _name(svc), _name(pod)
     if not line.strip(): raise Bad('empty line')
@@ -250,8 +251,9 @@ def _records(payload):
             for rec in recs: yield attrs, rec
 
 
-def parse_logs(payload, collector, now):
-    """Decoded OTLP/JSON logs request -> (records, rejected). `rejected` maps a reason to the number of records."""
+def parse_logs(payload, collector, now, max_age=None):
+    """Decoded OTLP/JSON logs request -> (records, rejected). `rejected` maps a reason to the number of records. A record whose
+    own time is older than `max_age` (a timedelta, None = no limit) is rejected as 'too old'."""
     records, rejected = [], {}
     def reject(reason): rejected[reason] = rejected.get(reason, 0) + 1
     try:
@@ -259,7 +261,7 @@ def parse_logs(payload, collector, now):
             if isinstance(attrs, Bad): reject(str(attrs))
             elif len(records) + sum(rejected.values()) >= MAX_RECORDS: reject('too many records')
             else:
-                try: records.append(read_record(rec, attrs, collector, now))
+                try: records.append(read_record(rec, attrs, collector, now, max_age))
                 except Bad as e: reject(str(e))
     except Bad as e:
         reject(str(e))
