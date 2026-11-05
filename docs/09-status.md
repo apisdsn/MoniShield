@@ -81,6 +81,11 @@ Questions answered along the way, recorded so they are not asked again:
   Type Broker, JSON parsing off). It needs permission on `clusterloggings`: Cluster Owner, or Project Owner of the
   `System` project. A project-level logging config only sees the namespaces of that project.
 
+- **UI, 2026-11-04 (stage 55)**: language menu and dark-theme switch live in the header; wide screens are filled and
+  scaled above 2200 px (`web/src/scale.js`, CSS zoom on `<html>`, so any new canvas or map code that reads pointer
+  positions must be tested at 3840 px); the anti-slop rules (44 px touch targets, no looping animation, 12 px control
+  radius, no text under 12 px) apply to new UI.
+
 ## Next steps (in order)
 
 0. **Before relying on forgot password in production**: fill in Configuration → Mail server (SMTP), send the test email,

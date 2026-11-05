@@ -39,6 +39,17 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   offset are derived again on the next ingest; existing data counts as +07:00, so nothing changes for current sites.
 
 ### Changed
+- Header: the language is a globe button with a two-row menu and the theme is a dark-theme switch, both in front of the
+  user button (they left the user menu). The user menu keeps reload and the account items.
+- Wide screens: the signed-in content fills the width next to the sidebar (no 1740 px cap); above 2200 px of window width
+  the app is drawn larger by width / 2200, at most 1.6 (`web/src/scale.js`). Chart pointer positions and `vh` heights are
+  corrected for the zoom.
+- Sidebar Configuration labels are in Title Case without bracketed notes ("GeoIP", "Mail Server", "Server Keys"); the
+  pop-up texts still name MaxMind, SMTP and the `.env` file.
+- Anti-slop audit: 44 px touch targets on phones and coarse pointers, no endless pulse on the live dots, a flat primary
+  colour, a 12 px radius for controls (pills only for chips, badges, dots and the theme switch), normal-case labels,
+  font sizes in rem and none below 12 px.
+- Plain section comments instead of separator lines; CSS animations `spin` and `shimmer` (English names).
 - Pop-ups: only their content scrolls; the title and buttons stay in place and the scrollbar no longer cuts the rounded
   corners.
 - No client data in the code: the service folder names of each log role (`S4_SERVICE_NAMES`), the events tag (`S4_EVENT_TAG`), the

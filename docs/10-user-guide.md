@@ -13,6 +13,12 @@ in the [README](../README.md); server deployment in [`07-deploy-vps.md`](07-depl
 
 ## Day-to-day use
 
+### Language and theme
+
+Both are in the page header, in front of the user button: the globe button (shows `ID` or `EN`) opens the language menu,
+and the switch next to it turns the dark theme on or off. The choice is kept per browser. On very wide screens (above
+2200 px) the app is drawn larger automatically.
+
 ### New log folders
 
 Copy the folder (`YYYY-MM-DD/…`) into the log folder, then an admin just presses the **Sync data** button

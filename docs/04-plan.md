@@ -1442,3 +1442,18 @@ notifications (key `…@collector`, title `(Collector)`; like Kafka only the day
 Kafka, else collector; any source on request), the backup (`collector.duckdb.gz`), `monishield ingest|derive --source
 collector`, `?source=collector` on every route, and the third option in the header switch (offered when a collector is
 registered or the database knows a day). The S3-replaces-Kafka rule was already limited to those two sources.
+
+## Stage 55 — Wide screens, header language and theme, anti-slop audit (2026-11-04)
+
+Owner-approved UI changes, one commit each:
+
+- Configuration labels: Title Case, no brackets (`nav.cfg.*`); SMTP and `.env` named in the pop-up intro texts.
+- Header: `lib/LangMenu.svelte` (globe + code, two `menuitemradio` rows, Esc returns focus) and `lib/ThemeSwitch.svelte`
+  (`role="switch"`, 56 x 30 track); removed from the user menu.
+- Wide screens: no content max-width; `web/src/scale.js` zooms `<html>` by min(1.6, max(1, width / 2200)) while signed in.
+  A Chart.js plugin fixes pointer positions and the container size under zoom; `vh` heights divide by `--ui-scale`.
+  Checked at 3840 x 2160: chart tooltips appear at the pointer, the map pans with the pointer.
+- Audit: 44 px touch targets (phones, coarse pointers), no looping pulse, flat `--brand-bg`, `--r-ctl` (12 px) for
+  controls, no capitals with wide tracking, rem font sizes with a 12 px floor.
+- Plain section comments; animations `spin` and `shimmer`; `putar` and `kilau` added to `tests/test_language.py`.
+- Smoke test: header language menu, theme switch, 3840 px width (no gap, no sideways scroll) and 390 px.
