@@ -77,7 +77,7 @@ def overview(cur, collectors, now, rng):
         if ctr: continue
         c = by_id[cid]
         disks = _disks(values, cid, host)
-        hosts.append(dict(cid=cid, collector=c['name'], platform=c['platform'], status=c['status'], host=host, os=os_text, last_seen=iso(last),
+        hosts.append(dict(cid=cid, collector=c['name'], group=c.get('group') or '', platform=c['platform'], status=c['status'], host=host, os=os_text, last_seen=iso(last),
                           containers=counts.get((cid, host), 0), disks=disks,
                           **{k: value(values, cid, host, '', k) for k in HOST_CURRENT}))
         disk_full += [dict(cid=cid, collector=c['name'], host=host, mount=d['mount'], pct=d['pct']) for d in disks if metric_anomaly.almost_full(d['used'], d['total'])]
@@ -170,7 +170,7 @@ def host(cur, collector, name, now, rng):
     containers.sort(key=lambda c: (not c['running'], c['name']))
     pick = lambda d, k, dim='': d.get((k, dim), [])    # noqa: E731
     return dict(
-        cid=cid, collector=collector['name'], platform=collector['platform'], status=collector['status'], host=name, os=me[3] if me else None,
+        cid=cid, collector=collector['name'], group=collector.get('group') or '', platform=collector['platform'], status=collector['status'], host=name, os=me[3] if me else None,
         last_seen=iso(me[6] if me else max(r[6] for r in rows)), range=rng, bucket_seconds=BUCKET[rng] or None,
         current={k: value(values, cid, name, '', k) for k in HOST_CURRENT}, disks=disks,
         series=dict(cpu=pick(srv, 'cpu'), mem_used=pick(srv, 'mem_used'), mem_total=pick(srv, 'mem_total'), load1=pick(srv, 'load1'),

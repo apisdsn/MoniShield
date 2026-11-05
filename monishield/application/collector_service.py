@@ -20,15 +20,26 @@ class CollectorService:
 
     def get(self, cid): return self._open(self.store.collector_get(cid))
 
-    def add(self, name, platform, admin, ip=None, options=None):
+    def groups(self): return self.store.collector_groups()
+
+    def _group(self, value):
+        """The group as it is stored: checked, and spelled like an existing group that differs only in case."""
+        return collectors.same_group(collectors.check_group(value), self.groups())
+
+    def add(self, name, platform, admin, ip=None, options=None, group=None):
         """-> (collector, enrollment token, token expiry). The token is shown once."""
         platform = collectors.check_platform(platform)
-        info, token = self.store.collector_create(collectors.check_name(name), platform, admin, ip, collector_config.normalize(platform, options))
+        group = self._group(group)
+        info, token = self.store.collector_create(collectors.check_name(name), platform, admin, ip, collector_config.normalize(platform, options), group)
         return self._open(info), token, info['enroll_expires']
 
     def set_options(self, cid, options, admin, ip=None):
         platform = self.store.collector_get(cid)['platform']
         return self._open(self.store.collector_set_options(cid, collector_config.normalize(platform, options), admin, ip))
+
+    def set_group(self, cid, group, admin, ip=None):
+        """Change the group; an empty one removes it. The audit entry is written only when it really changes."""
+        return self._open(self.store.collector_set_group(cid, self._group(group), admin, ip))
 
     def config(self, info, base_url):
         """The collector's configuration text for its platform (Helm values for Kubernetes)."""

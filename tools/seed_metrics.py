@@ -71,7 +71,7 @@ def seed(app, now=None):
     start = now - datetime.timedelta(hours=HOURS)
     count = HOURS * 60
     for name, platform, group, host, os_text, containers, cpu, mem, disk, status in SERVERS:
-        info, token, _exp = svc.add(name, platform, {'username': 'admin'}, None, None)
+        info, token, _exp = svc.add(name, platform, {'username': 'admin'}, None, None, group)
         ids[name] = cid = info['id']
         svc.enroll(token, '203.0.113.7', '0.163.2')
         targets = {(host, ''): dict(os=os_text, image=None), **{(host, c[0]): dict(os=None, image=c[1]) for c in containers}}

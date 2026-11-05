@@ -1603,5 +1603,6 @@
  "cl.f.metrics_none": "Hanya log. Metrik bisa dinyalakan nanti dari rincian collector.",
  "cl.sends.host_metrics": "Metrik Server",
  "cl.sends.container_metrics": "Metrik Container",
- "cl.in.upgrade": "Tersimpan. Jalankan perintah pembaruan di server untuk menerapkannya:"
+ "cl.in.upgrade": "Tersimpan. Jalankan perintah pembaruan di server untuk menerapkannya:",
+ "err.invalid_group": "Nama grup maksimal 40 karakter: huruf, angka, spasi, titik, garis bawah, dan tanda hubung, diawali huruf atau angka."
 }
