@@ -44,6 +44,16 @@ def same_group(group, existing):
     return next((g for g in existing if g and g.lower() == group.lower()), group)
 
 
+OTEL_UA = re.compile(r'OpenTelemetry Collector[^/]*/v?(\d+\.\d+\.\d+[\w.+-]*)')
+
+
+def version_of(user_agent):
+    """The collector's version from its User-Agent ("OpenTelemetry Collector Contrib/0.163.2 (linux/amd64)" -> "0.163.2").
+    None for anything else, such as the curl of the install script, so a contact never stores a client that is no collector."""
+    m = OTEL_UA.search(user_agent or '')
+    return m.group(1)[:40] if m else None
+
+
 def check_platform(platform):
     if platform not in PLATFORMS: raise Fail('invalid_platform', f"Platform must be one of: {', '.join(PLATFORMS)}.")
     return platform

@@ -62,11 +62,11 @@ class CollectorService:
 
     def enroll(self, token, ip=None, version=None):
         """-> (collector, key). Any bad token gives the same error and counts toward the caller's IP limit."""
-        info, key = self.store.collector_enroll(token, ip, (version or '')[:80] or None)
+        info, key = self.store.collector_enroll(token, ip, collectors.version_of(version))
         return self._open(info), key
 
     def authenticate(self, key_text, ip=None, version=None):
         """For the receiver: the collector of this key, or None. Records the contact (at most once a minute)."""
         info = self.store.collector_check(key_text)
-        if info: self.store.collector_seen(info['id'], ip, (version or '')[:80] or None)
+        if info: self.store.collector_seen(info['id'], ip, collectors.version_of(version))
         return info
