@@ -15,7 +15,7 @@
     data = null; open = false;
     if (!hasFlows) return;   // from the service page response: no flows -> do not request the map (which answers 404)
     const q = s === NG ? '' : `?module=${encodeURIComponent(s)}`;
-    api.get(`/api/folders/${encodeURIComponent(f)}/map${q}`).then((j) => { if (f === folder && s === service) data = j; }, () => {});
+    api.get(`/api/v1/folders/${encodeURIComponent(f)}/map${q}`).then((j) => { if (f === folder && s === service) data = j; }, () => {});
   });
 </script>
 
@@ -34,6 +34,6 @@
   .sm summary::before { content: '▸'; color: var(--accent-text); }
   .sm[open] summary::before { content: '▾'; }
   .sm summary::-webkit-details-marker { display: none; }
-  .h { font-size: 0.9375rem; font-weight: 600; color: var(--heading); text-transform: capitalize; }
+  .h { font-size: 0.9375rem; font-weight: 600; color: var(--heading); }
   .muted { font-size: 0.8125rem; }
 </style>

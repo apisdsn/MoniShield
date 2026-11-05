@@ -22,73 +22,19 @@ of both, and the dashboard shows one source at a time.
 Delivery: offsets are committed AFTER the lines are written to disk (at-least-once). If the server dies in between, some
 lines may be written twice; rare and small.
 
-Realtime (map animation): nginx-ingress lines are forwarded to `LiveHub` -> SSE /api/live/map. Only location coordinates
+Realtime (map animation): nginx-ingress lines are forwarded to `LiveHub` (application/live_map.py) -> SSE /api/v1/live/map. Only location coordinates
 (from the local/offline IP database, ip_info table) + module are sent to the browser, NOT IP addresses. IPs not yet known
 (never ingested) are not drawn until the next ingest fills in their location.
 """
-import collections, datetime, re, threading, time
+import collections, datetime, threading, time
 
+from monishield.application.live_map import LiveHub
 from monishield.domain import parse
 from monishield.domain.errors import Busy, Fail
 from monishield.domain.kafka_message import configured, folder_of, parse_message
 
 FLUSH_SECONDS, FLUSH_LINES = 5, 20000
 RECENT = 50
-
-
-# Realtime: IP location -> browser (no IPs)
-class LiveHub:
-    """Events collected per second: {(lat, lon, module): n}. Readers (SSE) take what is newer than their last sequence number."""
-
-    def __init__(self, ctx):
-        self.ctx, self._lock, self.seq, self.ring = ctx, threading.Lock(), 0, collections.deque(maxlen=120)
-        self.geo, self.geo_at, self.cur, self.cur_sec = {}, 0, collections.Counter(), None
-        self.names = {}   # (lat, lon) -> (city, country): names the cells of the public home page map
-
-    def _geo(self):
-        if time.time() - self.geo_at > 300:
-            self.geo_at = time.time()
-            try: self.geo = self.ctx.warehouse.ip_locations()
-            except Exception: pass   # noqa: BLE001  database in use by ingest: try again later
-        return self.geo
-
-    def refresh(self): self.geo_at = 0
-
-    def nginx_line(self, line, prefix):
-        ip = line.split(' ', 1)[0]
-        g = self._geo().get(ip)
-        if not g: return
-        up = (re.search(r'\[([^\]]*)\] \[', line) or [None, ''])[1].replace(prefix, '') or '-'
-        sec = int(time.time())
-        with self._lock:
-            if self.cur_sec is not None and sec != self.cur_sec: self._close()
-            self.cur_sec = sec
-            self.cur[(g[0], g[1], up)] += 1
-            self.names[g[0], g[1]] = g[2:4]
-
-    def _close(self):
-        if self.cur:
-            self.seq += 1
-            self.ring.append((self.seq, [[la, lo, n, mod] for (la, lo, mod), n in self.cur.items()], self.cur_sec))
-        self.cur = collections.Counter()
-
-    def since(self, seq):
-        """-> (latest sequence number, [[lat, lon, n, module], …]) for events after `seq`."""
-        with self._lock:
-            if self.cur_sec is not None and int(time.time()) != self.cur_sec: self._close(); self.cur_sec = None
-            pts = [p for s, ps, _ in self.ring if s > seq for p in ps]
-            return self.seq, pts
-
-    def window(self, seconds=60):
-        """[(lat, lon, requests, city, country)] of the last `seconds`, every module together (public home page map)."""
-        now = int(time.time())
-        with self._lock:
-            if self.cur_sec is not None and now != self.cur_sec: self._close(); self.cur_sec = None
-            agg = collections.Counter()
-            for _, ps, sec in self.ring:
-                if sec is not None and sec > now - seconds:
-                    for la, lo, n, _m in ps: agg[la, lo] += n
-            return [(la, lo, n, *self.names.get((la, lo), (None, None))) for (la, lo), n in agg.items()]
 
 
 # Consumer

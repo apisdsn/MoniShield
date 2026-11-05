@@ -1,5 +1,5 @@
-<!-- Manage log folders (owner request 2026-10-07; admin, Ingest & import page). GET /api/admin/folders: folders in the
-     dashboard, on disk, and ignored ones. "Hapus" -> confirmation dialog -> POST /api/admin/folders/{f}/delete:
+<!-- Manage log folders (owner request 2026-10-07; admin, Ingest & import page). GET /api/v1/admin/folders: folders in the
+     dashboard, on disk, and ignored ones. "Hapus" -> confirmation dialog -> POST /api/v1/admin/folders/{f}/delete:
      the folder's data is removed from the dashboard; files in the inbox (S3 import results) are deleted too when checked; files in the main
      log folder are NEVER deleted (read-only) — that folder is marked "ignored" so sync does not
      ingest it again. "Pulihkan" -> POST …/restore, then sync ingests it again. -->
@@ -18,21 +18,21 @@
   let { onchanged = null } = $props();
   let rows = $state.raw(null), target = $state(null), open = $state(false), delInbox = $state(true), busy = $state(false);
 
-  async function load() { try { rows = (await api.get('/api/admin/folders')).rows; } catch (e) { toast($errText(e)); } }
+  async function load() { try { rows = (await api.get('/api/v1/admin/folders')).rows; } catch (e) { toast($errText(e)); } }
   onMount(load);
 
   function ask(r) { target = r; delInbox = true; open = true; }
   async function del() {
     busy = true;
     try {
-      const r = await api.del(`/api/admin/folders/${encodeURIComponent(target.folder)}?delete_inbox=${delInbox}`);
+      const r = await api.del(`/api/v1/admin/folders/${encodeURIComponent(target.folder)}?delete_inbox=${delInbox}`);
       toast($t(r.ignored ? 'fm.done_ignored' : 'fm.done', { date: fLabel(target.folder, $lang) }));
       open = false; await load(); onchanged?.();
     } catch (e) { toast(e.status === 409 ? $t('fm.busy') : $errText(e)); }
     finally { busy = false; }
   }
   async function restore(r) {
-    try { await api.post(`/api/admin/folders/${r.folder}/restore`, {}); toast($t('fm.restored', { date: fLabel(r.folder, $lang) })); await load(); onchanged?.(); }
+    try { await api.post(`/api/v1/admin/folders/${r.folder}/restore`, {}); toast($t('fm.restored', { date: fLabel(r.folder, $lang) })); await load(); onchanged?.(); }
     catch (e) { toast($errText(e)); }
   }
 </script>

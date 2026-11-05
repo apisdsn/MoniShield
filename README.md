@@ -159,7 +159,7 @@ Optional profiles: `https` (Caddy with Let's Encrypt), `kafka` (a broker for Ran
 * **S3**: Ingest & import → *Automatic sync from S3* → enter `s3://your-bucket/k8s-logs` → **Save & enable**.
 * **Kafka**: Configuration → Kafka. Folders filled from Kafka show up as `YYYY-MM-DD (Kafka)`.
 * **Search**: `Ctrl+K` finds an IP, account, request id or URL.
-* **API**: `/api/docs` (Swagger), behind the same sign-in.
+* **API**: `/api/v1/docs` (Swagger), behind the same sign-in.
 
 Command line, Kafka and S3 details, notifications and the block list are in the
 [user guide](docs/10-user-guide.md).

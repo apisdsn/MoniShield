@@ -16,7 +16,7 @@ in the [README](../README.md); server deployment in [`07-deploy-vps.md`](07-depl
 ### Language and theme
 
 Both are in the page header, in front of the user button: the globe button (shows `ID` or `EN`) opens the language menu,
-and the switch next to it turns the dark theme on or off. The choice is kept per browser. On very wide screens (above
+and the button next to it (a moon in the dark theme, a sun in the light theme) turns the dark theme on or off. The choice is kept per browser. On very wide screens (above The same two controls are on the sign-in page and the home page.
 2200 px) the app is drawn larger automatically.
 
 ### New log folders
@@ -236,6 +236,7 @@ Every day at 02:00 WIB (`S4_BACKUP_HOUR`) the server writes a backup folder `<da
 | File | Contents |
 |---|---|
 | `s3.duckdb.gz`, `kafka.duckdb.gz`, `collector.duckdb.gz` | the databases of the three sources (rows and aggregates of every folder) |
+| `metrics.duckdb.gz` | the server and container metrics (points and hourly values) |
 | `accounts.json.gz` | every table of the account database: users, password hashes, sessions, audit log, settings |
 | `manifest.json` | size and SHA-256 of each file, time, MoniShield version |
 
@@ -271,7 +272,7 @@ The Command Center compares the numbers with the **average of the previous 7** c
 Particles move from the source location to the server point (destination IP), with a ripple on arrival; the
 more requests, the more frequent the particles. The ❚❚/▶ button in the map corner pauses it (remembered per browser; paused by default when
 the system asks for reduced motion). With Kafka, every new nginx-ingress request also sends one pulse to the page as a
-`monishield:map-pulse` `{lat, lon, n}` event (see `web/src/lib/mapFlow.js`), shown with the **LIVE** badge.
+`monishield:map-pulse` `{lat, lon, n}` event (see `web/src/lib/mapFlow.js`), shown with the **LIVE** badge. The same happens in the **Collector** source for the access lines of services whose log-formats rule is an HTTP access log (for example `caddy-json` for MoniShield's own Caddy), see `docs/12-collector.md`, "Live map".
 
 ### Block list
 
@@ -281,9 +282,10 @@ text; range 1/7/30 folders; minimum severity → **Download** / **Copy**. Privat
 
 ### API documentation (Swagger)
 
-User menu → **API documentation**, or open `/api/docs`. Sign in with the same account
+User menu → **API documentation**, or open `/api/v1/docs`. Sign in with the same account
 as on the login page (not signed in → redirected to login and back); "Try it out" uses that session and is still subject to
-the role. Raw schema: `/api/openapi.json`.
+the role. Raw schema: `/api/v1/openapi.json`. Every endpoint is under `/api/v1`; only `/api/health` and the collector install scripts have no version
+(`docs/08-architecture.md`, "API versions"). The old unversioned browser addresses still answer for one release, with a `Deprecation: true` header.
 
 ### Upload from your computer
 
@@ -307,26 +309,52 @@ with the line it belongs to. Event lines that carry no time get the time of the 
 saves every match as `file:line: text`. Lines are only available while the log files are on disk (see *Data
 retention*). Every search and download is written to the audit log with who searched what.
 
+### Servers
+
+**Servers** (Analysis group, after Raw Logs, every signed-in user) shows the load that collectors report: CPU, memory, disk and network
+of each server, and CPU, memory, network and restarts of the Docker containers on it, every 30 seconds. The range buttons (1 h, 24 h, 7 d,
+30 d) set the charts; this page has no date or data source. A **banner** lists what is unusual now: a CPU or memory value far above the
+same hour of the earlier days (a container has "Open Its Logs"), and disks that are 90 % full or more; at most three, then "and N more".
+Each server is a card with bars for CPU, memory and the disk of `/` (teal below 70 %, amber from 70, red from 85, the number always
+shown) and a status (OK, CPU High, Memory High, Disk Almost Full, Late, Offline). Choose a card to see its four charts and its containers
+table (image, CPU, memory used of the limit, network in and out, restarts, memory of the last 24 hours; a container that is not running is
+greyed with when it was last seen; on a phone each is a card). When collectors have groups, the cards sit under the group headings and
+the **group buttons** (All Groups and one per group) filter them. With no metrics yet the page says so, and admins get a link to
+Collectors. A new collector sends metrics by default; a collector registered before this stage has them off: turn them on under
+Change Inputs, then run the upgrade command on the server. Details of what is collected and never collected: [`13-metrics.md`](13-metrics.md).
+
 ### Collectors
 
 **Collectors** (Configuration group in the left navigation, admins only) lists the servers and clusters that send their logs
 straight to MoniShield. The row of counts shows how many are Online (seen in the last 5 minutes), Late (5 to 60 minutes),
 Offline (longer) and Waiting (added, not installed yet). The table shows what each one sends, its version and when it was
 last seen (the exact time is in the tooltip); on a phone it becomes a list. Choose a row to open its details beside the
-table (below the list on a phone): platform, last address, what it sends, how many lines it received, wrote and rejected since
+table (below the list on a phone): platform, last address, what it sends, how many lines it received, stored and rejected since
 the server started, and the reason of the last rejection.
 
-- **Add collector**: type a name, choose Linux, Windows, Docker or Kubernetes and choose what it sends (files with the service
+- **Add Collector**: type a name, choose Linux, Windows, Docker or Kubernetes and choose what it sends (files with the service
   name their lines get, the system journal, Docker containers, Windows Event Log channels; Kubernetes always sends the pod
-  logs). **Create collector** shows the enrollment token (it works once, for 24 hours) and the commands for the platform with
+  logs). **Create Collector** shows the enrollment token (it works once, for 24 hours) and the commands for the platform with
   copy buttons: download the install script, read it, run it with the name and the token. For Kubernetes the page gives the
   `helm` and `kubectl` commands and the `values.yaml` to download. The collector appears as Waiting until it has enrolled.
-- **Replace key**: makes a new key, shown once, with the exact place to put it for the platform. The old key keeps working
+  A Docker collector names each container as `docker ps` does: the installer adds a small helper and a timer that keep name links to
+  the container logs (details in `docs/12-collector.md`). A Docker collector installed earlier keeps the id names until you upgrade
+  it: the details panel of an enrolled collector shows an upgrade command (`sudo sh install.sh --upgrade`, no token needed).
+- **Replace Key**: makes a new key, shown once, with the exact place to put it for the platform. The old key keeps working
   for 24 hours.
-- **Change inputs**: changes what the collector sends. The server then needs its new configuration; the page shows the command.
-- **Open its logs in Raw Logs**: opens Raw Logs for the collector source (filtered to the host when the collector has sent
+- **Metrics** (in Add Collector and Change Inputs): **Server Metrics** for every platform and **Container Metrics** for Docker hosts only
+  (the reason shows on the others; Kubernetes per-container metrics come later). The note under them says what the server stores:
+  one point every 30 seconds for 7 days, then one value per hour for 90 days, about 80 MB for one server with 20 containers.
+- **Group** (optional, in Add Collector and **Change Group** in the details): up to 40 letters, digits, spaces, dots, underscores or
+  hyphens. Existing groups are buttons under the field; a name that differs only in case joins that group. The list shows one section per
+  group in alphabetical order and "No Group" last; each header is a button that folds the section (remembered in this browser) and shows
+  how many collectors are offline or late. Search by name or host (it opens the matching sections), filter by status, Collapse All /
+  Expand All.
+- **Change Inputs**: changes what the collector sends. The server then needs its new configuration: run the upgrade command shown
+  on the server (`sudo sh install.sh --upgrade`; Windows `install.ps1 -Upgrade`; Kubernetes: download `values.yaml` and run `helm`).
+- **Open in Raw Logs**: opens Raw Logs for the collector source (filtered to the host when the collector has sent
   for exactly one).
-- **Revoke collector**: its key stops working at once; the lines already received stay. **Delete collector** removes a
+- **Revoke Collector**: its key stops working at once; the lines already received stay. **Delete Collector** removes a
   revoked collector, or one that never enrolled, from the list.
 
 How a server is connected, step by step, is in [`12-collector.md`](12-collector.md).
@@ -449,8 +477,8 @@ From an external system (automated, unattended):
 
 ```sh
 curl -H "Authorization: Bearer $S4_JOB_TOKEN" -H "X-Requested-With: job" -H "Content-Type: application/json" \
-     -d '{"url": "s3://nama-bucket/k8s-logs/2026-09-26/"}' https://<server>/api/admin/imports      # 202 + job_id
-curl -H "Authorization: Bearer $S4_JOB_TOKEN" https://<server>/api/admin/imports/<job_id>           # status
+     -d '{"url": "s3://nama-bucket/k8s-logs/2026-09-26/"}' https://<server>/api/v1/admin/imports      # 202 + job_id
+curl -H "Authorization: Bearer $S4_JOB_TOKEN" https://<server>/api/v1/admin/imports/<job_id>           # status
 ```
 
 Credentials are never sent to the browser and never appear in API responses, logs, the database, or the audit log.
@@ -491,7 +519,7 @@ deletes, or lists buckets. Before relying on this feature, make sure the server 
 On top of HTTPS, the web UI encrypts the JSON bodies of its API calls, so they cannot be read in the browser's network
 panel or in proxy and CDN logs that record bodies (passive readers):
 
-1. When a page loads, the browser and the server exchange ephemeral ECDH P-256 keys (`POST /api/crypto/handshake`) and
+1. When a page loads, the browser and the server exchange ephemeral ECDH P-256 keys (`POST /api/v1/crypto/handshake`) and
    both derive the same AES-256-GCM key (HKDF-SHA256). The browser's key cannot be exported from the tab.
 2. Every JSON request body and response is `nonce + ciphertext`, bound to the method and path, marked with the header
    `X-MS-Enc`. A body cannot be replayed on another endpoint.

@@ -1,7 +1,7 @@
 <!-- Volume band (owner choice 2026-10-28, mockup "Volume B"): the day's total log lines and HTTP requests, large, at the top of
      the folder-wide analysis pages (not on a service or IP page: their own numbers would read as contradicting it; the labels
      name the scope), each with the last 7 days as small bars (the shown day highlighted) so a short or missing day stands out.
-     Data: the folder list of /api/meta (lines, requests per folder) and the folder summary (files, 4xx/5xx of nginx-ingress).
+     Data: the folder list of /api/v1/meta (lines, requests per folder) and the folder summary (files, 4xx/5xx of nginx-ingress).
      The bars are decoration for sighted users; the same facts are in the text and in each bar's title. -->
 <script>
   import { lang, t } from '../i18n.js';

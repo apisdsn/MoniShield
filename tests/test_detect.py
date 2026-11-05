@@ -15,8 +15,8 @@ from monishield.domain import detect
 V2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ATTACKS = [   # (category, method, path, UA, expected CAPEC)
-    ('SQLi', 'GET', "/api/x?id=1' UNION SELECT username,password FROM users--", 'Mozilla/5.0', '66'),
-    ('SQLi waktu', 'GET', "/api/x?q=1';WAITFOR DELAY '0:0:5'--", 'Mozilla/5.0', '66'),
+    ('SQLi', 'GET', "/api/v1/x?id=1' UNION SELECT username,password FROM users--", 'Mozilla/5.0', '66'),
+    ('SQLi waktu', 'GET', "/api/v1/x?q=1';WAITFOR DELAY '0:0:5'--", 'Mozilla/5.0', '66'),
     ('XSS', 'GET', '/search?q=<script>alert(document.cookie)</script>', 'Mozilla/5.0', '242'),
     ('XSS atribut', 'GET', '/search?q="><img src=x onerror=alert(1)>', 'Mozilla/5.0', '242'),
     ('Path traversal', 'GET', '/download?file=../../../../etc/passwd', 'Mozilla/5.0', '126'),
@@ -31,10 +31,10 @@ ATTACKS = [   # (category, method, path, UA, expected CAPEC)
     ('Pemindai', 'GET', '/', 'Mozilla/5.00 (Nikto/2.1.6) (Evasions:None) (Test:000001)', '310'),
 ]
 CLEAN = [
-    ('GET', '/api/reports/count?where={"is_suspended":null,"tipe_laporan":{"inq":["LM","RCO","investigasi"]}}', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'),
+    ('GET', '/api/v1/reports/count?where={"is_suspended":null,"tipe_laporan":{"inq":["LM","RCO","investigasi"]}}', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'),
     ('GET', '/assets/index-abc123.js', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'),
-    ('POST', '/api/auth/login', 'okhttp/4.9.2'),
-    ('GET', '/api/laporan?search=jalan%20rusak%20di%20depan%20rumah&page=2', 'Mozilla/5.0'),
+    ('POST', '/api/v1/auth/login', 'okhttp/4.9.2'),
+    ('GET', '/api/v1/laporan?search=jalan%20rusak%20di%20depan%20rumah&page=2', 'Mozilla/5.0'),
     ('GET', '/', 'Uptime-Kuma/1.23.0'),
 ]
 
@@ -55,7 +55,7 @@ def test_normal_requests_are_clean(meth, path, ua):
 
 def test_sql_tautology_limits_without_libinjection():
     """942100 (libinjection) skipped: the ' OR 1=1 tautology is not hit at PL1, hit at PL2 (recorded in docs/04c)."""
-    p = '/api/x?id=1%27%20OR%201%3D1--'
+    p = '/api/v1/x?id=1%27%20OR%201%3D1--'
     assert detect.classify('GET', p, '', 1) is None
     assert detect.classify('GET', p, '', 2)['capec'] == '66'
     assert any(s['id'] == 942100 and 'libinjection' in s['reason'] for s in detect.DATA['skipped'])

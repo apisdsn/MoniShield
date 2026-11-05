@@ -12,26 +12,38 @@ class CollectorService:
 
     @staticmethod
     def _open(info):
-        """The collector with the options it really uses (a collector from before the options existed gets the defaults)."""
-        return dict(info, options=collector_config.normalize(info['platform'], info.get('options')))
+        """The collector with the options it really uses (a collector from before the options existed gets the defaults, but sends no
+        metrics until an admin turns them on)."""
+        return dict(info, options=collector_config.stored(info['platform'], info.get('options')))
 
     def list(self): return [self._open(c) for c in self.store.collector_list()]
 
     def get(self, cid): return self._open(self.store.collector_get(cid))
 
-    def add(self, name, platform, admin, ip=None, options=None):
+    def groups(self): return self.store.collector_groups()
+
+    def _group(self, value):
+        """The group as it is stored: checked, and spelled like an existing group that differs only in case."""
+        return collectors.same_group(collectors.check_group(value), self.groups())
+
+    def add(self, name, platform, admin, ip=None, options=None, group=None):
         """-> (collector, enrollment token, token expiry). The token is shown once."""
         platform = collectors.check_platform(platform)
-        info, token = self.store.collector_create(collectors.check_name(name), platform, admin, ip, collector_config.normalize(platform, options))
+        group = self._group(group)
+        info, token = self.store.collector_create(collectors.check_name(name), platform, admin, ip, collector_config.normalize(platform, options), group)
         return self._open(info), token, info['enroll_expires']
 
     def set_options(self, cid, options, admin, ip=None):
         platform = self.store.collector_get(cid)['platform']
         return self._open(self.store.collector_set_options(cid, collector_config.normalize(platform, options), admin, ip))
 
+    def set_group(self, cid, group, admin, ip=None):
+        """Change the group; an empty one removes it. The audit entry is written only when it really changes."""
+        return self._open(self.store.collector_set_group(cid, self._group(group), admin, ip))
+
     def config(self, info, base_url):
         """The collector's configuration text for its platform (Helm values for Kubernetes)."""
-        return collector_config.build(info['platform'], base_url, info.get('options'), self.ctx.cfg.collector_otel_version)
+        return collector_config.build(info['platform'], base_url, collector_config.stored(info['platform'], info.get('options')), self.ctx.cfg.collector_otel_version)
 
     def new_token(self, cid, admin, ip=None):
         token = self.store.collector_new_token(cid, admin, ip)
@@ -44,7 +56,9 @@ class CollectorService:
 
     def revoke(self, cid, admin, ip=None): return self._open(self.store.collector_revoke(cid, admin, ip))
 
-    def delete(self, cid, admin, ip=None): self.store.collector_delete(cid, admin, ip)
+    def delete(self, cid, admin, ip=None):
+        self.store.collector_delete(cid, admin, ip)
+        self.ctx.metrics.forget(cid)   # its metrics go with it: the id may be given to a new collector
 
     def enroll(self, token, ip=None, version=None):
         """-> (collector, key). Any bad token gives the same error and counts toward the caller's IP limit."""

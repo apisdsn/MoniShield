@@ -1,5 +1,5 @@
-"""Collector receiver (docs/12-collector.md, step 3): POST /api/collector/v1/logs on the sample payloads in fixtures/otlp."""
-import asyncio, collections, dataclasses, gzip, json, os, shutil, threading, zlib
+"""Collector receiver (docs/12-collector.md, step 3): POST /api/v1/collector/logs on the sample payloads in fixtures/otlp."""
+import asyncio, collections, dataclasses, gzip, json, os, shutil, threading, time, zlib
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +11,7 @@ from test_api import X, admin, cfg, error_code   # noqa: F401  (fixtures and hel
 from test_collectors import add, enroll, shift
 
 FIX = os.path.join(os.path.dirname(__file__), 'fixtures', 'otlp')
-URL = '/api/collector/v1/logs'
+URL = '/api/v1/collector/logs'
 JSON = {'Content-Type': 'application/json'}
 K8S = {
     '2026-11-05/ingress-nginx/nginx-ingress-controller/log_nginx-ingress-controller_ingress-nginx-controller-7d9c5b6f4-x2k8p_2026-11-05-16-00.log':
@@ -35,7 +35,7 @@ def make(cfg, auth_url, tmp_path, monkeypatch):
     clients = []
 
     def build(**over):
-        small = dict(collector_max_body_mb=1, collector_max_raw_mb=1, collector_rate_per_min=1000, collector_min_free_mb=0)
+        small = dict(collector_max_body_mb=1, collector_max_raw_mb=1, collector_rate_per_min=1000, collector_min_free_mb=0, collector_max_age_hours=0)
         c = dataclasses.replace(cfg, auth_database_url=auth_url, inbox_dir=str(tmp_path / 'inbox'), **{**small, **over})
         tc = TestClient(appmod.create_app(c)); tc.__enter__(); clients.append(tc)
         admin(tc)
@@ -93,6 +93,31 @@ def test_rejected_records_are_reported_but_the_rest_is_kept(make):
     assert only['last_batch_at'] and '2026-11-05' in s['pending']      # the future-dated record is kept at the receive time, so its folder depends on the clock
 
 
+def at(hours_ago, line, svc='old'):
+    nano = int((time.time() - hours_ago * 3600) * 1e9)
+    res = {'attributes': [{'key': 'host.name', 'value': {'stringValue': 'web-01'}}, {'key': 'service.name', 'value': {'stringValue': svc}}]}
+    rec = {'timeUnixNano': str(nano), 'body': {'stringValue': line}}
+    return {'resource': res, 'scopeLogs': [{'logRecords': [rec]}]}
+
+
+def test_records_older_than_the_limit_are_rejected_once_and_not_stored(make):
+    tc, key, root = make(collector_max_age_hours=24)
+    body = json.dumps({'resourceLogs': [at(48, 'history'), at(25, 'older'), at(23, 'recent'), at(0.1, 'new')]}).encode()
+    r = post(tc, key, body)
+    ps = r.json()['partialSuccess']                                       # 200: the collector must not retry what is too old
+    assert r.status_code == 200 and ps['rejectedLogRecords'] == '2' and 'too old (2)' in ps['errorMessage']
+    assert sorted(v for lines in lines_of(root).values() for v in lines) == ['new', 'recent']
+    only = next(iter(tc.app.state.collector_feed.status()['collectors'].values()))
+    assert (only['received'], only['written'], only['rejected']) == (4, 2, {'too old': 2})
+
+
+def test_no_limit_keeps_every_record(make):
+    tc, key, root = make(collector_max_age_hours=0)
+    r = post(tc, key, json.dumps({'resourceLogs': [at(24 * 400, 'ancient'), at(1, 'new')]}).encode())
+    assert (r.status_code, r.json()) == (200, {})
+    assert sorted(v for lines in lines_of(root).values() for v in lines) == ['ancient', 'new']
+
+
 def test_multi_line_entries_are_written_as_they_are(make):
     tc, key, root = make()
     assert post(tc, key, otlp(['Traceback (most recent call last):\n  File "x.py", line 1\nValueError: no'], svc='py')).status_code == 200
@@ -102,14 +127,14 @@ def test_multi_line_entries_are_written_as_they_are(make):
 
 def test_no_session_no_csrf_header_no_audit_and_last_seen(make, monkeypatch):
     tc, key, root = make()
-    before = tc.get('/api/admin/audit?limit=500').json()['rows']
-    seen = tc.get('/api/admin/collectors').json()['rows'][0]['last_seen']          # set by enrollment
+    before = tc.get('/api/v1/admin/audit?limit=500').json()['rows']
+    seen = tc.get('/api/v1/admin/collectors').json()['rows'][0]['last_seen']          # set by enrollment
     anon = TestClient(tc.app)
     assert not anon.cookies and 'X-Requested-With' not in JSON
     shift(monkeypatch, minutes=10)                                                    # last_seen is written once a minute at most
     for _ in range(3): assert anon.post(URL, content=sample('k8s'), headers={**JSON, 'Authorization': f'Bearer {key}'}).status_code == 200
-    assert tc.get('/api/admin/audit?limit=500').json()['rows'] == before
-    assert tc.get('/api/admin/collectors').json()['rows'][0]['last_seen'] > seen
+    assert tc.get('/api/v1/admin/audit?limit=500').json()['rows'] == before
+    assert tc.get('/api/v1/admin/collectors').json()['rows'][0]['last_seen'] > seen
 
 
 def test_the_middleware_leaves_a_request_without_x_ms_enc_alone(make):
@@ -139,17 +164,17 @@ def test_missing_wrong_and_revoked_keys_are_refused(make):
     r = TestClient(tc.app).post(URL, content=sample('k8s'), headers={**JSON, 'Authorization': f'Basic {key}'})
     assert r.status_code == 401
     assert not os.path.exists(root)
-    cid = tc.get('/api/admin/collectors').json()['rows'][0]['id']
+    cid = tc.get('/api/v1/admin/collectors').json()['rows'][0]['id']
     assert post(tc, key, sample('k8s')).status_code == 200
-    assert tc.post(f'/api/admin/collectors/{cid}/revoke', headers=X).status_code == 200
+    assert tc.post(f'/api/v1/admin/collectors/{cid}/revoke', headers=X).status_code == 200
     r = post(tc, key, sample('k8s'))
     assert (r.status_code, error_code(r)) == (401, 'invalid_collector_key')
 
 
 def test_a_rotated_keys_previous_key_still_works(make):
     tc, key, root = make()
-    cid = tc.get('/api/admin/collectors').json()['rows'][0]['id']
-    new = tc.post(f'/api/admin/collectors/{cid}/rotate', headers=X).json()['key']
+    cid = tc.get('/api/v1/admin/collectors').json()['rows'][0]['id']
+    new = tc.post(f'/api/v1/admin/collectors/{cid}/rotate', headers=X).json()['key']
     assert new != key and post(tc, key, sample('k8s')).status_code == 200 and post(tc, new, sample('k8s')).status_code == 200
 
 
@@ -160,7 +185,7 @@ def test_too_many_wrong_keys_block_the_address_but_not_sign_in(make):
     assert (r.status_code, error_code(r), r.headers['retry-after']) == (429, 'too_many_attempts', '300')
     r = post(tc, key, sample('k8s'))                                                  # blocked: even the right key waits
     assert (r.status_code, r.headers['retry-after'] != '') == (429, True)
-    assert TestClient(tc.app).post('/api/auth/login', json=dict(username='admin', password='admin-password-after-change'), headers=X).status_code == 200
+    assert TestClient(tc.app).post('/api/v1/auth/login', json=dict(username='admin', password='admin-password-after-change'), headers=X).status_code == 200
 
 
 def test_failure_limiter_window_and_block_end():
@@ -240,7 +265,7 @@ def test_rate_limit_per_collector(make):
     assert [post(tc, key, sample('k8s')).status_code for _ in range(3)] == [200] * 3
     r = post(tc, key, sample('k8s'))
     assert (r.status_code, error_code(r), r.headers['retry-after']) == (429, 'rate_limited', '30')
-    second = tc.post('/api/admin/collectors', json=dict(name='web-02', platform='linux'), headers=X).json()
+    second = tc.post('/api/v1/admin/collectors', json=dict(name='web-02', platform='linux'), headers=X).json()
     key2 = enroll(TestClient(tc.app), second['enroll_token']).json()['key']
     assert post(tc, key2, sample('k8s')).status_code == 200                           # each collector has its own allowance
 

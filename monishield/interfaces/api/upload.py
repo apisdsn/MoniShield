@@ -1,9 +1,9 @@
 """Upload log folders from the browser (monishield/application/upload_service.py). Admin only (not the machine token), CSRF
 like the other changing routes.
-  POST   /api/admin/uploads               plan: list of {path, size} -> files accepted / skipped + upload_id
-  PUT    /api/admin/uploads/{id}/{i}      content of one file (raw body, streamed to disk, size must match the plan)
-  POST   /api/admin/uploads/{id}/finish   move to the inbox, then ingest those folders in the background
-  DELETE /api/admin/uploads/{id}          cancel
+  POST   /api/v1/admin/uploads               plan: list of {path, size} -> files accepted / skipped + upload_id
+  PUT    /api/v1/admin/uploads/{id}/{i}      content of one file (raw body, streamed to disk, size must match the plan)
+  POST   /api/v1/admin/uploads/{id}/finish   move to the inbox, then ingest those folders in the background
+  DELETE /api/v1/admin/uploads/{id}          cancel
 """
 import os
 
@@ -15,7 +15,7 @@ from monishield.application import upload_service
 from .admin import _audit
 from .common import ApiError, require_admin
 
-router = APIRouter(prefix='/api/admin/uploads')
+router = APIRouter(prefix='/api/v1/admin/uploads')
 
 
 class PlanBody(BaseModel):

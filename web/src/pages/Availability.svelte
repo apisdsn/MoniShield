@@ -1,6 +1,6 @@
 <!-- Availability (DRD §3.6, inv. §2.6): 7 KPIs (4 + 3), 3 charts, 4 tables; needs nginx ingress logs (otherwise a note).
      Changed from the old one (TRD §4.4 item 1): pod connection errors are no longer truncated at 200 (KPI = all events, the table can
-     be continued). One request: GET /api/folders/{folder}/availability. -->
+     be continued). One request: GET /api/v1/folders/{folder}/availability. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -20,7 +20,7 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
-      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/availability`);
+      const j = await api.get(`/api/v1/folders/${encodeURIComponent(folder)}/availability`);
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) error = e;

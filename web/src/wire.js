@@ -19,7 +19,7 @@ async function handshake() {
   try {
     const kp = await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
     const pub = new Uint8Array(await subtle.exportKey('raw', kp.publicKey));
-    const r = await fetch('/api/crypto/handshake', {
+    const r = await fetch('/api/v1/crypto/handshake', {
       method: 'POST', credentials: 'same-origin', body: JSON.stringify({ pub: b64(pub) }),
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'monishield-web' },
     });

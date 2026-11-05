@@ -107,14 +107,14 @@ def client(tmp_path, auth_url, monkeypatch):
                             kafka_brokers='127.0.0.1:9', kafka_topic='k8s-logs', kafka_enabled=False)
     os.makedirs(c.log_dir)
     with TestClient(appmod.create_app(c)) as tc:
-        assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
-        assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+        assert tc.post('/api/v1/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
+        assert tc.post('/api/v1/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
         yield tc
 
 
 def wait_for_ingest(tc):
     for _ in range(600):
-        s = tc.get('/api/admin/ingest?source=kafka', headers=X).json()
+        s = tc.get('/api/v1/admin/ingest?source=kafka', headers=X).json()
         if not s['running']: return s
         time.sleep(0.05)
     raise AssertionError('ingest did not finish')
@@ -122,37 +122,37 @@ def wait_for_ingest(tc):
 
 def test_ingest_status_and_folders_appear(client):
     feed = client.app.state.kafka
-    s = client.get('/api/admin/kafka', headers=X).json()
+    s = client.get('/api/v1/admin/kafka', headers=X).json()
     assert (s['configured'], s['enabled'], s['state'], s['topic']) == (True, False, 'off', 'k8s-logs')
     sp = inboxmod.Spool(client.app.state.cfg.kafka_inbox)
     feed.handle(messages() + [(b'{"stream":"stdout"}', None, 0, 999)], sp); feed.flush(sp)
-    s = client.get('/api/admin/kafka', headers=X).json()
+    s = client.get('/api/v1/admin/kafka', headers=X).json()
     assert s['received'] == len(messages()) + 1 and s['skipped'] == 1 and s['last_skip']['reason'] == "no 'log' field"
     assert s['per_service']['ingress-nginx/nginx-ingress-controller'] == 11 and s['pending'] == [B] and s['recent'][0]['folder'] == B
-    r = client.post('/api/admin/kafka/ingest', headers=X)
+    r = client.post('/api/v1/admin/kafka/ingest', headers=X)
     assert r.status_code == 200, r.text
     st = wait_for_ingest(client)
     assert st['last']['folders_changed'] == [B] and st['last']['files_failed'] == 0
-    meta = {f['folder']: f for f in client.get('/api/meta?source=kafka', headers=X).json()['folders']}
+    meta = {f['folder']: f for f in client.get('/api/v1/meta?source=kafka', headers=X).json()['folders']}
     assert meta[B]['source'] == 'kafka'   # labelled "(Kafka)" in the UI
-    rows = {r['folder']: r for r in client.get('/api/admin/folders?source=kafka', headers=X).json()['rows']}
+    rows = {r['folder']: r for r in client.get('/api/v1/admin/folders?source=kafka', headers=X).json()['rows']}
     assert rows[B]['source'] == 'kafka' and rows[B]['inbox']
     n_ngx = lambda: client.app.state.sources['kafka'].con.cursor().execute('SELECT count(*) FROM nginx_access').fetchone()[0]
-    before, kpi = n_ngx(), client.get(f'/api/folders/{B}/command-center?source=kafka', headers=X).json()['kpi']['requests']
+    before, kpi = n_ngx(), client.get(f'/api/v1/folders/{B}/command-center?source=kafka', headers=X).json()['kpi']['requests']
     assert before > 0 and kpi > 0
-    assert client.post('/api/admin/kafka/ingest', headers=X).json()['error']['code'] == 'kafka_nothing'
+    assert client.post('/api/v1/admin/kafka/ingest', headers=X).json()['error']['code'] == 'kafka_nothing'
     # lines arriving later: the file grows, the next ingest reprocesses only that file
     feed.handle([(rancher('ingress-nginx', 'nginx-ingress-controller', 'pod-n', logs_mini.lines('nginx-ingress-controller').splitlines()[0]), None, 0, 2000)], sp)
-    feed.flush(sp); client.post('/api/admin/kafka/ingest', headers=X); st = wait_for_ingest(client)
+    feed.flush(sp); client.post('/api/v1/admin/kafka/ingest', headers=X); st = wait_for_ingest(client)
     assert st['last']['files_changed'] == 1 and n_ngx() == before + 1
 
 
 def test_check_message_without_settings_and_without_broker(client):
     client.app.state.cfg.kafka_topic = ''
-    r = client.post('/api/admin/kafka/peek', json=dict(n=5), headers=X)
+    r = client.post('/api/v1/admin/kafka/peek', json=dict(n=5), headers=X)
     assert r.status_code == 400 and r.json()['error']['code'] == 'kafka_not_configured'
     client.app.state.cfg.kafka_topic = 'k8s-logs'
-    r = client.post('/api/admin/kafka/peek', json=dict(n=5), headers=X)   # 127.0.0.1:9 has no broker
+    r = client.post('/api/v1/admin/kafka/peek', json=dict(n=5), headers=X)   # 127.0.0.1:9 has no broker
     assert r.status_code == 424 and r.json()['error']['code'] == 'kafka_unreachable'
 
 
@@ -169,9 +169,9 @@ def serve(app):
 
 def test_realtime_map_without_ip_addresses(client):
     feed = client.app.state.kafka
-    assert client.get('/api/live/map', headers=X).status_code == 204          # consumer not running
+    assert client.get('/api/v1/live/map', headers=X).status_code == 204          # consumer not running
     sp = inboxmod.Spool(client.app.state.cfg.kafka_inbox)
-    feed.handle(messages(), sp); feed.flush(sp); client.post('/api/admin/kafka/ingest', headers=X); wait_for_ingest(client)
+    feed.handle(messages(), sp); feed.flush(sp); client.post('/api/v1/admin/kafka/ingest', headers=X); wait_for_ingest(client)
     con = client.app.state.sources['kafka'].con.cursor()
     con.execute("UPDATE ip_info SET lat = -6.2, lon = 106.8, is_private = false WHERE ip = '66.66.66.213'")   # offline ingest has no location
     con.close(); feed.live.refresh()
@@ -181,7 +181,7 @@ def test_realtime_map_without_ip_addresses(client):
     got = []
     srv, port = serve(client.app)   # the in-process test client waits for the response to finish; the SSE stream needs a real server
     try:
-        with httpx.Client(base_url=f'http://127.0.0.1:{port}', cookies={c.name: c.value for c in client.cookies.jar}, trust_env=False, timeout=15) as h, h.stream('GET', '/api/live/map', headers=X) as r:
+        with httpx.Client(base_url=f'http://127.0.0.1:{port}', cookies={c.name: c.value for c in client.cookies.jar}, trust_env=False, timeout=15) as h, h.stream('GET', '/api/v1/live/map', headers=X) as r:
             assert r.status_code == 200 and r.headers['content-type'].startswith('text/event-stream')
             for raw in r.iter_lines():
                 if raw.startswith('data: ') and '"live"' in raw:
@@ -199,23 +199,23 @@ def test_source_parameter_selects_the_database(client):
     """?source=kafka reads the Kafka database, no source (or s3) the S3 database; an unknown source is refused."""
     feed = client.app.state.kafka
     sp = inboxmod.Spool(client.app.state.cfg.kafka_inbox)
-    feed.handle(messages(), sp); feed.flush(sp); client.post('/api/admin/kafka/ingest', headers=X); wait_for_ingest(client)
-    m = client.get('/api/meta', headers=X).json()
+    feed.handle(messages(), sp); feed.flush(sp); client.post('/api/v1/admin/kafka/ingest', headers=X); wait_for_ingest(client)
+    m = client.get('/api/v1/meta', headers=X).json()
     assert m['source'] == 's3' and m['sources'] == ['s3', 'kafka'] and B not in {f['folder'] for f in m['folders']}
-    k = client.get('/api/meta?source=kafka', headers=X).json()
+    k = client.get('/api/v1/meta?source=kafka', headers=X).json()
     assert k['source'] == 'kafka' and B in {f['folder'] for f in k['folders']}
-    assert client.get(f'/api/folders/{B}', headers=X).status_code == 404                    # S3 has no such day
-    assert client.get(f'/api/folders/{B}?source=kafka', headers=X).status_code == 200
-    assert client.get('/api/meta?source=nope', headers=X).status_code == 400
-    assert client.get('/api/admin/folders?source=kafka', headers=X).json()['rows'][0]['source'] == 'kafka'
-    assert client.get('/api/admin/folders', headers=X).json()['rows'] == []                 # the S3 inbox holds nothing of Kafka's
+    assert client.get(f'/api/v1/folders/{B}', headers=X).status_code == 404                    # S3 has no such day
+    assert client.get(f'/api/v1/folders/{B}?source=kafka', headers=X).status_code == 200
+    assert client.get('/api/v1/meta?source=nope', headers=X).status_code == 400
+    assert client.get('/api/v1/admin/folders?source=kafka', headers=X).json()['rows'][0]['source'] == 'kafka'
+    assert client.get('/api/v1/admin/folders', headers=X).json()['rows'] == []                 # the S3 inbox holds nothing of Kafka's
 
 
 def test_kafka_retention_and_delete_work_on_the_kafka_source_only(client):
     feed = client.app.state.kafka
     sp = inboxmod.Spool(client.app.state.cfg.kafka_inbox)
-    feed.handle(messages(), sp); feed.flush(sp); client.post('/api/admin/kafka/ingest', headers=X); wait_for_ingest(client)
-    r = client.delete(f'/api/admin/folders/{B}?source=kafka&delete_inbox=true', headers=X)
+    feed.handle(messages(), sp); feed.flush(sp); client.post('/api/v1/admin/kafka/ingest', headers=X); wait_for_ingest(client)
+    r = client.delete(f'/api/v1/admin/folders/{B}?source=kafka&delete_inbox=true', headers=X)
     assert r.status_code == 200 and r.json()['inbox_deleted'] is True and r.json()['ignored'] is False   # S3 sync does not matter for Kafka
-    assert B not in {f['folder'] for f in client.get('/api/meta?source=kafka', headers=X).json()['folders']}
+    assert B not in {f['folder'] for f in client.get('/api/v1/meta?source=kafka', headers=X).json()['folders']}
     assert not os.path.exists(os.path.join(client.app.state.cfg.kafka_inbox, B))

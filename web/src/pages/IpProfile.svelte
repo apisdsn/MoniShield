@@ -1,5 +1,5 @@
 <!-- IP profile (Stage 24 item 4): #/ip/<ip>?folder=… — opened from an IP cell in any table or from the global search.
-     One request: GET /api/folders/{folder}/ips/{ip}. Contents: owner & location (offline database), 8 KPIs for this folder,
+     One request: GET /api/v1/folders/{folder}/ips/{ip}. Contents: owner & location (offline database), 8 KPIs for this folder,
      accounts tried, the IP's trail across all folders (links to its profile in that folder), and all ingress requests in this
      folder (max. 1,000) with category + CRS rule. ?cari= (requestId from the search) fills the request table filter. -->
 <script>
@@ -24,7 +24,7 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
-      const j = await api.post(`/api/folders/${encodeURIComponent(folder)}/ip-profile`, { ip });   // POST: the IP stays out of URLs
+      const j = await api.post(`/api/v1/folders/${encodeURIComponent(folder)}/ip-profile`, { ip });   // POST: the IP stays out of URLs
       if (my === seq) data = j;
     } catch (e) { if (my === seq) { error = e; data = null; } }
     finally { if (my === seq) { busy = false; onready?.(true); } }

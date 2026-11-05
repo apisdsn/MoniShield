@@ -1,6 +1,6 @@
 <!-- Root Cause (DRD §3.5, inv. §2.5): "Ringkasan akar masalah" (up to 5 items), 4 charts, 3 tables.
      New (B07): "Refresh token kedaluwarsa: N" below the JWT age chart. DNS upstream from configuration (old: hard-coded).
-     One request: GET /api/folders/{folder}/rootcause. -->
+     One request: GET /api/v1/folders/{folder}/rootcause. -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -19,7 +19,7 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
-      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/root-causes`);
+      const j = await api.get(`/api/v1/folders/${encodeURIComponent(folder)}/root-causes`);
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) error = e;

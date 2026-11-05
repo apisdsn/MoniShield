@@ -1,7 +1,7 @@
 <!-- Cards 2–19 of the service page (DRD §3.10, inv. §2.10), also used by the "Traffic HTTP seluruh sistem" section in
      Overview (without the message card: withMsgs=false). Cards with empty data are not rendered (old): the API only
      sends tables with content; charts with 0 points are not drawn by ChartCard. The map (card 1) is in lib/ServiceMap (collapsed).
-     data = response of GET /api/folders/{folder}/services/{service}. Top 10 chart = first 10 rows of the related table,
+     data = response of GET /api/v1/folders/{folder}/services/{service}. Top 10 chart = first 10 rows of the related table,
      whose order matches the old order. -->
 <script>
   import { lang, t } from '../i18n.js';

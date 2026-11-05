@@ -44,23 +44,25 @@
 </div>
 
 <style>
-  .fp { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 3px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); }
+  /* the same 44 px box as the other header controls; arrows and select sit inside it */
+  .fp { display: flex; align-items: center; gap: 2px; min-width: 0; height: var(--touch); padding: 3px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); }
   select {
-    flex: 1; font-weight: 600; letter-spacing: 0.01em; color: var(--fg); padding: 0.4rem 34px 0.4rem 12px; cursor: pointer;
-    min-height: 2.375rem; max-width: 100%; min-width: 0; text-overflow: ellipsis; text-align: center;
-    border: 0; background-color: var(--bg2); background-image: var(--chev); background-position: right 12px center;
+    flex: 1; font-weight: 600; letter-spacing: 0.01em; color: var(--fg); padding: 0 34px 0 12px; cursor: pointer;
+    height: 100%; min-height: 0; max-width: 100%; min-width: 0; text-overflow: ellipsis; text-align: center;
+    border: 0; border-radius: calc(var(--r-ctl) - 4px); background-color: var(--bg2); background-image: var(--chev); background-position: right 12px center;
   }
+  select:hover:not(:disabled) { background-color: var(--ctl-hover); }
   select:disabled { color: var(--muted); cursor: not-allowed; }
-  /* focus: the pill's own border turns into the ring (no second rounded ring inside the pill) */
-  select:focus, select:focus-visible { outline: none; box-shadow: none; }
-  .fp:has(select:focus-visible) { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
-  .arrow:focus-visible { outline-offset: -2px; }
-  .arrow { width: 2.375rem; height: 2.375rem; flex: none; font-size: 0.75rem; color: var(--muted); border: 0; background: transparent; }
-  .arrow:hover:not(:disabled) { color: var(--fg); background: var(--nav-hover); }
+  /* focus: one ring around the whole pill, the same as on the other header controls */
+  select:focus, select:focus-visible, .arrow:focus-visible { outline: none; box-shadow: none; }
+  .fp:has(:focus-visible:not([data-quiet])) { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .arrow { position: relative; width: 36px; height: 100%; min-height: 0; flex: none; font-size: 0.75rem; color: var(--muted); border: 0; border-radius: calc(var(--r-ctl) - 4px); background: transparent; }
+  .arrow:hover:not(:disabled) { color: var(--fg); background: var(--ctl-hover); }
   @media (max-width: 900px) { select { font-size: 1rem; } }
   @media (max-width: 900px), (pointer: coarse) {
-    .fp { padding: 0; }
-    select { min-height: var(--touch); }
-    .arrow { width: var(--touch); height: var(--touch); }
+    .fp { padding: 0; gap: 0; }
+    .arrow { width: 42px; border-radius: calc(var(--r-ctl) - 1px); }
+    select { border-radius: 0; }
+    .arrow::after { content: ''; position: absolute; inset: -1px 0; }   /* the hit area reaches the border: 44 px high */
   }
 </style>

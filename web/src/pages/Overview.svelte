@@ -1,5 +1,5 @@
 <!-- Overview (DRD §3.1, inv. §2.1). Sources (TRD §5.3): /overview (period, hourly errors per service, top 25
-     messages), folder summary from App (/api/folders/{f}: KPIs, services, files), and /services/nginx-ingress-controller
+     messages), folder summary from App (/api/v1/folders/{f}: KPIs, services, files), and /services/nginx-ingress-controller
      for the "Traffic HTTP seluruh sistem" section (nginx service cards without the map and without the message card). The two
      page requests run concurrently and are shown together (U31).
      Redesign 2026-10-27 (mockup "Overview: before & after"): a status card first (Critical / Needs a look / All clear,
@@ -10,7 +10,8 @@
   import { untrack } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, delta, sysName, dLabel, logDay, SPARSE_LINES } from '../format.js';
+  import { num, delta, sysName, dLabel, logDay, isFilling, SPARSE_LINES } from '../format.js';
+  import { localToday } from '../tz.js';
   import { build, route } from '../state.js';
   import { cmpNote } from '../lib/compare.js';
   import InfoTip from '../lib/InfoTip.svelte';
@@ -37,7 +38,7 @@
     const f = encodeURIComponent(sum.folder);
     const hasNg = sum.services.some((s) => s.service === NG && s.lines);
     try {
-      const [o, n] = await Promise.all([api.get(`/api/folders/${f}/overview`), hasNg ? api.get(`/api/folders/${f}/services/${NG}`) : null]);
+      const [o, n] = await Promise.all([api.get(`/api/v1/folders/${f}/overview`), hasNg ? api.get(`/api/v1/folders/${f}/services/${NG}`) : null]);
       if (my === seq) view = { folder: sum.folder, summary: sum, page: o, nginx: n };
     } catch (e) {
       if (my === seq) error = e;
@@ -85,7 +86,7 @@
     return out.slice(0, 3);
   });
   const lines = $derived(sum(svc, 'lines'));
-  const sparse = $derived(lines < SPARSE_LINES);
+  const sparse = $derived(lines < SPARSE_LINES && !isFilling($route.source, view?.folder, localToday()));   // still filling: few lines are normal
   const note = $derived([...$cmpNote.values()][0] || '');
   const href = (tab) => build({ ...$route, tab, service: null, q: null });
   const svcHref = (s) => build({ ...$route, tab: 'service', service: s, q: null });

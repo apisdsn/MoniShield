@@ -9,7 +9,7 @@
 <style>
   .tag {
     display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
-    font-size: 0.75rem; font-weight: 600; white-space: nowrap; text-transform: capitalize;
+    font-size: 0.75rem; font-weight: 600; white-space: nowrap;
   }
   .tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
   .sev3 { color: var(--sev3-fg); background: color-mix(in srgb, var(--err) 14%, transparent); }

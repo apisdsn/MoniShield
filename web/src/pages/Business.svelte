@@ -1,5 +1,5 @@
 <!-- Business (DRD §3.8, inv. §2.8): 11 KPIs (change vs the previous folder for events-service metrics), notes, 5 charts,
-     2 tables. One request: GET /api/folders/{folder}/business. Changed from the old one (U16): KPIs whose log is missing
+     2 tables. One request: GET /api/v1/folders/{folder}/business. Changed from the old one (U16): KPIs whose log is missing
      in this folder show "–" with an explanation, not 0 (events service: activity; report: PDF; auth: login). -->
 <script>
   import { lang, t } from '../i18n.js';
@@ -22,7 +22,7 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
-      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/business`);
+      const j = await api.get(`/api/v1/folders/${encodeURIComponent(folder)}/business`);
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) error = e;

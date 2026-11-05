@@ -5,6 +5,7 @@
   import { tick } from 'svelte';
   import { lang, t } from '../i18n.js';
   import Icon from './Icon.svelte';
+  import { restoreFocus } from './focus.js';
 
   const LANGS = [{ id: 'id', name: 'Bahasa Indonesia' }, { id: 'en', name: 'English' }];
   let open = $state(false), shift = $state(0);
@@ -21,7 +22,7 @@
     const a = items(), cur = a.findIndex((x) => x.getAttribute('aria-checked') === 'true');
     (focusLast ? a[a.length - 1] : a[Math.max(cur, 0)])?.focus();
   }
-  function close(refocus = true) { open = false; if (refocus) btn?.focus(); }
+  function close(refocus = true) { open = false; if (refocus) restoreFocus(btn); }
   function pick(id) { lang.set(id); close(); }
   function onkey(e) {
     const a = items(), i = a.indexOf(document.activeElement);
@@ -64,7 +65,7 @@
     display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: var(--touch); min-width: var(--touch); padding: 0 12px;
     border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); color: var(--fg); cursor: pointer;
   }
-  .lbtn:hover { background: var(--nav-hover); }
+  .lbtn:hover { background: var(--ctl-hover); }
   .cur { font-family: var(--mono); font-size: 0.8125rem; font-weight: 700; }
   .menu {
     position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; width: 240px; max-width: calc(100vw - 16px);

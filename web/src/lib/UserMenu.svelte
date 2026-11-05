@@ -7,6 +7,7 @@
   import { build } from '../state.js';
   import Icon from './Icon.svelte';
   import { openAccount } from './AccountDialogs.svelte';
+  import { restoreFocus } from './focus.js';
   let { me, route, onlogout, onreload } = $props();
 
   let open = $state(false);
@@ -17,7 +18,7 @@
     open = !open;
     if (open) { await tick(); const a = items(); (focusLast ? a[a.length - 1] : a[0])?.focus(); }
   }
-  function close(refocus = true) { open = false; if (refocus) btn?.focus(); }
+  function close(refocus = true) { open = false; if (refocus) restoreFocus(btn); }
   function onkey(e) {
     const a = items(), i = a.indexOf(document.activeElement);
     if (e.key === 'Escape') { e.preventDefault(); close(); }
@@ -60,7 +61,7 @@
         <a role="menuitem" href={link('admin/users')} onclick={() => close(false)}><Icon name="users" />{$t('menu.users')}</a>
         <a role="menuitem" href={link('admin/ingest')} onclick={() => close(false)}><Icon name="database" />{$t('menu.ingest')}</a>
       {/if}
-      <a role="menuitem" href="/api/docs" target="_blank" rel="noopener" onclick={() => close(false)}><Icon name="code" />{$t('menu.api_docs')}</a>
+      <a role="menuitem" href="/api/v1/docs" target="_blank" rel="noopener" onclick={() => close(false)}><Icon name="code" />{$t('menu.api_docs')}</a>
       <div class="sep" role="separator"></div>
       <button role="menuitem" class="out" onclick={() => { close(false); onlogout(); }}><Icon name="logout" />{$t('menu.logout')}</button>
     </div>
@@ -69,7 +70,11 @@
 
 <style>
   .um { position: relative; }
-  .who { max-width: 220px; padding: 0 1.1rem 0 7px; gap: 8px; height: var(--touch); border-radius: var(--r-ctl); }
+  .who {
+    max-width: 220px; padding: 0 1.1rem 0 6px; gap: 8px; height: var(--touch); min-height: 0; border-radius: var(--r-ctl);
+    border: 1px solid var(--line-strong); background: var(--bg2);   /* same box as the other header controls */
+  }
+  .who:hover { background: var(--ctl-hover); }
   .av {
     width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
     font-size: 0.75rem; font-weight: 700; color: var(--brand-fg); background: var(--brand-bg);

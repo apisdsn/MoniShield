@@ -139,3 +139,10 @@ export const cut = (s, n) => (String(s).length > n ? String(s).slice(0, n - 1) +
 /** ASSUMPTION (DRD §6.6 "practically empty"): a folder with fewer log lines than this is flagged as incomplete (the corrupt
  *  file count is mentioned too). Corrupt files alone are not enough: even full folders often have 1–3 files with corrupt lines. */
 export const SPARSE_LINES = 1000;
+
+/** Sources that write the day in progress (server: sources.FILLING). Their folder dated after today is still filling up. */
+const FILLING_SOURCES = ['kafka', 'collector'];
+
+/** True for the folder of a source that is still filling during the day: few lines are normal there, not a sign of a broken folder.
+ *  `today` = the site's date ('YYYY-MM-DD'); a folder dated today or earlier is complete, and so is every S3 folder. */
+export const isFilling = (source, folder, today) => FILLING_SOURCES.includes(source) && FOLDER.test(folder || '') && folder > today;

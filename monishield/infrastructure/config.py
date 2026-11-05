@@ -70,6 +70,7 @@ def load(env=None, dotenv=None):
         if not 1 <= getattr(cfg, k) <= 100000: raise SystemExit(f'{env_name(k)} must be 1..100000')
     if not 1 <= cfg.collector_max_concurrent <= 64: raise SystemExit('S4_COLLECTOR_MAX_CONCURRENT must be 1..64')
     if not 1 <= cfg.collector_ingest_seconds <= 86400: raise SystemExit('S4_COLLECTOR_INGEST_SECONDS must be 1..86400')
+    if not 0 <= cfg.collector_max_age_hours <= 87600: raise SystemExit('S4_COLLECTOR_MAX_AGE_HOURS must be 0..87600')
     if cfg.collector_min_free_mb < 0: raise SystemExit('S4_COLLECTOR_MIN_FREE_MB must be 0 or more')
     if not re.fullmatch(r'\d{1,3}\.\d{1,3}\.\d{1,3}', cfg.collector_otel_version): raise SystemExit('S4_COLLECTOR_OTEL_VERSION must look like 0.163.2')
     if cfg.collector_public_url:
@@ -78,6 +79,8 @@ def load(env=None, dotenv=None):
     elif dom := (get('DOCKER_INGEST_DOMAIN') or '').strip():   # the receiver subdomain served by Caddy (docs/07-deploy-vps.md)
         if not re.fullmatch(r'[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+', dom): raise SystemExit('DOCKER_INGEST_DOMAIN must be a host name such as ingest.example.com')
         cfg.collector_public_url = f'https://{dom}'
+    if not 1 <= cfg.metrics_raw_days <= 3650: raise SystemExit('S4_METRICS_RAW_DAYS must be 1..3650')
+    if not cfg.metrics_raw_days <= cfg.metrics_hour_days <= 36500: raise SystemExit('S4_METRICS_HOUR_DAYS must be S4_METRICS_RAW_DAYS..36500')
     if cfg.collector_inbox_dir: cfg.collector_inbox_dir = os.path.abspath(cfg.collector_inbox_dir)
     if msg := timezone.validate(cfg.timezone_offset, cfg.timezone_label): raise SystemExit(f'S4_TIMEZONE_OFFSET / S4_TIMEZONE_LABEL: {msg}')
     if not 0 <= cfg.backup_hour <= 23: raise SystemExit('S4_BACKUP_HOUR must be 0..23 (local time)')

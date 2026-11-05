@@ -1,6 +1,6 @@
 <!-- Service page (DRD §3.10, inv. §2.10): one template for all services. KPIs: Log lines, Error, Warning,
      (HTTP requests, 4xx rate, 5xx rate when there are requests), the first 4 entries of the level distribution; then cards 2–19.
-     One request: GET /api/folders/{folder}/services/{service}. 0 lines -> empty state (DRD §6.6). -->
+     One request: GET /api/v1/folders/{folder}/services/{service}. 0 lines -> empty state (DRD §6.6). -->
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
@@ -23,7 +23,7 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
-      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/services/${encodeURIComponent(service)}`);
+      const j = await api.get(`/api/v1/folders/${encodeURIComponent(folder)}/services/${encodeURIComponent(service)}`);
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) error = e;

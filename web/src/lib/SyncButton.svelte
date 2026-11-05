@@ -1,9 +1,9 @@
 <!-- "Sinkronkan data" button in the header (admin only): ingests new log folders / changed files without opening
-     the Ingest screen. Every minute (and when the tab becomes active again) reads GET /api/admin/ingest: badge = number of date
-     folders on disk not yet in the database. Click -> POST /api/admin/ingest (only new/changed files are processed;
+     the Ingest screen. Every minute (and when the tab becomes active again) reads GET /api/v1/admin/ingest: badge = number of date
+     folders on disk not yet in the database. Click -> POST /api/v1/admin/ingest (only new/changed files are processed;
      409 = already running, wait along) -> progress -> onsynced({folders_changed}) so App reloads and switches to the
      newest folder. ASSUMPTION: admin only, because ingest writes to the database (Stage 10 role matrix).
-     When automatic S3 sync is on (status.s3.enabled), a click checks S3 first (POST /api/admin/imports/sync: new date
+     When automatic S3 sync is on (status.s3.enabled), a click checks S3 first (POST /api/v1/admin/imports/sync: new date
      folders downloaded + ingested), and only then ingests local folders (owner request 2026-10-07). -->
 <script>
   import { srv, errText } from '../srv.js';
@@ -21,7 +21,7 @@
 
   async function check() {
     try {
-      const s = await api.get('/api/admin/ingest');
+      const s = await api.get('/api/v1/admin/ingest');
       pending = s.new_folders || []; s3on = !!s.s3?.enabled && get(route).source === 's3';   // Kafka has no S3 check: its button only ingests
       if (s.running && !running) follow();    // ingest from another screen / schedule: show it here too
     } catch { /* session expired / offline: handled by App */ }
@@ -31,7 +31,7 @@
     try {
       for (;;) {
         await new Promise((r) => setTimeout(r, 1000));
-        const s = await api.get('/api/admin/ingest');
+        const s = await api.get('/api/v1/admin/ingest');
         progress = s.total ? $t('sync.progress', { done: num(s.done, $lang), total: num(s.total, $lang) }) : $t('sync.scanning');
         if (s.running) continue;
         pending = s.new_folders || [];
@@ -49,11 +49,11 @@
   }
   /** Check S3 then wait until done. -> folders fetched/updated (for the message), or null when not run. */
   async function syncS3() {
-    try { await api.post('/api/admin/imports/sync', {}); }
+    try { await api.post('/api/v1/admin/imports/sync', {}); }
     catch (e) { if (e.code !== 'import_running') { toast($t('sync.s3_failed', { msg: $errText(e) })); return null; } }
     for (;;) {
       await new Promise((r) => setTimeout(r, 1000));
-      const s = (await api.get('/api/admin/ingest')).s3;
+      const s = (await api.get('/api/v1/admin/ingest')).s3;
       progress = s.phase === 'download' && s.total ? $t('sync.s3_fetch', { done: num(s.done + 1, $lang), total: num(s.total, $lang) })
         : s.phase === 'ingest' ? $t('sync.scanning') : $t('sync.s3_check');
       if (s.running) continue;
@@ -69,7 +69,7 @@
     try { if (s3on) fromS3 = await syncS3(); } catch { /* handled below: local ingest still runs */ }
     if (fromS3?.length) toast($t('sync.s3_done', { n: num(fromS3.length, $lang), list: fromS3.slice(-3).map((x) => fLabel(x, $lang)).join(', ') }));
     running = false;
-    try { await api.post('/api/admin/ingest', {}); }
+    try { await api.post('/api/v1/admin/ingest', {}); }
     catch (e) { if (e.status !== 409) { toast($t('sync.failed', { msg: $errText(e) })); return; } }
     follow(fromS3);
   }

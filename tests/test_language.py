@@ -9,14 +9,14 @@ WORDS = re.compile(r'\b(yang|dengan|tidak|contoh|uji|tiruan|kunci|sudah|belum|un
 ALLOWED = {
     # Indonesian UI copy next to the English one
     'monishield/domain/letters.py', 'monishield/domain/alerts.py', 'monishield/interfaces/api/home_meta.py', 'tools/og_image.cjs',
-    'web/src/srv.js', 'web/src/format.js', 'web/src/lib/MapView.svelte', 'monishield/infrastructure/queries/ips.py',
+    'web/src/srv.js', 'web/src/format.js', 'tools/i18n_case.mjs', 'web/src/lib/MapView.svelte', 'monishield/infrastructure/queries/ips.py',
     # old Indonesian values read and converted (stored data, .env written by earlier versions)
     'monishield/infrastructure/auth.py', 'monishield/infrastructure/db.py', 'monishield/infrastructure/config.py',
     'monishield/infrastructure/envfile.py', 'monishield/domain/config_model.py', 'monishield/domain/rules.py',
     'web/src/pages/Security.svelte', 'web/src/lib/ImportCard.svelte',
     'monishield/infrastructure/queries/tables.py', 'monishield/infrastructure/queries/security.py',   # login flags stored by derive
     # tests of the Indonesian output or of the old values
-    'tests/test_alerts.py', 'tests/test_password_reset.py', 'tests/test_format.mjs', 'tests/test_status_migration.py',
+    'tests/test_alerts.py', 'tests/test_password_reset.py', 'tests/test_format.mjs', 'tests/test_i18n_case.mjs', 'tests/test_status_migration.py',
     'tests/test_derive_features.py', 'tests/test_bulk_insert.py', 'tests/test_home_meta.py', 'tests/test_language.py',
 }
 PATTERNS = ('monishield/**/*.py', 'tests/*.py', 'tests/*.mjs', 'tools/*.py', 'tools/*.mjs', 'tools/*.cjs', 'web/src/**/*.js', 'web/src/**/*.svelte')

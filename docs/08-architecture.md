@@ -36,9 +36,11 @@ FastAPI's `app.state`. Application services receive that object as `ctx` and onl
 | `kafka_client` | KafkaClient | `infrastructure/kafka_client.KafkaClient` |
 | `inbox` | Inbox factory | `infrastructure/inbox.Spool` |
 | `uploads` | UploadStore | `infrastructure/uploads.Uploads` |
+| `metrics` | MetricsStore | `infrastructure/metrics_store.MetricsStore` (own file `metrics.duckdb`) |
 | `maxmind` | MaxMind probe | `infrastructure/refdata.probe_maxmind` |
 | `mailer` | Mailer | `infrastructure/mailer.Mailer` (letters from `domain/letters.py`, rendered by `infrastructure/letter.py`) |
 | `ingest`, `imports`, `alerts`, `kafka`, `retention`, `resets`, `emails` | services | `application/*_service.py` (`resets` = `password_service.PasswordResets`, `emails` = `account_service.EmailChanges`) |
+| `metrics_feed` | service | `application/metrics_feed.MetricsFeed` (receives collector metrics through the `metrics` port) |
 | `wire` | (interfaces only) | `infrastructure/wirecrypto.WireCrypto`, used by the `interfaces/api/wire.py` middleware for encrypted API bodies |
 
 Tests build the same graph through `create_app(cfg)`; a service can also be tested with a hand-made `ctx` holding fakes
@@ -53,6 +55,25 @@ email, request ID, file name) also gets a POST form with the same parameters in 
 UI uses only that form so the values travel in the encrypted body and never in a URL. Downloads (block list, attack-IP CSV) return
 `dict(file, media_type, filename)` and the router turns that into an attachment response.
 
+## API versions
+
+The major version is in the path: every endpoint of the FastAPI app is under `/api/v1/...` (routers declare `prefix='/api/v1/...'`;
+`web/src/api.js` has the `API` constant). The rules:
+
+- **Additive changes stay in v1**: a new endpoint, a new optional parameter, a new field in an answer.
+- **A breaking change gets `/api/v2/...` next to v1** (a removed or renamed field, a changed meaning, a new required parameter). v1 then answers
+  with `Deprecation: true`, a `Sunset` date and `Link: <the v2 address>; rel="successor-version"` until it is removed in a later release.
+- **Not versioned** (operational): `/api/health` (the Docker healthcheck and `deploy/remote-deploy.sh` call it), the downloads
+  `/collector/install.sh` and `/collector/install.ps1`, the page routes, static files and `/map/labels.json`.
+- **The collector machine API** is `/api/v1/collector/enroll`, `/config`, `/logs` and `/metrics`. The collector's `otlp_http` exporter is
+  given the full `logs_endpoint` and `metrics_endpoint` (not a base `endpoint`, to which it would add its own `/v1/logs`).
+- **One release of grace for the browser API**: `interfaces/api/versioning.py` rewrites an unversioned `/api/<x>` request (except
+  `/api/health` and `/api/collector/...`) to `/api/v1/<x>` and adds `Deprecation: true`, so a tab left open during the deploy keeps working
+  until it reloads. The wire encryption binds the body to the address, so it uses the address as sent (`scope['sent_path']`). The module is
+  removed in the next release ("Next" in `docs/09-status.md`). There is no alias for the old collector paths.
+
+`tests/test_api_versions.py` fails on any `/api/` route outside `/api/v1/` except `/api/health`.
+
 ## Errors
 
 Domain and application code raise `monishield.domain.errors.Fail(code, message, status)` (or a subclass:
@@ -62,6 +83,36 @@ turns any `Fail` into the API error shape `{"error": {"code", "message"}}` with 
 
 Messages are English; the web UI translates by error **code** in Indonesian mode (`web/src/i18n/id.json`, `err.*`) and
 translates informational server text (warnings, job summaries, audit details) with `web/src/srv.js`.
+
+## UI text
+
+Every text the user reads is in `web/src/i18n/id.json` and `en.json` (the same keys in both); the capitalisation follows one rule, checked by
+`node tools/check_i18n.mjs` (the code is `tools/i18n_case.mjs`, tested by `tests/test_i18n_case.mjs`).
+
+- **Labels are Title Case**: page titles, section and card headings, buttons, tabs, menu items, table column headers, field labels and
+  badges ("Add Collector", "Open in Raw Logs", "Last Seen"). The small words `a an and as at by for from in into of on or over per than the to via vs with` stay lower case
+  inside a title unless they come first ("Errors per Service", "Import from S3"). Both parts of a hyphenated word are capitalised
+  ("Last Sign-In", "Comma-Separated"), and so is the particle of a phrasal verb ("Sign In", "Back Up Now"). Product names and acronyms keep their form (MoniShield, S3, Kafka, CPU, RAM, SMTP, IP, URL, HTTP, ID,
+  EN, nginx, requestId); placeholders (`{n}`), numbers and units after a number (`24 h`) are left as they are.
+- **Sentences are sentence case**: sentences, descriptions, hints, placeholders, empty states, errors, toasts and status lines ("No ingest since
+  server start", "All times in WIB"). A short status line gets no period; a badge is a label ("1 Late", "All Online"). A full sentence ends with a
+  period; a placeholder does not ("Search by name or host").
+- **Indonesian** follows the same split ("Tambah Collector", "Buka di Log Mentah"); the small words are `di ke dari dan atau yang untuk per dengan`.
+- The CSS never changes case (no `text-transform: capitalize`): the text is written the way it is shown.
+
+How the check tells a label from a sentence, so that a new key needs no extra step:
+
+1. A key is a **sentence** when one part of its name is (or ends with `_` and) `hint`, `text`, `note`, `intro`, `desc`, `ph` (placeholder), `err`,
+   `msg`, `sub`, `toast`, `done`, `saved`, `cleared`, `why`, `help`, `tip`, `lead`, `body`, `cap`, `aria`, `count`, or it starts with `err.`.
+2. Also a sentence or fragment: a text that ends with `. ? ! : …`, starts with a lower-case letter or a placeholder (`{n} offline`), has more
+   than seven words, or holds `{msg}`, `{list}` or a quoted placeholder.
+3. Everything else is a label and must be Title Case. Name a sentence key with one of the parts above, and the check stays quiet.
+4. A sentence in a `hint`, `text`, `note`, `intro`, `desc`, `toast`, `done`, `saved`, `cleared`, `why`, `help`, `tip`, `lead` or `body` key
+   (four words or more) must end with a period.
+5. The few that the rules cannot tell are listed in `tools/i18n_sentence_keys.json`: `keys` are left alone, `sentences` are messages that
+   must end with a period.
+
+`node tools/check_i18n.mjs --fix` rewrites the findings (labels to Title Case, missing periods); read the diff before committing.
 
 ## Where new code goes
 

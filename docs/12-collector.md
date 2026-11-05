@@ -43,20 +43,20 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 | 2 (done) | Collector registry (accounts database): name, platform, version, last seen, revoked; one-time enrollment token (24 h) exchanged for a long-lived key, both stored as hashes; replace and revoke the key; audit `collector.add`, `collector.enroll`, `collector.rotate`, `collector.revoke`. Application service + port |
 | 3 (done) | Receiver `POST /v1/logs`: Bearer key, outside the CSRF guard and the payload encryption (a machine client), size limits before and after gunzip, rate limit per collector, written to disk before the 200, OTLP partial-success answer, 401 / 413 / 429 with `Retry-After` |
 | 4 (done) | Third source `collector`: database, inbox, retention, notifications, ingest schedule; hourly files; source switch in the header; dictionaries id/en. See "Collector source" below |
-| 5 (done) | Configuration writer and install: collector YAML per platform and chosen data (file logs, journald, Windows Event Log, Docker, Kubernetes), `otlphttp` exporter with a disk queue and retries; `install.sh` (systemd), `install.ps1` (Windows service), Helm values |
+| 5 (done) | Configuration writer and install: collector YAML per platform and chosen data (file logs, journald, Windows Event Log, Docker, Kubernetes), `otlp_http` exporter with a disk queue and retries; `install.sh` (systemd), `install.ps1` (Windows service), Helm values |
 | 6 (done) | Admin › Collectors page (after the mockup): list, status counts, add dialog with platform tabs and the install command, details, replace / revoke key |
 | 7 | End-to-end check with a real `otelcol-contrib`: lines reach Raw Logs and the pages; data queued while the link is down arrives later; a revoked key is refused |
 | 8 (done) | Deploy and docs: receiver subdomain, new `.env` settings, user guide, status, changelog |
-| 9 | Part 2: `POST /v1/metrics`, time-series tables in DuckDB (minute → hour roll-up, retention) |
-| 10 | Part 2: Servers and Kubernetes pages, z-score anomalies |
+| 9 | Part 2: `POST /v1/metrics`, time-series tables in DuckDB (minute → hour roll-up, retention); see [`13-metrics.md`](13-metrics.md) |
+| 10 | Part 2: Servers page, unusual values (z-score); see [`13-metrics.md`](13-metrics.md) |
 
 ### Step 2: registry, enrollment and keys
 
 - Texts: enrollment token `mse_<id>_<secret>`, key `msk_<id>_<secret>`; `<id>` is the collector's row id (so the server
   finds the row without scanning), `<secret>` is `secrets.token_urlsafe(32)` (43 characters). Only the SHA-256 of the
   secret is stored and compared in constant time; the texts are shown once (create, new token, enroll, rotate).
-- Flow: `POST /api/admin/collectors` (admin) returns the token (valid 24 h); the install script calls
-  `POST /api/collector/enroll` with `X-Requested-With: monishield-collector` and gets the key. The token works once.
+- Flow: `POST /api/v1/admin/collectors` (admin) returns the token (valid 24 h); the install script calls
+  `POST /api/v1/collector/enroll` with `X-Requested-With: monishield-collector` and gets the key. The token works once.
   Every bad token gives the same error and counts toward the login's per-IP limit (20 per 15 minutes).
 - Rotate: the new key is returned once; the previous key keeps working for 24 h (`previous_valid_until`), so a running
   collector can be updated without losing data. Revoke refuses every key at once. Delete only after revoke (or before
@@ -67,8 +67,8 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 
 ### Step 3: the receiver
 
-The OpenTelemetry Collector's `otlphttp` exporter uses `endpoint: https://<host>/api/collector`, `encoding: json`,
-`compression: gzip` and the header `Authorization: Bearer <key>`; it posts to `POST /api/collector/v1/logs`. The route needs
+The OpenTelemetry Collector's `otlp_http` exporter uses `endpoint: https://<host>/api/v1/collector`, `encoding: json`,
+`compression: gzip` and the header `Authorization: Bearer <key>`; it posts to `POST /api/v1/collector/logs`. The route needs
 no session and no `X-Requested-With`, is not audited and is not touched by the payload encryption (no `X-MS-Enc`). The lines
 are appended to the **collector inbox** (`S4_COLLECTOR_INBOX_DIR`, default `<inbox>/collector`), one write per file under a
 lock, flushed and `fsync`ed before the 200. Step 4 turns that inbox into the third source.
@@ -118,23 +118,52 @@ once a collector is registered or its database holds a day.
 ### Configuration and install (step 5)
 
 `monishield/domain/collector_config.py` (pure) writes the collector's YAML from the platform, MoniShield's address and the log
-inputs the admin chose (`options`, stored with the collector, changed with `PUT /api/admin/collectors/{id}/options`, audit
+inputs the admin chose (`options`, stored with the collector, changed with `PUT /api/v1/admin/collectors/{id}/options`, audit
 `collector.options`):
 
 | Platform | Inputs (`options`) | Receivers |
 |---|---|---|
-| `linux` | `files` (up to 30 groups of absolute path glob + service name), `journald` (+ `units`) | `filelog/<n>`, `journald` |
-| `docker` | the same, plus `containers` | also `filelog/docker` on `/var/lib/docker/containers/*/*-json.log` |
-| `windows` | `channels` (application, system, security), `files` | `windowseventlog/<channel>`, `filelog/<n>` |
+| `linux` | `files` (up to 30 groups of absolute path glob + service name), `journald` (+ `units`) | `file_log/<n>`, `journald` |
+| `docker` | the same, plus `containers` | also `file_log/docker` on `/var/lib/otelcol-contrib/containers/*.log` (name links kept by the helper `docker-names.sh`) |
+| `windows` | `channels` (application, system, security), `files` | `windows_event_log/<channel>`, `file_log/<n>` |
 | `kubernetes` | none (pod logs are always on) | Helm values; the chart's `logsCollection` preset adds the receiver |
 
-Only log inputs exist; host metrics and endpoint checks come with part 2. Choices:
+Every platform also has the option `host_metrics` (CPU, memory, load, file systems, network traffic of the server or node) and Docker
+hosts have `container_metrics` (CPU, memory, network traffic and restarts of each container). Both are described in
+[`13-metrics.md`](13-metrics.md); they add a `metrics` pipeline and the exporter's `metrics_endpoint`. A collector registered before they
+existed has both off until an admin turns them on and runs `install.sh --upgrade`. Endpoint checks come later. Choices:
 
-- **The body is the original line.** The only operators are `container` (unwraps Docker's JSON-file format) and one `add` that
-  sets `container.name`. Docker's log files are named by container id and hold no name, so the first 12 characters of the id
-  (what `docker ps` shows) name the container; a nicer name needs the Docker API and stays a later option.
-- **Always:** `resourcedetection` (`system`, so `host.name` is set), `batch` (`send_batch_size` 500, `send_batch_max_size`
-  1000, `timeout` 5 s; far below the receiver's 16 MB raw limit), exporter `otlphttp` (`encoding: json`, `compression: gzip`,
+- **The body is the original line.** The only operator is `container` (format `docker`, unwraps Docker's JSON-file format).
+- **Docker container names.** Docker's log files are named by container id (`/var/lib/docker/containers/<id>/<id>-json.log`) and hold
+  no name. On a Docker host the installer therefore puts a small POSIX shell script, `/usr/local/lib/monishield/docker-names.sh`
+  (source: `monishield/infrastructure/assets/collector/docker-names.sh`, also printed inside `install.sh`), and a systemd timer next
+  to the collector. The script asks `docker ps -a --no-trunc` (stopped containers too, so their last lines are still read) and keeps
+  `/var/lib/otelcol-contrib/containers/<container name>.log -> <id>-json.log` for every container: links of containers that are gone
+  are removed, a link whose target changed (a container created again under the same name) is replaced. A name is cleaned to letters,
+  digits, dot, underscore and hyphen; two names that are the same after cleaning give the newer container `-<first 8 of its id>`.
+  A container without a json-file log gets no link. `--dry-run` prints the planned changes. When Docker does not answer, nothing is
+  changed. The service `monishield-docker-names.service` (root, `RestrictAddressFamilies=AF_UNIX`: no network) runs from the timer
+  `monishield-docker-names.timer` (`OnBootSec=5s`, `OnUnitActiveSec=15s`, `AccuracySec=1s`) and once before the collector starts
+  (`ExecStartPre=-` in its drop-in).
+  The collector's `file_log/docker` reads `/var/lib/otelcol-contrib/containers/*.log` (the collector follows the links), with
+  `include_file_name`, `start_at: beginning` and `storage: file_storage`: a new link is read from its first line, and the saved
+  offsets keep a restart from reading a file twice (a file is told apart by its first bytes, so a link that now points to another
+  file reads the new file and not the old one again). The `container` operator (format `docker`) is the only parser, and one `add`
+  sets `container.name` from the file name without `.log`; the server uses it as the service and the host as namespace and pod.
+  **First run.** `start_at: beginning` is needed so a new container does not lose its first lines, but on a host whose containers ran
+  for months it would send their whole history. Two limits keep that out: the receiver has `exclude_older_than: 24h` (a log file not
+  written for a day is not read; checked with 0.163.2: the age of the link's target counts), and MoniShield rejects every record whose
+  own time is older than `S4_COLLECTOR_MAX_AGE_HOURS` (default 24, 0 = no limit) as `too old`. A rejected record is answered inside
+  a 200 (`partialSuccess`), so the collector does not retry it, and it shows in the rejected counts of the Collectors page. This also
+  means a collector that was offline for more than that many hours loses the older part of its queue; raise the setting if that
+  matters more than a flood. A running container's file is read from its start once (only the last 24 hours are kept).
+  A first design with the `docker_observer` extension and
+  `receiver_creator` was dropped (checked with 0.163.2 against a real Docker daemon): it finds only containers with an exposed port
+  and finds a container once per exposed port.
+  **An existing Docker collector keeps its id names until it is upgraded:** `sudo sh install.sh --upgrade` (see "Upgrade in place").
+  Lines already stored stay under the id names.
+- **Always:** `resource_detection` (`system`, so `host.name` is set), `batch` (`send_batch_size` 500, `send_batch_max_size`
+  1000, `timeout` 5 s; far below the receiver's 16 MB raw limit), exporter `otlp_http` (`encoding: json`, `compression: gzip`,
   retry without a time limit, `sending_queue` on the `file_storage` extension, so data waits on disk while MoniShield is
   unreachable). The queue directory is `/var/lib/otelcol-contrib/queue` (Linux, Docker), `C:\ProgramData\OpenTelemetry
   Collector\queue` (Windows) or a hostPath `/var/lib/otelcol-monishield/queue` (Kubernetes).
@@ -147,8 +176,8 @@ Only log inputs exist; host metrics and endpoint checks come with part 2. Choice
   least two weeks after its release). **`S4_COLLECTOR_PUBLIC_URL`** is the address collectors send to; empty means the address
   of the request (when empty and `DOCKER_INGEST_DOMAIN` is set, `https://<DOCKER_INGEST_DOMAIN>`).
 
-Enrollment now answers `{collector, key, config}`; `GET /api/collector/config` (collector key) returns the current YAML, so a
-collector can be updated after the options change. The install scripts call `POST /api/collector/enroll?format=install`, which
+Enrollment now answers `{collector, key, config}`; `GET /api/v1/collector/config` (collector key) returns the current YAML, so a
+collector can be updated after the options change. The install scripts call `POST /api/v1/collector/enroll?format=install`, which
 answers the YAML as text with the key, platform and name in the headers `X-Collector-Key`, `X-Collector-Platform` and
 `X-Collector-Name` (no JSON parser is needed in a shell). The scripts are public (`GET /collector/install.sh` and
 `/collector/install.ps1`, no secret in them) and filled in with the pinned version and the receiver address.
@@ -157,7 +186,7 @@ answers the YAML as text with the key, platform and name in the headers `X-Colle
 
 `DOCKER_INGEST_DOMAIN` in `.env` makes Caddy (profile `https`) serve that host with an automatic certificate: `deploy/caddy/entrypoint.sh`
 copies `deploy/caddy/ingest.caddy` into a generated folder that `Caddyfile.letsencrypt` imports, only when the value is set. The host
-passes `/api/collector/*` and the two install scripts to the app, answers 404 for everything else, limits bodies to 10 MB and
+passes `/api/v1/collector/*` and the two install scripts to the app, answers 404 for everything else, limits bodies to 10 MB and
 has no access log. Caddy replaces `X-Forwarded-For` with the collector's real address (and the site drops `Cf-Connecting-Ip`), so
 `client_ip` sees the collector itself. `DOCKER_MAIN_CLOUDFLARE_ONLY=1` (off by default) makes the main site drop every request
 from outside Cloudflare's ranges (`deploy/caddy/cloudflare-only.caddy`, generated by `tools/cloudflare_ips.py` from the one list in
@@ -166,7 +195,7 @@ file recreates them. Owner steps: `docs/07-deploy-vps.md`, "Collector receiver s
 
 ### How to connect a server
 
-The Collectors page (Configuration › Collectors › Add collector) shows the commands below with the token filled in. The token works
+The Collectors page (Configuration › Collectors › Add Collector) shows the commands below with the token filled in. The token works
 once, for 24 hours.
 
 - **Linux (systemd; deb or rpm):** `curl -fsSLo install.sh https://<host>/collector/install.sh`, read it, then
@@ -176,7 +205,9 @@ once, for 24 hours.
   directory, adds the service user to `adm` and `systemd-journal` (so it can read `/var/log` and the journal), checks the
   configuration with `otelcol-contrib validate`, enables and restarts the service and prints its status. Files in other places
   must be readable by the user `otelcol-contrib`. `--dry-run` prints the steps and changes nothing.
-- **Docker host:** the same script. Docker's log files belong to root, so the drop-in runs this service as root.
+- **Docker host:** the same script. Docker's log files and socket belong to root, so the drop-in runs this service as root. It also
+  installs the name helper and its timer (see "Docker container names"), so the services are the container names, stopped containers
+  included. A collector installed before names existed is upgraded in place (see below).
 - **Windows Server (PowerShell 5.1+, as Administrator):** `Invoke-WebRequest -UseBasicParsing -OutFile install.ps1
   https://<host>/collector/install.ps1`, then `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Name <name> -Token <token>`.
   Same flow with the MSI; the key goes into the `Environment` value of the `otelcol-contrib` service in the registry, which only
@@ -186,8 +217,16 @@ once, for 24 hours.
   --from-literal=key=…`), and `helm upgrade --install monishield-collector open-telemetry/opentelemetry-collector -f values.yaml`.
   The Helm values are not run through `otelcol-contrib validate` (there is no cluster here); their exporter, processor and
   extension parts are the same text as the host configurations'.
+- **Upgrade in place (existing collectors):** `curl -fsSLo install.sh https://<host>/collector/install.sh`, then `sudo sh install.sh --upgrade`
+  (Windows: `install.ps1 -Upgrade`). No token and no new key: the script reads the installed key (`/etc/otelcol-contrib/monishield.env`;
+  on Windows the `Environment` value of the service), fetches the current configuration with `GET /api/v1/collector/config` (Bearer key only),
+  checks it with `otelcol-contrib validate`, writes it, installs or refreshes the Docker name helper, its service and timer and the drop-in
+  (Docker only), restarts the service and prints its status. It stops with a clear message when no key is installed or the server refuses
+  it (revoked or replaced key), and it changes nothing when the new configuration does not validate. `--dry-run` prints the steps. The
+  Collectors page shows the command in the details panel of every enrolled Linux, Docker and Windows collector. Only when the key is
+  lost or revoked: Revoke, Delete and add the collector again, then install with the new token.
 - **Changing the inputs later:** change them on the page, then on the server download the new file with the key
-  (`curl -fsS -H "Authorization: Bearer $KEY" https://<host>/api/collector/config -o config.yaml`) and restart the service.
+  (`curl -fsS -H "Authorization: Bearer $KEY" https://<host>/api/v1/collector/config -o config.yaml`) and restart the service.
 - **Checked here:** `tools/fetch_otelcol.py` downloads the pinned release (SHA-256 from the release's `.sha256` file) into the ignored
   `tools/otelcol/`; `tests/test_collector_config.py` runs `otelcol-contrib validate` on several Linux, Docker and Windows
   configurations when the binary is there. The Windows Event Log receiver can only be built on Windows, so there the test checks that
@@ -198,12 +237,12 @@ once, for 24 hours.
 
 Route `/collectors` (admin), entry **Collectors** in the Configuration group (a page, not a pop-up). `web/src/pages/Collectors.svelte`
 with `lib/CollectorForm.svelte` (the inputs), `lib/CollectorInstall.svelte` (token and commands) and `lib/CopyBlock.svelte`; the rules
-the server checks and the command texts are in `web/src/collectors.js` (tested by `tests/test_collectors.mjs`). `GET /api/admin/collectors`
+the server checks and the command texts are in `web/src/collectors.js` (tested by `tests/test_collectors.mjs`). `GET /api/v1/admin/collectors`
 returns, per collector, `options` and `stats` (received, written, rejected by reason, last reject reason, the latest hosts or pods;
-from `CollectorFeed`, in memory) and the receiver address and release the commands use; `GET /api/admin/collectors/{id}/config`
-downloads the configuration or Helm values (no key). The "Open its logs in Raw Logs" link uses the new address part `#pod=<host>`
+from `CollectorFeed`, in memory) and the receiver address and release the commands use; `GET /api/v1/admin/collectors/{id}/config`
+downloads the configuration or Helm values (no key). The "Open in Raw Logs" link uses the new address part `#pod=<host>`
 (Raw Logs then shows that pod's latest lines through a regex search `.`). Choices: Revoke asks with a clear destructive
-confirmation (not a typed name); a Waiting collector offers "New enrollment token"; actions that do not apply are not shown.
+confirmation (not a typed name); a Waiting collector offers "New Enrollment Token"; actions that do not apply are not shown.
 
 ### Log format rules for collector data
 
@@ -221,8 +260,57 @@ match = "sshd"             # a journald unit or syslog identifier; list the serv
 format = "syslog"
 ```
 
+A journald record gets one service per program, always lower case: its unit without `.service` and without the `@instance` of a
+template unit (`getty@tty1.service` is `getty`). A scope (`session-55608.scope`, `init.scope`) or `user@1000.service` is not a
+program, so the record is named by its `SYSLOG_IDENTIFIER` (`sudo`, `sshd`, `systemd`), else `systemd-session` (`systemd` for
+`init.scope`, other scopes and the user manager). Records stored before this rule keep the old names; they are not migrated.
+
 Kubernetes and Docker records keep the original line, so they use the same rule as the Kafka source. Plain files use the
 rule of their service name (`service.name` of the collector's file group, else the file name without rotation suffix).
+
+## Changes
+
+- **Stage 58 (2026-11-05): every endpoint is under `/api/v1`.** The collector machine API moved:
+  `POST /api/collector/v1/logs` → `POST /api/v1/collector/logs`, `POST /api/collector/v1/metrics` → `POST /api/v1/collector/metrics`,
+  `POST /api/collector/enroll` → `POST /api/v1/collector/enroll`, `GET /api/collector/config` → `GET /api/v1/collector/config`.
+  The configuration's `otlp_http` exporter now has explicit `logs_endpoint` and `metrics_endpoint` instead of a base `endpoint` (which
+  made the exporter add `/v1/logs` itself, a double `v1` under the new scheme). **There are no aliases for the old collector paths**
+  (the only collector today is a personal test server): an installed collector keeps sending to the old address, gets 404 and queues
+  the data until it is upgraded. After the release run `install.sh --upgrade` (Windows: `install.ps1 -Upgrade`) on the host: the script
+  is served fresh, already uses the new config path with the installed key, writes the new configuration and restarts the collector;
+  the queued data is then sent. The receiver host (`DOCKER_INGEST_DOMAIN`) now allows only `/api/v1/collector/*` and the two install scripts.
+
+## Live map
+
+With a collector and no Kafka, the Command Center map used to stay empty. Since stage 57 the HTTP access lines that arrive through the
+receiver feed the same live map as Kafka's nginx lines (the **LIVE** badge, one pulse per request).
+
+- **What is read.** After the lines of a request are on disk, every record whose service matches a rule of kind `http` in
+  `log-formats.toml` is read with that rule's reader (`domain/live_map.py`): `ingress-nginx`, `nginx-frontend`, `nginx-combined`,
+  `apache-combined`, `caddy-json` and a `json` / `logfmt` / `regex` rule with `kind = "http"`. Records of other services, lines that
+  do not read, and Caddy's own non-access lines are ignored. At most 2,000 lines of one request go to the map (the lines are all stored).
+  A failure on the map side is swallowed: a receive never fails or waits because of it.
+- **Where the location comes from.** The visitors the collector database knows (`ip_info`), else the offline lookup of the GeoLite2
+  file the ingest downloads (`infrastructure/geo_lookup.py`): read once in a background thread into compact arrays, searched by
+  binary search, with a bounded LRU cache (20,000 addresses). A new visitor therefore shows at once instead of after the next
+  ingest. Until the file is loaded, or when there is none (no MaxMind key), the lines are not drawn. The address never leaves the process.
+- **Hubs.** One `LiveHub` per live source (`application/live_map.py`): `state.kafka.live` and `state.collector_feed.live`.
+  `GET /api/v1/live/map?source=kafka|collector` streams the hub of the page's source as Server-Sent Events:
+  `{p: [[lat, lon, count, module], …]}` per second, with the module = the line's upstream, else the service. 204 when that source is
+  not running (`s3` has no live stream). The browser sends the page's `?source=` (`FlowMap.svelte`).
+- **Privacy.** The stream carries coordinates, counts and the module only; no IP address is sent to the browser or to a third party.
+- **Caddy of MoniShield itself.** The `https` profile writes a JSON access log to the container log (`DOCKER_ACCESS_LOG`,
+  `docs/07-deploy-vps.md`); a collector on that Docker host reads it, and the rule `match = "monishield-https-1"`,
+  `format = "caddy-json"` (`docs/11-log-formats.md`, section 2a) turns it into map pulses and normal log pages.
+
+## Groups
+
+A collector can have a group (`collector.group_name`, nullable, 40 characters, trimmed; letters, digits, space, dot, underscore and hyphen,
+starting with a letter or digit; empty = no group). `domain/collectors.check_group` returns `invalid_group` for anything else; a name that
+matches an existing group without regard to case takes that group's spelling; the list of groups is the distinct non-empty values (no table).
+`POST /api/v1/admin/collectors` and `PUT /api/v1/admin/collectors/{id}/options` accept `group` (the second one `options`, `group` or both); the list
+answer carries `group` per collector and `groups`; a change is audited as `collector.group` (`name: old -> new`); admins only. An older
+database gets the column at start. The Collectors page shows sections per group; `GET /api/v1/servers` returns the group of each server.
 
 ## 5. Safety
 
@@ -231,6 +319,13 @@ rule of their service name (`service.name` of the collector's file group, else t
   consumer's, no path built from unchecked input.
 - The receiver only writes inbox files; ingest keeps the database lock as today.
 - Logs go from the client's server to MoniShield only (no third party on the way).
+- Two kinds of endpoint, two kinds of protection. What the **web UI** reads (`/api/v1/admin/collectors…`, `/api/v1/servers…`) goes through
+  `web/src/api.js` and carries the page key (ECDH + AES-GCM bodies, `X-MS-Enc`, `interfaces/api/wire.py`): requests and answers, errors
+  included, are `application/octet-stream` ciphertext, which `tests/test_wire_collectors.py` checks and the browser smoke test repeats on
+  the Collectors and Servers pages. The configuration download is a plain file link (YAML), not JSON, and holds no key. What the
+  **machines** call (the receivers `/api/v1/collector/logs` and `/metrics`, `/api/v1/collector/enroll`, `/api/v1/collector/config` and the
+  install scripts) is used by `otelcol-contrib` and `curl`, which do not run the page's script: it is protected by HTTPS on the DNS-only
+  ingest subdomain and by the collector's own key (`Authorization: Bearer msk_…`), not by the page key.
 
 ## 6. Known limits
 

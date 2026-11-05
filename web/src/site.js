@@ -1,4 +1,4 @@
-// Site profile from /api/meta (server: monishield/domain/services.py): the service folder name of each role and the
+// Site profile from /api/v1/meta (server: monishield/domain/services.py): the service folder name of each role and the
 // pattern of the site's own network. Set once after sign-in (App.svelte); components read $site instead of fixed names.
 import { writable } from 'svelte/store';
 import { setTimezone } from './tz.js';
@@ -8,7 +8,7 @@ const DEFAULT = { roles: { frontend: 'web-frontend', events: 'event-api', auth: 
 
 export const site = writable(DEFAULT);
 
-/** meta = the /api/meta answer. An invalid own-network pattern is ignored (the server validates it too). */
+/** meta = the /api/v1/meta answer. An invalid own-network pattern is ignored (the server validates it too). */
 export function setSite(meta) {
   let ownOrg = null;
   try { ownOrg = meta?.own_org ? new RegExp(meta.own_org, 'i') : null; } catch { /* invalid pattern: no tag */ }

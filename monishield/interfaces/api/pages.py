@@ -13,7 +13,7 @@ from monishield.infrastructure.queries import (availability as q_availability, b
                                                security as q_security, service as q_service, tables as q_tables, tracing as q_tracing, trends as q_trends)
 from .common import ApiError, client_ip, cursor, folder_param, require_user_ready, source_ctx
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
+router = APIRouter(prefix='/api/v1', dependencies=[Depends(require_user_ready)])
 
 
 def _cfg(request): return request.app.state.cfg

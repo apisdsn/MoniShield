@@ -1,5 +1,5 @@
 <!-- Command Center (Stage 22, DRD §12, TRD §12): absorbs the IP Map tab (ASSUMPTION DRD §12) at the same address (#/peta, ?modul=).
-     One request: GET /api/folders/{folder}/command-center[?module=…] = main KPIs (+ previous folder) + "what needs attention"
+     One request: GET /api/v1/folders/{folder}/command-center[?module=…] = main KPIs (+ previous folder) + "what needs attention"
      + hourly + map data (IP Map response). Layout: 6 operational KPIs with ▲/▼ change vs the previous folder ·
      module picker + map numbers · map as wide and tall as the screen (main content, owner request) · attention card ·
      2 hourly charts (requests; 5xx & attacks — different scales, so two charts, not two axes) · flow table.
@@ -34,7 +34,7 @@
     busy = true; error = null; onready?.(false);
     try {
       const q = module ? `?module=${encodeURIComponent(module)}` : '';
-      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/command-center${q}`);
+      const j = await api.get(`/api/v1/folders/${encodeURIComponent(folder)}/command-center${q}`);
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) {

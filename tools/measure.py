@@ -91,19 +91,19 @@ def measure_api(host, folder, user='admin', repeat=5):
         else:
             op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
             pw = os.environ.get('S4_MEASURE_PASSWORD') or getpass.getpass(f'Password for {user}: ')
-            sign_in = urllib.request.Request(base + '/api/auth/login', data=json.dumps(dict(username=user, password=pw)).encode(),
+            sign_in = urllib.request.Request(base + '/api/v1/auth/login', data=json.dumps(dict(username=user, password=pw)).encode(),
                                            headers={'Content-Type': 'application/json', 'X-Requested-With': 'measure'})
             try: op.open(sign_in).read()
             except urllib.error.HTTPError as e: sys.exit(f'sign-in failed: {e.code} {e.read()[:200]!r}')
             get = lambda path: op.open(base + path).read()
     else:
         sys.exit('--api needs HOST:PORT of a running server')
-    folders = json.loads(get('/api/meta'))['folders']
+    folders = json.loads(get('/api/v1/meta'))['folders']
     folder = folder or max(folders, key=lambda f: f['lines'])['folder']
-    svc = [s['service'] for s in json.loads(get(f'/api/folders/{folder}'))['services']]
-    urls = ['/api/meta', f'/api/folders/{folder}'] + [f'/api/folders/{folder}/{h}' for h in ('overview', 'map', 'security', 'rootcause', 'availability', 'pods', 'business', 'tracing')]
-    urls += [f'/api/folders/{folder}/services/{s}' for s in svc] + ['/api/trends', '/api/trends?last=all',
-             f'/api/folders/{folder}/tables/flows?limit=500', f'/api/folders/{folder}/tables/trace?q=unauthorized']
+    svc = [s['service'] for s in json.loads(get(f'/api/v1/folders/{folder}'))['services']]
+    urls = ['/api/v1/meta', f'/api/v1/folders/{folder}'] + [f'/api/v1/folders/{folder}/{h}' for h in ('overview', 'map', 'security', 'rootcause', 'availability', 'pods', 'business', 'tracing')]
+    urls += [f'/api/v1/folders/{folder}/services/{s}' for s in svc] + ['/api/v1/trends', '/api/v1/trends?last=all',
+             f'/api/v1/folders/{folder}/tables/flows?limit=500', f'/api/v1/folders/{folder}/tables/trace?q=unauthorized']
     print(f'# Endpoints over HTTP ({host}), folder {folder}; min / median of {repeat} (ms), size (KB); '
           f'target ≤ {TARGET["api_ms"]} ms and ≤ {TARGET["api_kb"]} KB')
     failed = []

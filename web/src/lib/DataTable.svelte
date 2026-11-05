@@ -63,7 +63,7 @@
   async function load({ append = false } = {}) {
     busy = true; error = null;
     try {
-      const j = await api.post(`/api/folders/${encodeURIComponent(folder)}/tables/${encodeURIComponent(table)}`, compact({ ...params, q: qSent,
+      const j = await api.post(`/api/v1/folders/${encodeURIComponent(folder)}/tables/${encodeURIComponent(table)}`, compact({ ...params, q: qSent,
         sort, dir: sort ? dir : null, limit: append ? STEP : Math.max(baseLimit, 1), offset: append ? data.rows.length : 0 }));
       data = append ? { ...j, rows: [...data.rows, ...j.rows] } : j;
     } catch (e) {
@@ -297,7 +297,7 @@
     .cards td { border: 0; padding: 4px 0; text-align: left !important; white-space: normal !important; position: static !important; background: none !important; min-width: 0 !important; }
     .cards td.k { font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid var(--row-line); margin-bottom: 4px; }
     .cards td:not(.k) { display: grid; grid-template-columns: minmax(90px, 40%) 1fr; gap: 10px; justify-items: start; }   /* tag/button as wide as its content, not as wide as the column */
-    .cards td:not(.k)::before { content: attr(data-label); color: var(--th-fg); font-size: 0.75rem; text-transform: capitalize; }
+    .cards td:not(.k)::before { content: attr(data-label); color: var(--th-fg); font-size: 0.75rem; }
     .cards td.none { display: block; }
     .cards td.none::before { content: none; }
     .foot .btn { width: 100%; min-height: var(--touch); }

@@ -1,5 +1,5 @@
 <!-- Pods (DRD §3.7, inv. §2.7): 5 KPIs, notes, 2 charts, 3 tables. Log files from the folder summary (already loaded by the shell);
-     backend pods + restarts from GET /api/folders/{folder}/pods. Changed: "Pods with 502 retries" -> "Pods with retries"
+     backend pods + restarts from GET /api/v1/folders/{folder}/pods. Changed: "Pods with 502 retries" -> "Pods with retries"
      (B10); file status "Rusak" (B05). -->
 <script>
   import { lang, t } from '../i18n.js';
@@ -21,7 +21,7 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
-      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/pods`);
+      const j = await api.get(`/api/v1/folders/${encodeURIComponent(folder)}/pods`);
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) error = e;

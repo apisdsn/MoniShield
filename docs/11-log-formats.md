@@ -1,7 +1,7 @@
 # Plan — configurable log formats (stage 1 of "any log")
 
 Status: approved by the owner 2026-10-29 (public sample formats; rules in a file **and** on the Configuration page).
-Steps 1a (rules model, file, validation, built-in rules), 1b (common formats, `http_access` / `app_line`) and 1c (pages,
+The `caddy-json` preset (stage 57) reads Caddy's JSON access log. Steps 1a (rules model, file, validation, built-in rules), 1b (common formats, `http_access` / `app_line`) and 1c (pages,
 attack detection and map read the new tables) are built; 1d–1e follow.
 
 ## 1. Goal
@@ -30,6 +30,7 @@ configurable folder layout (stage 3).
    | `ingress-nginx` | ingress-nginx access + error log (today's parser) |
 | `nginx-frontend` | today's frontend parser: nginx-style access log, client = first `X-Forwarded-For` entry |
    | `nginx-combined`, `apache-combined` | standard access logs, optional upstream time / request id at the end |
+   | `caddy-json` | Caddy's JSON access log (`log { format json }`; MoniShield's own Caddy writes it, section 2a). Fields and units are fixed: see below |
    | `json` | one JSON object per line (pino, winston, zap, logrus, Serilog, …); `fields` maps keys, dotted paths allowed |
    | `logfmt` | `key=value key="quoted value"` lines (Go, Heroku style) |
    | `spring-boot` | Spring Boot / Logback default pattern (today's parser, login and JasperReports rules as features) |
@@ -50,6 +51,43 @@ configurable folder layout (stage 3).
    do not care where a line came from.
 7. **Visible quality.** Each file records how many lines did not match its format. The Pods / Trends completeness view
    and the service page show the rate; above 5 % the service gets a warning "format does not fit".
+
+### 2a. Caddy's JSON access log (`caddy-json`)
+
+The preset reads the entry of Caddy's `log` directive with the JSON encoder (its documented example is in
+`tests/fixtures/formats/caddy-json.log`). The columns are fixed, so the rule needs no `fields`:
+
+| Column | Caddy field |
+|---|---|
+| time | `ts` (epoch seconds, fractions allowed) |
+| ip | `request.client_ip`, else `request.remote_ip` |
+| method, path | `request.method`, `request.uri` (with the query) |
+| status, bytes | `status`, `size` |
+| duration_ms | `duration` (seconds, stored as milliseconds) |
+| ua, referer | `request.headers.User-Agent[0]`, `request.headers.Referer[0]` |
+
+An entry without a `status` is not an access entry: Caddy's own lines on the same stream (certificates, errors) count as
+unread lines, never as errors. `request.client_ip` is the visitor behind Cloudflare only when Caddy trusts Cloudflare's
+ranges; MoniShield's own Caddy does (`DOCKER_ACCESS_LOG`, docs/07-deploy-vps.md).
+
+A collector on a Docker host reads MoniShield's own Caddy from the container log; the service name is the container name:
+
+```toml
+[[service]]
+match  = "monishield-https-1"
+format = "caddy-json"
+```
+
+A Linux host whose Caddy writes the log to a file (`log { output file /var/log/caddy/access.log  format json }`) is
+read by a collector `filelog` source or an S3/upload folder named after the service:
+
+```toml
+[[service]]
+match  = "caddy"
+format = "caddy-json"
+```
+
+Rules for such a host also feed the live map when the lines arrive through a collector (docs/12-collector.md, "Live map").
 
 ### Example: a site with 8 services
 
@@ -115,6 +153,9 @@ format = "plain"
 | `tag` | `events-json` only: the `[TAG-…]` prefix (today `S4_EVENT_TAG`) |
 | `features` | `logins`, `pdf`, `tracing` |
 | `ip_header` | `http` only: take the client from `X-Forwarded-For`-style field instead of the peer column |
+| `duration_unit` | `json` / `logfmt`: unit of the mapped duration, `ms` (default), `s`, `us` or `ns`; it is stored as milliseconds |
+
+A path in `fields` may end a part in `[n]` to take the n-th element of a list (`request.headers.User-Agent[0]`).
 
 Validation at start (like the other settings): unknown keys, unknown presets, a `regex` without `message` or `time`,
 patterns longer than 2,000 characters or with nested quantifiers (`(a+)+`) are refused with the rule's position.

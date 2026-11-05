@@ -70,13 +70,48 @@ def test_file_stem(path, stem):
 def test_journald_line_is_read_by_the_syslog_preset():
     recs, rej = run('journald')
     assert rej == {} and [where(r) for r in recs] == [('web-01', 'sshd', 'web-01'), ('web-01', 'kernel', 'web-01'),
-                                                      ('web-01', 'journald', 'web-01'), ('collector-1', 'user-1000', 'collector-1')]
+                                                      ('web-01', 'journald', 'web-01'), ('collector-1', 'systemd', 'collector-1')]
     rule = lf.Rule('sshd', 'syslog', 'app')
     got = [F.read_syslog(r['line'], rule) for r in recs]
     assert (got[0]['time'], got[0]['level'], got[0]['message'], got[0]['logger']) == ('2026-11-04 09:55:36', 'INFO', 'Accepted publickey for deploy from 198.51.100.7', 'sshd')
     assert (got[1]['time'], got[1]['level']) == ('2026-11-04 09:55:37', 'ERROR')          # PRIORITY 3 = err
     assert got[2]['level'] == 'INFO' and got[2]['message'] == 'something happened'         # default PRIORITY 6
     assert recs[0]['line'].startswith('<30>1 2026-11-04T09:55:36.000Z web-01 sshd 812 - - ')
+
+
+def journald_service(**fields):
+    body = {'kvlistValue': {'values': [{'key': k, 'value': {'stringValue': v}} for k, v in dict(MESSAGE='m', **fields).items()]}}
+    recs, rej = one(body, attrs={'host.name': 'web-01'})
+    assert rej == {}
+    return recs[0]['svc']
+
+
+@pytest.mark.parametrize('fields,svc', [
+    (dict(_SYSTEMD_UNIT='CRON.service', SYSLOG_IDENTIFIER='CRON'), 'cron'),                   # lower case always: CRON and cron are one service
+    (dict(SYSLOG_IDENTIFIER='CRON'), 'cron'),
+    (dict(_SYSTEMD_UNIT='cron.service'), 'cron'),
+    (dict(_SYSTEMD_UNIT='ssh.service', SYSLOG_IDENTIFIER='sshd'), 'ssh'),                      # a real unit wins over the identifier
+    (dict(_SYSTEMD_UNIT='getty@tty1.service'), 'getty'),                                       # template unit: the instance is dropped
+    (dict(_SYSTEMD_UNIT='systemd-fsck@dev-disk-by\\x2duuid-1.service'), 'systemd-fsck'),
+    (dict(_SYSTEMD_UNIT='session-55608.scope', SYSLOG_IDENTIFIER='sudo'), 'sudo'),             # a session scope is not a program
+    (dict(_SYSTEMD_UNIT='session-55608.scope', SYSLOG_IDENTIFIER='SSHD'), 'sshd'),
+    (dict(_SYSTEMD_UNIT='session-55608.scope'), 'systemd-session'),
+    (dict(_SYSTEMD_UNIT='init.scope', SYSLOG_IDENTIFIER='systemd'), 'systemd'),
+    (dict(_SYSTEMD_UNIT='init.scope'), 'systemd'),
+    (dict(_SYSTEMD_UNIT='docker-0123abcd.scope'), 'systemd'),
+    (dict(_SYSTEMD_UNIT='user@1000.service', SYSLOG_IDENTIFIER='systemd'), 'systemd'),         # the user manager is not a service of its own
+    (dict(_SYSTEMD_UNIT='user@1000.service', SYSLOG_IDENTIFIER='(sd-pam)'), 'sd-pam'),
+    (dict(_SYSTEMD_UNIT='user@1000.service'), 'systemd'),
+    (dict(SYSLOG_IDENTIFIER='Some Tool!'), 'some-tool'),
+    (dict(), 'journald'),
+])
+def test_journald_has_one_service_per_program(fields, svc):
+    assert journald_service(**fields) == svc
+
+
+def test_journald_service_name_is_valid_in_the_inbox():
+    for fields in (dict(_SYSTEMD_UNIT='Foo@Bar.service'), dict(_SYSTEMD_UNIT='session-1.scope', SYSLOG_IDENTIFIER='sudo')):
+        assert otlp.kafka_message.NAME.fullmatch(journald_service(**fields))
 
 
 def test_windows_event_log_is_one_json_line_read_by_a_json_rule():
@@ -93,6 +128,35 @@ def test_windows_event_log_is_one_json_line_read_by_a_json_rule():
 def test_docker_container():
     recs, rej = run('docker')
     assert rej == {} and where(recs[0]) == ('docker-01', 'redis', 'docker-01')
+
+
+@pytest.mark.parametrize('name,svc', [('web-test', 'web-test'), ('/web-test', 'web-test'), ('/Shop_DB.1', 'Shop_DB.1'),
+                                      ('/stack/web 1', 'stack-web-1'), ('  /redis  ', 'redis'), ('/ä-api', 'api')])
+def test_docker_container_name_is_cleaned_like_other_names(name, svc):
+    recs, rej = one('hello', attrs={'host.name': 'docker-01', 'container.name': name, 'container.image.name': 'busybox', 'container.id': 'ab12'})
+    assert rej == {} and where(recs[0]) == ('docker-01', svc, 'docker-01') and recs[0]['line'] == 'hello'
+    assert rules.split_relpath(recs[0]['relpath'])[2] == svc
+
+
+def test_docker_name_that_is_nothing_but_odd_characters_falls_back_to_the_service_name():
+    recs, rej = one('hello', attrs={'host.name': 'docker-01', 'container.name': '/@@', 'service.name': 'api'})
+    assert rej == {} and where(recs[0]) == ('docker-01', 'api', 'docker-01')
+
+
+def test_records_older_than_max_age_are_rejected_as_too_old():
+    hour = datetime.timedelta(hours=1)
+    recs, rej = one('line', t='1793786136000000000', now=NOW + 24 * hour)                   # 24 h 5 min old
+    assert len(recs) == 1 and rej == {}                                                        # no limit given: kept
+    p = {'resourceLogs': [{'scopeLogs': [{'logRecords': [
+        {'timeUnixNano': '1793786136000000000', 'body': {'stringValue': 'old'}},               # 09:55:36, 24 h 5 min before the next day's 10:00
+        {'timeUnixNano': '1793872200000000000', 'body': {'stringValue': 'fresh'}},             # 2026-11-05T09:50:00Z
+        {'body': {'stringValue': 'no time'}}]}]}]}                                             # no time of its own: the receive time, never old
+    later = NOW + 24 * hour
+    recs, rej = otlp.parse_logs(p, 'c', later, 24 * hour)
+    assert [r['line'] for r in recs] == ['fresh', 'no time'] and rej == {'too old': 1}
+    recs, rej = otlp.parse_logs(p, 'c', later, None)
+    assert len(recs) == 3 and rej == {}
+    assert otlp.partial_success({'too old': 2})['partialSuccess']['errorMessage'] == '2 log records rejected: too old (2)'
 
 
 def test_bad_records_are_rejected_with_a_reason():

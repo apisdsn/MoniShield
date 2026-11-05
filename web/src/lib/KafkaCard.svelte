@@ -16,16 +16,16 @@
   let { compact = false } = $props();
   let s = $state.raw(null), err = $state(null), peek = $state.raw(null), peekErr = $state(null), busy = $state('');
 
-  export async function load() { try { s = await api.get('/api/admin/kafka'); err = null; } catch (e) { err = $errText(e); } }
+  export async function load() { try { s = await api.get('/api/v1/admin/kafka'); err = null; } catch (e) { err = $errText(e); } }
   onMount(() => { load(); const iv = setInterval(() => { if (!document.hidden) load(); }, 5000); return () => clearInterval(iv); });
 
   async function doPeek() {
     busy = 'peek'; peekErr = null; peek = null;
-    try { peek = await api.post('/api/admin/kafka/peek', { n: 10 }); } catch (e) { peekErr = $errText(e); } finally { busy = ''; }
+    try { peek = await api.post('/api/v1/admin/kafka/peek', { n: 10 }); } catch (e) { peekErr = $errText(e); } finally { busy = ''; }
   }
   async function ingestNow() {
     busy = 'ingest';
-    try { await api.post('/api/admin/kafka/ingest', {}); toast($t('kf.ingest_started')); setTimeout(load, 800); } catch (e) { toast($errText(e)); } finally { busy = ''; }
+    try { await api.post('/api/v1/admin/kafka/ingest', {}); toast($t('kf.ingest_started')); setTimeout(load, 800); } catch (e) { toast($errText(e)); } finally { busy = ''; }
   }
   const STATE = { running: ['ok', 'kf.st.running'], connecting: [1, 'kf.st.connecting'], error: [3, 'kf.st.error'], off: [1, 'kf.st.off'] };
   const when = (x) => (x ? tLocal(utcToLocal(x.replace('T', ' ')), $lang) : '—');

@@ -1,5 +1,5 @@
 <!-- Global search (Stage 24 item 6): the 🔍 button in the header (also Ctrl+K / ⌘K; "/" is already used for the table filter) opens a dialog; type an IP,
-     account, requestId, or a URL fragment -> GET /api/search?q=…&folder=… (the currently selected folder). Results grouped
+     account, requestId, or a URL fragment -> GET /api/v1/search?q=…&folder=… (the currently selected folder). Results grouped
      by kind; Enter / click opens the target page with its table filter filled in (?cari=…). All result text = plain text. -->
 <script>
   import { srv, errText } from '../srv.js';
@@ -27,7 +27,7 @@
       const my = ++seq;
       busy = true; error = null;
       try {
-        const j = await api.post('/api/search', folder ? { q: text, folder } : { q: text });   // POST: the text stays out of URLs
+        const j = await api.post('/api/v1/search', folder ? { q: text, folder } : { q: text });   // POST: the text stays out of URLs
         if (my === seq) { res = j; active = 0; }
       } catch (e) { if (my === seq) error = e; }
       finally { if (my === seq) busy = false; }
