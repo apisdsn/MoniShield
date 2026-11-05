@@ -12,18 +12,18 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import account_service, alert_service, collector_feed, collector_service, metrics_feed, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
+from monishield.application import account_service, alert_service, collector_feed, collector_service, metrics_feed, metrics_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
 from monishield.domain import config_model, detect, log_formats, services, timezone
 from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, metrics_store, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
-from monishield.interfaces.api import admin, collector_install, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
+from monishield.interfaces.api import admin, collector_install, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, servers, session, upload, users, wire as payload
 from .common import ROLE_DEPS, FailureLimiter, RateWindow, Slots
 
 WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
-ROUTERS = (meta.router, session.router, payload.router, users.router, collectors.router, collector_install.router, collector_logs.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
+ROUTERS = (meta.router, session.router, payload.router, users.router, collectors.router, collector_install.router, collector_logs.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router, servers.router)
 
 
 
@@ -100,6 +100,7 @@ def wire(state, cfg, env_path):
     state.collector_feed = collector_feed.CollectorFeed(state)
     state.metrics = metrics_store.MetricsStore(cfg.metrics_db_path)   # opened on first use; closed in lifespan
     state.metrics_feed = metrics_feed.MetricsFeed(state)
+    state.metrics_service = metrics_service.MetricsService(state)   # roll-up and retention thread
     state.collector_failures = FailureLimiter()   # wrong collector keys per IP (receiver only)
     state.collector_slots = Slots()               # requests being read and stored (memory)
     state.collector_rates = RateWindow()          # requests per collector per minute
@@ -145,6 +146,9 @@ def create_app(cfg=None, env_path=None):
             kafka.ingest.start(by='(server start)')   # waits for the S3 ingest: one ingest at a time
         app.state.imports.start_watch()
         app.state.alerts.start()
+        try: app.state.metrics.open()
+        except Exception: pass   # noqa: BLE001  the metrics file is not readable now: the receiver and the page report it, the log pages keep working
+        app.state.metrics_service.start()   # hourly roll-up and retention of the metrics
         app.state.collector_feed.start()   # ingest of what the receiver wrote (and a catch-up of folders not in the database yet)
         app.state.kafka.start()   # logs from Kafka (when S4_KAFKA_BROKERS + S4_KAFKA_TOPIC are set)
         app.state.retention.start()   # daily cleanup when S4_RETENTION_DAYS / S4_RETENTION_INBOX_DAYS are set
@@ -157,6 +161,7 @@ def create_app(cfg=None, env_path=None):
         kafka.retention.stop()
         collector.retention.stop()
         app.state.collector_feed.stop()
+        app.state.metrics_service.stop()
         app.state.imports.stop_watch()
         app.state.alerts.stop()
         app.state.kafka.stop()

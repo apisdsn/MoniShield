@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS metric_target (cid BIGINT, host VARCHAR, ctr VARCHAR,
 '''
 
 
+REDO = datetime.timedelta(hours=25)   # rolled up again on each run: late points of the last day are counted
+
+
 def naive(t):
     """Aware time -> UTC time without zone, as stored."""
     return t.astimezone(datetime.timezone.utc).replace(tzinfo=None) if t.tzinfo else t
@@ -64,12 +67,59 @@ class MetricsStore:
             con = self.open()
             if points:
                 db.insert_rows(con, 'metric_point', [[cid, h, c, n, d, naive(t).strftime('%Y-%m-%d %H:%M:%S'), v] for h, c, n, d, t, v in points])
-            seen = naive(now)
-            for (host, ctr), info in targets.items():
-                con.execute('''INSERT INTO metric_target (cid, host, ctr, os, image, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?)
+            if targets:
+                seen = naive(now)
+                rows = [[cid, host, ctr, info.get('os'), info.get('image'), seen, seen] for (host, ctr), info in targets.items()]
+                con.execute(f'''INSERT INTO metric_target (cid, host, ctr, os, image, first_seen, last_seen) VALUES {', '.join(['(?, ?, ?, ?, ?, ?, ?)'] * len(rows))}
                                ON CONFLICT (cid, host, ctr) DO UPDATE SET os = COALESCE(excluded.os, os), image = COALESCE(excluded.image, image),
-                               last_seen = excluded.last_seen''', [cid, host, ctr, info.get('os'), info.get('image'), seen, seen])
+                               last_seen = excluded.last_seen''', [v for r in rows for v in r])
 
-    # reading (tests and the read side)
+    def forget(self, cid):
+        """Remove everything of a collector that is deleted (its id may be given to a new one)."""
+        with self.lock:
+            con = self.open()
+            for table in ('metric_point', 'metric_hour', 'metric_target'): con.execute(f'DELETE FROM {table} WHERE cid = ?', [cid])
+
+    # roll-up and retention (application/metrics_service.py runs these every few minutes)
+    def rollup(self, now):
+        """Hourly average, maximum and count of every series for the finished hours. Idempotent: an hour that is rolled up again gets
+        the same numbers plus late points. Starts a little before the newest hour already rolled up, so points that arrived late
+        (a collector that was offline and sent its queue) are counted; at most S4_COLLECTOR_MAX_AGE_HOURS late, so REDO covers it.
+        -> the number of hour rows written."""
+        with self.lock:
+            con = self.open()
+            end = naive(now).replace(minute=0, second=0, microsecond=0)
+            first = con.execute('SELECT min(t) FROM metric_point').fetchone()[0]
+            if first is None: return 0
+            last = con.execute('SELECT max(t) FROM metric_hour').fetchone()[0]
+            start = first.replace(minute=0, second=0, microsecond=0)
+            if last is not None: start = max(start, last - REDO)
+            if start >= end: return 0
+            con.execute('''INSERT INTO metric_hour (cid, host, ctr, name, dim, t, avg, max, n)
+                           SELECT cid, host, ctr, name, dim, date_trunc('hour', t), avg(v), max(v), count(*) FROM metric_point
+                           WHERE t >= ? AND t < ? GROUP BY ALL
+                           ON CONFLICT (cid, host, ctr, name, dim, t) DO UPDATE SET avg = excluded.avg, max = excluded.max, n = excluded.n''', [start, end])
+            return con.execute('SELECT count(*) FROM metric_hour WHERE t >= ? AND t < ?', [start, end]).fetchone()[0]
+
+    def prune(self, now, raw_days, hour_days):
+        """Delete points older than `raw_days`, hours and targets older than `hour_days`. -> (points, hours, targets) deleted."""
+        with self.lock:
+            con = self.open()
+            n = naive(now)
+            out = []
+            for table, col, days in (('metric_point', 't', raw_days), ('metric_hour', 't', hour_days), ('metric_target', 'last_seen', hour_days)):
+                cut = n - datetime.timedelta(days=days)
+                out.append(con.execute(f'SELECT count(*) FROM {table} WHERE {col} < ?', [cut]).fetchone()[0])
+                if out[-1]: con.execute(f'DELETE FROM {table} WHERE {col} < ?', [cut])
+            if any(out):
+                try: con.execute('CHECKPOINT')      # give the freed space back to the file
+                except duckdb.Error: pass           # a reader is busy: the next round does it
+            return tuple(out)
+
+    # reading
+    def cursor(self):
+        """A cursor for the read side (queries run beside a write; the caller closes it)."""
+        return self.open().cursor()
+
     def rows(self, sql, params=()):
         with self.lock: return self.open().execute(sql, list(params)).fetchall()

@@ -55,8 +55,76 @@ encoding checks, rate window, request slots, size limits before and after gunzip
 - `infrastructure/metrics_store.py`: its own file `<data dir>/metrics.duckdb`, one connection, one lock; tables `metric_point`,
   `metric_hour`, `metric_target`; a request inserts its points in one statement.
 
-## 4. Docker API version
+## 4. Roll-up and retention
+
+`application/metrics_service.py` runs from a thread started and stopped in the app's `lifespan`, first 30 seconds after start and then
+every 5 minutes:
+
+1. **Roll-up.** Every finished hour becomes one row per series in `metric_hour` (average, maximum, number of points). The roll-up starts
+   25 hours before the newest hour already there, so points that arrived late (a collector that was offline and sent its queue; at most
+   `S4_COLLECTOR_MAX_AGE_HOURS` old) are counted; an hour rolled up again gets the same numbers plus the late points.
+2. **Retention.** Points older than `S4_METRICS_RAW_DAYS` (default 7), hours and targets older than `S4_METRICS_HOUR_DAYS`
+   (default 90) are deleted. The delete always follows the roll-up, so a point is never removed before it is in its hour.
+
+Deleting a collector deletes its metrics too (the id may be given to a new collector).
+
+## 5. Unusual values
+
+`domain/metric_anomaly.py`, used by `GET /api/servers`. For the CPU and the memory in use of every server and container:
+
+- **current** = the mean of the last 10 minutes (at least 4 points);
+- **baseline** = the hourly averages of the same hour of the day on each of the previous 7 days (a day counts when that hour has at least
+  30 points); at least 5 days are needed, otherwise there is no verdict (a new server is never called unusual);
+- **z** = (current - mean) / max(std, floor), with the sample standard deviation. Floor: CPU 2 percentage points; memory 2 % of the
+  total (of the limit for a container) but at least 50 MB. The floor keeps a very steady server from turning small changes into big numbers;
+- **unusual** when z is 3 or more (only higher than usual). The usual band shown is mean +- max(std, floor);
+- **started**: the earliest 5-minute bucket of the last 6 hours after which every bucket stayed above mean + 3 x max(std, floor);
+  none when the newest bucket is already back below it.
+
+Disks have no z-score: a mount point that is 90 % full or more is listed under `disk_full`.
+
+## 6. Read API
+
+For every signed-in user (like the Pods page); host and container names and numbers are not personal data, so these are plain GETs.
+
+- `GET /api/servers?range=1h|24h|7d|30d` (default 24h) -> `hosts` (collector id and name, platform, collector status `online` / `late` /
+  `offline` / `revoked`, host, OS, last seen, number of containers, current cpu, mem_used, mem_total, load1, net_rx, net_tx, and the
+  `disks` with used, total and percent), `unusual` (worst first: kind, host, container, name, z, current, usual low and high, started) and
+  `disk_full`. "Current" is the newest point of the last hour, else null.
+- `GET /api/servers/host?cid=&host=&range=` -> the series for the charts (`cpu`, `mem_used` and `mem_total`, `disk_used` and `disk_total`
+  of `/` or else the first mount point, `net_rx` and `net_tx`, `load1`) and the `containers` (name, image, running = seen in the last 2
+  minutes, last seen, current values, restarts, and a memory sparkline of 24 hourly averages). Containers last seen before the range
+  (at least 24 hours) are left out.
+- Buckets: 1h = the points (every 30 s); 24h = 30-minute averages of the points; 7d = 3-hour and 30d = 12-hour averages of the hourly
+  rows, weighted by their number of points, with the hour in progress added from the points. Times are ISO 8601 UTC with a Z.
+- Errors: `invalid_parameter` (400) for a range that is not one of the four, `not_found` (404) for an unknown collector or server.
+
+## 7. Storage size (measured)
+
+Simulated with `MetricsStore` on this code: 1 server (3 mount points) and 20 containers, one point of every value each 30 seconds for
+one day. That is 132 points per request and 380,160 points per day. Random-walk values compress badly, so a real server should be
+smaller.
+
+| | Size |
+|---|---|
+| One day of points (`metric_point`) | 4.5 MB |
+| The hourly rows of that day (`metric_hour`, 3,168 rows) | 0.5 MB |
+| Steady state with the defaults (7 days of points + 90 days of hours) | about 31 MB + 47 MB = about 80 MB |
+| Growth per month once the points are at their 7 days | about 16 MB (the hourly rows only) |
+
+An insert of one request (132 points) takes about 33 ms; the roll-up of the whole day took 0.07 s. A server alone (no containers) is
+about 12 points per request, so 20 times less. DuckDB does not shrink its file when rows are deleted, it reuses the space.
+
+## 8. Docker API version
 
 The `docker_stats` receiver of 0.163.2 talks to the Docker Engine with API version 1.44. If the collector's log says
 `client version ... is too old`, the Docker Engine raised its minimum API version: add `api_version: "<version>"` to the `docker_stats`
-block of `/etc/otelcol-contrib/config.yaml` by hand (MoniShield does not write it; an upgrade overwrites the file, so also ask for it to be added to the configuration writer).
+block of `/etc/otelcol-contrib/config.yaml` by hand (an upgrade overwrites the file, so the setting must then be added to the configuration writer in `domain/collector_config.py`).
+
+## 9. Next
+
+- `metrics.duckdb` is not in the daily backup yet (`infrastructure/backup.py` lists its files by name); a lost file only loses the history.
+- Kubernetes per-container metrics (`kubeletstats`) and node network values.
+- Notifications for unusual values and almost-full disks.
+- Endpoint and SSL checks.
+- Process metrics: never (command lines are personal data).

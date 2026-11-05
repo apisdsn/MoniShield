@@ -192,7 +192,7 @@ class Reader:
         info = self.targets.setdefault((host, ctr), dict(os=None, image=None))
         if ctr: info['image'] = image or info['image']
         else: info['os'] = os_text or info['os']
-        if ctr and (host, '') not in self.targets and os_text: self.targets[(host, '')] = dict(os=os_text, image=None)
+        if ctr and (host, '') not in self.targets: self.targets[(host, '')] = dict(os=os_text, image=None)     # the container's server is a target too
         for scope in scopes:
             try:
                 if not isinstance(scope, dict): raise Bad('malformed request')

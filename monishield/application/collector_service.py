@@ -45,7 +45,9 @@ class CollectorService:
 
     def revoke(self, cid, admin, ip=None): return self._open(self.store.collector_revoke(cid, admin, ip))
 
-    def delete(self, cid, admin, ip=None): self.store.collector_delete(cid, admin, ip)
+    def delete(self, cid, admin, ip=None):
+        self.store.collector_delete(cid, admin, ip)
+        self.ctx.metrics.forget(cid)   # its metrics go with it: the id may be given to a new collector
 
     def enroll(self, token, ip=None, version=None):
         """-> (collector, key). Any bad token gives the same error and counts toward the caller's IP limit."""
