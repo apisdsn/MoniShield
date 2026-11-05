@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read   # the "tested" job looks up earlier runs of this workflow
 
 # a newer push to the same branch cancels the checks that are still running (never a deploy in progress, see below)
 concurrency:
@@ -16,8 +17,47 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/prd' }}
 
 jobs:
+  # A merge of stg into prd usually holds exactly the files that already passed every check on stg (and in the pull
+  # request). Then the checks below are skipped and the deploy starts at once. Any other change on prd, or a merge whose
+  # files differ from the tested commit, runs every check first.
+  tested:
+    name: Earlier green run of the same code
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.find.outputs.skip }}
+    steps:
+      - name: Check out the code
+        if: github.ref == 'refs/heads/prd' && github.event_name != 'pull_request'
+        uses: actions/checkout@v6
+        with: { fetch-depth: 2 }
+      - name: Look for a green run of a commit with the same files
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ON_PRD: ${{ github.ref == 'refs/heads/prd' && github.event_name != 'pull_request' }}
+        run: |
+          skip=false
+          if [ "$ON_PRD" = true ]; then
+            tree=$(git rev-parse 'HEAD^{tree}')
+            # the merged stg commit (second parent of a merge), or this commit itself (a manual re-deploy)
+            for c in $(git rev-parse -q --verify 'HEAD^2' || true) "$(git rev-parse HEAD)"; do
+              [ "$(git rev-parse "$c^{tree}")" = "$tree" ] || continue
+              n=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$c&status=success&per_page=50" \
+                --jq "[.workflow_runs[] | select(.path == \".github/workflows/ci.yml\" and .id != $GITHUB_RUN_ID)] | length")
+              if [ "${n:-0}" -gt 0 ]; then
+                skip=true
+                echo "Commit $c has the same files and a green CI run: the checks are skipped." >> "$GITHUB_STEP_SUMMARY"
+                break
+              fi
+            done
+          fi
+          [ "$skip" = true ] || echo "No earlier green run of the same files: every check runs." >> "$GITHUB_STEP_SUMMARY"
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
   commits:
     name: Conventional Commits
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the code
@@ -36,6 +76,8 @@ jobs:
 
   python:
     name: Python tests
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the code
@@ -50,6 +92,8 @@ jobs:
 
   web:
     name: Web UI build
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the code
@@ -70,6 +114,8 @@ jobs:
 
   caddy:
     name: Caddy configuration
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the code
@@ -90,6 +136,8 @@ jobs:
 
   browser:
     name: Browser smoke test
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the code
@@ -121,9 +169,12 @@ jobs:
 
   deploy:
     name: Deploy to the production server
-    # only the prd branch, only after every check above passed; pull requests never deploy
-    if: github.ref == 'refs/heads/prd' && github.event_name != 'pull_request'
-    needs: [commits, python, web, browser]
+    # only the prd branch, only after every check above passed or was skipped because the same files already passed
+    # ("tested" job); pull requests never deploy
+    if: >-
+      !cancelled() && github.ref == 'refs/heads/prd' && github.event_name != 'pull_request' &&
+      needs.tested.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [tested, commits, python, web, caddy, browser]
     runs-on: ubuntu-latest
     environment: production   # Settings -> Environments -> production: secrets below, optional required reviewers
     concurrency: { group: deploy-production, cancel-in-progress: false }

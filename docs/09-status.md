@@ -13,7 +13,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
 | Tests | pytest: every test passes on the sample lines in `tests/fixtures/` (2 skip without optional services). Web: build, `tools/check_i18n.mjs`, `tests/test_format.mjs`, `tests/test_state.mjs` (page addresses). |
-| CI | `.github/workflows/ci.yml`: commit messages, pytest, web build, browser smoke test (`tools/smoke_browser.cjs`, every page for all three sources and both languages); all four must pass before the deploy job on `prd`. |
+| CI | `.github/workflows/ci.yml`: commit messages, pytest, web build, Caddy configuration (`caddy validate` with the official image), browser smoke test (`tools/smoke_browser.cjs`, every page for all three sources and both languages); all must pass before the deploy job on `prd`, except that a merge into `prd` whose file tree already has a green run (the merged `stg` commit) skips them and deploys at once. |
 | Deploy | Automatic deploy of `prd` from this repository, first run 2026-10-28 (`2e564e4`, app healthy). Secrets in the GitHub environment `production`. |
 | Server today | `/srv/MoniShield`, a checkout of this repository (compose project `monishield`, profiles `https,kafka`). The site's own values are in its `.env`; the portfolio site is `deploy/sites/portfolio.caddy` there (not in git). |
 
