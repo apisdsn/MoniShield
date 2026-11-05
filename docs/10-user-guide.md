@@ -236,6 +236,7 @@ Every day at 02:00 WIB (`S4_BACKUP_HOUR`) the server writes a backup folder `<da
 | File | Contents |
 |---|---|
 | `s3.duckdb.gz`, `kafka.duckdb.gz`, `collector.duckdb.gz` | the databases of the three sources (rows and aggregates of every folder) |
+| `metrics.duckdb.gz` | the server and container metrics (points and hourly values) |
 | `accounts.json.gz` | every table of the account database: users, password hashes, sessions, audit log, settings |
 | `manifest.json` | size and SHA-256 of each file, time, MoniShield version |
 

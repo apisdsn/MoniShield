@@ -119,6 +119,8 @@ smaller.
 An insert of one request (132 points) takes about 33 ms; the roll-up of the whole day took 0.07 s. A server alone (no containers) is
 about 12 points per request, so 20 times less. DuckDB does not shrink its file when rows are deleted, it reuses the space.
 
+`metrics.duckdb` is part of the daily backup (`metrics.duckdb.gz`, next to the three source databases) and is put back by `monishield restore`.
+
 ## 8. Docker API version
 
 The `docker_stats` receiver of 0.163.2 talks to the Docker Engine with API version 1.44. If the collector's log says
@@ -127,7 +129,6 @@ block of `/etc/otelcol-contrib/config.yaml` by hand (an upgrade overwrites the f
 
 ## 9. Next
 
-- `metrics.duckdb` is not in the daily backup yet (`infrastructure/backup.py` lists its files by name); a lost file only loses the history.
 - Kubernetes per-container metrics (`kubeletstats`) and node network values.
 - Notifications for unusual values and almost-full disks.
 - Endpoint and SSL checks.
