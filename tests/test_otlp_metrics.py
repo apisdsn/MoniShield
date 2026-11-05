@@ -280,3 +280,20 @@ def test_old_series_are_forgotten():
     r.update(('new',), None, T2, 1)
     r.prune(T2)
     assert list(r.last) == [('new',)]
+
+
+def test_the_counter_memory_is_bounded(monkeypatch):
+    monkeypatch.setattr(om.Rates, 'MAX', 100)
+    r, t0 = om.Rates(), NOW
+    for i in range(101): r.update(('s', i), None, t0 + datetime.timedelta(seconds=i), 1.0)       # all fresh: the age rule drops nothing
+    assert len(r.last) == 90
+    assert ('s', 0) not in r.last and ('s', 100) in r.last                                          # the oldest went first
+
+
+def test_at_most_64_devices_are_rated_per_server_and_per_container():
+    ns = 10 ** 9
+    devices = tuple(f'eth{i}' for i in range(70))
+    pts, counters, targets, rejected, ignored = parse(counter_request(1000, f'{1793880000 * ns}', devices))
+    assert len({c['dim'] for c in counters}) == 64
+    assert rejected == {'too many devices': 12}
+    assert 'too many devices' in om.partial_success(rejected)['partialSuccess']['errorMessage']

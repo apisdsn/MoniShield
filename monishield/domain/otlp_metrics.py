@@ -25,6 +25,7 @@ from monishield.domain import kafka_message
 from monishield.domain.otlp_logs import EPOCH, FUTURE, Bad, _int, pairs
 
 MAX_POINTS = 20000          # data points per request; a collector sends some tens to a few hundred
+MAX_DEVICES = 64            # network devices rated per server, and interfaces per container, in one request
 MAX_MOUNTS = 10             # file systems kept per server; '/' first
 MAX_TEXT = 200
 GAP = datetime.timedelta(minutes=5)       # between two samples of a counter; a longer gap gives no rate
@@ -119,6 +120,7 @@ class Reader:
         self.rejected, self.ignored, self.seen = {}, 0, 0
         self.targets = {}                  # (host, ctr) -> dict(os=…, image=…)
         self.counters = []                 # network counters, see Rates
+        self.devices = {}                  # (host, ctr) -> set of the devices rated in this request
         self.cpu_idle = {}                 # (host, t) -> [idle share, …]
         self.mem = {}                      # (host, t) -> {state: bytes}
         self.limit = {}                    # (host, t) -> bytes
@@ -143,6 +145,9 @@ class Reader:
             if not name: raise Bad('malformed point')
             device = _text(attrs.get('device') or attrs.get('interface')) or ''
             start = _time(dp.get('startTimeUnixNano'), self.now, None, required=False)
+            seen = self.devices.setdefault((host, ctr), set())
+            if device not in seen and len(seen) >= MAX_DEVICES: raise Bad('too many devices')
+            seen.add(device)
             self.counters.append(dict(host=host, ctr=ctr, name=name, dim=device, t=t, start=start, v=v, delta=agg == 'delta'))
         elif metric == 'system.cpu.utilization':
             if attrs.get('state') == 'idle': self.cpu_idle.setdefault((host, t), []).append(v)
@@ -263,6 +268,7 @@ class Rates:
     """The last sample of every counter series, to turn the next one into bytes per second. In memory: a restart of the server only
     loses one point per series. Not thread safe on its own; the caller holds a lock."""
     MAX = 50000
+    KEEP = 0.9              # after a prune that was not enough, the oldest series are dropped down to this share of MAX
 
     def __init__(self): self.last = {}      # key -> (start, t, value)
 
@@ -278,8 +284,12 @@ class Rates:
         return (v - p_v) / (t - p_t).total_seconds()
 
     def prune(self, now):
-        """Forget series that have not been seen for an hour (a container that is gone)."""
+        """Forget series that have not been seen for an hour (a container that is gone). If the dict is still over MAX (many unique
+        device names), the oldest series go too, down to 90 % of MAX, so the memory is bounded."""
         for k in [k for k, (_, t, _v) in self.last.items() if now - t > datetime.timedelta(hours=1)]: del self.last[k]
+        extra = len(self.last) - int(self.MAX * self.KEEP)
+        if len(self.last) > self.MAX:
+            for k in sorted(self.last, key=lambda k: self.last[k][1])[:extra]: del self.last[k]
 
 
 def rate_points(counters, rates, scope=None):
