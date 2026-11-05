@@ -97,4 +97,11 @@
     h1 { font-size: 1.5rem; }
   }
   @media (max-width: 420px) { .brand { visibility: hidden; } .bar { gap: 4px; } }
+  /* narrow phones: the source switch and the date picker each get a full row, so the date is never cut */
+  @media (max-width: 480px) {
+    .where { flex-wrap: wrap; }
+    .where > :global(.seg) { flex: 1 1 100%; }
+    .where > :global(.seg button) { flex: 1; }
+    .where > :global(.fp) { flex: 1 1 100%; }
+  }
 </style>

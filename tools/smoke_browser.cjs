@@ -144,6 +144,19 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     if (w >= 3000 && (m.w - m.right > 40 || m.zoom !== '1.6')) throw new Error(`Overview main ends ${m.w - m.right}px before the right edge (zoom "${m.zoom}") at ${w}px`);
     console.log(`ok   Overview at ${w}px (right gap ${Math.round(m.w - m.right)}px, zoom ${m.zoom || '1'}, no sideways scroll)`);
   }
+  // narrow phone: the date picker shows the whole date (its text is not cut) and no sideways scroll
+  for (const w of [320, 360]) {
+    await page.setViewportSize({ width: w, height: 800 });
+    await page.goto(BASE + '/overview');
+    await page.waitForSelector('main#main[aria-busy="false"]');
+    const d = await page.evaluate(() => {
+      const s = document.querySelector('#folder-select'), cs = getComputedStyle(s), g = document.createElement('canvas').getContext('2d');
+      g.font = cs.font;
+      return { text: g.measureText(s.options[s.selectedIndex].text).width, room: s.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), over: document.documentElement.scrollWidth - innerWidth };
+    });
+    if (d.text > d.room || d.over > 0) throw new Error(`date picker at ${w}px: text ${Math.round(d.text)}px, room ${Math.round(d.room)}px, overflow ${d.over}px`);
+    console.log(`ok   date picker shows the whole date at ${w}px`);
+  }
   await page.setViewportSize({ width: 1280, height: 900 });
 
   let failed = 0, checked = 0;
