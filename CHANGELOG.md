@@ -7,9 +7,10 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
-- Collector: Docker containers are named like `docker ps` (`docker_observer` + `receiver_creator`, through the Docker socket) instead of
-  the first 12 characters of the id. Only containers that expose a port are found; a container with several ports is read once. An
-  existing Docker collector gets the names after the install script is run again, or after its configuration is downloaded again.
+- Collector: Docker containers are named like `docker ps` instead of the first 12 characters of the id. The installer adds a small
+  helper script and a systemd timer (every 15 s) that keep `<container name>.log` links to the container logs, and the collector reads
+  those links, also for stopped containers, with saved offsets. An existing Docker collector gets the names after it is added again and
+  installed again.
 - Collector step 8 (`docs/12-collector.md`): `DOCKER_INGEST_DOMAIN` makes Caddy serve a DNS only receiver host with its own
   Let's Encrypt certificate (only the receiver and install scripts, 404 elsewhere); the Collectors page and install scripts use it when
   `S4_COLLECTOR_PUBLIC_URL` is empty; optional `DOCKER_MAIN_CLOUDFLARE_ONLY=1` guard (`tools/cloudflare_ips.py`); a deploy

@@ -93,21 +93,20 @@ def test_linux_files_and_journald():
     assert 'operators' not in y and 'regex_parser' not in y and 'json_parser' not in y     # the body stays the original line
 
 
-def test_docker_names_come_from_the_docker_socket():
+def test_docker_names_come_from_the_name_links():
     y = build('docker', dict(containers=True, journald=False, files=[]))
-    assert '  docker_observer:\n    endpoint: "unix:///var/run/docker.sock"' in y
-    assert 'service:\n  extensions:\n    - "file_storage"\n    - "docker_observer"' in y and '- "receiver_creator/docker"' in y
-    assert 'watch_observers:\n      - "docker_observer"' in y and 'rule: "type == \\"container\\""' in y
-    assert '- "/var/lib/docker/containers/`container_id`/`container_id`-json.log"' in y and '*-json.log' not in y
-    assert 'container.name: "`name`"' in y and 'container.image.name: "`image`"' in y and 'container.id: "`container_id`"' in y
-    assert y.count('type:') == 1 and 'type: "container"' in y and 'format: "docker"' in y and 'add_metadata_from_filepath: false' in y      # the only operator: the body stays the line
-    assert 'parser' not in y.replace('container-parser', '') and 'EXPR' not in y
+    assert '  filelog/docker:\n    include:\n      - "/var/lib/otelcol-contrib/containers/*.log"' in y
+    assert 'start_at: "beginning"' in y and 'storage: "file_storage"' in y and 'include_file_name: true' in y
+    assert 'container.name' in y and 'attributes[\\"log.file.name\\"][:-4]' in y            # the file name without .log
+    assert y.count('type:') == 2 and 'type: "container"' in y and 'format: "docker"' in y and 'add_metadata_from_filepath: false' in y
+    assert 'parser' not in y.replace('container-parser', '')                                   # the body stays the original line
+    assert 'docker_observer' not in y and 'receiver_creator' not in y and 'docker.sock' not in y and 'service:\n  extensions:\n    - "file_storage"\n  pipelines' in y
 
 
-def test_docker_socket_is_only_used_when_containers_are_on():
+def test_docker_receiver_is_only_there_when_containers_are_on():
     y = build('docker', dict(containers=False, journald=True, units=[], files=[]))
-    assert 'docker_observer' not in y and 'receiver_creator' not in y and 'service:\n  extensions:\n    - "file_storage"\n  pipelines' in y
-    assert 'docker_observer' not in build('linux')
+    assert 'filelog/docker' not in y and 'containers/*.log' not in y
+    assert 'containers/*.log' not in build('linux')
 
 
 def test_windows_channels_and_files():
@@ -211,6 +210,20 @@ def test_scripts_are_filled_in_and_hold_no_secret():
     assert 'sha256' in render('install.sh') and 'Get-FileHash' in render('install.ps1')
 
 
+def test_install_sh_carries_the_docker_name_helper(tmp_path):
+    text = render('install.sh')
+    helper = open(os.path.join(ROOT, 'monishield', 'infrastructure', 'assets', 'collector', 'docker-names.sh'), encoding='utf-8').read()
+    assert helper.rstrip('\n') in text and '@@' not in text and text.count('MONISHIELD_DOCKER_NAMES') == 2
+    for part in ('OnBootSec=5s', 'OnUnitActiveSec=15s', 'AccuracySec=1s', 'RestrictAddressFamilies=AF_UNIX', 'ExecStartPre=-', "HELPER_DIR='/usr/local/lib/monishield'",
+                 'monishield-docker-names.timer'):
+        assert part in text, part
+    # the heredoc writes the helper back byte for byte
+    out = tmp_path / 'out.sh'
+    start, end = text.index("<<'MONISHIELD_DOCKER_NAMES'\n") + len("<<'MONISHIELD_DOCKER_NAMES'\n"), text.index('\nMONISHIELD_DOCKER_NAMES\n')
+    out.write_text(text[start:end] + '\n')
+    assert out.read_text() == helper
+
+
 def test_script_rejects_values_that_would_end_up_in_commands():
     with pytest.raises(Fail): render(url='https://x.com";id;"')
     with pytest.raises(ValueError): render(version='1.0;id')
@@ -240,7 +253,8 @@ def test_install_sh_dry_run_changes_nothing(script):
     r = run_sh(script, '--name', 'web-01', '--token', 'mse_7_' + 'A' * 43, '--dry-run')
     assert r.returncode == 0, r.stderr
     for part in (f'otelcol-contrib {VERSION}', f'{BASE}/api/collector/enroll', 'X-Requested-With: monishield-collector', '/etc/otelcol-contrib/config.yaml',
-                 '(mode 0640)', 'monishield.env', '(mode 0600)', 'SHA-256', '.sha256', '/var/lib/otelcol-contrib/queue', 'enable and restart'):
+                 '(mode 0640)', 'monishield.env', '(mode 0600)', 'SHA-256', '.sha256', '/var/lib/otelcol-contrib/queue', 'enable and restart',
+                 'for a Docker collector', 'docker-names.sh', 'every 15 s'):
         assert part in r.stdout, part
     assert 'mse_7_' not in r.stdout and 'mse_7_' not in r.stderr                                  # the token is never echoed
     r = run_sh(script, '--name', 'web-01', '--token', 'mse_7_' + 'A' * 43, '--url', 'https://other.example.org', '--dry-run')

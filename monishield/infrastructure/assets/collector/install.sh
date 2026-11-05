@@ -20,6 +20,8 @@ RELEASE="https://github.com/open-telemetry/opentelemetry-collector-releases/rele
 SERVICE='otelcol-contrib'
 CONF_DIR='/etc/otelcol-contrib'
 STATE_DIR='/var/lib/otelcol-contrib'
+HELPER_DIR='/usr/local/lib/monishield'
+HELPER="${HELPER_DIR}/docker-names.sh"
 NAME=''
 TOKEN=''
 DRY=0
@@ -76,6 +78,7 @@ if [ "$DRY" = 1 ]; then
   say "[dry-run] would POST the token to ${URL}/api/collector/enroll with X-Requested-With: monishield-collector"
   say "[dry-run] would write ${CONF_DIR}/config.yaml (mode 0640) from the answer"
   say "[dry-run] would write the key to ${CONF_DIR}/monishield.env (mode 0600) and reference it from a systemd drop-in"
+  say "[dry-run] for a Docker collector: would install ${HELPER} and the systemd units monishield-docker-names.service and .timer (every 15 s), which keep name-based links to the container logs in ${STATE_DIR}/containers"
   say "[dry-run] would create ${STATE_DIR}/queue, validate the configuration, enable and restart ${SERVICE}, and show its status"
   exit 0
 fi
@@ -121,13 +124,50 @@ DROPIN_DIR="/etc/systemd/system/${SERVICE}.service.d"
 mkdir -p "$DROPIN_DIR" "$CONF_DIR"
 if [ "$PLATFORM" = docker ]; then RUN_USER=root; RUN_GROUP=root; fi
 
+if [ "$PLATFORM" = docker ]; then
+  # Docker names its log files by container id. This helper keeps <container name>.log links to them, so the services are named
+  # after the containers; a timer refreshes the links every 15 seconds and the collector service runs it once before it starts.
+  say "Installing ${HELPER} and its systemd timer"
+  install -d -m 0755 "$HELPER_DIR"
+  cat >"${HELPER}.new" <<'MONISHIELD_DOCKER_NAMES'
+@@DOCKER_NAMES_SH@@
+MONISHIELD_DOCKER_NAMES
+  chmod 0755 "${HELPER}.new"; mv -f "${HELPER}.new" "$HELPER"
+  cat >/etc/systemd/system/monishield-docker-names.service <<EOF
+[Unit]
+Description=MoniShield: name-based links to the Docker container logs
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=${HELPER}
+RestrictAddressFamilies=AF_UNIX
+NoNewPrivileges=yes
+PrivateTmp=yes
+EOF
+  cat >/etc/systemd/system/monishield-docker-names.timer <<'EOF'
+[Unit]
+Description=MoniShield: refresh the Docker container log links
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=15s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
+EOF
+  chmod 0644 /etc/systemd/system/monishield-docker-names.service /etc/systemd/system/monishield-docker-names.timer
+fi
+
 say "Writing ${CONF_DIR}/config.yaml and ${CONF_DIR}/monishield.env"
 install -m 0640 -o root -g "$RUN_GROUP" "${WORK}/config.yaml" "${CONF_DIR}/config.yaml"
 ( umask 077; printf 'MONISHIELD_COLLECTOR_KEY=%s\n' "$KEY" >"${CONF_DIR}/monishield.env" )
 chmod 0600 "${CONF_DIR}/monishield.env"; chown root:root "${CONF_DIR}/monishield.env"
 {
   printf '[Service]\nEnvironmentFile=%s/monishield.env\n' "$CONF_DIR"
-  if [ "$PLATFORM" = docker ]; then printf 'User=root\nGroup=root\n'; fi
+  if [ "$PLATFORM" = docker ]; then printf 'After=docker.service\nUser=root\nGroup=root\nExecStartPre=-%s\n' "$HELPER"; fi
 } >"${DROPIN_DIR}/monishield.conf"
 chmod 0644 "${DROPIN_DIR}/monishield.conf"
 
@@ -144,6 +184,7 @@ MONISHIELD_COLLECTOR_KEY="$KEY" otelcol-contrib validate --config="${CONF_DIR}/c
 say "Starting ${SERVICE}"
 systemctl daemon-reload
 systemctl enable "$SERVICE" >/dev/null 2>&1
+if [ "$PLATFORM" = docker ]; then systemctl enable --now monishield-docker-names.timer >/dev/null 2>&1; fi
 systemctl restart "$SERVICE"
 sleep 3
 systemctl status --no-pager "$SERVICE" || true

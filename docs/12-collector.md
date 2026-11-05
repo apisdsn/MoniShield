@@ -124,30 +124,36 @@ inputs the admin chose (`options`, stored with the collector, changed with `PUT 
 | Platform | Inputs (`options`) | Receivers |
 |---|---|---|
 | `linux` | `files` (up to 30 groups of absolute path glob + service name), `journald` (+ `units`) | `filelog/<n>`, `journald` |
-| `docker` | the same, plus `containers` | also `receiver_creator/docker` (a `filelog` per container found through the `docker_observer` extension and the Docker socket) |
+| `docker` | the same, plus `containers` | also `filelog/docker` on `/var/lib/otelcol-contrib/containers/*.log` (name links kept by the helper `docker-names.sh`) |
 | `windows` | `channels` (application, system, security), `files` | `windowseventlog/<channel>`, `filelog/<n>` |
 | `kubernetes` | none (pod logs are always on) | Helm values; the chart's `logsCollection` preset adds the receiver |
 
 Only log inputs exist; host metrics and endpoint checks come with part 2. Choices:
 
 - **The body is the original line.** The only operator is `container` (format `docker`, unwraps Docker's JSON-file format).
-- **Docker container names.** Docker's log files are named by container id, so the Docker inputs use the OpenTelemetry pattern:
-  the `docker_observer` extension watches the Docker socket (`unix:///var/run/docker.sock`) and `receiver_creator` starts one
-  `filelog` for every container it finds (rule `type == "container"`, include `/var/lib/docker/containers/<id>/<id>-json.log`).
-  `resource_attributes` set `container.name` (the name `docker ps` shows), `container.id` and `container.image.name`, and the
-  server uses `container.name` as the service. Facts found by running 0.163.2 against a real Docker daemon:
-  - **Only containers with an exposed port are found.** `docker_observer` reports one endpoint per exposed port (`EXPOSE` in the
-    image, `--expose` or `ports:`) and none for a container without one, so such a container is not collected. Its log file can
-    be added as a file group (`/var/lib/docker/containers/<id>/<id>-json.log` with a service name) until the id changes.
-  - **A container with several exposed ports is found once per port**, so the collector reads its file several times. The
-    receiver drops the copies (same `container.id`, time and line) inside one request, which is where the batch processor puts
-    them; a copy that lands in a request of its own would be stored twice (rare).
-  - `start_at: end`: lines written before the collector found a new container are not read.
-  - The socket is required: the collector must be able to read `/var/run/docker.sock` (the Docker install already runs it as
-    root). Without it the extension fails and the collector does not start. A name outside the Kafka name rule is cleaned like
-    the other names (a leading `/` is removed, other odd characters become `-`).
-  - **An existing Docker collector keeps its ids until its configuration is replaced:** re-run the install script, or download the
-    file again (see "Changing the inputs later") and restart the service. Lines already stored stay under the id names.
+- **Docker container names.** Docker's log files are named by container id (`/var/lib/docker/containers/<id>/<id>-json.log`) and hold
+  no name. On a Docker host the installer therefore puts a small POSIX shell script, `/usr/local/lib/monishield/docker-names.sh`
+  (source: `monishield/infrastructure/assets/collector/docker-names.sh`, also printed inside `install.sh`), and a systemd timer next
+  to the collector. The script asks `docker ps -a --no-trunc` (stopped containers too, so their last lines are still read) and keeps
+  `/var/lib/otelcol-contrib/containers/<container name>.log -> <id>-json.log` for every container: links of containers that are gone
+  are removed, a link whose target changed (a container created again under the same name) is replaced. A name is cleaned to letters,
+  digits, dot, underscore and hyphen; two names that are the same after cleaning give the newer container `-<first 8 of its id>`.
+  A container without a json-file log gets no link. `--dry-run` prints the planned changes. When Docker does not answer, nothing is
+  changed. The service `monishield-docker-names.service` (root, `RestrictAddressFamilies=AF_UNIX`: no network) runs from the timer
+  `monishield-docker-names.timer` (`OnBootSec=5s`, `OnUnitActiveSec=15s`, `AccuracySec=1s`) and once before the collector starts
+  (`ExecStartPre=-` in its drop-in).
+  The collector's `filelog/docker` reads `/var/lib/otelcol-contrib/containers/*.log` (the collector follows the links), with
+  `include_file_name`, `start_at: beginning` and `storage: file_storage`: a new link is read from its first line, and the saved
+  offsets keep a restart from reading a file twice (a file is told apart by its first bytes, so a link that now points to another
+  file reads the new file and not the old one again). The `container` operator (format `docker`) is the only parser, and one `add`
+  sets `container.name` from the file name without `.log`; the server uses it as the service and the host as namespace and pod.
+  The first run on a host reads the existing log files from their start. A first design with the `docker_observer` extension and
+  `receiver_creator` was dropped (checked with 0.163.2 against a real Docker daemon): it finds only containers with an exposed port
+  and finds a container once per exposed port.
+  **An existing Docker collector keeps its id names until its installer is run again.** The installer needs an enrollment token, which
+  works once, so for an enrolled collector: Revoke and Delete it on the Collectors page, add it again under the same name (Docker,
+  Docker containers on) and run the installer with the new token; it installs the helper, the timer and the new configuration and
+  restarts the service. Lines already stored stay under the id names.
 - **Always:** `resourcedetection` (`system`, so `host.name` is set), `batch` (`send_batch_size` 500, `send_batch_max_size`
   1000, `timeout` 5 s; far below the receiver's 16 MB raw limit), exporter `otlphttp` (`encoding: json`, `compression: gzip`,
   retry without a time limit, `sending_queue` on the `file_storage` extension, so data waits on disk while MoniShield is
@@ -191,9 +197,9 @@ once, for 24 hours.
   directory, adds the service user to `adm` and `systemd-journal` (so it can read `/var/log` and the journal), checks the
   configuration with `otelcol-contrib validate`, enables and restarts the service and prints its status. Files in other places
   must be readable by the user `otelcol-contrib`. `--dry-run` prints the steps and changes nothing.
-- **Docker host:** the same script. Docker's log files and socket belong to root, so the drop-in runs this service as root. Services
-  are the container names (see "Docker container names" for what is found). A collector installed before names existed: re-run
-  the script, or download the configuration again and restart the service.
+- **Docker host:** the same script. Docker's log files and socket belong to root, so the drop-in runs this service as root. It also
+  installs the name helper and its timer (see "Docker container names"), so the services are the container names, stopped containers
+  included. A collector installed before names existed has to be added again and installed with a new token.
 - **Windows Server (PowerShell 5.1+, as Administrator):** `Invoke-WebRequest -UseBasicParsing -OutFile install.ps1
   https://<host>/collector/install.ps1`, then `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Name <name> -Token <token>`.
   Same flow with the MSI; the key goes into the `Environment` value of the `otelcol-contrib` service in the registry, which only

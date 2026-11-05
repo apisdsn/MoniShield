@@ -76,7 +76,7 @@ def test_enroll_for_the_install_script_is_text_plus_headers(client):
     r = TestClient(client.app).post('/api/collector/enroll?format=install', json=dict(token=c['enroll_token']), headers=ENROLL_H)
     assert r.status_code == 200 and r.headers['content-type'].startswith('text/plain') and r.headers['cache-control'] == 'no-store'
     assert r.headers['x-collector-platform'] == 'docker' and r.headers['x-collector-name'] == 'edge-1' and r.headers['x-collector-key'].startswith('msk_')
-    assert r.headers['x-collector-key'] not in r.text and 'docker_observer' in r.text and 'container.name: "`name`"' in r.text
+    assert r.headers['x-collector-key'] not in r.text and '/var/lib/otelcol-contrib/containers/*.log' in r.text and 'container.name' in r.text
     bad = TestClient(client.app).post('/api/collector/enroll?format=install', json=dict(token=c['enroll_token']), headers=ENROLL_H)
     assert bad.status_code == 401 and error_code(bad) == 'invalid_enrollment_token'
 

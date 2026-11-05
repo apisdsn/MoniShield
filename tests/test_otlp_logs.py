@@ -143,26 +143,6 @@ def test_docker_name_that_is_nothing_but_odd_characters_falls_back_to_the_servic
     assert rej == {} and where(recs[0]) == ('docker-01', 'api', 'docker-01')
 
 
-def test_a_container_found_once_per_exposed_port_is_not_stored_twice():
-    # docker_observer reports one endpoint per exposed port, so the collector reads such a log file once per port
-    def rec(t, body): return {'timeUnixNano': t, 'body': {'stringValue': body}}
-    def res(*recs): return {'resource': {'attributes': [{'key': 'container.name', 'value': {'stringValue': 'caddy'}}, {'key': 'container.id', 'value': {'stringValue': 'ab12'}}]},
-                            'scopeLogs': [{'logRecords': list(recs)}]}
-    a, b, c = rec('1793786136000001000', 'ping'), rec('1793786136000002000', 'ping'), rec('1793786136000001000', 'other')
-    recs, rej = otlp.parse_logs({'resourceLogs': [res(a, b, a), res(a, c)]}, 'collector-1', NOW)
-    assert rej == {} and [r['line'] for r in recs] == ['ping', 'ping', 'other']          # same line at another time stays; same time + other line stays
-    recs, _ = otlp.parse_logs({'resourceLogs': [res(a), res(a)]}, 'collector-1', NOW)
-    assert len(recs) == 1
-    other = res(a); other['resource']['attributes'][1]['value']['stringValue'] = 'cd34'    # another container, same line and time
-    assert len(otlp.parse_logs({'resourceLogs': [res(a), other]}, 'collector-1', NOW)[0]) == 2
-
-
-def test_lines_without_a_container_id_are_never_dropped_as_duplicates():
-    rec = {'timeUnixNano': '1793786136000001000', 'body': {'stringValue': 'same'}}
-    recs, _ = otlp.parse_logs({'resourceLogs': [{'scopeLogs': [{'logRecords': [rec, rec]}]}]}, 'collector-1', NOW)
-    assert len(recs) == 2
-
-
 def test_bad_records_are_rejected_with_a_reason():
     recs, rej = run('bad')
     assert [r['line'] for r in recs] == ['good line', 'from the future']

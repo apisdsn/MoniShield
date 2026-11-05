@@ -18,8 +18,7 @@ KEY_ENV = 'MONISHIELD_COLLECTOR_KEY'
 UNIT = re.compile(r'[A-Za-z0-9:_.@\\-]{1,200}')    # a systemd unit name such as ssh.service or user@1000.service
 BASE_URL = re.compile(r'https?://[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?(:\d{1,5})?(/[A-Za-z0-9._~/-]*)?')
 WIN_PATH = re.compile(r'[A-Za-z]:[\\/]|\\\\')
-DOCKER_SOCKET = 'unix:///var/run/docker.sock'
-DOCKER_LOG = '/var/lib/docker/containers/`container_id`/`container_id`-json.log'   # backticks: receiver_creator fills in the id
+DOCKER_LINKS = '/var/lib/otelcol-contrib/containers'   # name-based links to Docker's log files, kept by docker-names.sh
 HELM_CHART = ('open-telemetry', 'https://open-telemetry.github.io/opentelemetry-helm-charts', 'open-telemetry/opentelemetry-collector')
 QUEUE_DIRS = dict(linux='/var/lib/otelcol-contrib/queue', docker='/var/lib/otelcol-contrib/queue',
                   windows='C:\\ProgramData\\OpenTelemetry Collector\\queue', kubernetes='/var/lib/otelcol-queue')
@@ -158,9 +157,6 @@ def exporter(base):
 def extensions(queue_dir): return {'file_storage': dict(directory=queue_dir, create_directory=True, timeout='10s')}
 
 
-def docker_extensions(): return {'docker_observer': dict(endpoint=DOCKER_SOCKET)}
-
-
 def processors(): return {'resourcedetection': dict(detectors=['system'], system=dict(hostname_sources=['os'])), 'batch': dict(BATCH)}
 
 
@@ -170,14 +166,15 @@ def _file_receiver(group):
 
 
 def _docker_receiver():
-    # docker_observer watches the Docker socket; receiver_creator starts one filelog per discovered container, so the service is
-    # the container's name (not the id the log folder is named by). The `container` operator unwraps Docker's JSON-file format and
-    # is the only operator, so the body stays the original line. Backticked words are the endpoint's fields (checked with 0.163).
-    return dict(watch_observers=['docker_observer'], receivers=dict(filelog=dict(
-        rule='type == "container"',
-        config=dict(include=[DOCKER_LOG], start_at='end', include_file_name=False, include_file_path=False,
-                    operators=[dict(type='container', id='container-parser', format='docker', add_metadata_from_filepath=False)]),
-        resource_attributes={'container.name': '`name`', 'container.id': '`container_id`', 'container.image.name': '`image`'})))
+    # Docker names its log files by container id. The helper docker-names.sh (installed with the collector, run every 15 seconds)
+    # keeps `<container name>.log` links to them in DOCKER_LINKS, so the file name is the container name. The `container` operator
+    # unwraps Docker's JSON-file format and is the only parser, so the body stays the original line; one `add` copies the file name
+    # (without `.log`) to `container.name`. start_at beginning + storage: a new link is read from its first line, and the saved offsets
+    # keep a restart from reading a file twice (a file is told apart by its first bytes, not by its path).
+    return dict(include=[DOCKER_LINKS + '/*.log'], start_at='beginning', storage='file_storage', include_file_name=True, include_file_path=False,
+                operators=[dict(type='container', id='container-parser', format='docker', add_metadata_from_filepath=False),
+                           dict(type='add', id='container-name', field='resource["container.name"]',
+                                value='EXPR(attributes["log.file.name"][:-4])')])
 
 
 def _receivers(platform, o):
@@ -186,17 +183,16 @@ def _receivers(platform, o):
     for i, g in enumerate(o.get('files', []), 1): r[f'filelog/{i}'] = _file_receiver(g)
     if o.get('journald'):
         r['journald'] = dict(start_at='end', **(dict(units=o['units']) if o['units'] else {}))
-    if o.get('containers'): r['receiver_creator/docker'] = _docker_receiver()
+    if o.get('containers'): r['filelog/docker'] = _docker_receiver()
     for c in o.get('channels', []): r[f'windowseventlog/{c}'] = dict(channel=c, start_at='end')
     return r
 
 
 def host_config(platform, base, o):
     receivers = _receivers(platform, o)
-    ext = extensions(QUEUE_DIRS[platform])
-    if o.get('containers'): ext.update(docker_extensions())
-    return dict(extensions=ext, receivers=receivers, processors=processors(), exporters=exporter(base),
-                service=dict(extensions=list(ext), pipelines=dict(logs=dict(
+    queue = QUEUE_DIRS[platform]
+    return dict(extensions=extensions(queue), receivers=receivers, processors=processors(), exporters=exporter(base),
+                service=dict(extensions=['file_storage'], pipelines=dict(logs=dict(
                     receivers=list(receivers), processors=['resourcedetection', 'batch'], exporters=['otlphttp/monishield']))))
 
 
