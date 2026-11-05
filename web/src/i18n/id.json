@@ -1589,5 +1589,19 @@
  "sv.empty.title": "Belum Ada Metrik Server",
  "sv.empty.text": "Belum ada collector yang mengirim metrik server; nyalakan Metrik Server pada sebuah collector untuk melihat bebannya di sini.",
  "sv.empty.link": "Buka Collector",
- "sv.empty.text_user": "Belum ada collector yang mengirim metrik server."
+ "sv.empty.text_user": "Belum ada collector yang mengirim metrik server.",
+ "cl.f.metrics": "Metrik",
+ "cl.f.host_metrics": "Metrik Server",
+ "cl.f.host_metrics_hint": "CPU, memori, disk per sistem berkas, jaringan, dan beban server ini, setiap 30 detik.",
+ "cl.f.host_metrics_hint.windows": "CPU, memori, setiap disk, dan jaringan server ini, setiap 30 detik.",
+ "cl.f.host_metrics_hint.kubernetes": "CPU, memori, dan disk setiap node, setiap 30 detik. Jaringan node tidak dikumpulkan.",
+ "cl.f.container_metrics": "Metrik Container",
+ "cl.f.container_metrics_hint": "CPU, memori, jaringan, dan restart setiap container, dari socket Docker (hanya baca).",
+ "cl.f.container_metrics_off.host": "Hanya untuk host Docker.",
+ "cl.f.container_metrics_off.kubernetes": "Metrik per container untuk Kubernetes menyusul.",
+ "cl.f.metrics_store": "Yang disimpan server: satu titik setiap 30 detik selama 7 hari, lalu satu nilai per jam selama 90 hari. Sekitar 80 MB untuk satu server dengan 20 container; server tanpa container jauh lebih kecil. Tanpa alamat IP, tanpa command line, tanpa nilai environment.",
+ "cl.f.metrics_none": "Hanya log. Metrik bisa dinyalakan nanti dari rincian collector.",
+ "cl.sends.host_metrics": "Metrik Server",
+ "cl.sends.container_metrics": "Metrik Container",
+ "cl.in.upgrade": "Tersimpan. Jalankan perintah pembaruan di server untuk menerapkannya:"
 }

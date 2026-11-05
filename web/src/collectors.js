@@ -12,16 +12,18 @@ export const STATUSES = ['online', 'late', 'offline', 'waiting', 'revoked'];
 
 /** What a new collector sends when nothing is changed (same as the server's defaults). */
 export function defaults(platform) {
-  if (platform === 'linux') return { files: [], journald: true, units: [] };
-  if (platform === 'docker') return { files: [], journald: false, units: [], containers: true };
-  if (platform === 'windows') return { files: [], channels: ['application', 'system'] };
-  return {};
+  if (platform === 'linux') return { files: [], journald: true, units: [], host_metrics: true };
+  if (platform === 'docker') return { files: [], journald: false, units: [], containers: true, host_metrics: true, container_metrics: true };
+  if (platform === 'windows') return { files: [], channels: ['application', 'system'], host_metrics: true };
+  return { host_metrics: true };
 }
 
 /** A copy of options that can be edited without touching the original; missing parts take the platform's empty form. */
 export function editable(platform, options) {
   const o = options ? JSON.parse(JSON.stringify(options)) : defaults(platform);
-  if (platform === 'kubernetes') return {};
+  o.host_metrics = !!o.host_metrics;
+  if (platform === 'kubernetes') return { host_metrics: o.host_metrics };
+  if (platform === 'docker') o.container_metrics = !!o.container_metrics; else delete o.container_metrics;
   o.files = o.files || [];
   if (platform === 'windows') o.channels = o.channels || [];
   else { o.journald = !!o.journald; o.units = o.units || []; if (platform === 'docker') o.containers = !!o.containers; }
@@ -55,7 +57,7 @@ export const parseUnits = (text) => [...new Set(String(text || '').split(/[\s,]+
  */
 export function checkOptions(platform, o) {
   const err = {};
-  if (platform === 'kubernetes') return err;
+  if (platform === 'kubernetes') return err;     // the pod logs are always sent
   const files = (o.files || []).map((f) => ({ path: checkPath(f.path, platform), service: checkService(f.service) }));
   if (files.some((f) => f.path || f.service)) err.files = files;
   if ((o.files || []).length > MAX_FILES) err.toomany = 'too_many_files';
@@ -63,31 +65,37 @@ export function checkOptions(platform, o) {
     if (o.units?.length > MAX_UNITS) err.units = 'too_many_units';
     else if ((o.units || []).some((u) => !UNIT.test(u))) err.units = 'invalid_unit';
   }
-  const any = platform === 'windows' ? o.channels?.length : o.journald || (platform === 'docker' && o.containers);
+  const any = o.host_metrics || (platform === 'docker' && o.container_metrics) || (platform === 'windows' ? o.channels?.length : o.journald || (platform === 'docker' && o.containers));
   if (!any && !(o.files || []).length) err.none = 'no_inputs';
   return err;
 }
 
 /** The body of POST /api/admin/collectors (options part): only what the platform has, trimmed. */
 export function payload(platform, o) {
-  if (platform === 'kubernetes') return {};
+  const metrics = { host_metrics: !!o.host_metrics };
+  if (platform === 'kubernetes') return metrics;
   const files = (o.files || []).map((f) => ({ path: f.path.trim(), service: f.service.trim() }));
-  if (platform === 'windows') return { files, channels: CHANNELS.filter((c) => o.channels.includes(c)) };
-  const out = { files, journald: !!o.journald, units: o.journald ? o.units : [] };
-  if (platform === 'docker') out.containers = !!o.containers;
+  if (platform === 'windows') return { files, channels: CHANNELS.filter((c) => o.channels.includes(c)), ...metrics };
+  const out = { files, journald: !!o.journald, units: o.journald ? o.units : [], ...metrics };
+  if (platform === 'docker') { out.containers = !!o.containers; out.container_metrics = !!o.container_metrics; }
   return out;
 }
 
+/** Why Container Metrics cannot be chosen on a platform: a text key, or '' when it can (Docker hosts only). */
+export const containerMetricsOff = (platform) => (platform === 'docker' ? '' : platform === 'kubernetes' ? 'kubernetes' : 'host');
+
 /** Short labels of what a collector sends, as [{key, n?}] for the chips; the page turns each into text. */
 export function sends(platform, o) {
-  if (platform === 'kubernetes') return [{ key: 'pods' }];
   const out = [];
+  const metrics = () => { if (o?.host_metrics) out.push({ key: 'host_metrics' }); if (platform === 'docker' && o?.container_metrics) out.push({ key: 'container_metrics' }); };
+  if (platform === 'kubernetes') { out.push({ key: 'pods' }); metrics(); return out; }
   if (platform === 'windows') for (const c of o?.channels || []) out.push({ key: c });
   else {
     if (o?.journald) out.push({ key: 'journald' });
     if (platform === 'docker' && o?.containers) out.push({ key: 'containers' });
   }
   if (o?.files?.length) out.push({ key: 'files', n: o.files.length });
+  metrics();
   return out;
 }
 

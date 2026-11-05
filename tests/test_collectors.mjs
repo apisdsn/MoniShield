@@ -1,7 +1,7 @@
 // Collectors page helpers (web/src/collectors.js): the checks mirror the server's rules.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkName, checkPath, checkService, parseUnits, checkOptions, payload, sends, installSteps, keySteps, upgradeSteps, ago, counts, defaults, editable } from '../web/src/collectors.js';
+import { containerMetricsOff, checkName, checkPath, checkService, parseUnits, checkOptions, payload, sends, installSteps, keySteps, upgradeSteps, ago, counts, defaults, editable } from '../web/src/collectors.js';
 
 test('names follow the server rule', () => {
   for (const ok of ['a', 'web-01', '0x', 'a'.repeat(63)]) assert.equal(checkName(ok), '', ok);
@@ -39,15 +39,18 @@ test('options: at least one input, errors per row', () => {
 });
 
 test('payload only holds what the platform has', () => {
-  assert.deepEqual(payload('kubernetes', { files: [{ path: '/a', service: 'a' }] }), {});
-  assert.deepEqual(payload('linux', { files: [{ path: ' /a.log ', service: 'a ' }], journald: false, units: ['x.service'] }), { files: [{ path: '/a.log', service: 'a' }], journald: false, units: [] });
-  assert.deepEqual(payload('windows', { files: [], channels: ['security', 'application'] }), { files: [], channels: ['application', 'security'] });
+  assert.deepEqual(payload('kubernetes', { files: [{ path: '/a', service: 'a' }], host_metrics: true }), { host_metrics: true });
+  assert.deepEqual(payload('linux', { files: [{ path: ' /a.log ', service: 'a ' }], journald: false, units: ['x.service'], container_metrics: true }), { files: [{ path: '/a.log', service: 'a' }], journald: false, units: [], host_metrics: false });
+  assert.deepEqual(payload('windows', { files: [], channels: ['security', 'application'], host_metrics: true }), { files: [], channels: ['application', 'security'], host_metrics: true });
   assert.equal(payload('docker', { files: [], journald: false, units: [], containers: true }).containers, true);
-  assert.deepEqual(editable('windows', null), { files: [], channels: ['application', 'system'] });
+  assert.deepEqual(payload('docker', { files: [], journald: false, units: [], host_metrics: true, container_metrics: true }), { files: [], journald: false, units: [], host_metrics: true, container_metrics: true, containers: false });
+  assert.deepEqual(editable('windows', null), { files: [], channels: ['application', 'system'], host_metrics: true });
 });
 
 test('chips', () => {
   assert.deepEqual(sends('kubernetes', {}), [{ key: 'pods' }]);
+  assert.deepEqual(sends('kubernetes', { host_metrics: true }), [{ key: 'pods' }, { key: 'host_metrics' }]);
+  assert.deepEqual(sends('docker', { containers: true, host_metrics: true, container_metrics: true }), [{ key: 'containers' }, { key: 'host_metrics' }, { key: 'container_metrics' }]);
   assert.deepEqual(sends('linux', { files: [1, 2], journald: true }), [{ key: 'journald' }, { key: 'files', n: 2 }]);
   assert.deepEqual(sends('windows', { files: [], channels: ['system'] }), [{ key: 'system' }]);
   assert.deepEqual(sends('docker', { files: [], journald: false, containers: true }), [{ key: 'containers' }]);
@@ -80,4 +83,17 @@ test('upgrade command: no token, the installer with --upgrade', () => {
   }
   assert.match(upgradeSteps('windows', b)[0].lines[1], /install\.ps1 -Upgrade$/);
   assert.deepEqual(upgradeSteps('kubernetes', b), []);
+});
+
+test('metric options: defaults, who can have container metrics, and "nothing chosen"', () => {
+  assert.equal(defaults('linux').host_metrics, true);
+  assert.deepEqual([defaults('docker').host_metrics, defaults('docker').container_metrics], [true, true]);
+  assert.deepEqual(defaults('kubernetes'), { host_metrics: true });
+  assert.equal(containerMetricsOff('docker'), ''); assert.equal(containerMetricsOff('linux'), 'host'); assert.equal(containerMetricsOff('windows'), 'host'); assert.equal(containerMetricsOff('kubernetes'), 'kubernetes');
+  assert.deepEqual(editable('linux', { files: [], journald: true, units: [] }).host_metrics, false);              // a collector from before the metrics: off
+  assert.equal('container_metrics' in editable('linux', { container_metrics: true }), false);
+  const only = { files: [], journald: false, units: [], host_metrics: false };
+  assert.equal(checkOptions('linux', only).none, 'no_inputs');
+  assert.deepEqual(checkOptions('linux', { ...only, host_metrics: true }), {});                                      // metrics alone are an input
+  assert.deepEqual(checkOptions('docker', { ...only, containers: false, container_metrics: true }), {});
 });

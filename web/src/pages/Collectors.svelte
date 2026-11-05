@@ -306,11 +306,11 @@
         </div>
       </form>
     {:else}
-      <p>{dlg.r.enrolled_at ? (dlg.r.platform === 'kubernetes' ? $t('cl.in.next_k8s') : $t('cl.in.next')) : $t('cl.in.waiting')}</p>
+      <p>{dlg.r.enrolled_at ? (dlg.r.platform === 'kubernetes' ? $t('cl.in.next_k8s') : $t('cl.in.upgrade')) : $t('cl.in.waiting')}</p>
       {#if dlg.r.platform === 'kubernetes' && dlg.r.enrolled_at}
         <p class="vals"><a class="btn accent" href="/api/admin/collectors/{dlg.r.id}/config" download="values.yaml"><Icon name="download" size={16} />{$t('cl.tok.values')}</a></p>
       {/if}
-      {#if dlg.r.enrolled_at}{#each updateSteps(dlg.r.platform, base) as s}<CopyBlock label={$t('cl.a.inputs')} lines={s.lines} />{/each}{/if}
+      {#if dlg.r.enrolled_at}{#each (dlg.r.platform === 'kubernetes' ? updateSteps : upgradeSteps)(dlg.r.platform, base) as s}<CopyBlock label={$t(dlg.r.platform === 'kubernetes' ? 'cl.a.inputs' : 'cl.a.upgrade')} lines={s.lines} />{/each}{/if}
       <div class="acts"><button class="btn primary" onclick={() => (open = false)}>{$t('adm.done_btn')}</button></div>
     {/if}
   {:else if dlg?.kind === 'revoke' || dlg?.kind === 'delete'}

@@ -1589,5 +1589,19 @@
  "sv.empty.title": "No Server Metrics Yet",
  "sv.empty.text": "No collector sends server metrics yet; turn on Server Metrics for a collector to see its load here.",
  "sv.empty.link": "Open Collectors",
- "sv.empty.text_user": "No collector sends server metrics yet."
+ "sv.empty.text_user": "No collector sends server metrics yet.",
+ "cl.f.metrics": "Metrics",
+ "cl.f.host_metrics": "Server Metrics",
+ "cl.f.host_metrics_hint": "CPU, memory, disk per file system, network and load of this server, every 30 seconds.",
+ "cl.f.host_metrics_hint.windows": "CPU, memory, each disk and network of this server, every 30 seconds.",
+ "cl.f.host_metrics_hint.kubernetes": "CPU, memory and disk of each node, every 30 seconds. The network of a node is not collected.",
+ "cl.f.container_metrics": "Container Metrics",
+ "cl.f.container_metrics_hint": "CPU, memory, network and restarts per container, from the Docker socket (read only).",
+ "cl.f.container_metrics_off.host": "Only for Docker hosts.",
+ "cl.f.container_metrics_off.kubernetes": "Per-container metrics for Kubernetes come later.",
+ "cl.f.metrics_store": "What the server stores: one point every 30 seconds for 7 days, then one value per hour for 90 days. About 80 MB for one server with 20 containers; a server without containers needs far less. No IP addresses, no command lines, no environment values.",
+ "cl.f.metrics_none": "Logs only. You can turn metrics on later from the collector's details.",
+ "cl.sends.host_metrics": "Server Metrics",
+ "cl.sends.container_metrics": "Container Metrics",
+ "cl.in.upgrade": "Saved. Run the upgrade command on the server to apply this:"
 }
