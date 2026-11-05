@@ -84,7 +84,7 @@ def test_transforms():
     assert detect.transform('/*x*/SELECT', ('replaceComments', 'lowercase')) == ' select'
 
 
-# ------------------------------------------------------------------ real data
+# Real data
 @pytest.fixture(scope='module')
 def real_db():
     cfg = config.load(dotenv=False)

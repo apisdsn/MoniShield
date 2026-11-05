@@ -60,7 +60,7 @@ class AlertUnconfirmed(AlertFail):
     """The channel received the message but did not confirm it (email: connection ended after the message was sent).
     Counted as sent, so it is not sent again; the note is kept in the history."""
 
-# ------------------------------------------------------------------ thresholds
+# Thresholds
 def _pair(name, value):
     """'2:50' -> (2.0, 50); 'off' -> None. Bad text -> AlertFail."""
     v = str(value).strip().lower()
@@ -129,7 +129,7 @@ def _pair_in(name, v):
     return _pair(name, v)
 
 
-# ------------------------------------------------------------------ settings
+# Settings
 def load(cfg):
     """Notification settings from the server configuration (.env) -> the dict shape used by this module and the page."""
     on = {x.strip() for x in (cfg.alert_events or '').split(',')}
@@ -243,7 +243,7 @@ def validate(cfg):
         raise AlertFail('Email is on but the SMTP server / port / sender / recipient is incomplete.')
 
 
-# ------------------------------------------------------------------ texts (bilingual; metric names from this small dictionary)
+# Texts (bilingual; metric names from this small dictionary)
 T = dict(
     id=dict(spike='Lonjakan di log {d}', critical='Serangan kritis di log {d}', ingest_failed='Ingest gagal',
             sync_failed='Sinkron S3 bermasalah', backup_failed='Backup gagal', folder_missing='Log tanggal {d} belum datang', summary='Ringkasan log {d}',
@@ -311,7 +311,7 @@ def _link(cfg, folder, tab='command-center', source='s3'):
     return f"\n{_t(cfg, 'open')}: {cfg['dashboard_url'].rstrip('/')}/{tab}?folder={folder}{src}" if cfg['dashboard_url'] else ''
 
 
-# ------------------------------------------------------------------ evaluation
+# Evaluation
 def _spikes(cfg, facts):
     """-> (kpi spikes [(key, value, average)], service spikes [(service, errors, average)]) by the configured thresholds."""
     a, b = facts['kpi'], facts['base']
@@ -348,7 +348,7 @@ def folder_events(cfg, folder, facts, source='s3'):
     return out
 
 
-# ------------------------------------------------------------------ daily report (event 'summary')
+# Daily report (event 'summary')
 KEYCAPS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
 MAX_CHECKS = 6
 CRIT_5XX, MIN_REQUESTS, PARTIAL = 0.05, 50, 50   # 5xx rate that is critical; requests a rate needs; % of average lines that is "incomplete"
@@ -481,12 +481,15 @@ def report_due(cfg, now_wib):
     return bool(cfg['events']['summary']) and now_wib.hour >= int(cfg['summary_hour'])
 
 
-def report_target(s3_newest, kafka_folders, today_local):
+def report_target(s3_newest, kafka_folders, today_local, collector_folders=()):
     """Folder of the scheduled daily report -> (folder, source) or None. S3 when it has data (an S3 folder arrives complete);
-    otherwise the newest complete Kafka folder: dated today or earlier (the folder dated tomorrow is still filling up)."""
+    otherwise the newest complete Kafka folder, then the newest complete collector folder: dated today or earlier (the folder
+    dated tomorrow is still filling up). A source that is not the first with data gets its report on request (page button)."""
     if s3_newest: return s3_newest, 's3'
-    done = [f for f in kafka_folders if f <= today_local.isoformat()]
-    return (max(done), 'kafka') if done else None
+    for folders, source in ((kafka_folders, 'kafka'), (collector_folders, 'collector')):
+        done = [f for f in folders if f <= today_local.isoformat()]
+        if done: return max(done), source
+    return None
 
 
 def active(cfg): return bool(cfg) and any(c['enabled'] for c in cfg['channels'].values())

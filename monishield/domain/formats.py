@@ -12,7 +12,7 @@ from monishield.domain import timezone
 
 UTC = datetime.timezone.utc
 
-# ------------------------------------------------------------------ time
+# Time
 ISO = re.compile(r'(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d:\d\d)(?:[.,](\d+))?\s*(Z|[+-]\d\d:?\d\d)?', re.I)
 CLF = '%d/%b/%Y:%H:%M:%S %z'   # 10/Oct/2026:13:55:36 +0000
 MONTHS = {m: i for i, m in enumerate('jan feb mar apr may jun jul aug sep oct nov dec'.split(), 1)}
@@ -52,7 +52,7 @@ def parse_time(value, fmt='iso', now=None):
     return dt.strftime('%Y-%m-%d %H:%M:%S')
 
 
-# ------------------------------------------------------------------ level
+# Level
 WORDS = {'error': 'ERROR', 'err': 'ERROR', 'fatal': 'ERROR', 'crit': 'ERROR', 'critical': 'ERROR', 'emerg': 'ERROR',
          'emergency': 'ERROR', 'alert': 'ERROR', 'severe': 'ERROR', 'panic': 'ERROR', 'warn': 'WARN', 'warning': 'WARN',
          'info': 'INFO', 'information': 'INFO', 'notice': 'INFO', 'debug': 'DEBUG', 'trace': 'DEBUG', 'verbose': 'DEBUG', 'fine': 'DEBUG'}
@@ -77,7 +77,7 @@ def guess_level(text):
     return 'INFO'
 
 
-# ------------------------------------------------------------------ shared cleanup
+# Shared cleanup
 def _int(v):
     try: return int(float(v)) if v not in (None, '', '-') else None
     except (TypeError, ValueError): return None
@@ -102,7 +102,7 @@ def finish(d, rule):
     return {k: v for k, v in out.items() if v is not None}
 
 
-# ------------------------------------------------------------------ access logs (nginx / apache combined)
+# Access logs (nginx / apache combined)
 COMBINED = re.compile(r'(?P<ip>\S+) \S+ (?P<user>\S+) \[(?P<time>[^\]]+)\] "(?P<method>[A-Z]+) (?P<path>\S+)(?: [^"]*)?" '
                       r'(?P<status>\d{3}) (?P<bytes>\d+|-)(?: "(?P<referer>[^"]*)" "(?P<ua>[^"]*)")?(?P<rest>.*)$')
 TAIL_SECONDS = re.compile(r'^\s+(\d+\.\d+)(?:\s|$)')   # nginx $request_time right after the user agent
@@ -119,7 +119,7 @@ def read_combined(text, rule):
     return finish(d, rule)
 
 
-# ------------------------------------------------------------------ json lines
+# Json lines
 def dig(obj, path):
     """'req.url' -> obj['req']['url']; a key that itself has a dot ('http.status') wins over nesting."""
     if path in obj: return obj[path]
@@ -175,7 +175,7 @@ def read_json(text, rule):
     return from_mapping(obj, rule) if isinstance(obj, dict) else None
 
 
-# ------------------------------------------------------------------ logfmt
+# Logfmt
 LOGFMT = re.compile(r'([\w.@/-]+)=("(?:[^"\\]|\\.)*"|\S*)')
 
 
@@ -186,7 +186,7 @@ def read_logfmt(text, rule):
     return from_mapping(obj, rule)
 
 
-# ------------------------------------------------------------------ syslog
+# Syslog
 RFC5424 = re.compile(r'<(?P<pri>\d{1,3})>1 (?P<time>\S+) (?P<host>\S+) (?P<app>\S+) (?P<proc>\S+) (?P<msgid>\S+) (?:-|\[.*?\])\s?(?P<message>.*)$')
 RFC3164 = re.compile(r'(?:<(?P<pri>\d{1,3})>)?(?P<time>[A-Z][a-z]{2} [ \d]\d \d\d:\d\d:\d\d) (?P<host>\S+) (?P<app>[^:\[\s]+)(?:\[\d+\])?: (?P<message>.*)$')
 SEVERITY = ('ERROR', 'ERROR', 'ERROR', 'ERROR', 'WARN', 'INFO', 'INFO', 'DEBUG')   # syslog severity 0..7
@@ -204,7 +204,7 @@ def read_syslog(text, rule, now=None):
     return finish(d, rule) if t else None
 
 
-# ------------------------------------------------------------------ regex / plain
+# Regex / plain
 def read_regex(text, rule, compiled):
     head, _, rest = text.partition('\n')          # the pattern describes the first line; the rest is a stack trace
     m = compiled.search(head)
@@ -222,7 +222,7 @@ def read_plain(text, rule):
     return finish(dict(time=parse_time(m[0]) if m else None, level=guess_level(text), message=text.strip()), rule)
 
 
-# ------------------------------------------------------------------ entries (multiline)
+# Entries (multiline)
 def entries(lines, start=None):
     """Lines -> (line number of the entry's first line, text). With `start` (compiled regex), a line that does not match
     is appended to the previous entry (stack traces); a file that does not start with a match starts with an entry anyway."""

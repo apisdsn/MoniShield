@@ -51,6 +51,14 @@
         {#if k.files_corrupt}{' '}<SeverityTag level={2} text={$t('file.corrupt')} /> {$t('svc.corrupt_files', { n: num(k.files_corrupt, $lang) })}{/if}
       </Note>
     {:else}
+      {#if data.format}
+        <p class="format">
+          {$t('svc.format', { preset: data.format.preset })}
+          {#if data.format.unread}
+            · <span class:warn={data.format.unread > 0.05} title={$t('svc.format_unread_info')}>{$t('svc.format_unread', { pct: num(data.format.unread * 100, $lang, 1) })}</span>
+          {/if}
+        </p>
+      {/if}
       <div class="kpis">
         <Kpi icon="lines" label={$t('svc.kpi_lines')} value={k.lines} />
         <Kpi icon="alert" label={$t('kpi.error')} value={k.err} tone="err" info={errInfo} />
@@ -73,4 +81,6 @@
 <style>
   .content { transition: opacity 0.15s; }
   .content.dim { opacity: 0.6; }
+  .format { margin: 0 0 8px; font-size: 0.8125rem; color: var(--muted); }
+  .format .warn { color: var(--warn); font-weight: 600; }
 </style>

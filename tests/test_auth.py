@@ -182,7 +182,7 @@ def test_machine_token():
     assert not accounts.job_token_ok('', '') and not accounts.job_token_ok('', 'anything') and not accounts.job_token_ok('secret', None)
 
 
-# ------------------------------------------------------------------ JWT
+# JWT
 def test_jwt_contents_hold_no_secrets(a, admin):
     token, user = a.login('admin', PW)
     c = jwt.decode(token, JWT_SECRET, algorithms=['HS256'], issuer='monishield')

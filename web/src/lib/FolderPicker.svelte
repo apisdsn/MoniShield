@@ -44,7 +44,7 @@
 </div>
 
 <style>
-  .fp { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 3px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg2); }
+  .fp { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 3px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); }
   select {
     flex: 1; font-weight: 600; letter-spacing: 0.01em; color: var(--fg); padding: 0.4rem 34px 0.4rem 12px; cursor: pointer;
     min-height: 2.375rem; max-width: 100%; min-width: 0; text-overflow: ellipsis; text-align: center;
@@ -55,7 +55,12 @@
   select:focus, select:focus-visible { outline: none; box-shadow: none; }
   .fp:has(select:focus-visible) { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
   .arrow:focus-visible { outline-offset: -2px; }
-  .arrow { width: 2.375rem; height: 2.375rem; flex: none; font-size: 0.7rem; color: var(--muted); border: 0; background: transparent; }
+  .arrow { width: 2.375rem; height: 2.375rem; flex: none; font-size: 0.75rem; color: var(--muted); border: 0; background: transparent; }
   .arrow:hover:not(:disabled) { color: var(--fg); background: var(--nav-hover); }
   @media (max-width: 900px) { select { font-size: 1rem; } }
+  @media (max-width: 900px), (pointer: coarse) {
+    .fp { padding: 0; }
+    select { min-height: var(--touch); }
+    .arrow { width: var(--touch); height: var(--touch); }
+  }
 </style>

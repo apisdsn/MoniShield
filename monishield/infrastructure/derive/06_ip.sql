@@ -1,4 +1,4 @@
--- agg_ip (old ips, ip4, ip4ua). ua_first_4xx = UA (100 chars) of that IP's FIRST 4xx response, ingress only.
+-- agg_ip (old ips, ip4, ip4ua). ua_first_4xx = UA (100 chars) of that IP's FIRST 4xx response, ingress and common-format access logs (http_access) only.
 -- events service: only events that have an ipAddress.
 DELETE FROM agg_ip WHERE folder = $f;
 INSERT INTO agg_ip
@@ -7,5 +7,7 @@ SELECT $f, service, ip, count(*), count(*) FILTER (WHERE status BETWEEN 400 AND 
 FROM (SELECT 'nginx-ingress-controller' AS service, a.ip, a.status, a.ua, (f.relpath, a.line_no) AS ord
       FROM nginx_access a JOIN ingest_file f USING (file_id) WHERE a.folder = $f
       UNION ALL SELECT $fe, ip, status, NULL, NULL FROM fe_access WHERE folder = $f
-      UNION ALL SELECT $sl, ip, status, NULL, NULL FROM sl_event WHERE folder = $f AND ip IS NOT NULL)
+      UNION ALL SELECT $sl, ip, status, NULL, NULL FROM sl_event WHERE folder = $f AND ip IS NOT NULL
+      UNION ALL SELECT a.service, a.ip, a.status, a.ua, (f.relpath, a.line_no)
+      FROM http_access a JOIN ingest_file f USING (file_id) WHERE a.folder = $f)
 GROUP BY service, ip;

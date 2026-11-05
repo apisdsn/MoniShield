@@ -80,7 +80,7 @@
 <style>
   input { width: 100%; }
   .hint { margin: 6px 0 10px; font-size: 0.75rem; }
-  .grp { margin: 12px 0 4px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--th-fg); }
+  .grp { margin: 12px 0 4px; font-size: 0.75rem; font-weight: 600; color: var(--th-fg); }
   .opt { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; cursor: pointer; min-height: 36px; }
   .opt.on { background: var(--row-hover); box-shadow: inset 3px 0 0 var(--accent); }
   .lbl { font-family: var(--mono); font-size: 0.8125rem; overflow-wrap: anywhere; color: var(--fg); }

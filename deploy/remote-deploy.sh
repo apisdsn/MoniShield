@@ -45,6 +45,11 @@ fi
 docker run --rm -v "$DIR/.env:/e" busybox sh -c "chown $(id -u):10001 /e && chmod 660 /e"
 
 # ---------------------------------------------------------------- containers
+# A bind-mounted file is not re-read when git replaces it, and compose recreates a container only when its own settings
+# change. This hash of every Caddy file goes into the Caddy services' environment, so a changed file recreates them
+# (DOCKER_INGEST_DOMAIN and DOCKER_MAIN_CLOUDFLARE_ONLY are in their environment already, so a changed .env value does too).
+DEPLOY_CONFIG_HASH=$(cat deploy/Caddyfile deploy/Caddyfile.letsencrypt deploy/caddy/* deploy/sites/*.caddy 2>/dev/null | sha256sum | cut -c1-16)
+export DEPLOY_CONFIG_HASH
 say "building and starting (profiles: ${COMPOSE_PROFILES:-none})"
 docker compose build --pull
 docker compose up -d --remove-orphans

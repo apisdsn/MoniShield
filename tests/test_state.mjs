@@ -9,6 +9,7 @@ test('IP and search text go after "#"', () => {
   assert.equal(build({ ...base, tab: 'ip', service: '203.0.113.5' }), '/ips?folder=2026-10-30#ip=203.0.113.5');
   assert.equal(build({ ...base, tab: 'security', q: 'rina@example.com' }), '/security?folder=2026-10-30#search=rina%40example.com');
   assert.equal(build({ ...base, tab: 'raw-logs', q: 'verify-otp', source: 'kafka' }), '/raw-logs?folder=2026-10-30&source=kafka#search=verify-otp');
+  assert.equal(build({ ...base, tab: 'overview', source: 'collector' }), '/overview?folder=2026-10-30&source=collector');
   assert.equal(build({ ...base, tab: 'overview' }), '/overview?folder=2026-10-30');
 });
 
@@ -33,4 +34,12 @@ test('a plain anchor is not read as data; /ips without an IP opens the Overview'
 test('sign-in keeps the data after "#" outside ?next=', () => {
   const r = parse('/login?next=%2Fips%3Ffolder%3D2026-10-30#ip=203.0.113.5');
   assert.deepEqual([r.tab, r.service, r.folder], ['ip', '203.0.113.5', '2026-10-30']);
+});
+
+test('a pod for Raw Logs goes after "#" and only belongs to that page', () => {
+  assert.equal(build({ ...base, tab: 'raw-logs', pod: 'web-01', source: 'collector' }), '/raw-logs?folder=2026-10-30&source=collector#pod=web-01');
+  assert.equal(parse('/raw-logs?folder=2026-10-30&source=collector#pod=web-01').pod, 'web-01');
+  assert.equal(parse('/security?folder=2026-10-30#pod=web-01').pod, null);
+  assert.equal(build({ ...base, tab: 'security', pod: 'web-01' }), '/security?folder=2026-10-30');
+  assert.equal(parse('/collectors').tab, 'collectors');
 });

@@ -1,4 +1,4 @@
-"""Daily backup (owner request 2026-10-27): both DuckDB databases (S3 and Kafka sources) and the account database, kept for
+"""Daily backup (owner request 2026-10-27): the DuckDB databases (S3, Kafka and collector sources) and the account database, kept for
 S4_BACKUP_KEEP days, optionally copied to object storage. The files are written by the Backups adapter
 (monishield/infrastructure/backup.py). A failure is notified (event 'backup_failed') and shown on the Ingest & import page.
 """
@@ -53,7 +53,7 @@ class BackupService:
             if alerts.active(cfg) and (ev := alerts.backup_failed(cfg, day, error)): deliver(self.ctx, cfg, ev[0], 'backup_failed', ev[1], ev[2])
         except Exception: pass   # noqa: BLE001  a notification problem must not hide the backup error
 
-    # -------------------------------------------------------------- daily
+    # Daily
     def start(self):
         self._stop = threading.Event()
 

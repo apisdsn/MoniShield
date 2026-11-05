@@ -28,7 +28,7 @@ MAXMIND_LICENSE_KEY=
 """
 
 
-# ------------------------------------------------------------------ .env writer
+# .env writer
 def test_envfile_writes_in_place_and_keeps_comments(tmp_path):
     p = tmp_path / '.env'
     p.write_text(SAMPLE_ENV); os.chmod(p, 0o640)
@@ -52,7 +52,7 @@ def test_envfile_writes_in_place_and_keeps_comments(tmp_path):
     assert stat.S_IMODE(os.stat(q).st_mode) == 0o600
 
 
-# ------------------------------------------------------------------ API
+# API
 @pytest.fixture
 def s3(monkeypatch):
     t = FakeS3({'example-log-bucket': {'k8s-logs/2026-01-05/ns/svc/a.log': b'x'}}, keys=(KEY_OK, KEY_UI))

@@ -18,15 +18,15 @@ export const lastActivity = writable(Date.now());
 
 let retryTimer = null;
 
-// Data source of the page (owner request 2026-10-23): S3 and Kafka each have their own database, one is shown at a time.
-// state.js keeps this in step with the address (?source=kafka); every data request carries it.
+// Data source of the page (owner request 2026-10-23): S3, Kafka and collector each have their own database, one is shown at a
+// time. state.js keeps this in step with the address (?source=kafka); every data request carries it.
 let source = 's3';
-export function setSource(s) { source = s === 'kafka' ? 'kafka' : 's3'; }
+export function setSource(s) { source = s === 'kafka' || s === 'collector' ? s : 's3'; }
 const OWN = /^\/api\/(auth|me|crypto|health)(\/|\?|$)/;   // not about the data of a source
 /** An /api path with the current data source (S3 is the default and is not written). Use it for links the browser follows itself. */
 export function withSource(path) {
-  if (source !== 'kafka' || !path.startsWith('/api/') || OWN.test(path)) return path;
-  return path + (path.includes('?') ? '&' : '?') + 'source=kafka';
+  if (source === 's3' || !path.startsWith('/api/') || OWN.test(path)) return path;
+  return path + (path.includes('?') ? '&' : '?') + 'source=' + source;
 }
 
 async function request(method, path, body, retried = false) {
@@ -94,7 +94,7 @@ export function compact(params = {}) {
   return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== ''));
 }
 
-// ---------------------------------------------------------------- not connected
+// Not connected
 const RETRY_MS = 5000, RETRY_FOR_MS = 60000;
 let retryStart = 0;
 const listeners = new Set();

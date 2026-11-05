@@ -66,7 +66,7 @@ def test_insert_rows_is_fast_where_executemany_is_slow():
     assert time.time() - t < 5 and con.execute('SELECT count(*) FROM agg_attack_ip').fetchone()[0] == 20000      # executemany: ~60 s for the same rows
 
 
-# ---------------------------------------------------------------- account analysis
+# Account analysis
 def _accounts_reference(lev, window_min=60):
     """The first version (quadratic), kept here as the reference the fast one must agree with."""
     per = collections.defaultdict(list)

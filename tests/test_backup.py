@@ -46,14 +46,14 @@ def test_next_daily_run_is_the_next_hour_in_wib():
     assert retention.next_daily(utc(2026, 10, 27, 3, 0), 23) == utc(2026, 10, 27, 16, 0)
 
 
-def test_backup_now_writes_private_copies_of_both_databases_and_the_accounts(client, cfg):
+def test_backup_now_writes_private_copies_of_all_databases_and_the_accounts(client, cfg):
     r = client.post('/api/admin/backup/run', headers=X)
     assert r.status_code == 200, r.text
     s = r.json()
     day = s['last']['day']
     assert s['last']['ok'] and s['backups'][0]['day'] == day and s['next']
     folder = os.path.join(cfg.backup_path, day)
-    assert sorted(os.listdir(folder)) == ['accounts.json.gz', 'kafka.duckdb.gz', 'manifest.json', 's3.duckdb.gz']
+    assert sorted(os.listdir(folder)) == ['accounts.json.gz', 'collector.duckdb.gz', 'kafka.duckdb.gz', 'manifest.json', 's3.duckdb.gz']
     assert stat.S_IMODE(os.stat(folder).st_mode) == 0o700
     assert all(stat.S_IMODE(os.stat(os.path.join(folder, f)).st_mode) == 0o600 for f in os.listdir(folder))   # password hashes, IPs
     man = json.load(open(os.path.join(folder, 'manifest.json')))

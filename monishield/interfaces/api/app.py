@@ -12,18 +12,18 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from monishield import __version__
-from monishield.application import account_service, alert_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
+from monishield.application import account_service, alert_service, collector_feed, collector_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
 from monishield.domain import config_model, detect, log_formats, services, timezone
-from monishield.infrastructure import auth as authmod, backup, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
+from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, importer, inbox, kafka_client, letter, logfolders, mailer, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
-from monishield.interfaces.api import admin, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
-from .common import ROLE_DEPS
+from monishield.interfaces.api import admin, collector_install, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, session, upload, users, wire as payload
+from .common import ROLE_DEPS, FailureLimiter, RateWindow, Slots
 
 WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
-ROUTERS = (meta.router, session.router, payload.router, users.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
+ROUTERS = (meta.router, session.router, payload.router, users.router, collectors.router, collector_install.router, collector_logs.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router)
 
 
 
@@ -32,7 +32,7 @@ class SpaFiles(StaticFiles):
     first segment is an app page (web/src/state.js) gets index.html and the app reads the path; anything else that is
     not a file stays 404."""
     PAGES = {'overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
-             'services', 'ips', 'admin', 'password', 'email', 'login'}
+             'services', 'ips', 'collectors', 'admin', 'password', 'email', 'login'}
 
     async def get_response(self, path, scope):
         try: return await super().get_response(path, scope)
@@ -75,7 +75,7 @@ def wire(state, cfg, env_path):
     state.uploads = uploads.Uploads(cfg)
     state.maxmind = refdata.probe_maxmind
     state.wire = wirecrypto.WireCrypto(ttl_hours=cfg.session_max_hours)
-    state.source = sources.S3   # this ctx is the S3 source; the Kafka source is state.sources['kafka'] (own database, own folders)
+    state.source = sources.S3   # this ctx is the S3 source; Kafka and collector are state.sources['kafka'] / ['collector'] (own database, own folders)
     state.ingest = ingest_service.IngestService(state)
     state.imports = import_service.ImportService(state)
     state.alerts = alert_service.Notifier(state)
@@ -85,12 +85,22 @@ def wire(state, cfg, env_path):
     k = sources.SourceCtx(state, sources.KAFKA, cfg=kcfg)
     k.warehouse, k.logfolders = warehouse.DuckWarehouse(k), logfolders.LogFolders(kcfg, kind='kafka')
     k.ingest, k.retention = ingest_service.IngestService(k), retention_service.RetentionService(k)
-    state.sources = {sources.S3: state, sources.KAFKA: k}
+    ccfg = config_model.collector_config(cfg)
+    c = sources.SourceCtx(state, sources.COLLECTOR, cfg=ccfg)
+    c.warehouse, c.logfolders = warehouse.DuckWarehouse(c), logfolders.LogFolders(ccfg, kind='collector')
+    c.ingest, c.retention = ingest_service.IngestService(c), retention_service.RetentionService(c)
+    state.sources = {sources.S3: state, sources.KAFKA: k, sources.COLLECTOR: c}
     state.kafka = kafka_service.KafkaFeed(k)   # the consumer belongs to the Kafka source
     state.backups = backup.Backups(cfg)
     state.backup = backup_service.BackupService(state)
     state.resets = password_service.PasswordResets(state)
     state.emails = account_service.EmailChanges(state)
+    state.collectors = collector_service.CollectorService(state)
+    state.collector_inbox = collector_inbox.CollectorInbox(cfg.collector_inbox)
+    state.collector_feed = collector_feed.CollectorFeed(state)
+    state.collector_failures = FailureLimiter()   # wrong collector keys per IP (receiver only)
+    state.collector_slots = Slots()               # requests being read and stored (memory)
+    state.collector_rates = RateWindow()          # requests per collector per minute
     return state
 
 
@@ -103,7 +113,7 @@ def migrate_kafka_layout(state):
         except Exception: pass   # noqa: BLE001  nothing to forget; the folder is Kafka's from now on
 
 
-def _error(status, code, message): return JSONResponse(dict(error=dict(code=code, message=message)), status_code=status)
+def _error(status, code, message, headers=None): return JSONResponse(dict(error=dict(code=code, message=message)), status_code=status, headers=headers)
 
 
 def create_app(cfg=None, env_path=None):
@@ -119,6 +129,8 @@ def create_app(cfg=None, env_path=None):
         app.state.con = db.open(cfg.db_path)
         kafka = app.state.sources[sources.KAFKA]
         kafka.con = db.open(cfg.kafka_db_path)
+        collector = app.state.sources[sources.COLLECTOR]
+        collector.con = db.open(cfg.collector_db_path)
         if len(cfg.jwt_secret) < authmod.JWT_SECRET_MIN:
             raise RuntimeError(f'S4_JWT_SECRET is required (at least {authmod.JWT_SECRET_MIN} random characters); see .env.example')
         app.state.auth = authmod.Auth(cfg.auth_url, cfg.jwt_secret, cfg.session_idle_minutes, cfg.session_max_hours)
@@ -131,23 +143,29 @@ def create_app(cfg=None, env_path=None):
             kafka.ingest.start(by='(server start)')   # waits for the S3 ingest: one ingest at a time
         app.state.imports.start_watch()
         app.state.alerts.start()
+        app.state.collector_feed.start()   # ingest of what the receiver wrote (and a catch-up of folders not in the database yet)
         app.state.kafka.start()   # logs from Kafka (when S4_KAFKA_BROKERS + S4_KAFKA_TOPIC are set)
         app.state.retention.start()   # daily cleanup when S4_RETENTION_DAYS / S4_RETENTION_INBOX_DAYS are set
         kafka.retention.start()       # the same rules for the Kafka source
+        collector.retention.start()   # and for the collector source
         app.state.backup.start()      # daily backup at S4_BACKUP_HOUR (WIB)
         yield
         app.state.retention.stop()
         app.state.backup.stop()
         kafka.retention.stop()
+        collector.retention.stop()
+        app.state.collector_feed.stop()
         app.state.imports.stop_watch()
         app.state.alerts.stop()
         app.state.kafka.stop()
         app.state.imports.wait(timeout=600)
         app.state.ingest.wait(timeout=600)
         kafka.ingest.wait(timeout=600)
+        collector.ingest.wait(timeout=600)
         app.state.auth.close()
         app.state.con.close()
         kafka.con.close()
+        collector.con.close()
 
     app = FastAPI(title='MoniShield', version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     wire(app.state, cfg, env_path)
@@ -167,7 +185,7 @@ def create_app(cfg=None, env_path=None):
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request, exc):
         d = exc.detail if isinstance(exc.detail, dict) else dict(code={404: 'not_found', 405: 'method_not_allowed'}.get(exc.status_code, 'error'), message=str(exc.detail))
-        return _error(exc.status_code, d['code'], d['message'])
+        return _error(exc.status_code, d['code'], d['message'], exc.headers)
 
     @app.exception_handler(Fail)
     async def domain_error(request, exc):   # domain/application errors (accounts, queries, import, …) -> the same JSON as ApiError

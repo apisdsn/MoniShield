@@ -13,7 +13,7 @@ on a local computer). Update this file whenever an item below changes. The stage
 | Code | Clean architecture (domain / application / infrastructure / interfaces), enforced by `tests/test_architecture.py` |
 | Language | Code, comments, docs, commit messages, server messages, API values, CLI output: English. UI: Indonesian and English. |
 | Tests | pytest: every test passes on the sample lines in `tests/fixtures/` (2 skip without optional services). Web: build, `tools/check_i18n.mjs`, `tests/test_format.mjs`, `tests/test_state.mjs` (page addresses). |
-| CI | `.github/workflows/ci.yml`: commit messages, pytest, web build, browser smoke test (`tools/smoke_browser.cjs`, every page for both sources and languages); all four must pass before the deploy job on `prd`. |
+| CI | `.github/workflows/ci.yml`: commit messages, pytest, web build, browser smoke test (`tools/smoke_browser.cjs`, every page for all three sources and both languages); all four must pass before the deploy job on `prd`. |
 | Deploy | Automatic deploy of `prd` from this repository, first run 2026-10-28 (`2e564e4`, app healthy). Secrets in the GitHub environment `production`. |
 | Server today | `/srv/MoniShield`, a checkout of this repository (compose project `monishield`, profiles `https,kafka`). The site's own values are in its `.env`; the portfolio site is `deploy/sites/portfolio.caddy` there (not in git). |
 
@@ -81,6 +81,11 @@ Questions answered along the way, recorded so they are not asked again:
   Type Broker, JSON parsing off). It needs permission on `clusterloggings`: Cluster Owner, or Project Owner of the
   `System` project. A project-level logging config only sees the namespaces of that project.
 
+- **UI, 2026-11-04 (stage 55)**: language menu and dark-theme switch live in the header; wide screens are filled and
+  scaled above 2200 px (`web/src/scale.js`, CSS zoom on `<html>`, so any new canvas or map code that reads pointer
+  positions must be tested at 3840 px); the anti-slop rules (44 px touch targets, no looping animation, 12 px control
+  radius, no text under 12 px) apply to new UI.
+
 ## Next steps (in order)
 
 0. **Before relying on forgot password in production**: fill in Configuration → Mail server (SMTP), send the test email,
@@ -96,8 +101,12 @@ Questions answered along the way, recorded so they are not asked again:
 5. The old checkout `/srv/dashboard-logging/v2` on the server can be removed once nothing points to it.
 
 6. **Configurable log formats** (stage 52, [`11-log-formats.md`](11-log-formats.md)): approved; step 1a (rules model,
-   file, validation) and 1b (common formats read into `http_access` / `app_line`, unread lines counted) done; next 1c
-   (derive and pages read the new tables, CRS detection and map on `http_access`, unread-line rate).
+   file, validation), 1b (common formats read into `http_access` / `app_line`, unread lines counted) and 1c (pages, CRS
+   detection and map read the new tables, unread-line rate on the Service page; existing folders are derived once more
+   after the upgrade) done. Collector (stage 54, [`12-collector.md`](12-collector.md)): steps 1 (OTLP/JSON log records read into lines),
+   2 (collector registry, enrollment tokens, keys) and 3 (the `POST /api/collector/v1/logs` receiver writing to the collector
+   inbox) done; 4 (the third source `collector`: own database, ingest of `CollectorFeed.pending`, catch-up, retention, notifications, backup, header switch) done; 5 (configuration writer, `install.sh` / `install.ps1`, options per collector) done; 6 (Collectors page) and 8 (receiver subdomain `DOCKER_INGEST_DOMAIN`, optional `DOCKER_MAIN_CLOUDFLARE_ONLY` guard; owner steps in `07-deploy-vps.md`) done; step 7 (end-to-end check with a real `otelcol-contrib`) is still open. Then 1d
+   (`auto` detection, per-file re-parse, CLI) and 1e (Log formats page, docs).
 
 ## Known issues
 

@@ -16,7 +16,7 @@ PW, PW2 = 'first-admin-password', 'admin-password-after-change'
 RINA_PW = 'rina-initial-password-123'
 
 
-# ------------------------------------------------------------------ rules and letter
+# Rules and letter
 def test_temporary_password_mixes_all_kinds():
     seen = set()
     for _ in range(300):
@@ -55,7 +55,7 @@ def test_one_letter_layout_for_every_email():
     assert n['items'] == ['Respons 5xx: 120'] and n['button']['url'] == 'https://x.id/#/peta?folder=2026-01-06'
 
 
-# ------------------------------------------------------------------ API
+# API
 class Outbox(list):
     pass
 
@@ -200,7 +200,7 @@ def test_mail_server_settings_and_test_email(make, outbox):
     assert tc.get('/api/auth/options').json() == dict(forgot_password=True)
 
 
-# ------------------------------------------------------------------ own email change with verification (owner request 2026-10-08)
+# Own email change with verification (owner request 2026-10-08)
 def code_from(m):
     return re.search(r'(?:Kode verifikasi|Verification code): (\d{6})', m.get_body(('plain',)).get_content()).group(1)
 

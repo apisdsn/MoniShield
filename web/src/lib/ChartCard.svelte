@@ -38,6 +38,7 @@
   import { num, dLabel, tLocal, cut } from '../format.js';
   import InfoTip from './InfoTip.svelte';
   import { TZ } from '../tz.js';
+  import { chartZoomFix } from '../scale.js';
 
   /**
    * datasets: [{label, data, color?: token ('--err' / '--c2'), colors?: [token per point]}]
@@ -93,7 +94,7 @@
     chart = new Chart(canvas, {
       type,
       data: { labels: shownLabels, datasets: ds },
-      plugins: [centerText],
+      plugins: [centerText, chartZoomFix],
       options: {
         responsive: true, maintainAspectRatio: false, animation: reduce ? false : undefined, locale: $lang === 'en' ? 'en-US' : 'id-ID',
         interaction: { mode: 'index', intersect: false },

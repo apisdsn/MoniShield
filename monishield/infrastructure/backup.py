@@ -2,6 +2,7 @@
 
     <backup dir>/<YYYY-MM-DD>/s3.duckdb.gz       the S3 database (raw rows + aggregates of every folder)
                              kafka.duckdb.gz    the Kafka database
+                             collector.duckdb.gz  the collector database
                              accounts.json.gz   every table of the account database (users, password hashes, audit log, ...)
                              manifest.json      sizes + sha256 of the files, time, MoniShield version
 
@@ -19,7 +20,7 @@ from monishield.domain import s3_import, storage
 from monishield.domain.errors import Fail
 from monishield.infrastructure import ingest
 
-FILES = ('s3.duckdb.gz', 'kafka.duckdb.gz', 'accounts.json.gz')
+FILES = ('s3.duckdb.gz', 'kafka.duckdb.gz', 'collector.duckdb.gz', 'accounts.json.gz')
 _lock = threading.Lock()
 
 
@@ -107,7 +108,7 @@ class Backups:
     def root(self): return self.cfg.backup_path
 
     def make(self, cons, auth, day):
-        """Write today's backup folder (replaced when it exists). -> manifest dict. cons = {'s3': con, 'kafka': con}."""
+        """Write today's backup folder (replaced when it exists). -> manifest dict. cons = {'s3': con, 'kafka': con, 'collector': con}."""
         if not _lock.acquire(blocking=False): raise Fail('backup_busy', 'A backup is already running.', 409)
         try:
             os.makedirs(self.root(), mode=0o700, exist_ok=True)
@@ -187,7 +188,7 @@ def restore(cfg, folder, auth_engine, metadata, accounts=True, databases=True):
         if _sha256(os.path.join(folder, f)) != info['sha256']: raise Fail('restore_corrupt', f'{f} does not match its checksum; the backup is damaged.', 400)
     done = {}
     if databases:
-        for name, path in (('s3', cfg.db_path), ('kafka', config_model.kafka_config(cfg).db_path)):
+        for name, path in (('s3', cfg.db_path), ('kafka', config_model.kafka_config(cfg).db_path), ('collector', cfg.collector_db_path)):
             src = os.path.join(folder, f'{name}.duckdb.gz')
             if not os.path.exists(src): continue
             os.makedirs(os.path.dirname(path), exist_ok=True)

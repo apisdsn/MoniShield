@@ -78,17 +78,14 @@
 
 <style>
   .fm header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-  .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; padding: 3px; gap: 2px; }
-  .seg button { all: unset; cursor: pointer; padding: 6px 14px; border-radius: 999px; font-size: 0.8125rem; min-height: 28px; display: inline-flex; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); padding: 3px; gap: 2px; }
+  .seg button { all: unset; cursor: pointer; padding: 6px 14px; border-radius: calc(var(--r-ctl) - 3px); font-size: 0.8125rem; min-height: 28px; display: inline-flex; align-items: center; }
   .seg button[aria-pressed='true'] { background: var(--accent); color: var(--brand-fg); font-weight: 600; }
   .seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
   .skip { position: absolute; left: -9999px; }
   .skip:focus { position: static; display: inline-block; margin-bottom: 8px; }
-  .live { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 2px 9px; border-radius: 999px; font-size: 0.6875rem; font-weight: 700;
-    letter-spacing: 0.06em; color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 50%, transparent); vertical-align: middle; }
-  .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--err); animation: blink 1.4s ease-in-out infinite; }
-  @keyframes blink { 50% { opacity: 0.25; } }
-  @media (prefers-reduced-motion: reduce) { .live::before { animation: none; } }
+  .live { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 2px 9px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 50%, transparent); vertical-align: middle; }
+  .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--err); }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin-top: 10px; font-size: 0.8125rem; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
@@ -103,5 +100,5 @@
   .side-row { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); align-items: start; }
   .side-row > :global(.card) { grid-column: auto; margin-bottom: 0; }
   @media (min-width: 1200px) { .side-row:not(.stack) { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); } }
-  @media (max-width: 900px) { .seg button { min-height: 38px; } }
+  @media (max-width: 900px), (pointer: coarse) { .seg button { min-height: var(--touch); } }
 </style>

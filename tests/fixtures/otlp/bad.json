@@ -1,0 +1,85 @@
+{
+ "resourceLogs": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "web-01"
+      }
+     }
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "test"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1793786136000000000",
+       "body": {
+        "stringValue": "good line"
+       }
+      },
+      {
+       "timeUnixNano": "1793786136000000000",
+       "body": {
+        "intValue": "abc"
+       }
+      },
+      {
+       "timeUnixNano": "1793786136000000000"
+      },
+      {
+       "timeUnixNano": "1793786136000000000",
+       "body": {
+        "stringValue": "   \r\n"
+       }
+      },
+      {
+       "timeUnixNano": "1793786136000000000",
+       "body": {
+        "stringValue": "traversal"
+       },
+       "attributes": [
+        {
+         "key": "service.name",
+         "value": {
+          "stringValue": "../../etc"
+         }
+        }
+       ]
+      },
+      {
+       "timeUnixNano": "1794218136000000000",
+       "body": {
+        "stringValue": "from the future"
+       }
+      },
+      {
+       "timeUnixNano": "1793786136000000000",
+       "body": {
+        "bytesValue": "/w=="
+       }
+      },
+      {
+       "timeUnixNano": "not-a-number",
+       "body": {
+        "stringValue": "bad time"
+       }
+      },
+      "not a record",
+      {
+       "body": {
+        "stringValue": "x"
+       },
+       "attributes": "nope"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

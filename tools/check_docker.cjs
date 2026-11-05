@@ -20,7 +20,7 @@ const check = (n, ok, info = '') => { results.push(!!ok); console.log(`${ok ? 'P
   p.on('pageerror', (e) => errs.push(e.message));
   p.on('console', (m) => m.type() === 'error' && !/status of 40[139]/.test(m.text()) && errs.push(m.text()));
 
-  // ------------------------------------------------------------------ dashboard (ONLY_TOOLS=1: skip, only pgAdmin/DbGate)
+  // Dashboard (ONLY_TOOLS=1: skip, only pgAdmin/DbGate)
   if (!E.ONLY_TOOLS) {
   await p.goto(BASE + '/');
   await p.waitForSelector('#u');
@@ -46,7 +46,7 @@ const check = (n, ok, info = '') => { results.push(!!ok); console.log(`${ok ? 'P
   check('no JavaScript errors', errs.length === 0, errs.slice(0, 3).join(' | '));
   }
 
-  // ------------------------------------------------------------------ pgAdmin (optional)
+  // PgAdmin (optional)
   if (E.PGADMIN_EMAIL) {
     const g = await ctx.newPage();
     await g.goto(E.PGADMIN_URL || 'http://127.0.0.1:5050/');
@@ -57,7 +57,7 @@ const check = (n, ok, info = '') => { results.push(!!ok); console.log(`${ok ? 'P
     check('pgAdmin: signed in, MoniShield server registered automatically', ok);
   }
 
-  // ------------------------------------------------------------------ DbGate (optional)
+  // DbGate (optional)
   if (E.DBGATE_LOGIN) {
     const d = await ctx.newPage();
     await d.goto(E.DBGATE_URL || 'http://127.0.0.1:5051/');

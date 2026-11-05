@@ -46,9 +46,9 @@ class LogFolders:
         return {d for d in folders if os.path.exists(os.path.join(self.cfg.inbox_dir, d, MANIFEST))}
 
     def source(self, folder):
-        """Where a folder's logs come from: 'kafka' for the Kafka source; for S3: 'log' (main log folder; it wins when both
+        """Where a folder's logs come from: 'kafka' / 'collector' for those sources; for S3: 'log' (main log folder; it wins when both
         exist), 's3' (S3 import), 'upload' (uploaded from the browser), or None (not on disk)."""
-        if self.kind == 'kafka': return 'kafka' if self._has_logs(self.cfg.inbox_dir, folder) else None
+        if self.kind in ('kafka', 'collector'): return self.kind if self._has_logs(self.cfg.inbox_dir, folder) else None
         if self._has_logs(self.cfg.log_dir, folder): return 'log'
         if os.path.exists(os.path.join(self.cfg.inbox_dir, folder, MANIFEST)): return 's3'
         return 'upload' if self._has_logs(self.cfg.inbox_dir, folder) else None

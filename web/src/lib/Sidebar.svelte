@@ -110,6 +110,11 @@
           </button>
         </li>
       {/each}
+      <li>
+        <a href={href({ tab: 'collectors' })} aria-current={active('collectors')} onclick={onpick} title={tip($t('nav.collectors'))}>
+          <Icon name="radio" /><span class="lbl">{$t('nav.collectors')}</span>
+        </a>
+      </li>
     </ul>
     </div></div>
   {/if}
@@ -141,7 +146,7 @@
   .pip { display: none; }
   nav { display: flex; flex-direction: column; overflow-y: auto; flex: 1; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
   ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-  .grp { font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.08em; color: var(--muted); margin: 10px 0 2px; text-transform: uppercase; }
+  .grp { font-size: 0.75rem; font-weight: 500; color: var(--muted); margin: 10px 0 2px; }
   .gbtn {
     width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; min-height: 30px;
     background: none; border: 0; border-radius: 8px; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer;
@@ -171,7 +176,7 @@
   nav :focus-visible { outline-offset: -2px; }   /* links and buttons inside the folding groups: ring drawn inside, never clipped */
   .q:focus-visible { outline: none; border-color: var(--focus); box-shadow: inset 0 0 0 1px var(--focus); }
   .b.warn { color: var(--sev2-fg); background: color-mix(in srgb, var(--warn) 14%, transparent); }
-  .b { margin-left: auto; font-size: 0.6875rem; color: var(--badge-fg); background: var(--badge-bg); padding: 1px 7px; border-radius: 999px; white-space: nowrap; text-transform: none; }
+  .b { margin-left: auto; font-size: 0.75rem; color: var(--badge-fg); background: var(--badge-bg); padding: 1px 7px; border-radius: 999px; white-space: nowrap; text-transform: none; }
   .foot {
     border: 1px solid var(--card-border); background: var(--card-bg); border-radius: 14px; padding: 10px 12px;
     display: flex; flex-direction: column; gap: 6px; font-size: 0.75rem;

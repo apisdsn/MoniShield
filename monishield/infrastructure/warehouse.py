@@ -17,7 +17,7 @@ class DuckWarehouse:
         try: yield cur
         finally: cur.close()
 
-    # -------------------------------------------------------------- ingest
+    # Ingest
     def ingest(self, folder=None, force=False, progress=None):
         """-> ingest summary. Another ingest running -> Busy."""
         with self._cur() as cur:
@@ -49,7 +49,7 @@ class DuckWarehouse:
     def forget(self, folder):
         with self._cur() as cur: return ingest.forget(cur, folder)
 
-    # -------------------------------------------------------------- folder
+    # Folder
     def last_run(self):
         with self._cur() as cur:
             r = cur.execute("""SELECT started_at, finished_at, status, files_seen, files_changed, message, run_id FROM ingest_run
@@ -89,7 +89,7 @@ class DuckWarehouse:
             cur.execute('DELETE FROM folder_ignored WHERE ignored_folder = ?', [folder])
         return True
 
-    # -------------------------------------------------------------- notifications and realtime map (no IPs)
+    # Notifications and realtime map (no IPs)
     def folder_facts(self, folder, crs):
         """One folder's aggregate numbers for notification evaluation (monishield/domain/alerts.py)."""
         with self._cur() as cur:

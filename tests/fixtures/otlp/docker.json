@@ -1,0 +1,43 @@
+{
+ "resourceLogs": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "docker-01"
+      }
+     },
+     {
+      "key": "container.name",
+      "value": {
+       "stringValue": "redis"
+      }
+     },
+     {
+      "key": "container.id",
+      "value": {
+       "stringValue": "ab12cd34"
+      }
+     }
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "test"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1793786136000000000",
+       "body": {
+        "stringValue": "1:M 04 Nov 2026 09:55:36.000 * Ready to accept connections"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

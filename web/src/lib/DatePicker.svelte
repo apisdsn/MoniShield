@@ -137,7 +137,7 @@
   .nav:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-text); }
   .nav:disabled { opacity: 0.35; cursor: default; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  th { font-size: 0.6875rem; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 0 6px; text-align: center; }
+  th { font-size: 0.75rem; font-weight: 500; color: var(--muted); padding: 4px 0 6px; text-align: center; }
   td { padding: 2px; text-align: center; }
   .day {
     width: 36px; height: 36px; border-radius: 10px; border: 1px solid transparent; background: none; color: var(--fg);

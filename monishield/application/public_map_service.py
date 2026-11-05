@@ -48,8 +48,9 @@ class PublicMap:
 
     def _latest(self):
         """(folder, coarse points) of the newest folder with located nginx requests among the latest LOOKBACK folders
-        that hold lines: S3 first, then Kafka. Points are cached per folder for DAY_CACHE seconds."""
-        for src in (self.ctx, (getattr(self.ctx, 'sources', None) or {}).get(sources.KAFKA)):
+        that hold lines: S3 first, then Kafka, then collector. Points are cached per folder for DAY_CACHE seconds."""
+        srcs = getattr(self.ctx, 'sources', None) or {}
+        for src in (self.ctx, srcs.get(sources.KAFKA), srcs.get(sources.COLLECTOR)):
             if src is None: continue
             try:
                 rows, ignored = src.warehouse.folder_table()

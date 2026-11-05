@@ -60,7 +60,7 @@ def test_s3_client_uses_the_provider_endpoint():
     assert c.meta.endpoint_url == 'https://s3.ap-southeast-3.amazonaws.com'
 
 
-# ------------------------------------------------------------------ Azure adapter
+# Azure adapter
 class Blob(types.SimpleNamespace):
     pass
 

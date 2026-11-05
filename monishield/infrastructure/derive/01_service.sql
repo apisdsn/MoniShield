@@ -6,14 +6,18 @@ WITH f AS (
     SELECT service, sum(lines) AS lines, sum(err) AS err, sum(warn) AS warn, count(*) AS files,
            count(*) FILTER (WHERE lines = 0) AS files_empty, count(*) FILTER (WHERE status = 'corrupt') AS files_corrupt
     FROM ingest_file WHERE folder = $f GROUP BY service),
+-- is_err = a 5xx of this row is an err_http. Common formats (log-formats.toml): an access log row is a request; an application log
+-- row is one only when it has a status (JSON request logs), and its errors are already counted by level, so it is not an err_http.
 req AS (
-    SELECT 'nginx-ingress-controller' AS service, status, ip, false AS failed FROM nginx_access WHERE folder = $f
-    UNION ALL SELECT $fe, status, ip, false FROM fe_access WHERE folder = $f
-    UNION ALL SELECT $sl, status, ip, failed FROM sl_event WHERE folder = $f),
+    SELECT 'nginx-ingress-controller' AS service, status, ip, true AS is_err FROM nginx_access WHERE folder = $f
+    UNION ALL SELECT $fe, status, ip, true FROM fe_access WHERE folder = $f
+    UNION ALL SELECT $sl, status, ip, failed FROM sl_event WHERE folder = $f
+    UNION ALL SELECT service, status, ip, true FROM http_access WHERE folder = $f AND status IS NOT NULL
+    UNION ALL SELECT service, status, NULL, false FROM app_line WHERE folder = $f AND status IS NOT NULL),
 r AS (
     SELECT service, count(*) AS requests, count(*) FILTER (WHERE status BETWEEN 400 AND 499) AS n4xx,
            count(*) FILTER (WHERE status BETWEEN 500 AND 599) AS n5xx, count(DISTINCT ip) AS ip_unique,
-           count(*) FILTER (WHERE status BETWEEN 500 AND 599 AND (failed OR service <> $sl)) AS err_http
+           count(*) FILTER (WHERE status BETWEEN 500 AND 599 AND is_err) AS err_http
     FROM req GROUP BY service),
 u AS (
     SELECT service, count(DISTINCT lower(split_part(login_account, '@', 1))) AS users_ok

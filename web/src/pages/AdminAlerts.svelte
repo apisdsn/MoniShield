@@ -22,9 +22,9 @@
   // daily report on request: chosen "source|folder", which button is sending
   let repSel = $state(''), sending = $state('');
   const repKey = (x) => `${x.source}|${x.folder}`;
-  const repName = (x) => `${fLabel(x.folder, $lang)}${x.source === 'kafka' ? ' (Kafka)' : ''}`;
-  // "not sent yet" counts the latest 7 folders of the main source (S3 when it has data), like the server
-  const repMain = $derived(v?.report_folders?.some((x) => x.source === 's3') ? 's3' : 'kafka');
+  const repName = (x) => `${fLabel(x.folder, $lang)}${x.source === 's3' ? '' : ` (${$t(`src.${x.source}`)})`}`;
+  // "not sent yet" counts the latest 7 folders of the main source (S3 when it has data, else Kafka, else collector), like the server
+  const repMain = $derived(['s3', 'kafka', 'collector'].find((s) => v?.report_folders?.some((x) => x.source === s)) ?? 's3');
   const repPending = $derived((v?.report_folders || []).filter((x) => x.source === repMain).slice(0, 7).filter((x) => !x.sent).length);
 
   function fill(r) {

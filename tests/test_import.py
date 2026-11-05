@@ -61,7 +61,7 @@ def failed(cfg, url, code, **kw):
     return e.value
 
 
-# ------------------------------------------------------------------ links: rejected before contacting S3
+# Links: rejected before contacting S3
 @pytest.mark.parametrize('url, code', [
     ('https://example-log-bucket.s3.amazonaws.com/k8s-logs/2026-01-05/', 'invalid_url'),
     ('s3://other-bucket/k8s-logs/2026-01-05/', 'bucket_not_allowed'),
@@ -98,7 +98,7 @@ def test_empty_prefix(cfg, s3):
     failed(cfg, 's3://example-log-bucket/k8s-logs/2026-01-09/', 'empty_prefix')
 
 
-# ------------------------------------------------------------------ objects
+# Objects
 def test_key_with_dot_dot_cancels_the_import(cfg, s3):
     s3.buckets['example-log-bucket'][f'{PRE}tenant/../../x/log_a_b_{D}.log'] = b'x'
     failed(cfg, URL, 'unsafe_key')
@@ -158,7 +158,7 @@ def test_same_folder_in_the_local_log_folder_gets_a_warning(cfg, s3):
     assert any('local log folder' in w for w in r['warnings'])
 
 
-# ------------------------------------------------------------------ credentials
+# Credentials
 def test_temporary_credentials_in_memory(cfg):
     c = importer.Credentials(dataclasses.replace(cfg, aws_access_key_id='', aws_secret_access_key=''))
     assert c.get() == (None, None) and c.status()['available'] is False
@@ -176,7 +176,7 @@ def test_temporary_credentials_in_memory(cfg):
     assert c2.get()[1] == 'pasted'
 
 
-# ------------------------------------------------------------------ API
+# API
 @pytest.fixture
 def client(cfg, auth_url, monkeypatch, s3):
     monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
@@ -284,7 +284,7 @@ def test_without_boto3_refused_with_how_to_install(client, monkeypatch):
     assert importer.library_ok() is True and client.get('/api/admin/imports').json()['library'] is True
 
 
-# ------------------------------------------------------------------ extract .log.gz -> .log (owner request 2026-10-07)
+# Extract .log.gz -> .log (owner request 2026-10-07)
 FE_GZ = obj('web-frontend', 'pod-f', ext='.log.gz')
 FE_LOG = os.path.join('tenant', 'web-frontend', f'log_web-frontend_pod-f_{D}-00-00.log')
 
@@ -333,7 +333,7 @@ def test_too_large_extraction_is_cancelled(cfg, s3, monkeypatch):
     assert blank(cfg)
 
 
-# ------------------------------------------------------------------ automatic sync from the parent prefix (S4_S3_WATCH)
+# Automatic sync from the parent prefix (S4_S3_WATCH)
 WATCH = 's3://example-log-bucket/k8s-logs/'
 
 

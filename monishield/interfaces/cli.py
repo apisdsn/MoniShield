@@ -106,7 +106,7 @@ def _ingest_via_api(cfg, args):
     if first is None: return None
     if not cfg.job_token:
         print('server is running but S4_JOB_TOKEN is empty; set it in .env so ingest can be triggered via the API', file=sys.stderr); return 2
-    q = '' if getattr(args, 'source', 's3') == 's3' else f'?source={args.source}'   # the Kafka source has its own database
+    q = '' if getattr(args, 'source', 's3') == 's3' else f'?source={args.source}'   # Kafka and collector have their own database
     code, body = _api(cfg, 'POST', '/api/admin/ingest' + q, dict(folder=args.folder, force=args.force))
     if code not in (202, 409): print(f"failed to trigger ingest: {code} {body.get('error', {}).get('message', '')}", file=sys.stderr); return 2
     if code == 409: print('ingest already running on the server; waiting for it to finish', file=sys.stderr)
@@ -130,6 +130,12 @@ def _slowest(timings, n=4):
     if top and top[0][1] >= 1: print('  slowest steps: ' + ', '.join(f'{k} {v:.1f}s' for k, v in top))
 
 
+def _source_config(cfg, args):
+    """The configuration of the data source in `--source` (default s3: the configuration as it is)."""
+    from monishield.domain import config_model
+    return {'kafka': config_model.kafka_config, 'collector': config_model.collector_config}.get(getattr(args, 'source', 's3'), lambda c: c)(cfg)
+
+
 def cmd_ingest(cfg, args):
     import dataclasses
 
@@ -137,9 +143,7 @@ def cmd_ingest(cfg, args):
     cfg = dataclasses.replace(cfg, offline=cfg.offline or args.offline)
     via = _ingest_via_api(cfg, args)
     if via is not None: return via
-    if getattr(args, 'source', 's3') == 'kafka':
-        from monishield.domain import config_model
-        cfg = config_model.kafka_config(cfg)   # own database, own inbox
+    cfg = _source_config(cfg, args)   # Kafka and collector: own database, own inbox
 
     def progress(phase, **k):
         if phase == 'parse' and (k['done'] % 20 == 0 or k['done'] == k['total']): print(f"  parse {k['done']}/{k['total']}", file=sys.stderr)
@@ -265,7 +269,7 @@ def cmd_derive(cfg, args):
     from monishield.infrastructure import ingest
     from monishield.domain import detect
     detect.use(cfg)
-    done = ingest.derive_all(_local_db(cfg), args.folder)
+    done = ingest.derive_all(_local_db(_source_config(cfg, args)), args.folder)
     print(f'aggregates re-derived for {len(done)} folders' + (f' ({done[0]} … {done[-1]})' if done else ''))
     return 0
 
@@ -290,7 +294,7 @@ def cmd_backup(cfg, args):
         from monishield.application.backup_service import BackupService
         from monishield.domain import config_model
         from monishield.infrastructure import backup, db
-        cons = {'s3': db.open(cfg.db_path), 'kafka': db.open(config_model.kafka_config(cfg).db_path)}
+        cons = {'s3': db.open(cfg.db_path), 'kafka': db.open(config_model.kafka_config(cfg).db_path), 'collector': db.open(cfg.collector_db_path)}
         ctx = types.SimpleNamespace(cfg=cfg, backups=backup.Backups(cfg), auth=types.SimpleNamespace(engine=create_engine(cfg.auth_url), audit=lambda *a, **k: None),
                                     sources={k: types.SimpleNamespace(con=c) for k, c in cons.items()})
         try: r = BackupService(ctx).run('(command line)')
@@ -326,7 +330,7 @@ def main(argv=None):
     p.add_argument('--folder', type=_date, help='details of one folder'); p.add_argument('--checksum', action='store_true', help='row count and checksum of each table')
     p = sub.add_parser('ingest', help='ingest new or changed log folders'); p.set_defaults(fn=cmd_ingest)
     p.add_argument('--folder', type=_date, help='only this folder'); p.add_argument('--force', action='store_true', help='re-parse even if unchanged')
-    p.add_argument('--source', choices=('s3', 'kafka'), default='s3', help='data source to ingest (default s3; kafka has its own database)')
+    p.add_argument('--source', choices=('s3', 'kafka', 'collector'), default='s3', help='data source to ingest (default s3; kafka and collector have their own database)')
     p.add_argument('--offline', action='store_true', help='do not download IP databases / map files')
     sub.add_parser('serve', help='run the dashboard server (one process, one worker)').set_defaults(fn=cmd_serve)
     p = sub.add_parser('user', help='manage accounts from the command line (e.g. create the first admin)'); p.set_defaults(fn=cmd_user)
@@ -337,12 +341,13 @@ def main(argv=None):
     p = sub.add_parser('derive', help='re-derive aggregates from the raw tables (no re-parse)'); p.set_defaults(fn=cmd_derive)
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument('--folder', type=_date); g.add_argument('--all', action='store_true')
+    p.add_argument('--source', choices=('s3', 'kafka', 'collector'), default='s3', help='data source to re-derive (default s3)')
     p = sub.add_parser('refdata', help='fill in IP owner & location and rebuild the map files'); p.set_defaults(fn=cmd_refdata)
     p.add_argument('--offline', action='store_true', help='do not download anything')
     p = sub.add_parser('import', help='import a log folder from an S3 prefix (s3://<bucket>/<prefix>/<YYYY-MM-DD>/)'); p.set_defaults(fn=cmd_import)
     p.add_argument('url'); p.add_argument('--dry-run', action='store_true', help='only list objects and the plan; no download')
     sub.add_parser('sync', help='check the automatic sync parent folder now (needs the running server and S4_JOB_TOKEN)').set_defaults(fn=cmd_sync)
-    sub.add_parser('backup', help="make today's backup now (both databases + accounts)").set_defaults(fn=cmd_backup)
+    sub.add_parser('backup', help="make today's backup now (the databases of all sources + accounts)").set_defaults(fn=cmd_backup)
     p = sub.add_parser('restore', help='put a backup folder back (server stopped; the account database must be empty)'); p.set_defaults(fn=cmd_restore)
     p.add_argument('folder', help='backup folder, e.g. data/backup/2026-10-27'); p.add_argument('--no-accounts', action='store_true'); p.add_argument('--no-databases', action='store_true')
     p = sub.add_parser('forget', help='remove one folder\'s data from the database'); p.set_defaults(fn=cmd_forget)

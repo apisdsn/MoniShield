@@ -31,7 +31,7 @@ export const dLabel = (d, lang) => { const [y, m, dd] = d.split('-'); return `${
 const FOLDER = /^\d{4}-\d{2}-\d{2}$/;
 const shift = (d, n) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
 
-/** Folder name -> the day its logs cover. A folder holds (D-1 00:00, D 00:00] local time for S3 and Kafka alike, so the folder
+/** Folder name -> the day its logs cover. A folder holds (D-1 00:00, D 00:00] local time for every source alike, so the folder
  *  '2026-10-21' is the logs of '2026-10-20'. Everything shown to people uses the log day; the folder name stays in addresses. */
 export const logDay = (folder) => shift(folder, -1);
 
@@ -41,9 +41,9 @@ export const folderOfDay = (day) => shift(day, 1);
 /** Folder name -> label of its log day: '2026-10-21' -> '20 Okt 2026'. Anything that is not a date folder is returned as is. */
 export const fLabel = (folder, lang) => (FOLDER.test(folder || '') ? dLabel(logDay(folder), lang) : folder ?? '');
 
-/** Origin of a folder (API `source`) -> the label key suffix: 's3' | 'kafka' (a folder holds one source);
+/** Origin of a folder (API `source`) -> the label key suffix: 's3' | 'kafka' | 'collector' (a folder holds one source);
  *  null for the main log folder and uploads (no marker). */
-export const folderTag = (source) => (source === 's3' || source === 'kafka' ? source : null);
+export const folderTag = (source) => (source === 's3' || source === 'kafka' || source === 'collector' ? source : null);
 
 /** Date without year: '2026-10-05 09:00' -> '5 Okt'. */
 function dShort(s, lang) {

@@ -34,7 +34,10 @@ def ip_profile(cur, folder, cfg, ip):
     info = cur.execute('SELECT asn, cc, org, is_private, city, region, country FROM ip_info WHERE ip = ?', [ip]).fetchone()
     # trail in all folders: ingress requests, attack requests, failed/successful logins
     days = {}
-    for f, n in _all(cur, 'SELECT folder::VARCHAR, requests FROM agg_ip WHERE ip = ? AND service = ?', ip, NG): days.setdefault(f, {})['requests'] = n
+    # requests of the ingress and of the services read as an access log (log-formats.toml: service in http_access)
+    for f, n in _all(cur, '''SELECT folder::VARCHAR, sum(requests)::BIGINT FROM agg_ip
+                             WHERE ip = ? AND (service = ? OR service IN (SELECT DISTINCT service FROM http_access WHERE ip = ?)) GROUP BY 1''', ip, NG, ip):
+        days.setdefault(f, {})['requests'] = n
     for f, n in _all(cur, f'SELECT folder::VARCHAR, hits FROM {I} WHERE ip = ?', ip): days.setdefault(f, {})['attacks'] = n
     for f, a, b in _all(cur, 'SELECT folder::VARCHAR, fail, ok FROM agg_login_ip WHERE ip = ?', ip): days.setdefault(f, {}).update(login_fail=a, login_ok=b)
     for f, n in _all(cur, 'SELECT folder::VARCHAR, sum(n) FROM agg_trace WHERE ip = ? GROUP BY 1', ip): days.setdefault(f, {})['traced'] = int(n)
@@ -44,16 +47,21 @@ def ip_profile(cur, folder, cfg, ip):
 
     cat = "CASE WHEN capec IS NULL THEN NULL ELSE capec || '/' || crs_attack END" if crs else 'attack_cat'
     sev = 'crs_severity' if crs else SEV_SQL.replace('category', 'attack_cat')
+    cols = 'ts_utc, file_id, line_no, method, path, path_key, status, bytes, ua, upstream, request_id'
+    # the ingress log and the services read as an access log (log-formats.toml); the old rules know the ingress only
+    src = f"""(SELECT {cols}, {cat} AS cat, {sev} AS sev, {'crs_rules' if crs else '[]::INTEGER[]'} AS rules FROM nginx_access WHERE folder = $f AND ip = $i
+               UNION ALL SELECT {cols}, {cat + ' AS cat' if crs else 'NULL AS cat'}, {'crs_severity' if crs else 'NULL'} AS sev,
+                                {'crs_rules' if crs else '[]::INTEGER[]'} AS rules FROM http_access WHERE folder = $f AND ip = $i)"""
+    p = dict(f=folder, i=ip)
     k = cur.execute(f"""SELECT count(*), count(*) FILTER (WHERE status BETWEEN 400 AND 499), count(*) FILTER (WHERE status >= 500),
-                               count(*) FILTER (WHERE {cat} IS NOT NULL), count(DISTINCT path_key), count(DISTINCT ua),
+                               count(*) FILTER (WHERE cat IS NOT NULL), count(DISTINCT path_key), count(DISTINCT ua),
                                {LOCAL('min(ts_utc)')}, {LOCAL('max(ts_utc)')}
-                        FROM nginx_access WHERE folder = ? AND ip = ?""", [folder, ip]).fetchone()
-    rows = [dict(time=t, method=m, path=unquote_plus(p)[:300], status=s, bytes=b, ua=u[:160], upstream=up, request_id=rid,
+                        FROM {src}""", p).fetchone()
+    rows = [dict(time=t, method=m, path=unquote_plus(p_)[:300], status=s, bytes=b, ua=(u or '')[:160], upstream=up, request_id=rid,
                  category=c, severity=sv if c else None, rules=list(r or []))
-            for t, m, p, s, b, u, up, rid, c, sv, r in cur.execute(f"""
-                SELECT {LOCAL('ts_utc')}, method, path, status, bytes, ua, upstream, request_id, {cat}, {sev},
-                       {'crs_rules' if crs else '[]::INTEGER[]'}
-                FROM nginx_access WHERE folder = ? AND ip = ? ORDER BY ts_utc, file_id, line_no LIMIT {MAX_REQ}""", [folder, ip]).fetchall()]
+            for t, m, p_, s, b, u, up, rid, c, sv, r in cur.execute(f"""
+                SELECT {LOCAL('ts_utc')}, method, path, status, bytes, ua, upstream, request_id, cat, sev, rules
+                FROM {src} ORDER BY ts_utc, file_id, line_no LIMIT {MAX_REQ}""", p).fetchall()]
     login = cur.execute(f"""SELECT fail, lock, ok, list_sort(accounts), {T.format('first_wib')}, {T.format('last_wib')}
                             FROM agg_login_ip WHERE folder = ? AND ip = ?""", [folder, ip]).fetchone()
     return dict(

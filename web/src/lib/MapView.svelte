@@ -40,7 +40,7 @@
   const place = (p, l) => [p.city, p.region, $countryName(p.cc)].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(', ') || (l === 'en' ? 'Unknown' : 'Tidak diketahui');
   const shortName = (p) => p.city || p.region || $countryName(p.cc) || '?';
 
-  // ---------------------------------------------------------------- data -> GeoJSON
+  // Data -> GeoJSON
   function features(pts) {
     const max = Math.max(1, ...pts.map((p) => p.requests));
     const byRank = [...pts].sort((a, b) => b.requests - a.requests);
@@ -67,7 +67,7 @@
     };
   }
 
-  // ---------------------------------------------------------------- style
+  // Style
   function colors() {
     return { sea: css('--card2'), land: css('--land'), coast: css('--coast'), accent: css('--accent'), server: css('--c10'), fg: css('--fg'), muted: css('--muted'),
       halo: css('--card2') };
@@ -137,7 +137,7 @@
     };
   }
 
-  // ---------------------------------------------------------------- MapLibre UI text (bilingual)
+  // MapLibre UI text (bilingual)
   const uiText = (l) => ({
     'CooperativeGesturesHandler.WindowsHelpText': l === 'en' ? 'Hold Ctrl and scroll to zoom the map' : 'Tahan Ctrl lalu gulir untuk memperbesar peta',
     'CooperativeGesturesHandler.MacHelpText': l === 'en' ? 'Hold ⌘ and scroll to zoom the map' : 'Tahan ⌘ lalu gulir untuk memperbesar peta',
@@ -232,7 +232,7 @@
     tip = null;
   }
 
-  // ---------------------------------------------------------------- tooltip
+  // Tooltip
   async function show(kind, f, pt, sticky) {
     if (tip?.sticky && !sticky) return;
     if (kind === 'server') return (tip = { kind, x: pt.x, y: pt.y, sticky });
@@ -306,7 +306,7 @@
   .mb:hover { background: var(--nav-hover); }
   .fs { display: none; }
   .attr {
-    position: absolute; right: 0; bottom: 0; z-index: 2; font-size: 0.6875rem; padding: 3px 8px; border-top-left-radius: 8px;
+    position: absolute; right: 0; bottom: 0; z-index: 2; font-size: 0.75rem; padding: 3px 8px; border-top-left-radius: 8px;
     background: color-mix(in srgb, var(--card) 88%, transparent); color: var(--muted);
   }
   .attr a { color: inherit; }
@@ -324,7 +324,7 @@
   .sm { min-height: 32px; margin-top: 8px; padding: 0.3rem 0.8rem; font-size: 0.75rem; }
   .fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; font-size: 0.875rem; }
   .compact { aspect-ratio: 2.4 / 1; }
-  .mapwrap.tall { aspect-ratio: auto; height: calc(100vh - 300px); height: calc(100dvh - 300px); min-height: 440px; }
+  .mapwrap.tall { aspect-ratio: auto; height: calc(100vh / var(--ui-scale, 1) - 300px); height: calc(100dvh / var(--ui-scale, 1) - 300px); min-height: 440px; }
   .mapwrap :global(.maplibregl-cooperative-gesture-screen) { font-family: inherit; font-size: 1rem; background: rgba(0, 0, 0, 0.45); }
   @media (max-width: 900px) {
     .mapwrap { aspect-ratio: 4 / 3; min-height: 300px; }

@@ -22,7 +22,7 @@ class KafkaFail(Fail):
     pass
 
 
-# ------------------------------------------------------------------ message -> log line
+# Message -> log line
 def service_of(container, pod, ns=''):
     """Service name as in the S3 folder. The container name is usually the same; if not (e.g. the ingress-nginx Helm chart
     uses container 'controller'), it is matched from the pod name prefix."""

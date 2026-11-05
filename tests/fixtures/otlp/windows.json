@@ -1,0 +1,130 @@
+{
+ "resourceLogs": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "win-01"
+      }
+     }
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "test"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1793786136000000000",
+       "body": {
+        "kvlistValue": {
+         "values": [
+          {
+           "key": "channel",
+           "value": {
+            "stringValue": "Application"
+           }
+          },
+          {
+           "key": "event_id",
+           "value": {
+            "intValue": "1000"
+           }
+          },
+          {
+           "key": "level",
+           "value": {
+            "stringValue": "Error"
+           }
+          },
+          {
+           "key": "message",
+           "value": {
+            "stringValue": "Faulting application name: app.exe"
+           }
+          },
+          {
+           "key": "provider",
+           "value": {
+            "kvlistValue": {
+             "values": [
+              {
+               "key": "name",
+               "value": {
+                "stringValue": "Application Error"
+               }
+              }
+             ]
+            }
+           }
+          },
+          {
+           "key": "system_time",
+           "value": {
+            "stringValue": "2026-11-04T09:55:36.123456Z"
+           }
+          },
+          {
+           "key": "computer",
+           "value": {
+            "stringValue": "win-01"
+           }
+          }
+         ]
+        }
+       }
+      },
+      {
+       "timeUnixNano": "1793786140000000000",
+       "body": {
+        "kvlistValue": {
+         "values": [
+          {
+           "key": "channel",
+           "value": {
+            "stringValue": "Security"
+           }
+          },
+          {
+           "key": "event_id",
+           "value": {
+            "intValue": "4625"
+           }
+          },
+          {
+           "key": "level",
+           "value": {
+            "stringValue": "Information"
+           }
+          },
+          {
+           "key": "message",
+           "value": {
+            "stringValue": "An account failed to log on. Source Network Address: 192.0.2.44"
+           }
+          },
+          {
+           "key": "system_time",
+           "value": {
+            "stringValue": "2026-11-04T09:55:40.000000Z"
+           }
+          },
+          {
+           "key": "computer",
+           "value": {
+            "stringValue": "win-01"
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

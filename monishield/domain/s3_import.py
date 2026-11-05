@@ -16,7 +16,7 @@ class ImportFail(Fail):
     """Import rejection or failure with a readable cause (code + message; contains no secrets)."""
 
 
-# ------------------------------------------------------------------ link
+# Link
 def parse_url(cfg, url):
     """Check the link against the format and the allowlist. -> (bucket, full prefix ending in '/', folder). No network."""
     if not cfg.import_buckets:
@@ -54,7 +54,7 @@ NO_CREDENTIALS = ('No AWS credentials. Set them on the Configuration page (accou
                   'AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in the server .env, or paste temporary credentials on the Ingest & import page.')
 
 
-# ------------------------------------------------------------------ watch parent prefix (automatic sync, owner request 2026-10-07)
+# Watch parent prefix (automatic sync, owner request 2026-10-07)
 def parse_watch(cfg, text=None):
     """Watched parent folders (from the page, or S4_S3_WATCH; one or more s3://<bucket>/<prefix>/, comma-separated;
     the trailing slash is optional) -> [(bucket, prefix)]. Checked against the same S4_IMPORT_BUCKETS allowlist as
@@ -92,7 +92,7 @@ def pick(folders, known, from_s3, today, days, recheck_days, max_new):
     return take, again, len(new) - len(take)
 
 
-# ------------------------------------------------------------------ select
+# Select
 def plan(cfg, objects, prefix, folder, before=None, have_stored=lambda stored, size: False):
     """Decide which objects are fetched / skipped. Unsafe key -> the whole import is rejected. Over the limits -> rejected.
     before = manifest of the previous download {rel: {key, size, etag[, stored, stored_size]}}; have_stored(stored_rel, size)

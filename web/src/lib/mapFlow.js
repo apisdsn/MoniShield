@@ -101,7 +101,7 @@ export class FlowAnimator {
     document.removeEventListener('visibilitychange', this._onVis);
   }
 
-  // ------------------------------------------------------------------ internals
+  // Internals
   _spawn(a, t0) {
     if (this.parts.length >= MAX) return;
     this.parts.push({ a, t0, dur: durOf(a) });

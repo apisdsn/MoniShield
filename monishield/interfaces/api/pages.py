@@ -123,7 +123,7 @@ def table_page_post(table: str, request: Request, body: dict = Body(default={}),
     return q_tables.table_page(cur, folder, _cfg(request), table, _params(body))
 
 
-# ------------------------------------------------------------------ Raw Logs (owner request 2026-10-30)
+# Raw Logs (owner request 2026-10-30)
 # Every signed-in user (role-based access per module comes later); the text is shown as written (no masking). Each new
 # search and each download is recorded in the audit log; paging through the same search and opening context are not.
 def _raw_audit(request, action, folder, q, detail=''):

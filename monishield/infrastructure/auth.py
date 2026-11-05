@@ -12,14 +12,14 @@ DuckDB stays for log analytics only and must be rebuildable without losing accou
 
 Two roles: 'admin' and 'user'. Per-module restrictions are deferred (TRD §8.3).
 """
-import contextlib, datetime, hmac, re, secrets, threading, time
+import contextlib, datetime, hmac, json, re, secrets, threading, time
 
 import jwt
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, create_engine, delete, func, inspect, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-from monishield.domain import accounts
+from monishield.domain import accounts, collectors
 from monishield.domain.accounts import PASSWORD_MAX, ROLES, AuthError, check_email, check_password, check_username, hash_password
 
 MAX_FAILED, LOCK_MINUTES = 5, 15
@@ -29,7 +29,7 @@ IP_MAX_FAILED, IP_WINDOW_S = 20, 15 * 60   # per-IP limiter, in memory
 JWT_ALG, JWT_ISS, JWT_SECRET_MIN = 'HS256', 'monishield', 32
 
 
-# ------------------------------------------------------------------ model ORM
+# Model ORM
 class Base(DeclarativeBase):
     pass
 
@@ -141,6 +141,29 @@ class AlertLog(Base):
     error: Mapped[str | None] = mapped_column(Text)
 
 
+class Collector(Base):
+    """A registered collector (docs/12-collector.md). Only SHA-256 hashes of the enrollment token and the keys are stored;
+    the texts are shown once, when they are made."""
+    __tablename__ = 'collector'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(63), unique=True, nullable=False)
+    platform: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    created_by: Mapped[str | None] = mapped_column(String(40))
+    enroll_hash: Mapped[str | None] = mapped_column(String(64))
+    enroll_expires: Mapped[datetime.datetime | None] = mapped_column(DateTime)
+    key_hash: Mapped[str | None] = mapped_column(String(64))
+    prev_key_hash: Mapped[str | None] = mapped_column(String(64))   # the replaced key, valid until prev_until
+    prev_until: Mapped[datetime.datetime | None] = mapped_column(DateTime)
+    enrolled_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
+    last_seen: Mapped[datetime.datetime | None] = mapped_column(DateTime)
+    last_ip: Mapped[str | None] = mapped_column(String(64))
+    version: Mapped[str | None] = mapped_column(String(80))
+    revoked_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
+    revoked_by: Mapped[str | None] = mapped_column(String(40))
+    options: Mapped[str | None] = mapped_column(Text)   # JSON: the log inputs the admin chose (domain/collector_config.py); NULL = defaults
+
+
 def now(): return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)   # all times UTC
 def iso(dt): return dt.isoformat(sep=' ') if dt else None
 
@@ -160,6 +183,7 @@ class Auth:
         self.engine = create_engine(url, pool_pre_ping=True, **(dict(connect_args={'check_same_thread': False}) if sqlite else dict(pool_size=5, max_overflow=5)))
         self._Session = sessionmaker(self.engine, expire_on_commit=False)
         self._ip_fail, self._lock = {}, threading.Lock()
+        self._seen_at = {}   # collector id -> time of its last last_seen write (see collector_seen)
         # dummy salt: verification is still computed for nonexistent users, so response time does not leak whether a user exists
         self._dummy_salt = secrets.token_bytes(16)
         Base.metadata.create_all(self.engine)   # ponytail: no migration tool; add Alembic when the account schema first changes
@@ -175,6 +199,8 @@ class Auth:
             c.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS ux_app_user_email ON app_user (email)'))
             if 'requested_by' not in {x['name'] for x in inspect(c).get_columns('email_change')}:
                 c.execute(text('ALTER TABLE email_change ADD COLUMN requested_by VARCHAR(64)'))
+            if 'options' not in {x['name'] for x in inspect(c).get_columns('collector')}:
+                c.execute(text('ALTER TABLE collector ADD COLUMN options TEXT'))
 
     @contextlib.contextmanager
     def _tx(self):
@@ -192,7 +218,7 @@ class Auth:
 
     def close(self): self.engine.dispose()
 
-    # ---------------------------------------------------------------- audit
+    # Audit
     def _audit(self, s, action, user=None, detail=None, ip=None):
         """Trail of actions that change access or data. Never contains passwords or tokens."""
         uid = user.get('user_id') if isinstance(user, dict) else getattr(user, 'user_id', None)
@@ -209,7 +235,7 @@ class Auth:
                     for r in s.scalars(select(AuditLog).order_by(AuditLog.id.desc()).limit(limit).offset(offset))]
         return total, rows
 
-    # ---------------------------------------------------------------- import_job (Stage 19)
+    # import_job (Stage 19)
     @staticmethod
     def _job(j):
         return dict(job_id=j.job_id, requested_by=j.requested_by, bucket=j.bucket, prefix=j.prefix, folder=j.folder, status=j.status,
@@ -234,7 +260,7 @@ class Auth:
     def job_list(self, limit=20):
         with self._tx() as s: return [self._job(j) for j in s.scalars(select(ImportJob).order_by(ImportJob.job_id.desc()).limit(limit))]
 
-    # ---------------------------------------------------------------- settings from the UI
+    # Settings from the UI
     def setting_get(self, key):
         """-> value (json.loads result) or None if never saved."""
         import json
@@ -255,7 +281,7 @@ class Auth:
             r = s.get(AppSetting, key)
             if r is not None: s.delete(r)
 
-    # ---------------------------------------------------------------- notification history
+    # Notification history
     def alert_seen(self, key):
         """Is there already a SUCCESSFUL send for this key (to any channel)?"""
         with self._tx() as s:
@@ -271,7 +297,7 @@ class Auth:
             return [dict(at=iso(a.at), event=a.event, channel=a.channel, ok=a.ok, summary=a.summary, error=a.error)
                     for a in s.scalars(select(AlertLog).order_by(AlertLog.id.desc()).limit(limit))]
 
-    # ---------------------------------------------------------------- user
+    # User
     @staticmethod
     def _public(u):
         return dict(user_id=u.user_id, username=u.username, display_name=u.display_name, email=u.email, role=u.role, active=bool(u.active),
@@ -388,7 +414,7 @@ class Auth:
             s.execute(delete(PasswordReset).where(PasswordReset.user_id == u.user_id))
             self._audit(s, 'user.change_password', user, None, ip)
 
-    # ---------------------------------------------------------------- forgot password (owner request 2026-10-08)
+    # Forgot password (owner request 2026-10-08)
     def request_reset(self, login, minutes, ip=None):
         """Issue a temporary password for the account with this username or email. -> (user, temporary password) to be
         emailed, or None when there is nothing to send (unknown account, no email, deactivated, asked less than a minute
@@ -418,7 +444,7 @@ class Auth:
             u = s.get(User, user_id)
             self._audit(s, 'password.forgot', u, f'email not sent: {reason}'[:300], ip)
 
-    # ---------------------------------------------------------------- own email change (owner request 2026-10-08)
+    # Own email change (owner request 2026-10-08)
     def email_change_start(self, user, password, new_email, ip=None):
         """Check the current password, then create the codes. -> dict(user, old_email, new_email, old_code | None, new_code).
         The codes leave this method only to be emailed."""
@@ -511,7 +537,7 @@ class Auth:
             s.flush()
             return self._public(u), old
 
-    # ---------------------------------------------------------------- JWT
+    # JWT
     def _encode(self, user_id, sid, issued, expires):
         if not self.secret: raise RuntimeError('S4_JWT_SECRET not set')
         aware = lambda d: d.replace(tzinfo=datetime.timezone.utc)
@@ -526,7 +552,7 @@ class Auth:
         except jwt.InvalidTokenError:
             return None
 
-    # ---------------------------------------------------------------- login & session
+    # Login & session
     @staticmethod
     def _verify(u, password):
         n, r, p = map(int, u.hash_params.split(':'))
@@ -603,3 +629,128 @@ class Auth:
         """Create the first admin ONLY when there are no users yet. The password must be changed at first login."""
         if not username or not password or self.count_users(): return None
         return self.create_user(username, 'Administrator', 'admin', password)
+
+    # Collectors (docs/12-collector.md, step 2)
+    # Secrets (enrollment token, key) are returned only by create / new_token / enroll / rotate. They are never logged or audited.
+    @staticmethod
+    def _collector(c):
+        t = now()
+        return dict(id=c.id, name=c.name, platform=c.platform, status=collectors.status(t, c.enrolled_at, c.last_seen, c.revoked_at),
+                    created_at=iso(c.created_at), created_by=c.created_by, enrolled_at=iso(c.enrolled_at), last_seen=iso(c.last_seen),
+                    last_ip=c.last_ip, version=c.version, options=json.loads(c.options) if c.options else None, revoked_at=iso(c.revoked_at), revoked_by=c.revoked_by,
+                    enroll_expires=iso(c.enroll_expires) if c.enroll_hash and c.enroll_expires and c.enroll_expires > t else None,
+                    previous_valid_until=iso(c.prev_until) if c.prev_key_hash and c.prev_until and c.prev_until > t else None)
+
+    def _collector_row(self, s, cid):
+        c = s.scalar(select(Collector).where(Collector.id == cid).with_for_update())
+        if not c: raise AuthError('not_found', 'Collector not found.', 404)
+        return c
+
+    @staticmethod
+    def _new_enroll_token(c):
+        text, secret = collectors.new_secret('enroll', c.id)
+        c.enroll_hash, c.enroll_expires = collectors.secret_hash(secret), now() + datetime.timedelta(hours=collectors.ENROLL_HOURS)
+        return text
+
+    def collector_create(self, name, platform, by=None, ip=None, options=None):
+        with self._tx() as s:
+            c = Collector(name=name, platform=platform, created_at=now(), created_by=(by or {}).get('username'),
+                          options=json.dumps(options) if options is not None else None)
+            s.add(c)
+            try: s.flush()
+            except IntegrityError:
+                s.rollback(); raise AuthError('name_taken', 'A collector with this name already exists.', 409) from None
+            token = self._new_enroll_token(c)
+            self._audit(s, 'collector.add', by, f'{name} ({platform})', ip)
+            return self._collector(c), token
+
+    def collector_list(self):
+        with self._tx() as s: return [self._collector(c) for c in s.scalars(select(Collector).order_by(Collector.name))]
+
+    def collector_get(self, cid):
+        with self._tx() as s: return self._collector(self._collector_row(s, cid))
+
+    def collector_set_options(self, cid, options, by=None, ip=None):
+        with self._tx() as s:
+            c = self._collector_row(s, cid)
+            if c.revoked_at: raise AuthError('collector_revoked', 'This collector is revoked.', 409)
+            c.options = json.dumps(options)
+            self._audit(s, 'collector.options', by, c.name, ip)
+            return self._collector(c)
+
+    def collector_new_token(self, cid, by=None, ip=None):
+        with self._tx() as s:
+            c = self._collector_row(s, cid)
+            if c.revoked_at: raise AuthError('collector_revoked', 'This collector is revoked.', 409)
+            if c.enrolled_at: raise AuthError('collector_enrolled', 'This collector is already enrolled; replace its key instead.', 409)
+            token = self._new_enroll_token(c)
+            self._audit(s, 'collector.token', by, c.name, ip)
+            return token
+
+    def collector_enroll(self, token_text, ip=None, version=None):
+        """Exchange the one-time token for the collector's key. One generic error for every cause, and each failure counts
+        toward the same per-IP limit as wrong passwords, so tokens cannot be guessed."""
+        if self._ip_blocked(ip): raise AuthError('too_many_attempts', 'Too many attempts. Try again in a few minutes.', 429)
+        parsed = collectors.parse_secret(token_text, 'enroll')
+        with self._tx() as s:
+            c = s.scalar(select(Collector).where(Collector.id == parsed[0]).with_for_update()) if parsed else None
+            t = now()
+            if not (c and c.enroll_hash and c.enroll_expires and c.enroll_expires > t and not c.revoked_at
+                    and hmac.compare_digest(c.enroll_hash, collectors.secret_hash(parsed[1]))):
+                self._ip_failed(ip); self._audit(s, 'collector.enroll_fail', None, None, ip)
+                raise AuthError('invalid_enrollment_token', 'Enrollment token is not valid.', 401)
+            key, secret = collectors.new_secret('key', c.id)
+            c.enroll_hash = c.enroll_expires = None   # works once
+            c.key_hash, c.enrolled_at, c.last_seen, c.last_ip, c.version = collectors.secret_hash(secret), t, t, ip, (version or '')[:80] or None
+            self._audit(s, 'collector.enroll', None, f'{c.name} {c.version or ""}'.strip(), ip)
+            return self._collector(c), key
+
+    def collector_check(self, key_text):
+        """The collector this key belongs to, or None. Called on every request of the receiver: no audit, no write."""
+        parsed = collectors.parse_secret(key_text, 'key')
+        if not parsed: return None
+        with self._tx() as s:
+            c = s.get(Collector, parsed[0])
+            if not c or c.revoked_at or not c.enrolled_at: return None
+            h = collectors.secret_hash(parsed[1])
+            cur = bool(c.key_hash) and hmac.compare_digest(c.key_hash, h)
+            old = bool(c.prev_key_hash and c.prev_until and now() < c.prev_until) and hmac.compare_digest(c.prev_key_hash, h)
+            return self._collector(c) if cur or old else None
+
+    def collector_seen(self, cid, ip=None, version=None):
+        """Last contact. Written at most once a minute per collector, so a busy collector does not hammer the database."""
+        t = now()
+        with self._lock:
+            last = self._seen_at.get(cid)
+            if last and (t - last).total_seconds() < 60: return
+            self._seen_at[cid] = t
+        with self._tx() as s:
+            s.execute(update(Collector).where(Collector.id == cid).values(last_seen=t, last_ip=ip, version=(version or '')[:80] or None))
+
+    def collector_rotate(self, cid, by=None, ip=None):
+        with self._tx() as s:
+            c = self._collector_row(s, cid)
+            if c.revoked_at: raise AuthError('collector_revoked', 'This collector is revoked.', 409)
+            if not c.enrolled_at: raise AuthError('collector_not_enrolled', 'This collector has not enrolled yet.', 409)
+            key, secret = collectors.new_secret('key', c.id)
+            c.prev_key_hash, c.prev_until = c.key_hash, now() + datetime.timedelta(hours=collectors.ROTATE_GRACE_HOURS)
+            c.key_hash = collectors.secret_hash(secret)
+            self._audit(s, 'collector.rotate', by, c.name, ip)
+            return key
+
+    def collector_revoke(self, cid, by=None, ip=None):
+        with self._tx() as s:
+            c = self._collector_row(s, cid)
+            if c.revoked_at: raise AuthError('collector_revoked', 'This collector is already revoked.', 409)
+            c.revoked_at, c.revoked_by = now(), (by or {}).get('username')
+            c.key_hash = c.prev_key_hash = c.enroll_hash = c.prev_until = c.enroll_expires = None   # refused from this moment
+            self._audit(s, 'collector.revoke', by, c.name, ip)
+            return self._collector(c)
+
+    def collector_delete(self, cid, by=None, ip=None):
+        with self._tx() as s:
+            c = self._collector_row(s, cid)
+            if c.enrolled_at and not c.revoked_at: raise AuthError('collector_active', 'Revoke the collector before deleting it.', 409)
+            self._audit(s, 'collector.delete', by, c.name, ip)
+            s.delete(c)
+        with self._lock: self._seen_at.pop(cid, None)

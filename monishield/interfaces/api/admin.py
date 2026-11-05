@@ -113,7 +113,7 @@ def forget(body: FolderBody, request: Request, admin=Depends(require_admin)):
     return dict(folder=folder, files=n)
 
 
-# ------------------------------------------------------------------ S3 import (TRD §3.8, Stage 19)
+# S3 import (TRD §3.8, Stage 19)
 class WatchBody(BaseModel):
     url: str = ''
     minutes: int = 60

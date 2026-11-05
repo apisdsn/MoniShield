@@ -39,7 +39,7 @@ def use(cfg):
 def version_key(): return f'{VERSION}-pl{PARANOIA}'   # stored per folder; changed -> CRS aggregates are re-derived
 
 
-# ---------------------------------------------------------------- transformations (all work on latin-1 "bytes")
+# Transformations (all work on latin-1 "bytes")
 def _b(s): return s.encode('utf-8', 'surrogateescape').decode('latin-1')
 def _pct(m): return chr(int(m.group(1), 16))
 
@@ -107,7 +107,7 @@ def transform(value, tfs):
     return value
 
 
-# ---------------------------------------------------------------- rules
+# Rules
 def _trie_regex(words):
     """Words -> one trie-shaped regex (shared prefixes merged): much faster than a flat alternation."""
     trie = {}
@@ -147,7 +147,7 @@ def rules(pl=1):
     return out
 
 
-# ---------------------------------------------------------------- request parts present in the log
+# Request parts present in the log
 def _args(query):
     names, values = [], []
     for part in query.split('&'):

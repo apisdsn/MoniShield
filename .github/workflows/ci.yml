@@ -66,7 +66,7 @@ jobs:
       - name: Check that the Indonesian and English dictionaries match
         run: node tools/check_i18n.mjs
       - name: Run the formatter tests
-        run: node --test tests/test_format.mjs tests/test_state.mjs
+        run: node --test tests/test_format.mjs tests/test_state.mjs tests/test_collectors.mjs
 
   browser:
     name: Browser smoke test
@@ -88,12 +88,12 @@ jobs:
       - name: Install Playwright and Chromium
         run: npm install --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
         working-directory: web
-      - name: Start a server with sample S3 and Kafka data
+      - name: Start a server with sample S3, Kafka and collector data
         run: |
           python tools/smoke_server.py "$RUNNER_TEMP/smoke" 8777 > "$RUNNER_TEMP/smoke-server.log" 2>&1 &
           for i in $(seq 1 120); do curl -sf http://127.0.0.1:8777/api/health > /dev/null && exit 0; sleep 1; done
           cat "$RUNNER_TEMP/smoke-server.log"; exit 1
-      - name: Open every page for both sources and both languages
+      - name: Open every page for all sources and both languages
         run: NODE_PATH=web/node_modules node tools/smoke_browser.cjs http://127.0.0.1:8777
       - name: Show the server log
         if: failure()

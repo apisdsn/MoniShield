@@ -5,7 +5,7 @@ import glob, os, re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORDS = re.compile(r'\b(yang|dengan|tidak|contoh|uji|tiruan|kunci|sudah|belum|untuk|harus|sandi|galat|berkas|layanan|bukan|rahasia|salah|sebagai|kosong|tanggal|'
-                   r'selesai|gagal|sukses|diisi|sebelum|sesudah|lihat|tampilkan|pesan|jumlah|baris)\b', re.I)
+                   r'selesai|gagal|sukses|diisi|sebelum|sesudah|lihat|tampilkan|pesan|jumlah|baris|putar|kilau)\b', re.I)
 ALLOWED = {
     # Indonesian UI copy next to the English one
     'monishield/domain/letters.py', 'monishield/domain/alerts.py', 'monishield/interfaces/api/home_meta.py', 'tools/og_image.cjs',

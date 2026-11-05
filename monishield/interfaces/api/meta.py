@@ -20,7 +20,7 @@ def health(): return dict(ok=True)   # no data, no session
 def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)):
     cfg = request.app.state.cfg
     # derived_at: when the folder's aggregates were last derived (data freshness marker in the UI, DRD §12)
-    # source: where the folder's logs come from (log / s3 / kafka / upload) — S3 and Kafka folders are labelled in the UI
+    # source: where the folder's logs come from (log / s3 / kafka / collector / upload) — the folders of each source are labelled in the UI
     ctx = source_ctx(request)   # the source being viewed: its folders, its database
     src = ctx.logfolders.source
     # requests: HTTP requests of nginx-ingress (the volume band's 7-day history on every page; None without ingress logs)
@@ -38,8 +38,11 @@ def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)
     owner, located = cur.execute('SELECT count(*) FILTER (WHERE org IS NOT NULL), count(*) FILTER (WHERE lat IS NOT NULL) FROM ip_info').fetchone()
     st = ctx.ingest.state
     kafka = request.app.state.sources[sources.KAFKA]
-    # which sources the page offers: Kafka when it is set up or already holds days
-    offered = [sources.S3] + ([sources.KAFKA] if kafka_configured(cfg) or kafka.warehouse.known_folders() else [])
+    collector = request.app.state.sources[sources.COLLECTOR]
+    # which sources the page offers: Kafka when it is set up or already holds days; the collector source when a collector is
+    # registered or its database already holds days
+    offered = [sources.S3] + ([sources.KAFKA] if kafka_configured(cfg) or kafka.warehouse.known_folders() else []) \
+        + ([sources.COLLECTOR] if request.app.state.auth.collector_list() or collector.warehouse.known_folders() else [])
     # roles: service folder name of each role of the site profile (domain/services.py); own_org: regex of the site's own network
     return dict(version=__version__, source=ctx.source, sources=offered, folders=folders, hosts=cfg.hosts,
                 roles=profile.current().names(), own_org=cfg.blocklist_exclude_org,

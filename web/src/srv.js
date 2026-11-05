@@ -11,7 +11,7 @@ import { lang, translate } from './i18n.js';
 const ID = [
   // audit details of the daily report button (monishield/interfaces/api/notify.py)
   [/^reports not sent yet: (\d+) sent, (\d+) failed$/, 'laporan yang belum terkirim: $1 terkirim, $2 gagal'],
-  [/^(\S+) \((s3|kafka)\): (\d+) sent, (\d+) failed$/, '$1 ($2): $3 terkirim, $4 gagal'],
+  [/^(\S+) \((s3|kafka|collector)\): (\d+) sent, (\d+) failed$/, '$1 ($2): $3 terkirim, $4 gagal'],
   // derived trace label: "Slow 5.2 s"
   [/^Slow ([\d.,]+) s$/, 'Lambat $1 dtk'],
   // ingest / refdata warnings
@@ -48,6 +48,11 @@ const ID = [
   [/^not JSON$/, 'bukan JSON'], [/^not a JSON object$/, 'bukan objek JSON'], [/^no 'log' field$/, "tanpa kolom 'log'"],
   [/^empty line$/, 'baris kosong'], [/^no kubernetes\.namespace_name\/container_name\/pod_name$/, 'tanpa kubernetes.namespace_name/container_name/pod_name'],
   [/^invalid namespace\/container\/pod name$/, 'nama namespace/container/pod tidak sah'],
+  // collector: last reject reason (monishield/domain/otlp_logs.py)
+  [/^(\d+) log records rejected: /, '$1 record log ditolak: '],
+  [/malformed value \(/, 'nilai rusak ('], [/invalid name \(/, 'nama tidak sah ('], [/missing body \(/, 'tanpa isi ('], [/empty line \(/, 'baris kosong ('],
+  [/invalid time \(/, 'waktu tidak sah ('], [/malformed record \(/, 'record rusak ('], [/too many records \(/, 'terlalu banyak record ('],
+  [/malformed attributes \(/, 'atribut rusak ('], [/malformed request \(/, 'permintaan rusak ('],
   // import job summary
   [/^(\d+) objects would be fetched, (\d+) skipped/, '$1 objek akan diambil, $2 dilewati'],
   [/^(\d+) objects fetched, (\d+) skipped/, '$1 objek diambil, $2 dilewati'],
@@ -61,7 +66,7 @@ const ID = [
   [/^folder (\S+) already exists in the main log folder \(that one is used\)$/, 'folder $1 sudah ada di folder log utama (yang itu yang dipakai)'],
   // ingest / import triggers
   [/^\(server start\)$/, '(mulai server)'], [/^\(daily\)$/, '(harian)'], [/^import #(\d+)$/, 'impor #$1'], [/^upload by (.+)$/, 'unggah oleh $1'],
-  [/^\(machine token\)$/, '(token mesin)'], [/^\(automatic S3 sync\)$/, '(sinkron S3 otomatis)'], [/^\(kafka\)$/, '(kafka)'],
+  [/^\(machine token\)$/, '(token mesin)'], [/^\(automatic S3 sync\)$/, '(sinkron S3 otomatis)'], [/^\(kafka\)$/, '(kafka)'], [/^\(collector\)$/, '(collector)'],
   // audit details
   [/^folder=all/, 'folder=semua'], [/ by (\S+)$/, ' oleh $1'], [/\((\d+) data files/, '($1 file data'], [/\((\d+) files\)/, '($1 file)'],
   [/^inbox deleted$/, 'kotak masuk dihapus'], [/^ignored\)?/, (m) => m.replace('ignored', 'diabaikan')],
@@ -141,6 +146,41 @@ export const srv = derived(lang, (l) => (s) => (typeof s !== 'string' || !s ? s 
 // Error messages that carry details (allowed buckets, limits, names): in Indonesian mode the whole sentence is translated
 // so the details are kept; errors not listed here use the per-code dictionary. [English sentence, Indonesian]
 const ERR_ID = [
+  // collectors (monishield/domain/collectors.py, infrastructure/auth.py)
+  [/^Collector name must be 1–63 characters: lowercase letters, digits and hyphen, starting with a letter or digit\.$/, 'Nama collector 1–63 karakter: huruf kecil, angka, dan tanda hubung, diawali huruf atau angka.'],
+  [/^Platform must be one of: (.*)\.$/, 'Platform harus salah satu dari: $1.'],
+  [/^Unknown platform\.$/, 'Platform tidak dikenal.'],
+  [/^A file path is empty\.$/, 'Ada path file yang kosong.'],
+  [/^A file path is longer than (\d+) characters\.$/, 'Ada path file yang lebih dari $1 karakter.'],
+  [/^A file path must not contain quotes, control characters or "\$\{"\.$/, 'Path file tidak boleh berisi tanda kutip, karakter kontrol, atau "${".'],
+  [/^A Windows file path must start with a drive letter, for example (.*)\.$/, 'Path file Windows harus diawali huruf drive, misalnya $1.'],
+  [/^A file path must be absolute and start with "\/"\.$/, 'Path file harus absolut dan diawali "/".'],
+  [/^A file path must name files, for example (.*)\.$/, 'Path file harus menyebut file, misalnya $1.'],
+  [/^A service name uses letters, digits, dot, underscore and hyphen, and starts with a letter or digit\.$/, 'Nama layanan berisi huruf, angka, titik, garis bawah, dan tanda hubung, diawali huruf atau angka.'],
+  [/^At most (\d+) file groups\.$/, 'Maksimal $1 grup file.'],
+  [/^At most (\d+) journald units\.$/, 'Maksimal $1 unit journald.'],
+  [/^files must be a list\.$/, 'files harus berupa daftar.'],
+  [/^A file group needs a path and a service name\.$/, 'Setiap grup file perlu path dan nama layanan.'],
+  [/^(\w+) must be true or false\.$/, '$1 harus true atau false.'],
+  [/^units must be a list of names\.$/, 'units harus berupa daftar nama.'],
+  [/^A journald unit is a systemd unit name such as (.*)\.$/, 'Unit journald adalah nama unit systemd seperti $1.'],
+  [/^Journald units need journald to be on\.$/, 'Unit journald memerlukan journald aktif.'],
+  [/^Not an option of a (\w+) collector: (.*)\.$/, 'Bukan opsi collector $1: $2.'],
+  [/^Channels can be: (.*)\.$/, 'Channel yang tersedia: $1.'],
+  [/^Choose at least one log input\.$/, 'Pilih minimal satu masukan log.'],
+  [/^options must be an object\.$/, 'options harus berupa objek.'],
+  [/^The receiver address must look like (.*)\.$/, 'Alamat penerima harus berbentuk $1.'],
+  [/^The Host header is not a valid address; set S4_COLLECTOR_PUBLIC_URL\.$/, 'Header Host bukan alamat yang sah; isi S4_COLLECTOR_PUBLIC_URL.'],
+  [/^A collector with this name already exists\.$/, 'Sudah ada collector dengan nama ini.'],
+  [/^This collector is revoked\.$/, 'Collector ini sudah dicabut.'],
+  [/^This collector is already revoked\.$/, 'Collector ini sudah dicabut.'],
+  [/^This collector is already enrolled; replace its key instead\.$/, 'Collector ini sudah terdaftar; ganti kuncinya.'],
+  [/^This collector has not enrolled yet\.$/, 'Collector ini belum mendaftar.'],
+  [/^Revoke the collector before deleting it\.$/, 'Cabut collector sebelum menghapusnya.'],
+  [/^Enrollment token is not valid\.$/, 'Token pendaftaran tidak valid.'],
+  [/^Collector key is not valid\.$/, 'Kunci collector tidak valid.'],
+  [/^Too many wrong collector keys\. Try again later\.$/, 'Terlalu banyak kunci collector yang salah. Coba lagi nanti.'],
+  [/^source must be s3, kafka or collector\.$/, 'source harus s3, kafka, atau collector.'],
   [/^Change your own email under Account email: it needs codes sent to the old and the new address\.$/, 'Email akun Anda sendiri diganti lewat Email akun: perlu kode ke alamat lama dan baru.'],
   [/^A new email is set through the email change, which sends a code to it\.$/, 'Email baru diatur lewat penggantian email yang mengirim kode ke alamat itu.'],
   [/^Your password is wrong\.$/, 'Kata sandi Anda salah.'],
