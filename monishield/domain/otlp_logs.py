@@ -1,4 +1,4 @@
-"""OTLP/HTTP JSON logs request (OpenTelemetry Collector `otlphttp`, encoding json) -> log lines + their place in the inbox.
+"""OTLP/HTTP JSON logs request (OpenTelemetry Collector `otlp_http`, encoding json) -> log lines + their place in the inbox.
 
     {"resourceLogs": [{"resource": {"attributes": [...]}, "scopeLogs": [{"logRecords": [
         {"timeUnixNano": "1730728536000000000", "body": {"stringValue": "<original line>"}, "attributes": [...]}]}]}]}

@@ -176,7 +176,7 @@ def emit(value, indent=0):
 # Pieces
 def exporter(base, metrics=False):
     """One exporter for both signals: `endpoint` + /v1/logs for logs, `metrics_endpoint` for metrics (the same headers, retry and queue)."""
-    return {'otlphttp/monishield': dict(
+    return {'otlp_http/monishield': dict(
         endpoint=base + '/api/collector', **(dict(metrics_endpoint=base + '/api/collector/v1/metrics') if metrics else {}), encoding='json', compression='gzip',
         headers={'Authorization': 'Bearer ${env:' + KEY_ENV + '}'},   # the collector replaces this with the variable's value
         retry_on_failure=dict(enabled=True, initial_interval='5s', max_interval='60s', max_elapsed_time='0s'),   # 0 = never give up
@@ -198,10 +198,10 @@ def processors(platform='', o=None):
     """Shared processors. With metrics: the operating system's description for the server's card (not on Kubernetes, where the
     detector would describe the collector's image), the batch for metrics, and the metric transform that keeps one CPU
     value per state (the per-core points are not used)."""
-    p = {'resourcedetection': dict(detectors=['system'], system=dict(hostname_sources=['os'])), 'batch': dict(BATCH)}
+    p = {'resource_detection': dict(detectors=['system'], system=dict(hostname_sources=['os'])), 'batch': dict(BATCH)}
     if has_metrics(o or {}):
-        if platform != 'kubernetes': p['resourcedetection']['system']['resource_attributes'] = {'os.description': {'enabled': True}}
-        p['metricstransform/monishield'] = dict(transforms=[dict(
+        if platform != 'kubernetes': p['resource_detection']['system']['resource_attributes'] = {'os.description': {'enabled': True}}
+        p['metrics_transform/monishield'] = dict(transforms=[dict(
             include='system.cpu.utilization', action='update',
             operations=[dict(action='aggregate_labels', label_set=['state'], aggregation_type='mean')])])
         p['batch/metrics'] = dict(METRIC_BATCH)
@@ -229,19 +229,19 @@ def _docker_receiver():
 def _receivers(platform, o):
     """-> {receiver id: its settings}"""
     r = {}
-    for i, g in enumerate(o.get('files', []), 1): r[f'filelog/{i}'] = _file_receiver(g)
+    for i, g in enumerate(o.get('files', []), 1): r[f'file_log/{i}'] = _file_receiver(g)
     if o.get('journald'):
         r['journald'] = dict(start_at='end', **(dict(units=o['units']) if o['units'] else {}))
-    if o.get('containers'): r['filelog/docker'] = _docker_receiver()
-    for c in o.get('channels', []): r[f'windowseventlog/{c}'] = dict(channel=c, start_at='end')
+    if o.get('containers'): r['file_log/docker'] = _docker_receiver()
+    for c in o.get('channels', []): r[f'windows_event_log/{c}'] = dict(channel=c, start_at='end')
     return r
 
 
 def _off(*names): return {n: {'enabled': False} for n in names}
 
 
-def hostmetrics(platform):
-    """The hostmetrics receiver: CPU, memory, load, file systems and network traffic. Never the process scrapers (command lines
+def host_metrics(platform):
+    """The host_metrics receiver: CPU, memory, load, file systems and network traffic. Never the process scrapers (command lines
     are personal data). Only the metrics MoniShield uses are on, so a scrape is a few dozen points."""
     node = platform == 'kubernetes'
     fs = dict(metrics=_off('system.filesystem.inodes.usage'))
@@ -271,7 +271,7 @@ def docker_stats():
 
 def _metric_receivers(platform, o):
     r = {}
-    if o.get('host_metrics'): r['hostmetrics'] = hostmetrics(platform)
+    if o.get('host_metrics'): r['host_metrics'] = host_metrics(platform)
     if o.get('container_metrics'): r['docker_stats'] = docker_stats()
     return r
 
@@ -280,10 +280,10 @@ def host_config(platform, base, o):
     receivers, metric_receivers = _receivers(platform, o), _metric_receivers(platform, o)
     pipelines = {}
     if has_logs(platform, o):
-        pipelines['logs'] = dict(receivers=list(receivers), processors=['resourcedetection', 'batch'], exporters=['otlphttp/monishield'])
+        pipelines['logs'] = dict(receivers=list(receivers), processors=['resource_detection', 'batch'], exporters=['otlp_http/monishield'])
     if metric_receivers:
-        pipelines['metrics'] = dict(receivers=list(metric_receivers), processors=['resourcedetection', 'metricstransform/monishield', 'batch/metrics'],
-                                    exporters=['otlphttp/monishield'])
+        pipelines['metrics'] = dict(receivers=list(metric_receivers), processors=['resource_detection', 'metrics_transform/monishield', 'batch/metrics'],
+                                    exporters=['otlp_http/monishield'])
     return dict(extensions=extensions(QUEUE_DIRS[platform]), receivers={**receivers, **metric_receivers}, processors=processors(platform, o),
                 exporters=exporter(base, bool(metric_receivers)), service=dict(extensions=['file_storage'], pipelines=pipelines))
 
@@ -291,7 +291,7 @@ def host_config(platform, base, o):
 def helm_values(base, version, o=None):
     """Values for open-telemetry/opentelemetry-collector (daemonset): the chart's presets read the pod logs and add the pod, namespace
     and container names, the exporter and queue are ours. The chart's own traces/metrics pipelines and their receivers are removed.
-    With server metrics on, the node's root file system is mounted read-only at /hostfs for the hostmetrics receiver and the node's
+    With server metrics on, the node's root file system is mounted read-only at /hostfs for the host_metrics receiver and the node's
     name (from the downward API) becomes `k8s.node.name`: inside the pod the detected host name is the pod's. The chart's
     `hostMetrics` preset is not used because it also switches on the disk and network scrapers (the network one would read the
     pod's interface, not the node's)."""
@@ -304,9 +304,9 @@ def helm_values(base, version, o=None):
     procs = processors('kubernetes', o)
     if metrics: procs['resource/node'] = dict(attributes=[dict(key='k8s.node.name', value='${env:' + NODE_ENV + '}', action='upsert')])
     pipelines = dict(
-        logs=dict(receivers=[], processors=['memory_limiter', 'resourcedetection', 'batch'], exporters=['otlphttp/monishield']),
-        traces=None, metrics=dict(receivers=['hostmetrics'], processors=['memory_limiter', 'resourcedetection', 'resource/node', 'metricstransform/monishield', 'batch/metrics'],
-                                  exporters=['otlphttp/monishield']) if metrics else None)
+        logs=dict(receivers=[], processors=['memory_limiter', 'resource_detection', 'batch'], exporters=['otlp_http/monishield']),
+        traces=None, metrics=dict(receivers=['host_metrics'], processors=['memory_limiter', 'resource_detection', 'resource/node', 'metrics_transform/monishield', 'batch/metrics'],
+                                  exporters=['otlp_http/monishield']) if metrics else None)
     return dict(
         mode='daemonset', fullnameOverride='monishield-collector',
         image=dict(repository='otel/opentelemetry-collector-contrib', tag=version), command=dict(name='otelcol-contrib'),
@@ -318,7 +318,7 @@ def helm_values(base, version, o=None):
         extraVolumes=[dict(name='monishield-queue', hostPath=dict(path=KUBE_QUEUE_HOST, type='DirectoryOrCreate')), *node_volumes],
         extraVolumeMounts=[dict(name='monishield-queue', mountPath=QUEUE_DIRS['kubernetes']), *node_mounts],
         config=dict(
-            receivers={**{k: None for k in ('otlp', 'jaeger', 'prometheus', 'zipkin')}, **({'hostmetrics': hostmetrics('kubernetes')} if metrics else {})},
+            receivers={**{k: None for k in ('otlp', 'jaeger', 'prometheus', 'zipkin')}, **({'host_metrics': host_metrics('kubernetes')} if metrics else {})},
             extensions=extensions(QUEUE_DIRS['kubernetes']), processors=procs, exporters=exporter(base, metrics),
             service=dict(extensions=['health_check', 'file_storage'], pipelines=pipelines)))
 

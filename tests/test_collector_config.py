@@ -87,17 +87,17 @@ def test_receiver_url():
 # YAML
 def test_linux_files_and_journald():
     y = build('linux', dict(files=FILES, journald=True, units=['ssh.service', 'cron.service']))
-    assert '  filelog/1:\n    include:\n      - "/var/log/app/*.log"\n    start_at: "end"\n    include_file_name: true' in y
-    assert '    resource:\n      service.name: "app"' in y and '      service.name: "www.nginx"' in y and '  filelog/2:' in y
+    assert '  file_log/1:\n    include:\n      - "/var/log/app/*.log"\n    start_at: "end"\n    include_file_name: true' in y
+    assert '    resource:\n      service.name: "app"' in y and '      service.name: "www.nginx"' in y and '  file_log/2:' in y
     assert '  journald:\n    start_at: "end"\n    units:\n      - "ssh.service"\n      - "cron.service"' in y
-    assert 'receivers:\n        - "filelog/1"\n        - "filelog/2"\n        - "journald"' in y
+    assert 'receivers:\n        - "file_log/1"\n        - "file_log/2"\n        - "journald"' in y
     assert 'directory: "/var/lib/otelcol-contrib/queue"' in y
     assert 'operators' not in y and 'regex_parser' not in y and 'json_parser' not in y     # the body stays the original line
 
 
 def test_docker_names_come_from_the_name_links():
     y = build('docker', dict(containers=True, journald=False, files=[]))
-    assert '  filelog/docker:\n    include:\n      - "/var/lib/otelcol-contrib/containers/*.log"' in y
+    assert '  file_log/docker:\n    include:\n      - "/var/lib/otelcol-contrib/containers/*.log"' in y
     assert 'exclude_older_than: "24h"' in y and 'start_at: "beginning"' in y and 'storage: "file_storage"' in y and 'include_file_name: true' in y
     assert 'container.name' in y and 'attributes[\\"log.file.name\\"][:-4]' in y            # the file name without .log
     assert y.count('type:') == 2 and 'type: "container"' in y and 'format: "docker"' in y and 'add_metadata_from_filepath: false' in y
@@ -107,13 +107,13 @@ def test_docker_names_come_from_the_name_links():
 
 def test_docker_receiver_is_only_there_when_containers_are_on():
     y = build('docker', dict(containers=False, journald=True, units=[], files=[]))
-    assert 'filelog/docker' not in y and 'containers/*.log' not in y
+    assert 'file_log/docker' not in y and 'containers/*.log' not in y
     assert 'containers/*.log' not in build('linux')
 
 
 def test_windows_channels_and_files():
     y = build('windows', dict(channels=['application', 'security'], files=[dict(path='C:\\inetpub\\logs\\*.log', service='iis')]))
-    assert 'windowseventlog/application:\n    channel: "application"' in y and 'windowseventlog/security:' in y and 'windowseventlog/system' not in y
+    assert 'windows_event_log/application:\n    channel: "application"' in y and 'windows_event_log/security:' in y and 'windows_event_log/system' not in y
     assert 'include:\n      - "C:\\\\inetpub\\\\logs\\\\*.log"' in y                      # backslashes escaped in a double quoted string
     assert 'directory: "C:\\\\ProgramData\\\\OpenTelemetry Collector\\\\queue"' in y
 
@@ -121,14 +121,14 @@ def test_windows_channels_and_files():
 @pytest.mark.parametrize('platform', ['linux', 'windows', 'docker'])
 def test_common_parts_and_the_key_is_never_in_the_text(platform):
     y = build(platform)
-    assert 'resourcedetection:\n    detectors:\n      - "system"' in y
+    assert 'resource_detection:\n    detectors:\n      - "system"' in y
     assert 'send_batch_size: 500\n    send_batch_max_size: 1000\n    timeout: "5s"' in y
     for line in ('endpoint: "https://logs.example.com/api/collector"', 'encoding: "json"', 'compression: "gzip"',
                  'Authorization: "Bearer ${env:MONISHIELD_COLLECTOR_KEY}"', 'retry_on_failure:\n      enabled: true',
                  'sending_queue:\n      enabled: true\n      storage: "file_storage"', 'file_storage:\n    directory:'):
         assert line in y, line
     assert 'msk_' not in y and 'mse_' not in y
-    assert 'processors:\n        - "resourcedetection"\n        - "batch"' in y
+    assert 'processors:\n        - "resource_detection"\n        - "batch"' in y
 
 
 def test_batch_stays_far_below_the_receiver_limit():
@@ -143,7 +143,7 @@ def test_kubernetes_values():
                  'kubernetesAttributes:\n    enabled: true', 'name: "otelcol-contrib"', 'endpoint: "https://logs.example.com/api/collector"',
                  'storage: "file_storage"', 'secretKeyRef:\n        name: "monishield-collector"\n        key: "key"', 'hostPath:', 'traces: null'):
         assert line in y, line
-    assert 'msk_' not in y and 'Bearer ${env:MONISHIELD_COLLECTOR_KEY}' in y and 'filelog' not in y     # the chart's preset adds the receiver
+    assert 'msk_' not in y and 'Bearer ${env:MONISHIELD_COLLECTOR_KEY}' in y and 'file_log' not in y     # the chart's preset adds the receiver
 
 
 def test_quoting_keeps_odd_values_inside_one_string():
@@ -194,23 +194,23 @@ def test_collectors_made_before_the_metrics_send_none():
         assert o['host_metrics'] is False and not o.get('container_metrics'), platform
         assert cc.stored(platform, {k: v for k, v in cc.default_options(platform).items() if 'metrics' not in k}) == o
     assert cc.stored('linux', dict(journald=True, host_metrics=True))['host_metrics'] is True
-    assert 'metrics' not in build('linux', cc.stored('linux', None)).replace('hostmetrics', '')       # no metrics pipeline, no metrics endpoint
+    assert 'metrics' not in build('linux', cc.stored('linux', None)).replace('host_metrics', '')       # no metrics pipeline, no metrics endpoint
 
 
 def test_metrics_off_leaves_the_log_configuration_as_it_was():
     for platform, options in (('linux', dict(journald=True, host_metrics=False)), ('windows', dict(channels=['system'], host_metrics=False)),
                               ('docker', dict(containers=True, host_metrics=False, container_metrics=False)), ('kubernetes', dict(host_metrics=False))):
         y = build(platform, options)
-        assert 'hostmetrics' not in y and 'docker_stats' not in y and 'metrics_endpoint' not in y and 'metricstransform' not in y and 'batch/metrics' not in y
-        assert 'os.description' not in y and 'metrics:\n' not in y.replace('hostmetrics', '')
+        assert 'host_metrics' not in y and 'docker_stats' not in y and 'metrics_endpoint' not in y and 'metrics_transform' not in y and 'batch/metrics' not in y
+        assert 'os.description' not in y and 'metrics:\n' not in y.replace('host_metrics', '')
 
 
 def test_linux_metrics_pipeline():
     y = build('linux', METRIC_OPTIONS['linux'])
     assert 'metrics_endpoint: "https://logs.example.com/api/collector/v1/metrics"' in y and 'endpoint: "https://logs.example.com/api/collector"' in y
-    assert '  hostmetrics:\n    collection_interval: "30s"' in y and 'docker_stats' not in y and 'root_path' not in y
-    assert ('    metrics:\n      receivers:\n        - "hostmetrics"\n      processors:\n        - "resourcedetection"\n        - "metricstransform/monishield"\n'
-            '        - "batch/metrics"\n      exporters:\n        - "otlphttp/monishield"') in y
+    assert '  host_metrics:\n    collection_interval: "30s"' in y and 'docker_stats' not in y and 'root_path' not in y
+    assert ('    metrics:\n      receivers:\n        - "host_metrics"\n      processors:\n        - "resource_detection"\n        - "metrics_transform/monishield"\n'
+            '        - "batch/metrics"\n      exporters:\n        - "otlp_http/monishield"') in y
     assert 'logs:\n      receivers:\n        - "journald"' in y
     for part in ('system.cpu.utilization:\n            enabled: true', 'system.cpu.time:\n            enabled: false', 'system.memory.limit:\n            enabled: true',
                  'system.cpu.load_average.5m:\n            enabled: false', 'system.filesystem.inodes.usage:\n            enabled: false',
@@ -222,12 +222,12 @@ def test_linux_metrics_pipeline():
 
 def test_windows_has_no_mount_excludes_and_docker_stats_is_docker_only():
     y = build('windows', METRIC_OPTIONS['windows'])
-    assert 'hostmetrics' in y and 'exclude_mount_points' not in y and 'exclude_fs_types' not in y and '"^lo$"' in y and 'docker_stats' not in y
+    assert 'host_metrics' in y and 'exclude_mount_points' not in y and 'exclude_fs_types' not in y and '"^lo$"' in y and 'docker_stats' not in y
     y = build('docker', METRIC_OPTIONS['docker'])
     assert '  docker_stats:\n    endpoint: "unix:///var/run/docker.sock"\n    collection_interval: "30s"' in y and 'container.restarts:\n        enabled: true' in y
-    assert 'api_version' not in y and '        - "hostmetrics"\n        - "docker_stats"' in y
+    assert 'api_version' not in y and '        - "host_metrics"\n        - "docker_stats"' in y
     only = build('docker', dict(files=[], journald=False, units=[], containers=False, host_metrics=False, container_metrics=True))
-    assert '  docker_stats:' in only and 'hostmetrics' not in only and 'logs:' not in only and 'filelog' not in only
+    assert '  docker_stats:' in only and 'host_metrics' not in only and 'logs:' not in only and 'file_log' not in only
 
 
 def test_metrics_only_collector_has_no_logs_pipeline():
@@ -237,15 +237,15 @@ def test_metrics_only_collector_has_no_logs_pipeline():
 
 def test_kubernetes_node_metrics_values():
     y = build('kubernetes', dict(host_metrics=True))
-    for part in ('hostmetrics:\n      collection_interval: "30s"\n      root_path: "/hostfs"', 'name: "K8S_NODE_NAME"', 'fieldPath: "spec.nodeName"',
+    for part in ('host_metrics:\n      collection_interval: "30s"\n      root_path: "/hostfs"', 'name: "K8S_NODE_NAME"', 'fieldPath: "spec.nodeName"',
                  'mountPath: "/hostfs"', 'readOnly: true', 'mountPropagation: "HostToContainer"', 'resource/node:', 'key: "k8s.node.name"',
                  'value: "${env:K8S_NODE_NAME}"', 'metrics_endpoint: "https://logs.example.com/api/collector/v1/metrics"', '- "^/var/lib/kubelet/.*"'):
         assert part in y, part
-    assert ('metrics:\n        receivers:\n          - "hostmetrics"\n        processors:\n          - "memory_limiter"\n          - "resourcedetection"\n'
-            '          - "resource/node"\n          - "metricstransform/monishield"\n          - "batch/metrics"') in y
+    assert ('metrics:\n        receivers:\n          - "host_metrics"\n        processors:\n          - "memory_limiter"\n          - "resource_detection"\n'
+            '          - "resource/node"\n          - "metrics_transform/monishield"\n          - "batch/metrics"') in y
     assert 'network:' not in y and 'hostMetrics' not in y and 'os.description' not in y and 'traces: null' in y
     off = build('kubernetes', dict(host_metrics=False))
-    assert 'hostmetrics' not in off and 'hostfs' not in off and 'K8S_NODE_NAME' not in off and 'metrics: null' in off and 'metrics_endpoint' not in off
+    assert 'host_metrics' not in off and 'hostfs' not in off and 'K8S_NODE_NAME' not in off and 'metrics: null' in off and 'metrics_endpoint' not in off
 
 
 # The real collector
@@ -306,15 +306,15 @@ def test_real_collector_accepts_the_kubernetes_metric_pipeline(tmp_path):
     # the chart's memory_limiter and pre-set log receiver are stood in for, the rest is exactly what the values hold.
     cfg = cc.helm_values(BASE, VERSION, cc.normalize('kubernetes', dict(host_metrics=True)))['config']
     cfg['receivers'] = {k: v for k, v in cfg['receivers'].items() if v is not None}
-    cfg['receivers']['hostmetrics']['root_path'] = str(tmp_path)       # the real collector checks that the folder exists
-    cfg['receivers']['filelog'] = dict(include=['/var/log/pods/*/*/*.log'])
+    cfg['receivers']['host_metrics']['root_path'] = str(tmp_path)       # the real collector checks that the folder exists
+    cfg['receivers']['file_log'] = dict(include=['/var/log/pods/*/*/*.log'])
     cfg['processors']['memory_limiter'] = dict(check_interval='5s', limit_percentage=80, spike_limit_percentage=25)
     cfg['service']['extensions'] = ['file_storage']
     cfg['service']['pipelines'] = {k: v for k, v in cfg['service']['pipelines'].items() if v is not None}
-    cfg['service']['pipelines']['logs']['receivers'] = ['filelog']
+    cfg['service']['pipelines']['logs']['receivers'] = ['file_log']
     code_, out = validate(otelcol(), tmp_path, '\n'.join(cc.emit(cfg)) + '\n', K8S_NODE_NAME='node-1')     # the pod's downward API sets it
     assert code_ == 0, out
-    assert 'resource/node' in cfg['processors'] and cfg['service']['pipelines']['metrics']['receivers'] == ['hostmetrics']
+    assert 'resource/node' in cfg['processors'] and cfg['service']['pipelines']['metrics']['receivers'] == ['host_metrics']
 
 
 @pytest.mark.skipif(not otelcol(), reason='run tools/fetch_otelcol.py to download otelcol-contrib')
@@ -463,3 +463,38 @@ def test_install_ps1_has_the_same_flow():
                  'MultiString', 'S-1-5-18', 'validate'):
         assert part in t, part
     assert f"$Version = '{VERSION}'" in t and f"[string]$Url = '{BASE}'" in t
+
+
+def run_a_while(binary, tmp_path, text, seconds=4):
+    """Start the real collector, let it build its pipelines, stop it, and return what it logged."""
+    f = tmp_path / 'run.yaml'
+    f.write_text(text.replace(cc.QUEUE_DIRS['linux'], str(tmp_path / 'queue')), encoding='utf-8')
+    p = subprocess.Popen([binary, f'--config={f}'], env=dict(os.environ, MONISHIELD_COLLECTOR_KEY='dummy-key-for-run'), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    try: out, _ = p.communicate(timeout=seconds)
+    except subprocess.TimeoutExpired:
+        p.terminate()
+        out, _ = p.communicate(timeout=30)
+    return out
+
+
+@pytest.mark.skipif(not otelcol(), reason='run tools/fetch_otelcol.py to download otelcol-contrib')
+def test_real_collector_logs_no_deprecated_component_names(tmp_path):
+    # `validate` accepts the old aliases silently; only a real start logs '"x" alias is deprecated'.
+    out = run_a_while(otelcol(), tmp_path, build('linux', dict(files=FILES[:1], journald=False, units=[], host_metrics=True)))
+    assert 'Everything is ready' in out, out
+    assert 'deprecated' not in out, out
+    win = run_a_while(otelcol(), tmp_path, build('windows', dict(files=[], channels=['application'], host_metrics=False)))
+    assert 'deprecated' not in win and 'only supported on Windows' in win, win
+
+
+@pytest.mark.skipif(not shutil.which('sh'), reason='sh needed')
+def test_upgrade_tells_docker_from_the_new_config_and_an_old_one():
+    # install.sh --upgrade decides by this pattern; a config written with the old component names must be recognised the same way
+    script = open(os.path.join(ROOT, 'monishield', 'infrastructure', 'assets', 'collector', 'install.sh'), encoding='utf-8').read()
+    pattern = re.search(r"grep -qE '([^']+)' \"\$\{WORK\}/config.yaml\"", script).group(1)
+    old = '  docker_stats:\n    endpoint: "unix:///var/run/docker.sock"\n  filelog/docker:\n    include:\n      - "/var/lib/otelcol-contrib/containers/*.log"\nexporters:\n  otlphttp/monishield: {}\n'
+    new = build('docker', dict(files=[], journald=False, units=[], containers=True, host_metrics=False, container_metrics=True))
+    plain = build('linux', dict(files=FILES[:1], journald=False, units=[], host_metrics=True))
+    for text, want in ((old, True), (new, True), (plain, False)):
+        r = subprocess.run(['grep', '-qE', pattern], input=text, text=True)
+        assert (r.returncode == 0) == want

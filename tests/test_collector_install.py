@@ -92,7 +92,7 @@ def test_get_config_needs_a_key_and_follows_the_options(client):
     assert r.status_code == 200 and r.headers['cache-control'] == 'no-store' and '"/var/log/app/*.log"' in r.text and key not in r.text
     client.put(f"/api/admin/collectors/{c['collector']['id']}/options", json=dict(options=dict(journald=True, units=[])), headers=X)
     r = anon.get('/api/collector/config', headers={'Authorization': f'Bearer {key}'})
-    assert 'journald:' in r.text and 'filelog/1' not in r.text
+    assert 'journald:' in r.text and 'file_log/1' not in r.text
 
 
 def test_upgrade_reads_the_config_with_the_key_alone_and_docker_is_recognised(client):

@@ -1,9 +1,9 @@
-"""OTLP/HTTP JSON metrics request (OpenTelemetry Collector `otlphttp`, encoding json) -> server and container points.
+"""OTLP/HTTP JSON metrics request (OpenTelemetry Collector `otlp_http`, encoding json) -> server and container points.
 
     {"resourceMetrics": [{"resource": {"attributes": [...]}, "scopeMetrics": [{"metrics": [
         {"name": "system.memory.usage", "sum": {"dataPoints": [{"attributes": [...], "timeUnixNano": "…", "asInt": "…"}]}}]}]}]}
 
-Only the metrics MoniShield shows are read (the `hostmetrics` and `docker_stats` receivers, docs/13-metrics.md); any other
+Only the metrics MoniShield shows are read (the `host_metrics` and `docker_stats` receivers, docs/13-metrics.md); any other
 metric name, and histograms, summaries and exponential histograms, are ignored and only counted. A point that is broken is a
 rejected point with a reason, never an exception. Nothing but the host name, the operating system, the container name and its
 image name is kept from the resource: no IP address, no process or command line, no container id.

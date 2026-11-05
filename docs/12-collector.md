@@ -43,7 +43,7 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 | 2 (done) | Collector registry (accounts database): name, platform, version, last seen, revoked; one-time enrollment token (24 h) exchanged for a long-lived key, both stored as hashes; replace and revoke the key; audit `collector.add`, `collector.enroll`, `collector.rotate`, `collector.revoke`. Application service + port |
 | 3 (done) | Receiver `POST /v1/logs`: Bearer key, outside the CSRF guard and the payload encryption (a machine client), size limits before and after gunzip, rate limit per collector, written to disk before the 200, OTLP partial-success answer, 401 / 413 / 429 with `Retry-After` |
 | 4 (done) | Third source `collector`: database, inbox, retention, notifications, ingest schedule; hourly files; source switch in the header; dictionaries id/en. See "Collector source" below |
-| 5 (done) | Configuration writer and install: collector YAML per platform and chosen data (file logs, journald, Windows Event Log, Docker, Kubernetes), `otlphttp` exporter with a disk queue and retries; `install.sh` (systemd), `install.ps1` (Windows service), Helm values |
+| 5 (done) | Configuration writer and install: collector YAML per platform and chosen data (file logs, journald, Windows Event Log, Docker, Kubernetes), `otlp_http` exporter with a disk queue and retries; `install.sh` (systemd), `install.ps1` (Windows service), Helm values |
 | 6 (done) | Admin › Collectors page (after the mockup): list, status counts, add dialog with platform tabs and the install command, details, replace / revoke key |
 | 7 | End-to-end check with a real `otelcol-contrib`: lines reach Raw Logs and the pages; data queued while the link is down arrives later; a revoked key is refused |
 | 8 (done) | Deploy and docs: receiver subdomain, new `.env` settings, user guide, status, changelog |
@@ -67,7 +67,7 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 
 ### Step 3: the receiver
 
-The OpenTelemetry Collector's `otlphttp` exporter uses `endpoint: https://<host>/api/collector`, `encoding: json`,
+The OpenTelemetry Collector's `otlp_http` exporter uses `endpoint: https://<host>/api/collector`, `encoding: json`,
 `compression: gzip` and the header `Authorization: Bearer <key>`; it posts to `POST /api/collector/v1/logs`. The route needs
 no session and no `X-Requested-With`, is not audited and is not touched by the payload encryption (no `X-MS-Enc`). The lines
 are appended to the **collector inbox** (`S4_COLLECTOR_INBOX_DIR`, default `<inbox>/collector`), one write per file under a
@@ -123,9 +123,9 @@ inputs the admin chose (`options`, stored with the collector, changed with `PUT 
 
 | Platform | Inputs (`options`) | Receivers |
 |---|---|---|
-| `linux` | `files` (up to 30 groups of absolute path glob + service name), `journald` (+ `units`) | `filelog/<n>`, `journald` |
-| `docker` | the same, plus `containers` | also `filelog/docker` on `/var/lib/otelcol-contrib/containers/*.log` (name links kept by the helper `docker-names.sh`) |
-| `windows` | `channels` (application, system, security), `files` | `windowseventlog/<channel>`, `filelog/<n>` |
+| `linux` | `files` (up to 30 groups of absolute path glob + service name), `journald` (+ `units`) | `file_log/<n>`, `journald` |
+| `docker` | the same, plus `containers` | also `file_log/docker` on `/var/lib/otelcol-contrib/containers/*.log` (name links kept by the helper `docker-names.sh`) |
+| `windows` | `channels` (application, system, security), `files` | `windows_event_log/<channel>`, `file_log/<n>` |
 | `kubernetes` | none (pod logs are always on) | Helm values; the chart's `logsCollection` preset adds the receiver |
 
 Every platform also has the option `host_metrics` (CPU, memory, load, file systems, network traffic of the server or node) and Docker
@@ -145,7 +145,7 @@ existed has both off until an admin turns them on and runs `install.sh --upgrade
   changed. The service `monishield-docker-names.service` (root, `RestrictAddressFamilies=AF_UNIX`: no network) runs from the timer
   `monishield-docker-names.timer` (`OnBootSec=5s`, `OnUnitActiveSec=15s`, `AccuracySec=1s`) and once before the collector starts
   (`ExecStartPre=-` in its drop-in).
-  The collector's `filelog/docker` reads `/var/lib/otelcol-contrib/containers/*.log` (the collector follows the links), with
+  The collector's `file_log/docker` reads `/var/lib/otelcol-contrib/containers/*.log` (the collector follows the links), with
   `include_file_name`, `start_at: beginning` and `storage: file_storage`: a new link is read from its first line, and the saved
   offsets keep a restart from reading a file twice (a file is told apart by its first bytes, so a link that now points to another
   file reads the new file and not the old one again). The `container` operator (format `docker`) is the only parser, and one `add`
@@ -162,8 +162,8 @@ existed has both off until an admin turns them on and runs `install.sh --upgrade
   and finds a container once per exposed port.
   **An existing Docker collector keeps its id names until it is upgraded:** `sudo sh install.sh --upgrade` (see "Upgrade in place").
   Lines already stored stay under the id names.
-- **Always:** `resourcedetection` (`system`, so `host.name` is set), `batch` (`send_batch_size` 500, `send_batch_max_size`
-  1000, `timeout` 5 s; far below the receiver's 16 MB raw limit), exporter `otlphttp` (`encoding: json`, `compression: gzip`,
+- **Always:** `resource_detection` (`system`, so `host.name` is set), `batch` (`send_batch_size` 500, `send_batch_max_size`
+  1000, `timeout` 5 s; far below the receiver's 16 MB raw limit), exporter `otlp_http` (`encoding: json`, `compression: gzip`,
   retry without a time limit, `sending_queue` on the `file_storage` extension, so data waits on disk while MoniShield is
   unreachable). The queue directory is `/var/lib/otelcol-contrib/queue` (Linux, Docker), `C:\ProgramData\OpenTelemetry
   Collector\queue` (Windows) or a hostPath `/var/lib/otelcol-monishield/queue` (Kubernetes).

@@ -7,7 +7,7 @@ Docker containers next to the logs. This page is completed when the Servers page
 
 | Option | Platforms | Receiver | What |
 |---|---|---|---|
-| `host_metrics` | Linux, Windows, Docker hosts, Kubernetes nodes | `hostmetrics` | CPU utilization per state, memory (used and total), load average 1 minute, used and free space per mount point, network bytes sent and received |
+| `host_metrics` | Linux, Windows, Docker hosts, Kubernetes nodes | `host_metrics` | CPU utilization per state, memory (used and total), load average 1 minute, used and free space per mount point, network bytes sent and received |
 | `container_metrics` | Docker hosts | `docker_stats` | per container: CPU %, memory used and limit, network bytes sent and received, restart count |
 
 Never collected: the `process` and `processes` scrapers (process names and command lines are personal data), packets, errors,
@@ -19,18 +19,22 @@ New collectors have the options on. A collector registered before this stage has
 
 ## 2. The configuration (`domain/collector_config.py`)
 
-- A `metrics` pipeline: receivers, `resourcedetection` (host name, OS type and description), `metricstransform/monishield` (keeps one
-  CPU value per state), `batch/metrics` (no maximum size, so one scrape is never split) and the same `otlphttp/monishield` exporter with
+- A `metrics` pipeline: receivers, `resource_detection` (host name, OS type and description), `metrics_transform/monishield` (keeps one
+  CPU value per state), `batch/metrics` (no maximum size, so one scrape is never split) and the same `otlp_http/monishield` exporter with
   `metrics_endpoint` set to `<address>/api/collector/v1/metrics`. Same key, gzip, retry and disk queue as the logs.
-- Linux, Docker and Windows: the `hostmetrics` receiver with the scrapers `cpu`, `memory` (with `system.memory.limit`), `load`,
+- Linux, Docker and Windows: the `host_metrics` receiver with the scrapers `cpu`, `memory` (with `system.memory.limit`), `load`,
   `filesystem` and `network`. File systems of type tmpfs, overlay, squashfs and the like and the mounts `/run`, `/snap`,
   `/var/lib/docker` and `/boot/efi` are left out; network devices `lo`, `veth*`, `br-*`, `docker*`, `cali*`, `flannel*`, `cni*` and
   `vxlan*` are left out. Windows has no mount excludes.
 - Docker hosts: the `docker_stats` receiver on `unix:///var/run/docker.sock` (the collector already runs as root there).
-- Kubernetes: the Helm values mount the node's root file system read-only at `/hostfs`, set `root_path` of the `hostmetrics` receiver and
+- Kubernetes: the Helm values mount the node's root file system read-only at `/hostfs`, set `root_path` of the `host_metrics` receiver and
   take the node name from the downward API (`K8S_NODE_NAME`, written to `k8s.node.name`). The chart's `hostMetrics` preset is not used:
   it also switches on the disk and network scrapers, and the network scraper of a pod reads the pod's own interface, not the node's. So a
   Kubernetes node has no network values.
+
+The component names are the current ones (`otlp_http`, `host_metrics`, `resource_detection`, `metrics_transform`, `file_log`, `windows_event_log`): 0.163.2 still accepts the old
+spellings but logs `alias is deprecated` for each at start. `install.sh --upgrade` fetches the new configuration from the server, so a collector installed with the old
+names is moved to the new ones by the upgrade (the Docker host is told from `docker_stats:` and the container link folder, which did not change).
 
 Checked with the real `otelcol-contrib` 0.163.2 (`tools/fetch_otelcol.py`; the tests skip only when the binary is absent).
 
