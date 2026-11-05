@@ -217,6 +217,10 @@ def test_install_sh_carries_the_docker_name_helper(tmp_path):
     for part in ('OnBootSec=5s', 'OnUnitActiveSec=15s', 'AccuracySec=1s', 'RestrictAddressFamilies=AF_UNIX', 'ExecStartPre=-', "HELPER_DIR='/usr/local/lib/monishield'",
                  'monishield-docker-names.timer'):
         assert part in text, part
+    # the drop-in: After= is a [Unit] key; the Docker drop-in holds it, the others stay [Service] only
+    assert "printf '[Unit]\\nAfter=docker.service\\n\\n[Service]\\nEnvironmentFile=%s/monishield.env\\nUser=root" in text
+    assert "if [ \"$PLATFORM\" = docker ]; then printf '[Unit]\\nAfter=docker.service\\n\\n'; fi" in text
+    assert 'Service]\\nEnvironmentFile=%s/monishield.env\\nAfter=' not in text and "printf 'After=docker.service" not in text
     # the heredoc writes the helper back byte for byte
     out = tmp_path / 'out.sh'
     start, end = text.index("<<'MONISHIELD_DOCKER_NAMES'\n") + len("<<'MONISHIELD_DOCKER_NAMES'\n"), text.index('\nMONISHIELD_DOCKER_NAMES\n')

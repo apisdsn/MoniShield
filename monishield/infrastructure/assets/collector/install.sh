@@ -136,7 +136,7 @@ if [ "$UPGRADE" = 1 ]; then
     install_helper
     DROPIN_DIR="/etc/systemd/system/${SERVICE}.service.d"
     mkdir -p "$DROPIN_DIR"
-    printf '[Service]\nEnvironmentFile=%s/monishield.env\nAfter=docker.service\nUser=root\nGroup=root\nExecStartPre=-%s\n' "$CONF_DIR" "$HELPER" >"${DROPIN_DIR}/monishield.conf"
+    printf '[Unit]\nAfter=docker.service\n\n[Service]\nEnvironmentFile=%s/monishield.env\nUser=root\nGroup=root\nExecStartPre=-%s\n' "$CONF_DIR" "$HELPER" >"${DROPIN_DIR}/monishield.conf"
     chmod 0644 "${DROPIN_DIR}/monishield.conf"
     install -d -m 0750 -o root -g root "$STATE_DIR" "${STATE_DIR}/queue"
   fi
@@ -230,8 +230,9 @@ install -m 0640 -o root -g "$RUN_GROUP" "${WORK}/config.yaml" "${CONF_DIR}/confi
 ( umask 077; printf 'MONISHIELD_COLLECTOR_KEY=%s\n' "$KEY" >"${CONF_DIR}/monishield.env" )
 chmod 0600 "${CONF_DIR}/monishield.env"; chown root:root "${CONF_DIR}/monishield.env"
 {
+  if [ "$PLATFORM" = docker ]; then printf '[Unit]\nAfter=docker.service\n\n'; fi   # After= belongs to [Unit], not [Service]
   printf '[Service]\nEnvironmentFile=%s/monishield.env\n' "$CONF_DIR"
-  if [ "$PLATFORM" = docker ]; then printf 'After=docker.service\nUser=root\nGroup=root\nExecStartPre=-%s\n' "$HELPER"; fi
+  if [ "$PLATFORM" = docker ]; then printf 'User=root\nGroup=root\nExecStartPre=-%s\n' "$HELPER"; fi
 } >"${DROPIN_DIR}/monishield.conf"
 chmod 0644 "${DROPIN_DIR}/monishield.conf"
 
