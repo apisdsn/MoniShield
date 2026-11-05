@@ -1176,7 +1176,6 @@
  "nav.cfg.blocklist": "Daftar Blokir",
  "nav.cfg.retention": "Retensi Data",
  "nav.cfg.server": "Kunci Server",
- "nav.svc_search": "Cari layanan",
  "cf.st.intro": "Tempat log disimpan (bucket atau container). Pilih penyedianya, lalu isi kunci akses yang cukup punya hak baca (daftar + unduh objek) pada bucket log. Kredensial sementara yang ditempel di layar Ingest & impor tetap didahulukan selama server berjalan.",
  "cf.st.provider": "Penyedia",
  "cf.st.other": "S3-compatible lainnya",

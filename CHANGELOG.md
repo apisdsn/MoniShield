@@ -54,6 +54,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   offset are derived again on the next ingest; existing data counts as +07:00, so nothing changes for current sites.
 
 ### Changed
+- The sidebar no longer has the "Search services" field; the Services group lists every service as before.
 - Collectors page: labels, headings, column headers and buttons use Title Case like the rest of the app (for example "Replace Key", "Last Seen", "Log Lines"); the received, stored and rejected counts say "since the server last started"; Indonesian uses "Log Mentah" for Raw Logs.
 - Header: the language is a globe button with a two-row menu and the theme is a dark-theme switch, both in front of the
   user button (they left the user menu). The user menu keeps reload and the account items.

@@ -1176,7 +1176,6 @@
  "nav.cfg.blocklist": "Block List",
  "nav.cfg.retention": "Data Retention",
  "nav.cfg.server": "Server Keys",
- "nav.svc_search": "Search services",
  "cf.st.intro": "Where the logs are stored (bucket or container). Choose the provider, then enter an access key that can read the log bucket (list + download objects). Temporary credentials pasted on the Ingest & import page take precedence while the server runs.",
  "cf.st.provider": "Provider",
  "cf.st.other": "Other S3-compatible",
