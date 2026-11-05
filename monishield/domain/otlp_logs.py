@@ -166,8 +166,15 @@ def _slug_keep(v):
 
 
 def _journald_service(body):
-    unit = _slug_keep((_text(body.get('_SYSTEMD_UNIT')) or '').removesuffix('.service'))
-    return unit or _slug_keep(_text(body.get('SYSLOG_IDENTIFIER')) or '') or 'journald'
+    """One service per program, lower case: the program's unit without `.service` and without the `@instance` of a template unit
+    (`getty@tty1.service` -> `getty`). Scopes (`session-55608.scope`, `init.scope`) and `user@1000.service` are not programs but
+    containers of other processes, so the line is named by `SYSLOG_IDENTIFIER` (`sudo`, `sshd`, `systemd`), else by `systemd-session`
+    (`systemd` for `init.scope` and the user manager)."""
+    unit = (_text(body.get('_SYSTEMD_UNIT')) or '').lower()
+    ident = _slug(_text(body.get('SYSLOG_IDENTIFIER')) or '')
+    if unit.endswith('.scope') or unit.startswith('user@'):
+        return ident or ('systemd-session' if unit.startswith('session-') else 'systemd')
+    return _slug(re.sub(r'@[^.]*$', '', unit.removesuffix('.service'))) or ident or 'journald'
 
 
 def _journald(body, t, host, svc):

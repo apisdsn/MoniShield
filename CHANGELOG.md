@@ -134,6 +134,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   ingest shows where the time went.
 
 ### Fixed
+- Collector: one journald service per program: names are lower case (`CRON` and `cron` were two services), scopes such as `session-55608.scope` and `user@1000.service` use the `SYSLOG_IDENTIFIER` (else `systemd-session` / `systemd`), and `.service` and the `@instance` of template units are dropped. Data already stored keeps its old names.
 - Home page map: when the newest folder has no located requests yet (empty, still arriving), the map uses the newest
   of the last 7 folders that has them instead of staying empty; with no traffic at all it shows sample dots marked
   "Sample data".

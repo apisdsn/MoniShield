@@ -238,6 +238,11 @@ match = "sshd"             # a journald unit or syslog identifier; list the serv
 format = "syslog"
 ```
 
+A journald record gets one service per program, always lower case: its unit without `.service` and without the `@instance` of a
+template unit (`getty@tty1.service` is `getty`). A scope (`session-55608.scope`, `init.scope`) or `user@1000.service` is not a
+program, so the record is named by its `SYSLOG_IDENTIFIER` (`sudo`, `sshd`, `systemd`), else `systemd-session` (`systemd` for
+`init.scope`, other scopes and the user manager). Records stored before this rule keep the old names; they are not migrated.
+
 Kubernetes and Docker records keep the original line, so they use the same rule as the Kafka source. Plain files use the
 rule of their service name (`service.name` of the collector's file group, else the file name without rotation suffix).
 
