@@ -426,7 +426,8 @@ def test_upgrade_dry_run_reads_the_installed_key_and_changes_nothing(script, tmp
 def test_upgrade_refuses_without_a_usable_key(script, tmp_path, content, message):
     conf = tmp_path / 'conf'; conf.mkdir()
     if content is not None: (conf / 'monishield.env').write_text(content)
-    for extra in ([], ['--dry-run']):
+    # a real run checks for root first, so without root (CI) only the dry run reaches the key checks
+    for extra in ([], ['--dry-run']) if os.geteuid() == 0 else (['--dry-run'],):
         r = run_sh(script, '--upgrade', '--conf-dir', str(conf), *extra)
         assert r.returncode == 1 and message in r.stderr and not r.stdout
 
