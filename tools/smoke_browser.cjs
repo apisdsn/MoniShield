@@ -118,6 +118,27 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   if (await page.locator('#lang-menu').count()) throw new Error('the language menu stayed open after a choice');
   console.log('ok   header language menu (open, Esc, choose)');
 
+  // header controls are one family (same height, border colour and radius), and a dialog closed with the mouse gives the focus back
+  // to its button without a ring (with the keyboard it keeps one)
+  const family = await page.evaluate(() => ['.where .seg', '.fp', 'button[aria-keyshortcuts]', '.lbtn', '.sw', '.who'].map((s) => {
+    const e = document.querySelector(s), c = e && getComputedStyle(e), r = e && e.getBoundingClientRect();
+    return e && `${s}: ${Math.round(r.height)}px ${c.borderTopWidth} ${c.borderTopColor} ${c.borderTopLeftRadius}`;
+  }));
+  const kinds = new Set(family.filter(Boolean).map((x) => x.replace(/^[^:]*: /, '')));
+  if (kinds.size !== 1) throw new Error(`header controls differ: ${family.join(' | ')}`);
+  const searchBtn = page.locator('button[aria-keyshortcuts]');
+  await searchBtn.click();
+  await page.keyboard.type('ab');
+  await page.locator('dialog[open] button.x').click();
+  const ring = () => searchBtn.evaluate((b) => ({ on: document.activeElement === b, ring: getComputedStyle(b).outlineStyle !== 'none' }));
+  let st = await ring();
+  if (!st.on || st.ring) throw new Error(`search button after closing the dialog with the mouse: focused ${st.on}, ring ${st.ring}`);
+  await searchBtn.press('Enter');
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');   // the first Esc only clears the field
+  st = await ring();
+  if (!st.on || !st.ring) throw new Error(`search button after closing the dialog with Esc: focused ${st.on}, ring ${st.ring}`);
+  console.log('ok   header controls look alike; focus ring only after the keyboard');
+
   // dark theme switch: toggles data-theme, both themes render the Overview without script errors
   const sw = page.locator('button[role=switch]');
   const errsBefore = problems.length;

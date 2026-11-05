@@ -1,5 +1,5 @@
 <!-- Dark theme switch in the header (owner request 2026-11-04): role="switch", checked = dark. A 56 x 30 track with a round
-     knob that slides left (light, sun) or right (dark, moon). The button is 44 px high so it is easy to hit. -->
+     knob that slides left (light, sun) or right (dark, moon), inside a 44 px bordered box like the other header controls. -->
 <script>
   import { t } from '../i18n.js';
   import { theme } from '../theme.js';
@@ -13,12 +13,14 @@
 </button>
 
 <style>
+  /* the same 44 px bordered box as the other header controls; the track and knob stay round inside it */
   .sw {
-    display: inline-grid; place-items: center; height: var(--touch); min-width: var(--touch); padding: 0 4px; margin: 0;
-    border: 0; background: transparent; cursor: pointer; border-radius: var(--r-ctl);
+    display: inline-grid; place-items: center; height: var(--touch); min-width: var(--touch); padding: 0 6px; margin: 0;
+    border: 1px solid var(--line-strong); background: var(--bg2); cursor: pointer; border-radius: var(--r-ctl);
   }
+  .sw:hover { background: var(--ctl-hover); }
   .track {
-    position: relative; width: 56px; height: 30px; border-radius: 999px; background: var(--bg2); border: 1px solid var(--line-strong);
+    position: relative; width: 56px; height: 30px; border-radius: 999px; background: var(--line); border: 1px solid transparent;
     transition: background-color 0.18s ease, border-color 0.18s ease;
   }
   .sw[aria-checked='true'] .track { background: var(--seg-on); border-color: var(--accent); }
@@ -27,6 +29,6 @@
     background: var(--accent); color: var(--brand-fg); transition: transform 0.18s ease;
   }
   .sw[aria-checked='true'] .knob { transform: translateX(26px); }
-  @media (max-width: 420px) { .sw { padding: 0; } }
+  @media (max-width: 420px) { .sw { padding: 0 4px; } }
   @media (prefers-reduced-motion: reduce) { .track, .knob { transition: none; } }
 </style>

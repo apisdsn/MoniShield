@@ -5,6 +5,7 @@
 <script>
   import { tick } from 'svelte';
   import { t } from '../i18n.js';
+  import { restoreFocus } from './focus.js';
   let { open = $bindable(false), title, onclose = null, returnFocus = null, children, footer = null, wide = false } = $props();   // returnFocus: fallback when the trigger is already gone from the page
   let el = $state(), trigger = null;
   const id = `dlg-${Math.random().toString(36).slice(2, 8)}`;
@@ -20,7 +21,7 @@
   function closed() {
     open = false;
     onclose?.();
-    (trigger?.isConnected ? trigger : returnFocus)?.focus?.();
+    restoreFocus(trigger?.isConnected ? trigger : returnFocus);
     trigger = null;
   }
 </script>

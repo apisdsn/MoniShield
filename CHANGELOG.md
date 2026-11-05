@@ -54,6 +54,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   offset are derived again on the next ingest; existing data counts as +07:00, so nothing changes for current sites.
 
 ### Changed
+- Header controls (source switch, date picker, search, sync, language, theme switch, user button) look like one family: 44 px high, the same 1 px border, background and 12 px radius, on desktop and phone. The focus ring shows for keyboard focus only and is the same on every control; a dialog or menu closed with the mouse no longer leaves a ring on the button that gets the focus back.
 - The sidebar no longer has the "Search services" field; the Services group lists every service as before.
 - Collectors page: labels, headings, column headers and buttons use Title Case like the rest of the app (for example "Replace Key", "Last Seen", "Log Lines"); the received, stored and rejected counts say "since the server last started"; Indonesian uses "Log Mentah" for Raw Logs.
 - Header: the language is a globe button with a two-row menu and the theme is a dark-theme switch, both in front of the

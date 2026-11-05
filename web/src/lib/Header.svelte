@@ -79,7 +79,12 @@
   .sep { color: var(--line-strong); }
   .where { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .burger, .brand { display: none; }
-  .seg button { min-width: var(--touch); }
+  /* source switch: the same 44 px box as the other header controls (theme.css .seg is the generic version) */
+  .seg { height: var(--touch); padding: 3px; align-items: stretch; border-color: var(--line-strong); background: var(--bg2); }
+  .seg button { min-width: var(--touch); min-height: 0; border-radius: calc(var(--r-ctl) - 4px); }
+  .seg button:not([aria-checked='true']):hover { background: var(--ctl-hover); color: var(--fg); }
+  .seg button:focus-visible { outline: none; }   /* the ring goes around the whole switch, like the date picker */
+  .seg:has(button:focus-visible:not([data-quiet])) { outline: 2px solid var(--focus); outline-offset: 2px; }
   @media (max-width: 900px) {
     .top { display: contents; }
     .bar {

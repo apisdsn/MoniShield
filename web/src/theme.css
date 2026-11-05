@@ -86,6 +86,7 @@
   --side-w: 236px;
   --side-w-c: 68px;   /* left navigation collapsed into an icon rail */
   --touch: 44px;
+  --ctl-hover: color-mix(in srgb, var(--fg) 7%, var(--bg2));   /* hover of a bordered control (header family) */
   color-scheme: dark;
 }
 
@@ -179,6 +180,8 @@ code { color: var(--code-fg); }
 /* Focus always visible (DRD §9.3, U21) */
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
+/* focus given back by script after a mouse click (lib/focus.js): no ring until the next key press */
+[data-quiet]:focus-visible { outline: none !important; }
 
 /* Controls (DRD §4.8) */
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -221,6 +224,7 @@ select option:disabled { color: var(--muted); }
   font-size: 1rem; flex: none;
 }
 .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.icon-btn:hover:not(:disabled) { background: var(--ctl-hover); }
 
 /* Pill button group (language, theme) */
 .seg { display: inline-flex; padding: 3px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); }
