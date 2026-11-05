@@ -4,6 +4,9 @@
 {
 	email {$DOCKER_ACME_EMAIL}
 	admin off
+	# DOCKER_ACCESS_LOG not 0: entrypoint.sh puts trusted_proxies (Cloudflare ranges) + client_ip_headers here, so the access log
+	# of the main site names the visitor, not the Cloudflare server
+	import /etc/caddy/generated/global/*.caddy
 }
 
 {$DOCKER_DOMAIN} {
