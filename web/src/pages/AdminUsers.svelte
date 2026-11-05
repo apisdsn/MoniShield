@@ -38,7 +38,7 @@
   const errText = (e) => (e.status === 0 ? $t('state.error_network') : ['invalid_username', 'invalid_password', 'username_taken', 'last_admin', 'self_delete', 'not_found', 'invalid_role', 'invalid_email', 'email_taken'].includes(e.code)
     ? $t(`adm.err.${e.code}`, { n: PW_MIN }) : $srvErr(e));
 
-  // ---------------------------------------------------------------- dialog
+  // Dialog
   let dlg = $state(null);            // {kind: 'add' | 'edit' | 'reset' | 'reset-done' | 'deactivate' | 'delete', user?}
   let open = $state(false), busy = $state(false), errs = $state({}), general = $state(null);
   let f = $state({ username: '', display_name: '', email: '', role: 'user', password: '', apw: '' });

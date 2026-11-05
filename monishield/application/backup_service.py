@@ -53,7 +53,7 @@ class BackupService:
             if alerts.active(cfg) and (ev := alerts.backup_failed(cfg, day, error)): deliver(self.ctx, cfg, ev[0], 'backup_failed', ev[1], ev[2])
         except Exception: pass   # noqa: BLE001  a notification problem must not hide the backup error
 
-    # -------------------------------------------------------------- daily
+    # Daily
     def start(self):
         self._stop = threading.Event()
 

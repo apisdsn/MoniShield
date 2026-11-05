@@ -214,7 +214,7 @@ def test_plain_user_not_allowed(app_env):
     assert u.get('/api/admin/alerts').status_code == 403 and u.post('/api/admin/alerts/test', json=dict(channel='email'), headers=X).status_code == 403
 
 
-# ------------------------------------------------------------------ thresholds per number and per service (owner request 2026-10-08)
+# Thresholds per number and per service (owner request 2026-10-08)
 def _facts(svc, svc_avg, errors=100, errors_avg=100):
     kpi = dict(requests=1000, n5xx=0, errors=errors, upstream_errors=0, attack_ips=0, login_fail_ips=0)
     base = dict(requests=1000, n5xx=0, errors=errors_avg, upstream_errors=0, attack_ips=0, login_fail_ips=0)
@@ -275,7 +275,7 @@ def test_notifications_name_their_source_and_link_to_it():
     assert alerts._link(cfg, '2026-01-06', 'security', 'kafka').endswith('/security?folder=2026-01-06&source=kafka')
 
 
-# ------------------------------------------------------------------ daily report (owner request 2026-10-28)
+# Daily report (owner request 2026-10-28)
 def _report_cfg(lang='id'):
     return dict(lang=lang, events=dict(summary=True, spike=True, critical=True), dashboard_url='https://dash.example',
                 spike=dict(alerts.SPIKE), service_spike=dict(default=(2, 50), services={}))
@@ -326,7 +326,7 @@ def test_daily_report_email_has_sections_and_no_emoji():
     assert '<img' not in html_part   # the brand mark is HTML: no image to break
 
 
-# ------------------------------------------------------------------ daily report schedule and on request (owner request 2026-10-28)
+# Daily report schedule and on request (owner request 2026-10-28)
 UTC = datetime.timezone.utc
 
 

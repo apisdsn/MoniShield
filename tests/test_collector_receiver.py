@@ -69,7 +69,7 @@ def otlp(lines, host='web-01', svc='big'):
     return json.dumps({'resourceLogs': [{'resource': res, 'scopeLogs': [{'logRecords': recs}]}]}).encode()
 
 
-# ------------------------------------------------------------------ accepted batches
+# Accepted batches
 @pytest.mark.parametrize('zipped', [False, True])
 def test_batches_are_written_to_the_expected_files(make, zipped):
     tc, key, root = make()
@@ -128,7 +128,7 @@ def test_the_middleware_leaves_a_request_without_x_ms_enc_alone(make):
     assert seen['scope'] is scope and seen['receive'] is receive and seen['send'] is send   # not read, not wrapped
 
 
-# ------------------------------------------------------------------ keys
+# Keys
 def test_missing_wrong_and_revoked_keys_are_refused(make):
     tc, key, root = make()
     other = key[:-1] + ('A' if key[-1] != 'A' else 'B')
@@ -173,7 +173,7 @@ def test_failure_limiter_window_and_block_end():
     assert lim.retry_after('a') == 0 and lim.failed('a') is False
 
 
-# ------------------------------------------------------------------ what is refused
+# What is refused
 def test_content_type_and_encoding(make):
     tc, key, root = make()
     r = post(tc, key, b'{}', {'Content-Type': 'application/x-protobuf'})
@@ -234,7 +234,7 @@ def test_unreadable_bodies_are_400(make):
     assert not os.path.exists(root)
 
 
-# ------------------------------------------------------------------ protection of the server
+# Protection of the server
 def test_rate_limit_per_collector(make):
     tc, key, root = make(collector_rate_per_min=3)
     assert [post(tc, key, sample('k8s')).status_code for _ in range(3)] == [200] * 3
@@ -281,7 +281,7 @@ def test_parallel_requests_never_interleave_lines_of_one_file(make):
     assert len(lines) == threads * n and set(lines) == wanted
 
 
-# ------------------------------------------------------------------ adapter
+# Adapter
 def test_inbox_refuses_paths_outside_its_root(tmp_path):
     from monishield.infrastructure.collector_inbox import CollectorInbox, UnsafePath
     inbox = CollectorInbox(str(tmp_path / 'in'))
@@ -296,7 +296,7 @@ def test_inbox_refuses_paths_outside_its_root(tmp_path):
     assert inbox.free_bytes() > 0
 
 
-# ------------------------------------------------------------------ memory: requests at a time
+# Memory: requests at a time
 def test_busy_server_answers_503_and_slots_are_always_released(make, monkeypatch):
     tc, key, root = make(collector_max_concurrent=1)
     feed = tc.app.state.collector_feed

@@ -28,7 +28,7 @@ def run(tmp_path, service, fixture=None, lines=None):
     return s, collections.defaultdict(list, read_tables(str(tmp_path / 'out')))
 
 
-# ------------------------------------------------------------------ (a) real lines per format
+# (a) real lines per format
 def test_csv_columns_match_the_schema():
     con = db.open(':memory:')
     for table, cols in parse.TABLES.items():
@@ -171,7 +171,7 @@ def test_empty_text_differs_from_null(tmp_path):
     assert t['nginx_access'][1]['request_id'] is None and t['nginx_access'][1]['pod_final'] == '-'  # tail does not match
 
 
-# ------------------------------------------------------------------ (b) real files vs old parse()
+# (b) real files vs old parse()
 FOLDERS = ('2026-09-27', '2026-09-29', '2026-10-06')
 SERVICES = ('nginx-ingress-controller', 'web-frontend', 'event-api', 'auth-service', 'reference-service', 'report-service', 'coredns')
 

@@ -13,7 +13,7 @@ ENROLL_H = {'X-Requested-With': 'monishield-collector'}
 SECRET = 'A' * 43
 
 
-# ------------------------------------------------------------------ domain
+# Domain
 def test_names():
     for ok in ('a', 'web-01', '0x', 'a' * 63): assert dom.check_name(ok) == ok
     for bad in ('', 'Web', '-a', 'a_b', 'a b', 'a' * 64, None, 5, 'é'):
@@ -55,7 +55,7 @@ def test_status_boundaries():
     assert dom.status(t, t - 2 * m, None, None) == 'online'                          # enrolled, not heard from yet: counts from enrollment
 
 
-# ------------------------------------------------------------------ store and API
+# Store and API
 def add(tc, name='web-01', platform='linux'):
     r = tc.post('/api/admin/collectors', json=dict(name=name, platform=platform), headers=X)
     assert r.status_code == 201, r.text

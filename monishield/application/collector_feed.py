@@ -51,7 +51,7 @@ class CollectorFeed:
             return dict(collectors={k: dict(v, rejected=dict(v['rejected'])) for k, v in self.stats.items()}, pending=sorted(self.pending),
                         ingest_seconds=self.ctx.cfg.collector_ingest_seconds, last_ingest_at=self.last_ingest_at, running=self.running())
 
-    # -------------------------------------------------------------- ingest into the collector source
+    # Ingest into the collector source
     def source(self): return self.ctx.sources[sources.COLLECTOR]
 
     def catch_up(self):

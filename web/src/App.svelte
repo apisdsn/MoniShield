@@ -47,7 +47,7 @@
   function toggleSide() { collapsed = !collapsed; save('side', collapsed ? 'collapsed' : 'open'); }   // h1 = page title in the Header (focused when switching tabs)
   let lastFolder = null;
 
-  // ---------------------------------------------------------------- login
+  // Login
   // /api/docs (Swagger) redirects here with ?next=/api/docs when not logged in: after login (and the initial password
   // change) go back there. Only addresses in this list are followed (not an open redirect).
   const NEXT = ['/api/docs'];
@@ -130,7 +130,7 @@
     else if (!home && screen === 'home') untrack(boot);
   });
 
-  // ---------------------------------------------------------------- folders and tabs
+  // Folders and tabs
   // the folder list of the data source in the address (S3 or Kafka); until the list of the new source arrives there is none
   const folders = $derived(meta && meta.source === $route.source ? meta.folders : []);
   $effect(() => { if (screen === 'app' && meta && meta.source !== $route.source) untrack(loadMeta); });   // source switched: its own folders
@@ -207,7 +207,7 @@
     if (added.length) go({ folder: added[added.length - 1] });
   }
 
-  // ---------------------------------------------------------------- title
+  // Title
   const title = $derived.by(() => {
     const r = $route;
     if (r.tab === 'overview') return $t('title.overview');
@@ -246,14 +246,14 @@
   const sparse = $derived(isDataTab && !['trends', 'overview'].includes($route.tab) && folderInfo && folderInfo.lines < SPARSE_LINES);
   const note = $derived(isDataTab && $route.tab !== 'overview' ? [...$cmpNote.values()][0] || '' : '');
 
-  // ---------------------------------------------------------------- idle session (DRD §6.9)
+  // Idle session (DRD §6.9)
   let now = $state(Date.now());
   onMount(() => { const id = setInterval(() => (now = Date.now()), 15000); return () => clearInterval(id); });
   // the server records activity at most once a minute: count down with a 1-minute margin
   const idleLeft = $derived(me?.session_idle_minutes ? $lastActivity + (me.session_idle_minutes - 1) * 60000 - now : Infinity);
   async function stay() { try { await api.get('/api/me'); now = Date.now(); } catch { /* 401 -> session expired */ } }
 
-  // ---------------------------------------------------------------- keyboard (DRD §9.3)
+  // Keyboard (DRD §9.3)
   function onkey(e) {
     if (screen !== 'app' || e.ctrlKey || e.metaKey || e.altKey) return;
     const el = e.target;

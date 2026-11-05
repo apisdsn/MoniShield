@@ -84,7 +84,7 @@ def migrate(ctx):
         ctx.settings_pending = sorted(env_name(k) for k in values)
 
 
-# ------------------------------------------------------------------ connection test (uses the SAVED settings)
+# Connection test (uses the SAVED settings)
 def test_aws(ctx):
     """List 1 object in S3: the automatic S3 parent folder if set, otherwise the first allowlist prefix."""
     cfg, s3 = ctx.cfg, ctx.s3

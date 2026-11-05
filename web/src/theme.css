@@ -7,7 +7,7 @@
 @import '@fontsource/outfit/latin-700.css';
 @import '@fontsource/jetbrains-mono/latin-400.css';
 
-/* ------------------------------------------------------------------ dark theme (default, ASSUMPTION D2)
+/* Dark theme (default, ASSUMPTION D2)
    Palette C "Grafit netral" (owner choice 2026-10-27): neutral graphite background, flat cards a few steps lighter, teal
    brand used sparingly; red, amber and green mean status only, so the chart series (--c1..--c10) never use them. Contrast checked by tools/check_contrast.mjs (DRD §5.6). */
 :root {
@@ -89,7 +89,7 @@
   color-scheme: dark;
 }
 
-/* ------------------------------------------------------------------ light theme */
+/* Light theme */
 :root[data-theme='light'] {
   --bg: #f6f7f9;
   --bg2: #ffffff;
@@ -148,7 +148,7 @@
   color-scheme: light;
 }
 
-/* ------------------------------------------------------------------ base */
+/* Base */
 *,
 *::before,
 *::after { box-sizing: border-box; }

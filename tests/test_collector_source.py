@@ -36,7 +36,7 @@ def wait_for(fn, seconds=60):
     return False
 
 
-# ------------------------------------------------------------------ the source itself
+# The source itself
 def test_the_source_is_registered_with_its_own_paths(cfg):
     assert sources.SOURCES == ('s3', 'kafka', 'collector') and sources.LABEL['collector'] == 'Collector' and sources.valid('collector')
     c = config_model.collector_config(cfg)
@@ -63,7 +63,7 @@ def test_notifications_and_reports_name_the_source():
     assert alerts.report_target(None, [], today, ['2026-11-06']) is None and alerts.report_target(None, [], today) is None
 
 
-# ------------------------------------------------------------------ the harness
+# The harness
 @pytest.fixture
 def boot(cfg, auth_url, tmp_path, monkeypatch):
     """boot(prefill=callable(collector inbox), s3=False, register=True, **settings) -> (admin client, collector key, collector inbox). Every
@@ -94,7 +94,7 @@ def lay_down(inbox):
         with open(path, 'w', encoding='utf-8') as fh: fh.write('\n'.join(lines) + '\n')
 
 
-# ------------------------------------------------------------------ ingest of the inbox
+# Ingest of the inbox
 def test_receiver_to_database_and_pages(boot):
     tc, key, root = boot()
     send_samples(tc, key)
@@ -165,7 +165,7 @@ def test_the_ingest_error_does_not_leak_into_the_other_sources(boot, monkeypatch
     assert tc.app.state.ingest.state['error'] is None
 
 
-# ------------------------------------------------------------------ catch-up and the thread
+# catch-up and the thread
 def test_catch_up_ingests_folders_the_database_does_not_know(boot):
     tc, key, root = boot(prefill=lay_down)
     assert wait_for(lambda: known(tc, 'collector') == {DAY})
@@ -192,7 +192,7 @@ def test_the_thread_ingests_on_its_own_and_stops_with_the_app(boot):
     assert not feed.running() and not any(t.name == 'collector-ingest' for t in threading.enumerate())
 
 
-# ------------------------------------------------------------------ the guard, the source list, retention, backup
+# The guard, the source list, retention, backup
 def test_source_guard_names_all_three_sources(boot):
     tc, key, root = boot(register=False)
     for path in ('/api/meta', '/api/admin/folders', '/api/admin/ingest', '/api/admin/retention'):

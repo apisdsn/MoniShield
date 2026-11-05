@@ -94,7 +94,7 @@ export function compact(params = {}) {
   return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== ''));
 }
 
-// ---------------------------------------------------------------- not connected
+// Not connected
 const RETRY_MS = 5000, RETRY_FOR_MS = 60000;
 let retryStart = 0;
 const listeners = new Set();

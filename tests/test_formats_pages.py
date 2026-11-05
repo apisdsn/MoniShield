@@ -22,7 +22,7 @@ def dump_aggregates(con):
     return out
 
 
-# ------------------------------------------------------------------ the pages read the common formats
+# The pages read the common formats
 import dataclasses
 
 import pytest
@@ -168,7 +168,7 @@ def test_legacy_preset_has_no_unread_rate(tmp_path):
     assert page['format'] == dict(preset='ingress-nginx', kind='http', unread=None)
 
 
-# ------------------------------------------------------------------ derive version and legacy numbers
+# Derive version and legacy numbers
 def test_old_folders_are_derived_once_without_parsing(site):
     cfg, con = site
     good = dump_aggregates(con)

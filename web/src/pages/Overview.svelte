@@ -66,7 +66,7 @@
   const nCorrupt = $derived(files.filter((f) => f.status === 'corrupt').length);
   const rate = (n, dg) => `${num((n / ngRow.requests) * 100, $lang, dg)}%`;
 
-  // ---- status card: the rule is also in its (i) tooltip (ov.st.info)
+  // Status card: the rule is also in its (i) tooltip (ov.st.info)
   const errTotal = $derived(sum(svc, 'err'));
   const errSvcs = $derived(svc.filter((s) => s.err).sort((a, b) => b.err - a.err));
   const attack = $derived(summ?.attack_ip_count || 0);

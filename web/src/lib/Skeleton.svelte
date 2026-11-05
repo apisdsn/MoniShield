@@ -24,9 +24,9 @@
   .blk::after {
     content: ''; position: absolute; inset: 0;
     background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.06), transparent);
-    animation: kilau 1.4s infinite;
+    animation: shimmer 1.4s infinite;
   }
   .tbl { display: grid; gap: 14px; padding: 24px; }
   .row { height: 14px; border-radius: 6px; background: var(--line); }
-  @keyframes kilau { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+  @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 </style>

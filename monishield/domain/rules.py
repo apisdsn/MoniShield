@@ -15,7 +15,7 @@ from urllib.parse import unquote_plus
 
 C = collections.Counter  # old:11
 
-# ---------------------------------------------------------------- log line patterns  (old:13-24)
+# Log line patterns  (old:13-24)
 NGINX = re.compile(r'(\S+) - \S+ \[(\d+)/(\w+)/(\d+):(\d+:\d+):\d+ [^\]]+\] "(\S+) (\S+)[^"]*" (\d{3}) (\d+) "[^"]*" "([^"]*)" \d+ ([\d.]+) \[([^\]]*)\]')
 FE = re.compile(r'\S+ - \S+ \[(\d+)/(\w+)/(\d+):(\d+:\d+):\d+ [^\]]+\] "(\S+) (\S+)[^"]*" (\d{3}) \d+ "[^"]*" "[^"]*" "([^",]*)')
 JAVA = re.compile(r'(\d{4}-\d\d-\d\d \d\d:\d\d):\d\d\.\d+ +(\w+) \d+ --- \[([^\]]+)\] (\S+) *: (.*)')
@@ -40,7 +40,7 @@ SPRING_JWT = re.compile(r'JWT token is expired: .* a difference of (\d+) millise
 SPRING_PDF = re.compile(r'(\S+) pdf path')                                  # old:225
 SPRING_EXC = re.compile(r'[\w.$]+(Exception|Error)\b')                      # old:236
 
-# ---------------------------------------------------------------- attack classification  (old:32-43)
+# Attack classification  (old:32-43)
 # Attack indicators in the URL (after URL-decode). Order = priority, the first match is used.
 # ponytail: simple regex signatures, may give false positives/negatives; use a WAF (ModSecurity/CRS) for serious detection.
 ATTACKS = [(n, re.compile(p, re.I)) for n, p in [
@@ -72,7 +72,7 @@ def classify(path, ua):  # old:65
     if SCANNER_UA.search(ua): return 'UA tool/scanner otomatis'
 
 
-# ---------------------------------------------------------------- normalization  (old:82-94)
+# Normalization  (old:82-94)
 def norm(msg):
     """Unify messages that differ only in numbers/ids/times so they can be counted as one kind."""
     msg = re.sub(r"'[^']*@[^']*'", "'<email>'", msg)
@@ -88,7 +88,7 @@ def path_key(p):
     return re.sub(r'/\d+', '/:n', p)[:120]
 
 
-# ---------------------------------------------------------------- JWT, accounts, incidents  (old:242-281)
+# JWT, accounts, incidents  (old:242-281)
 def jwt_bucket(ms):
     for lim, name in ((5 * 60e3, '< 5 Menit'), (3600e3, '5–60 Menit'), (86400e3, '1–24 Jam'), (7 * 86400e3, '1–7 Hari')):
         if ms < lim: return name
@@ -147,7 +147,7 @@ def incidents(inc, gap_min=5):
     return [[a, b, n, dict(u), dict(st)] for a, b, n, u, st in out]
 
 
-# ---------------------------------------------------------------- IP owner, offline  (old:324-350)
+# IP owner, offline  (old:324-350)
 # IP owner (ASN/ISP/country) is matched OFFLINE from the public iptoasn.com dataset (public domain),
 # so user IPs are not sent to third-party services. Only down to the network owner level, not persons.
 IP2ASN_URL = 'https://iptoasn.com/data/ip2asn-v4.tsv.gz'
@@ -165,7 +165,7 @@ def ip_owner(ip, db):
     return dict(asn=asn, cc=cc, org=org)
 
 
-# ---------------------------------------------------------------- IP location and map, offline  (old:353-394)
+# IP location and map, offline  (old:353-394)
 # City location is matched OFFLINE from DB-IP City Lite (CC BY 4.0, attribution "IP Geolocation by DB-IP" required),
 # same as the IP owner: no user IP is sent out.
 LAND_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_land.geojson'  # public domain
@@ -177,7 +177,7 @@ SERVER_FALLBACK = ['Jakarta', 'Jakarta', 'ID', -6.2, 106.82]
 def ip_int(ip): return int.from_bytes(socket.inet_aton(ip), 'big')
 
 
-# ---------------------------------------------------------------- region labels  (old:428-466)
+# Region labels  (old:428-466)
 # Region name labels on the map: countries from Natural Earth (public domain); Indonesian provinces & regencies/cities
 # from GeoNames (CC BY 4.0). Province names in GeoNames mix English/Indonesian, so they are mapped from their admin1 code.
 COUNTRIES_URL = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson'
@@ -200,7 +200,7 @@ def kab_name(n):
     return n.replace('Kabupaten ', 'Kab. ')
 
 
-# ---------------------------------------------------------------- file scanning  (old:505-516, piece of build())
+# File scanning  (old:505-516, piece of build())
 DATE_DIR = re.compile(r'\d{4}-\d\d-\d\d')
 
 

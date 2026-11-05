@@ -67,7 +67,7 @@ def as_user(cfg_client, username, password, unseen='user-own-new-password'):
 def error_code(r): return r.json().get('error', {}).get('code')
 
 
-# ------------------------------------------------------------------ basics
+# Basics
 def test_health_without_session_or_data(client):
     r = client.get('/api/health')
     assert r.status_code == 200 and r.json() == {'ok': True}
@@ -91,7 +91,7 @@ def test_error_format(client):
     assert r.status_code == 404 and set(r.json()) == {'error'} and set(r.json()['error']) == {'code', 'message'}
 
 
-# ------------------------------------------------------------------ login and session
+# Login and session
 def test_sign_in_cookie_and_forced_password_change(client):
     r = sign_in(client)
     assert r.json() == dict(username='admin', display_name='Administrator', email=None, role='admin', must_change_password=True, session_idle_minutes=60)
@@ -142,7 +142,7 @@ def test_csrf_header_and_origin(client):
     assert client.get('/api/admin/users').status_code == 200                                                  # GET needs no header
 
 
-# ------------------------------------------------------------------ roles
+# Roles
 def test_user_sees_the_dashboard_but_not_admin(client):
     admin(client); u = make_user(client)
     assert u['role'] == 'user' and u['must_change_password'] is True
@@ -201,7 +201,7 @@ def test_route_without_a_role_declaration_refuses_to_start():
     with pytest.raises(RuntimeError, match='without a role declaration'): appmod.check_roles((*appmod.ROUTERS, r))
 
 
-# ------------------------------------------------------------------ user management
+# User management
 def test_manage_users(client):
     admin(client); u = make_user(client, 'budi')
     assert [x['username'] for x in client.get('/api/admin/users').json()['users']] == ['admin', 'budi']
@@ -228,7 +228,7 @@ def test_manage_users(client):
     assert temp not in str(audit) and PW2 not in str(audit)
 
 
-# ------------------------------------------------------------------ meta and folders
+# Meta and folders
 def test_meta(client):
     admin(client)
     m = client.get('/api/meta').json()
@@ -279,7 +279,7 @@ def test_wrong_parameter_400_without_echoing_the_value(client):
     assert error_code(client.post('/api/admin/forget', json=dict(folder='2030-01-01'), headers=X)) == 'not_found'
 
 
-# ------------------------------------------------------------------ in-process ingest
+# in-process ingest
 def test_ingest_through_the_api_and_the_dashboard_stays_open(client):
     admin(client)
     r = client.post('/api/admin/ingest', json=dict(force=True), headers=X)
@@ -443,7 +443,7 @@ def test_cookie_holds_a_jwt_and_a_forged_jwt_is_rejected(client):
     assert tc.get('/api/me', headers={'Authorization': f'Bearer {token}'}).status_code == 401   # JWT is only accepted from the HttpOnly cookie
 
 
-# ------------------------------------------------------------------ Stage 11: page and table endpoints (TRD §5.3–§5.4)
+# Stage 11: page and table endpoints (TRD §5.3–§5.4)
 @pytest.fixture
 def user(client):
     """Regular user: every data endpoint is open to them (TRD §8.3)."""
@@ -610,7 +610,7 @@ def test_command_center_combines_numbers_of_other_pages(user):
     assert user.get(f'/api/folders/{B}/command-center?module=does-not-exist').status_code == 404
 
 
-# ------------------------------------------------------------------ Stage 24
+# Stage 24
 def test_command_center_yesterday_per_hour_and_new_items(user):
     c = user.get(f'/api/folders/{B}/command-center').json()
     h = c['by_hour']
@@ -690,7 +690,7 @@ def test_data_endpoints_are_read_only(user):
                      '/api/folders/{folder}/raw/context', '/api/folders/{folder}/raw/download'}
 
 
-# ------------------------------------------------------------------ API documentation (Swagger, owner request 2026-10-07)
+# API documentation (Swagger, owner request 2026-10-07)
 def test_swagger_only_after_sign_in(client):
     r = client.get('/api/docs', follow_redirects=False)
     assert (r.status_code, r.headers['location']) == (303, '/login?next=/api/docs')          # not logged in -> login page
@@ -717,7 +717,7 @@ def test_swagger_for_plain_users_but_admin_routes_stay_403(client):
     assert u.get('/api/admin/users').status_code == 403
 
 
-# ------------------------------------------------------------------ average comparison (owner request 2026-10-07, suggestion 5)
+# Average comparison (owner request 2026-10-07, suggestion 5)
 def test_command_average_of_comparable_folders(tmp_path, auth_url, monkeypatch):
     """Four copies of folder B (01-03..01-06) + B: the average before 01-06 = B values (folder A, lines < 50 %, not included)."""
     import shutil
@@ -738,7 +738,7 @@ def test_command_average_of_comparable_folders(tmp_path, auth_url, monkeypatch):
         assert b2['n_all'] == 0 and b2['kpi']['errors'] is None          # fewer than 3 comparable folders: no average
 
 
-# ------------------------------------------------------------------ blocklist (owner request 2026-10-07, suggestion 6)
+# Blocklist (owner request 2026-10-07, suggestion 6)
 def test_blocklist_formats_and_exclusions(client, monkeypatch):
     admin(client)
     g = lambda **q: client.get(f'/api/folders/{B}/security/blocklist', params=q)

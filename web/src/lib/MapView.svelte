@@ -40,7 +40,7 @@
   const place = (p, l) => [p.city, p.region, $countryName(p.cc)].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(', ') || (l === 'en' ? 'Unknown' : 'Tidak diketahui');
   const shortName = (p) => p.city || p.region || $countryName(p.cc) || '?';
 
-  // ---------------------------------------------------------------- data -> GeoJSON
+  // Data -> GeoJSON
   function features(pts) {
     const max = Math.max(1, ...pts.map((p) => p.requests));
     const byRank = [...pts].sort((a, b) => b.requests - a.requests);
@@ -67,7 +67,7 @@
     };
   }
 
-  // ---------------------------------------------------------------- style
+  // Style
   function colors() {
     return { sea: css('--card2'), land: css('--land'), coast: css('--coast'), accent: css('--accent'), server: css('--c10'), fg: css('--fg'), muted: css('--muted'),
       halo: css('--card2') };
@@ -137,7 +137,7 @@
     };
   }
 
-  // ---------------------------------------------------------------- MapLibre UI text (bilingual)
+  // MapLibre UI text (bilingual)
   const uiText = (l) => ({
     'CooperativeGesturesHandler.WindowsHelpText': l === 'en' ? 'Hold Ctrl and scroll to zoom the map' : 'Tahan Ctrl lalu gulir untuk memperbesar peta',
     'CooperativeGesturesHandler.MacHelpText': l === 'en' ? 'Hold ⌘ and scroll to zoom the map' : 'Tahan ⌘ lalu gulir untuk memperbesar peta',
@@ -232,7 +232,7 @@
     tip = null;
   }
 
-  // ---------------------------------------------------------------- tooltip
+  // Tooltip
   async function show(kind, f, pt, sticky) {
     if (tip?.sticky && !sticky) return;
     if (kind === 'server') return (tip = { kind, x: pt.x, y: pt.y, sticky });

@@ -36,7 +36,7 @@
   let busy = $state(false), error = $state(null);
   let timer;
 
-  // ---------------------------------------------------------------- static
+  // Static
   const filtered = $derived.by(() => {
     if (remote) return [];
     let r = rows || [];
@@ -59,7 +59,7 @@
     if (s.scroll) tick().then(() => rootEl?.scrollIntoView({ block: 'start' }));
   });
 
-  // ---------------------------------------------------------------- server
+  // Server
   async function load({ append = false } = {}) {
     busy = true; error = null;
     try {
@@ -119,7 +119,7 @@
   const max = $derived(bar ? Math.max(0, ...view.map((r) => +r[bar] || 0)) : 0);
   const cards = $derived(columns.length > 4);
 
-  // ---------------------------------------------------------------- cells
+  // Cells
   const ipOf = (v) => (v && typeof v === 'object' ? v.ip : v);
   function cellText(row, c) {
     const v = row[c.key];

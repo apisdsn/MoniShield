@@ -36,7 +36,7 @@ FLUSH_SECONDS, FLUSH_LINES = 5, 20000
 RECENT = 50
 
 
-# ------------------------------------------------------------------ realtime: IP location -> browser (no IPs)
+# Realtime: IP location -> browser (no IPs)
 class LiveHub:
     """Events collected per second: {(lat, lon, module): n}. Readers (SSE) take what is newer than their last sequence number."""
 
@@ -91,7 +91,7 @@ class LiveHub:
             return [(la, lo, n, *self.names.get((la, lo), (None, None))) for (la, lo), n in agg.items()]
 
 
-# ------------------------------------------------------------------ consumer
+# Consumer
 class KafkaFeed:
     """Consumer in a background thread of the server process (ingest stays the single DuckDB owner, TRD K1)."""
 
@@ -106,7 +106,7 @@ class KafkaFeed:
                           error=None, last_skip=None, per_service={}, folders={})
         self.pending = set()   # folders grown since the last ingest
 
-    # -------------------------------------------------------------- control
+    # Control
     def start(self):
         cfg = self.ctx.cfg
         if not (cfg.kafka_enabled and configured(cfg)): self.stats['state'] = 'off'; return
@@ -143,7 +143,7 @@ class KafkaFeed:
                     group=cfg.kafka_group, security=cfg.kafka_security, ingest_minutes=cfg.kafka_ingest_minutes, live_folder=self.live_folder(),
                     pending=sorted(self.pending), recent=list(self.recent)[::-1], **self.stats)
 
-    # -------------------------------------------------------------- core (testable without a broker)
+    # Core (testable without a broker)
     def handle(self, records, spool):
         """records: [(value, timestamp_ms, partition, offset)]."""
         prefix = self.ctx.cfg.upstream_prefix
@@ -186,7 +186,7 @@ class KafkaFeed:
         self.live.refresh()
         return True
 
-    # -------------------------------------------------------------- thread
+    # Thread
     def _loop(self):
         cfg, kc, wait = self.ctx.cfg, self.ctx.kafka_client, 5
         spool = self.ctx.inbox(cfg.inbox_dir)

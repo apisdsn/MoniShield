@@ -98,7 +98,7 @@
     display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; line-height: 1;
     background: var(--accent); color: var(--brand-fg); box-shadow: 0 0 0 2px var(--card);
   }
-  .spin :global(svg) { animation: putar 1s linear infinite; }
-  @keyframes putar { to { transform: rotate(360deg); } }
+  .spin :global(svg) { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spin :global(svg) { animation: none; } }
 </style>

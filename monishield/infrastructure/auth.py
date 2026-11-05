@@ -29,7 +29,7 @@ IP_MAX_FAILED, IP_WINDOW_S = 20, 15 * 60   # per-IP limiter, in memory
 JWT_ALG, JWT_ISS, JWT_SECRET_MIN = 'HS256', 'monishield', 32
 
 
-# ------------------------------------------------------------------ model ORM
+# Model ORM
 class Base(DeclarativeBase):
     pass
 
@@ -215,7 +215,7 @@ class Auth:
 
     def close(self): self.engine.dispose()
 
-    # ---------------------------------------------------------------- audit
+    # Audit
     def _audit(self, s, action, user=None, detail=None, ip=None):
         """Trail of actions that change access or data. Never contains passwords or tokens."""
         uid = user.get('user_id') if isinstance(user, dict) else getattr(user, 'user_id', None)
@@ -232,7 +232,7 @@ class Auth:
                     for r in s.scalars(select(AuditLog).order_by(AuditLog.id.desc()).limit(limit).offset(offset))]
         return total, rows
 
-    # ---------------------------------------------------------------- import_job (Stage 19)
+    # import_job (Stage 19)
     @staticmethod
     def _job(j):
         return dict(job_id=j.job_id, requested_by=j.requested_by, bucket=j.bucket, prefix=j.prefix, folder=j.folder, status=j.status,
@@ -257,7 +257,7 @@ class Auth:
     def job_list(self, limit=20):
         with self._tx() as s: return [self._job(j) for j in s.scalars(select(ImportJob).order_by(ImportJob.job_id.desc()).limit(limit))]
 
-    # ---------------------------------------------------------------- settings from the UI
+    # Settings from the UI
     def setting_get(self, key):
         """-> value (json.loads result) or None if never saved."""
         import json
@@ -278,7 +278,7 @@ class Auth:
             r = s.get(AppSetting, key)
             if r is not None: s.delete(r)
 
-    # ---------------------------------------------------------------- notification history
+    # Notification history
     def alert_seen(self, key):
         """Is there already a SUCCESSFUL send for this key (to any channel)?"""
         with self._tx() as s:
@@ -294,7 +294,7 @@ class Auth:
             return [dict(at=iso(a.at), event=a.event, channel=a.channel, ok=a.ok, summary=a.summary, error=a.error)
                     for a in s.scalars(select(AlertLog).order_by(AlertLog.id.desc()).limit(limit))]
 
-    # ---------------------------------------------------------------- user
+    # User
     @staticmethod
     def _public(u):
         return dict(user_id=u.user_id, username=u.username, display_name=u.display_name, email=u.email, role=u.role, active=bool(u.active),
@@ -411,7 +411,7 @@ class Auth:
             s.execute(delete(PasswordReset).where(PasswordReset.user_id == u.user_id))
             self._audit(s, 'user.change_password', user, None, ip)
 
-    # ---------------------------------------------------------------- forgot password (owner request 2026-10-08)
+    # Forgot password (owner request 2026-10-08)
     def request_reset(self, login, minutes, ip=None):
         """Issue a temporary password for the account with this username or email. -> (user, temporary password) to be
         emailed, or None when there is nothing to send (unknown account, no email, deactivated, asked less than a minute
@@ -441,7 +441,7 @@ class Auth:
             u = s.get(User, user_id)
             self._audit(s, 'password.forgot', u, f'email not sent: {reason}'[:300], ip)
 
-    # ---------------------------------------------------------------- own email change (owner request 2026-10-08)
+    # Own email change (owner request 2026-10-08)
     def email_change_start(self, user, password, new_email, ip=None):
         """Check the current password, then create the codes. -> dict(user, old_email, new_email, old_code | None, new_code).
         The codes leave this method only to be emailed."""
@@ -534,7 +534,7 @@ class Auth:
             s.flush()
             return self._public(u), old
 
-    # ---------------------------------------------------------------- JWT
+    # JWT
     def _encode(self, user_id, sid, issued, expires):
         if not self.secret: raise RuntimeError('S4_JWT_SECRET not set')
         aware = lambda d: d.replace(tzinfo=datetime.timezone.utc)
@@ -549,7 +549,7 @@ class Auth:
         except jwt.InvalidTokenError:
             return None
 
-    # ---------------------------------------------------------------- login & session
+    # Login & session
     @staticmethod
     def _verify(u, password):
         n, r, p = map(int, u.hash_params.split(':'))
@@ -627,7 +627,7 @@ class Auth:
         if not username or not password or self.count_users(): return None
         return self.create_user(username, 'Administrator', 'admin', password)
 
-    # ---------------------------------------------------------------- collectors (docs/12-collector.md, step 2)
+    # Collectors (docs/12-collector.md, step 2)
     # Secrets (enrollment token, key) are returned only by create / new_token / enroll / rotate. They are never logged or audited.
     @staticmethod
     def _collector(c):

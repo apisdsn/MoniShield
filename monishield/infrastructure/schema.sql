@@ -3,7 +3,7 @@
 -- Raw tables have the logical key (file_id, line_no) WITHOUT a PRIMARY KEY: a key index over tens of millions of rows
 -- slows bulk loading; uniqueness is kept by the delete-then-load-per-file pattern and checked by the ingest tests.
 
--- ------------------------------------------------------------------ control (TRD §2.1)
+-- Control (TRD §2.1)
 CREATE SEQUENCE IF NOT EXISTS seq_file_id;
 CREATE SEQUENCE IF NOT EXISTS seq_run_id;
 
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS ingest_run (
     message       VARCHAR
 );
 
--- ------------------------------------------------------------------ raw (TRD §2.2)
+-- Raw (TRD §2.2)
 CREATE TABLE IF NOT EXISTS nginx_access (
     file_id INTEGER NOT NULL, line_no INTEGER NOT NULL, folder DATE NOT NULL,
     ts_utc         TIMESTAMP NOT NULL,
@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS log_message (    -- one row per add_msg() call of the
     raw     VARCHAR                          -- original line, 600 chars, only the key's first occurrence in the file
 );
 
--- ------------------------------------------------------------------ aggregates per folder (TRD §2.3)
+-- Aggregates per folder (TRD §2.3)
 CREATE TABLE IF NOT EXISTS agg_service (
     folder DATE, service VARCHAR,
     lines BIGINT, err BIGINT, warn BIGINT, err_http BIGINT, err_log BIGINT,
@@ -292,7 +292,7 @@ CREATE TABLE IF NOT EXISTS agg_report (
     folder DATE, template VARCHAR, ok BIGINT, fail BIGINT,
     PRIMARY KEY (folder, template));
 
--- ------------------------------------------------------------------ view
+-- View
 CREATE OR REPLACE VIEW v_upstream_error AS
     SELECT folder, file_id, line_no, ts_utc, kind, upstream_host, request
     FROM nginx_error
@@ -309,7 +309,7 @@ CREATE OR REPLACE VIEW v_attack_cat AS
 CREATE OR REPLACE VIEW v_dns AS
     SELECT folder, key AS domain, requests AS n FROM agg_endpoint WHERE service = 'coredns';
 
--- ---------------------------------------------------------------- Stage 21: OWASP CRS attack detection, CAPEC categories (TRD §4.6)
+-- Stage 21: OWASP CRS attack detection, CAPEC categories (TRD §4.6)
 -- The old attack_cat column and agg_attack_* tables STAY (old rules, equivalence tests). CRS classification is computed when deriving
 -- aggregates from the stored path and User-Agent (no re-parse). ADD COLUMN IF NOT EXISTS: also applies to old databases.
 ALTER TABLE nginx_access ADD COLUMN IF NOT EXISTS crs_rules INTEGER[];      -- IDs of matched CRS rules; NULL = not an attack

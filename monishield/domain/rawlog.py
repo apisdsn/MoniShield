@@ -20,7 +20,7 @@ MAX_LIMIT = 1000         # entries per page
 # a line that continues the previous entry: indented, a Java/Node stack frame, "Caused by:", or an exception name line
 CONT = re.compile(r'(?:[ \t]|Caused by:|\.\.\. \d+ (?:more|common frames omitted)|[\w.$]+(?:Exception|Error|Throwable)(?::|$))')
 
-# ------------------------------------------------------------------ time
+# Time
 CLF_TIME = re.compile(r'\[(\d\d/\w{3}/\d{4}:\d\d:\d\d:\d\d [+-]\d{4})\]')               # nginx / apache access
 SLASH_TIME = re.compile(r'(\d{4})/(\d\d)/(\d\d) (\d\d:\d\d:\d\d)')                      # nginx error log
 JSON_TIME = re.compile(r'"(?:@timestamp|timestamp|time|ts|datetime)"\s*:\s*(?:"([^"]{8,40})"|(\d{10,13}(?:\.\d+)?))')
@@ -52,7 +52,7 @@ def line_time(text, naive_utc=True):
     return None
 
 
-# ------------------------------------------------------------------ level / status
+# Level / status
 ACCESS_STATUS = re.compile(r'HTTP/[\d.]+" (\d{3}) ')
 TAG_LEVEL = re.compile(r'\[[A-Za-z0-9_]+-(\w+)\]')                 # events: [TAG-LEVEL] {...}
 BRACKET_LEVEL = re.compile(r'\[(\w+)\] ')                           # coredns [ERROR] …, nginx error … [error] …
@@ -75,7 +75,7 @@ def kind_of(text):
     return 'other'
 
 
-# ------------------------------------------------------------------ fields shown next to a line
+# Fields shown next to a line
 REQUEST_ID = re.compile(r'"?\b(?:requestId|request_id|reqId|req_id|traceId|trace_id|x-request-id)"?\s*[:=]\s*"?([\w.:-]{4,100})', re.I)
 TAIL_ID = re.compile(r'\b([0-9a-f]{32})\s*$')
 JSON_IP = re.compile(r'"(?:ipAddress|ip|clientIp|client_ip|remoteAddress|remote_addr)"\s*:\s*"([0-9a-fA-F.:]{3,45})"')
@@ -97,7 +97,7 @@ def fields(text):
     return dict(request_id=rid, ip=ip, status=int(status) if status else None, method=rq[1] if rq else None, path=rq[2][:300] if rq else None)
 
 
-# ------------------------------------------------------------------ the search
+# The search
 @dataclasses.dataclass(frozen=True)
 class Query:
     mode: str

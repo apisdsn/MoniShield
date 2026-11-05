@@ -25,7 +25,7 @@ ATTRIBUTION = ['This product includes GeoLite2 data created by MaxMind, availabl
 # S4_ASN_MAX_AGE_DAYS, S4_MAP_MAX_AGE_DAYS); defaults are the official addresses. The GeoLite2 license forbids using stale databases.
 
 
-# ------------------------------------------------------------------ download + reading of reference data (from the old system, old:353-466)
+# Download + reading of reference data (from the old system, old:353-466)
 def load_ip2asn(path, max_age_days=7, url=rules.IP2ASN_URL):  # differs from old: file path and address became parameters
     if not fetch([url], path, max_age_days): return None
     starts, rows = [], []
@@ -302,7 +302,7 @@ def map_ready(cfg):
     return all(os.path.exists(os.path.join(cfg.data_dir, 'map', f)) for f in MAP_FILES)
 
 
-# ------------------------------------------------------------------ MaxMind key test (Configuration page)
+# MaxMind key test (Configuration page)
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *a, **k): return None   # 302 = key accepted; the download link is not followed
 

@@ -45,7 +45,7 @@ class RetentionService:
         finally:
             self._lock.release()
 
-    # -------------------------------------------------------------- daily
+    # Daily
     def start(self, first_delay=300, every=86400):
         self._stop = threading.Event()
 

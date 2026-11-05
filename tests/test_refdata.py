@@ -82,7 +82,7 @@ def put_ip(con, **cols):
                        'UA', 0.1, '-', NULL, '-', NULL, NULL, NULL, false)""", [i, ip])
 
 
-# ------------------------------------------------------------------ sweep
+# Sweep
 
 
 def test_empty_sweep():
@@ -90,7 +90,7 @@ def test_empty_sweep():
     assert refdata.sweep([(IP('1.2.3.4'), '1.2.3.4')], []) == {'1.2.3.4': None}
 
 
-# ------------------------------------------------------------------ GeoLite2 reading
+# GeoLite2 reading
 def test_read_geolite(ready):
     p = os.path.join(ready.cache_dir, 'geolite2-city-csv.zip')
     locs = refdata.geolite_locations(p)
@@ -101,7 +101,7 @@ def test_read_geolite(ready):
     assert len(r) == 3 and r[2][2][0] == 'Jakarta'
 
 
-# ------------------------------------------------------------------ filling ip_info
+# Filling ip_info
 def test_fill_ip_info(ready):
     con = con_for(ready)
     put_ip(con, ips=['1.0.0.7', '8.8.8.8', '10.0.0.1', '45.33.0.9', '2a06:98c0::1', '${jndi:ldap://x}', '55.66.77.88'])
@@ -172,7 +172,7 @@ def test_ingest_fills_ip_info(tmp_path, ready):
     assert ingest.run(cfg, con, workers=0)['refdata']['ip']['new_ips'] == 0   # second ingest: no new IPs
 
 
-# ------------------------------------------------------------------ map files
+# Map files
 def write_geojson(path, features):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     json.dump(dict(type='FeatureCollection', features=features), open(path, 'w'))

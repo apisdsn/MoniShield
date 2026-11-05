@@ -24,7 +24,7 @@ def client_ip(request: Request):
     return client_address.real_client(peer, request.headers.get('cf-connecting-ip'), cfg.trust_cloudflare, cfg.cloudflare_ips)
 
 
-# ------------------------------------------------------------------ roles (TRD §8.3)
+# Roles (TRD §8.3)
 # Every /api route MUST use one of the dependencies below (or be registered public); app.py refuses to start otherwise.
 def public(): return None
 
@@ -156,7 +156,7 @@ def require_collector(request: Request):
 ROLE_DEPS = (public, require_user, require_user_ready, require_admin, require_admin_or_job, require_collector)
 
 
-# ------------------------------------------------------------------ DuckDB
+# DuckDB
 def source_ctx(request: Request):
     """The data source of the request: `?source=s3` (default), `kafka` or `collector` (owner request 2026-10-23). Each source has
     its own database and folders; everything a page reads (and the admin folder tools) goes through the source's ctx."""

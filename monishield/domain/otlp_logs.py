@@ -25,7 +25,7 @@ class Bad(ValueError):
     """A part of the request that cannot be used; the message is the reason counted in `rejected`."""
 
 
-# ------------------------------------------------------------------ AnyValue and attributes
+# AnyValue and attributes
 def _int(v):
     if isinstance(v, int) and not isinstance(v, bool): return v
     if isinstance(v, str) and re.fullmatch(r'-?\d{1,20}', v): return int(v)     # int64 travels as a JSON string
@@ -70,7 +70,7 @@ def pairs(items, depth=0):
     return out
 
 
-# ------------------------------------------------------------------ names
+# Names
 def _text(v):
     """A non-empty string, else None (an attribute of another type is treated as missing)."""
     return v.strip() if isinstance(v, str) and v.strip() else None
@@ -107,7 +107,7 @@ def file_stem(path):
     return _slug(_unrotate(EXTENSION.sub('', _unrotate(s))))
 
 
-# ------------------------------------------------------------------ line and time
+# Line and time
 def text_line(s):
     """The line as the client wrote it: one trailing newline removed, Windows line ends inside turned into \\n."""
     if s.endswith('\r\n'): s = s[:-2]
@@ -147,7 +147,7 @@ def syslog_line(t, host, app, pid, priority, msg):
     return f'<{pri}>1 {stamp} {host} {app} {pid} - - {msg}'
 
 
-# ------------------------------------------------------------------ one record
+# One record
 def _body(rec):
     if 'body' not in rec: raise Bad('missing body')
     b = any_value(rec['body'])
@@ -213,7 +213,7 @@ def read_record(rec, res_attrs, collector, now):
     return dict(ns=ns, svc=svc, pod=pod, line=cut_line(line), t=t, relpath=os.path.join(folder, ns, svc, name))
 
 
-# ------------------------------------------------------------------ request
+# Request
 def _list(v):
     if v is None: return []
     if not isinstance(v, list): raise Bad('malformed request')

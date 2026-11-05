@@ -33,7 +33,7 @@ def deliver(ctx, cfg, key, event, title, text, channels=None, force=False, notes
     return out
 
 
-# ------------------------------------------------------------------ page (admin)
+# Page (admin)
 def view(ctx):
     try: services = ctx.warehouse.services()
     except Exception: services = []   # noqa: BLE001  database not open yet
@@ -97,7 +97,7 @@ def send_report(ctx, folder=None, source=sources.S3, pending=False):
 def _local(now_utc=None): return (now_utc or datetime.datetime.now(datetime.timezone.utc)) + timezone.current().delta   # S4_TIMEZONE_OFFSET
 
 
-# ------------------------------------------------------------------ automatic
+# Automatic
 class Notifier:
     RETRY = 3600   # a scheduled report that failed on every channel is tried again after an hour, not every 10 minutes
 
@@ -144,7 +144,7 @@ class Notifier:
         # a new folder after the report hour gets its daily report right away (before it: at the report hour)
         if src.source == sources.S3: self.daily_report(seconds=result.get('seconds'))
 
-    # ------------------------------------------------------------------ daily report
+    # Daily report
     def _src(self, source): return (getattr(self.ctx, 'sources', None) or {}).get(source) or self.ctx
 
     def _has(self, source): return source == sources.S3 or source in (getattr(self.ctx, 'sources', None) or {})

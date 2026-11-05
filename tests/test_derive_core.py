@@ -32,7 +32,7 @@ def H(ts): return f'{ts:%Y-%m-%d %H}'
 def M(ts): return f'{ts:%Y-%m-%d %H:%M}'
 
 
-# ------------------------------------------------------------------ (a) computed by hand
+# (a) computed by hand
 def test_service(mini):
     rows = {r[1]: r[2:] for r in q(mini, 'SELECT * FROM agg_service WHERE folder = ?', B)}
     #            lines err warn err_http err_log files empty corrupt requests n4xx n5xx ip_unique users_ok
@@ -164,6 +164,6 @@ def test_deleting_a_file_rederives_the_aggregates(tmp_path):
     con.close()
 
 
-# ------------------------------------------------------------------ (b) real folders vs the old parser's raw statistics
+# (b) real folders vs the old parser's raw statistics
 
 

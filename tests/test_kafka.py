@@ -37,7 +37,7 @@ def messages():
     return out
 
 
-# ------------------------------------------------------------------ messages
+# Messages
 def test_rancher_message_and_its_variants():
     r, why = kafka_message.parse_message(rancher('tenant', 'report-service', 'report-service-7d9f-abcde', 'line one'))
     assert why is None and (r['ns'], r['svc'], r['pod'], r['line'], r['t']) == ('tenant', 'report-service', 'report-service-7d9f-abcde', 'line one', T)
@@ -72,7 +72,7 @@ def test_folder_date_like_the_s3_export(wib, folder):
     assert kafka_message.folder_of(t) == folder
 
 
-# ------------------------------------------------------------------ equivalent to S3
+# Equivalent to S3
 def test_ingest_result_same_as_the_s3_logs(tmp_path):
     """Same lines: via S3 file vs via Kafka message -> identical files and identical database contents."""
     s3 = tmp_path / 's3'
@@ -97,7 +97,7 @@ def test_ingest_result_same_as_the_s3_logs(tmp_path):
     assert counts[0] == counts[1] and counts[0]['requests'][0] > 0
 
 
-# ------------------------------------------------------------------ on the server
+# On the server
 @pytest.fixture
 def client(tmp_path, auth_url, monkeypatch):
     monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
