@@ -7,6 +7,10 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Collector step 8 (`docs/12-collector.md`): `DOCKER_INGEST_DOMAIN` makes Caddy serve a DNS only receiver host with its own
+  Let's Encrypt certificate (only the receiver and install scripts, 404 elsewhere); the Collectors page and install scripts use it when
+  `S4_COLLECTOR_PUBLIC_URL` is empty; optional `DOCKER_MAIN_CLOUDFLARE_ONLY=1` guard (`tools/cloudflare_ips.py`); a deploy
+  recreates Caddy when its files change.
 - Collector step 6 (`docs/12-collector.md`): the Collectors page (Configuration group, admins): status counts, table or list with
   what each collector sends, a details panel, add dialog per platform with the enrollment token and install commands, replace
   key, change inputs, revoke, delete; the list answer carries the receiver's counts; Raw Logs opens at `#pod=<host>`.
