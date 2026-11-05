@@ -46,3 +46,22 @@ def test_cloudflare_settings_from_env():
     assert c.trust_cloudflare and c.cloudflare_ips == ca.CLOUDFLARE_IPS     # empty = the built-in list
     assert config.load(env={'S4_CLOUDFLARE_IPS': '10.0.0.0/8, 192.0.2.0/24'}, dotenv=False).cloudflare_ips == '10.0.0.0/8, 192.0.2.0/24'
     with pytest.raises(SystemExit, match='S4_CLOUDFLARE_IPS'): config.load(env={'S4_CLOUDFLARE_IPS': '10.0.0.0/33'}, dotenv=False)
+
+
+def test_client_ip_on_the_collector_ingest_host():
+    """The ingest host is DNS only: Caddy sees the collector itself and replaces X-Forwarded-For with that address. A
+    Cf-Connecting-Ip sent by the collector must not be believed, as the peer is no Cloudflare address."""
+    cfg = dataclasses.replace(config.Config(), trust_proxy=True, trust_cloudflare=True)
+    assert common.client_ip(request(cfg, {'X-Forwarded-For': ATTACKER, 'CF-Connecting-IP': VISITOR})) == ATTACKER
+    assert common.client_ip(request(cfg, {'X-Forwarded-For': ATTACKER})) == ATTACKER
+    # even a forged chain cannot make the header count: only the last (Caddy's) address is the peer
+    assert common.client_ip(request(cfg, {'X-Forwarded-For': f'{CF_EDGE}, {ATTACKER}', 'CF-Connecting-IP': VISITOR})) == ATTACKER
+
+
+def test_ingest_domain_gives_the_receiver_address():
+    c = config.load(env={'DOCKER_INGEST_DOMAIN': 'ingest.example.org'}, dotenv=False)
+    assert c.collector_public_url == 'https://ingest.example.org'
+    assert config.load(env={'DOCKER_INGEST_DOMAIN': ''}, dotenv=False).collector_public_url == ''
+    explicit = config.load(env={'DOCKER_INGEST_DOMAIN': 'ingest.example.org', 'S4_COLLECTOR_PUBLIC_URL': 'https://logs.example.net/'}, dotenv=False)
+    assert explicit.collector_public_url == 'https://logs.example.net'          # the explicit setting wins
+    with pytest.raises(SystemExit, match='DOCKER_INGEST_DOMAIN'): config.load(env={'DOCKER_INGEST_DOMAIN': 'bad host/x'}, dotenv=False)

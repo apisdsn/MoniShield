@@ -175,3 +175,12 @@ def test_stats_name_the_hosts_the_collector_sent_for(client):
         assert r.status_code == 200, r.text
     stats = client.get('/api/admin/collectors').json()['rows'][0]['stats']
     assert stats['hosts'] == ['h6', 'h5', 'h4', 'h3', 'h1'] and stats['received'] == 7 and stats['written'] == 7
+
+
+def test_ingest_domain_is_the_receiver_when_no_public_url(cfg, auth_url):
+    from monishield.interfaces.api import app as appmod
+    c = dataclasses.replace(cfg, auth_database_url=auth_url, collector_public_url='https://ingest.example.org')   # what config.load makes of DOCKER_INGEST_DOMAIN
+    with TestClient(appmod.create_app(c)) as tc:
+        admin(tc)
+        assert tc.get('/api/admin/collectors').json()['receiver'] == 'https://ingest.example.org'
+        assert 'https://ingest.example.org' in tc.get('/collector/install.sh').text

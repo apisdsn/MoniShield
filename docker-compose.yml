@@ -40,6 +40,7 @@ services:
       S4_API_URL: ""
       S4_AUTH_DATABASE_URL: postgresql+psycopg://monishield:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/monishield
       S4_TRUST_PROXY: "true"          # only reachable from the proxy (port bound to the host's 127.0.0.1 / the compose network)
+      DOCKER_INGEST_DOMAIN: ${DOCKER_INGEST_DOMAIN:-}   # receiver host (DNS only): collectors send to https://<it> when S4_COLLECTOR_PUBLIC_URL is empty
       S4_DUCKDB_SNAPSHOT: ${S4_DUCKDB_SNAPSHOT:-true}   # read-only copy for DbGate; "false" when DbGate is not used (saves ±50 % disk)
     volumes:
       - ${DOCKER_LOG_DIR:?set DOCKER_LOG_DIR in .env (log folder on the host)}:/logs:ro
@@ -135,6 +136,7 @@ services:
     restart: unless-stopped
     environment:
       DOCKER_DOMAIN: ${DOCKER_DOMAIN:-localhost}
+      DEPLOY_CONFIG_HASH: ${DEPLOY_CONFIG_HASH:-}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ${DOCKER_CERT_DIR:-./deploy/certs}:/certs:ro
@@ -149,12 +151,17 @@ services:
     restart: unless-stopped
     # without a domain/email Caddy cannot request a certificate -> refuse to start with a clear message (not ${VAR:?}, so
     # `docker compose up` without this profile does not fail too)
-    entrypoint: ["sh", "-c", "[ -n \"$$DOCKER_DOMAIN\" ] && [ -n \"$$DOCKER_ACME_EMAIL\" ] || { echo 'set DOCKER_DOMAIN and DOCKER_ACME_EMAIL in .env' >&2; exit 1; }; exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile"]
+    entrypoint: ["sh", "/etc/caddy/extra/entrypoint.sh"]   # checks the settings, generates the optional files, runs caddy
+    command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
     environment:
       DOCKER_DOMAIN: ${DOCKER_DOMAIN:-}
       DOCKER_ACME_EMAIL: ${DOCKER_ACME_EMAIL:-}
+      DOCKER_INGEST_DOMAIN: ${DOCKER_INGEST_DOMAIN:-}                # collector receiver host (DNS only); empty = none
+      DOCKER_MAIN_CLOUDFLARE_ONLY: ${DOCKER_MAIN_CLOUDFLARE_ONLY:-}  # 1 = the main site answers Cloudflare addresses only
+      DEPLOY_CONFIG_HASH: ${DEPLOY_CONFIG_HASH:-}                    # set by deploy/remote-deploy.sh: a changed Caddy file recreates this container
     volumes:
       - ./deploy/Caddyfile.letsencrypt:/etc/caddy/Caddyfile:ro
+      - ./deploy/caddy:/etc/caddy/extra:ro   # ingest.caddy, cloudflare-only.caddy, entrypoint.sh
       - ./deploy/sites:/etc/caddy/sites:ro   # optional extra sites (*.caddy, not in git)
       - s4-caddy:/data          # Let's Encrypt certificates + keys (do not delete: Let's Encrypt re-issue limits)
     ports:
