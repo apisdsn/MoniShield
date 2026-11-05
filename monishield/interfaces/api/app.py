@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.routing import Match, Mount
 
 from monishield import __version__
 from monishield.application import account_service, alert_service, collector_feed, collector_service, metrics_feed, metrics_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
@@ -35,7 +36,10 @@ class SpaFiles(StaticFiles):
              'services', 'ips', 'collectors', 'admin', 'password', 'email', 'login'}
 
     async def get_response(self, path, scope):
-        if path == 'api' or path.startswith('api/'): raise StarletteHTTPException(404)   # no API route: 404 for every method (not the 405 of a static file)
+        if (path == 'api' or path.startswith('api/')) and scope['method'] not in ('GET', 'HEAD'):
+            # not a file: 405 where an API route has this address for another method, else 404 (the static file's 405 would be wrong here)
+            known = any(r.matches(scope)[0] != Match.NONE for r in scope['app'].router.routes if not isinstance(r, Mount))
+            raise StarletteHTTPException(405 if known else 404)
         try: return await super().get_response(path, scope)
         except StarletteHTTPException as e:
             if e.status_code != 404 or path.split('/', 1)[0] not in self.PAGES: raise

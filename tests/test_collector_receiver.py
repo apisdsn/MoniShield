@@ -15,7 +15,7 @@ URL = '/api/v1/collector/logs'
 JSON = {'Content-Type': 'application/json'}
 K8S = {
     '2026-11-05/ingress-nginx/nginx-ingress-controller/log_nginx-ingress-controller_ingress-nginx-controller-7d9c5b6f4-x2k8p_2026-11-05-16-00.log':
-        ['203.0.113.5 - - [04/Nov/2026:16:55:36 +0700] "GET /api/v1/orders HTTP/1.1" 200 512 "-" "curl/8.5.0" 80 0.012'],
+        ['203.0.113.5 - - [04/Nov/2026:16:55:36 +0700] "GET /api/orders HTTP/1.1" 200 512 "-" "curl/8.5.0" 80 0.012'],
     '2026-11-05/shop/orders-api/log_orders-api_orders-api-5f7c8d9b6-abcde_2026-11-05-16-00.log': ['{"level":"info","msg":"order created"}']}
 HOST = {
     '2026-11-05/web-01/payments/log_payments_web-01_2026-11-05-16-00.log': ['ts=2026-11-04T09:55:36Z level=info msg=charged'],

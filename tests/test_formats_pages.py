@@ -34,9 +34,9 @@ from monishield.infrastructure.queries import ips as q_ips, search as q_search, 
 
 FOLDER = '2026-10-11'
 SHOP = '''\
-203.0.113.5 - - [11/Oct/2026:10:00:01 +0000] "GET /api/v1/orders?id=1 HTTP/1.1" 200 512 "-" "Mozilla/5.0" 0.120
-203.0.113.5 - - [11/Oct/2026:10:00:02 +0000] "GET /api/v1/orders?id=2 HTTP/1.1" 404 10 "-" "Mozilla/5.0" 0.020
-198.51.100.7 - - [11/Oct/2026:10:30:00 +0000] "POST /api/v1/orders HTTP/1.1" 502 157 "-" "curl/8.4.0" 2.500
+203.0.113.5 - - [11/Oct/2026:10:00:01 +0000] "GET /api/orders?id=1 HTTP/1.1" 200 512 "-" "Mozilla/5.0" 0.120
+203.0.113.5 - - [11/Oct/2026:10:00:02 +0000] "GET /api/orders?id=2 HTTP/1.1" 404 10 "-" "Mozilla/5.0" 0.020
+198.51.100.7 - - [11/Oct/2026:10:30:00 +0000] "POST /api/orders HTTP/1.1" 502 157 "-" "curl/8.4.0" 2.500
 192.0.2.10 - - [11/Oct/2026:11:05:00 +0000] "GET /?id=1%20UNION%20SELECT%20username,password%20FROM%20users-- HTTP/1.1" 200 100 "-" "Mozilla/5.0" 0.010
 this is not an access log line
 '''
@@ -93,10 +93,10 @@ def test_hour_status_endpoint_and_ip(site):
     status = lambda svc: rows(con, 'SELECT status, n FROM agg_status WHERE service = ? ORDER BY 1', svc)
     assert status('web-shop') == [(200, 2), (404, 1), (502, 1)] and status('orders-api') == [(200, 1), (500, 1)]
     ep = {(s, k): r for s, k, *r in rows(con, 'SELECT service, key, requests, n4xx, n5xx, dur_n, dur_max FROM agg_endpoint WHERE service IN (?, ?)', 'web-shop', 'orders-api')}
-    assert ep['web-shop', 'GET /api/v1/orders'] == [2, 1, 0, 2, 0.12] and ep['web-shop', 'POST /api/v1/orders'] == [1, 0, 1, 1, 2.5]
-    assert ep['web-shop', 'GET /'] == [1, 0, 0, 1, 0.01] and ep['orders-api', 'POST /api/v1/pay'] == [1, 0, 1, 1, 2.005]
-    assert rows(con, "SELECT status, key, n FROM agg_endpoint_error WHERE service = 'web-shop' ORDER BY 1") == [(404, 'GET /api/v1/orders', 1), (502, 'POST /api/v1/orders', 1)]
-    assert rows(con, "SELECT status, key FROM agg_endpoint_error WHERE service = 'orders-api'") == [(500, 'POST /api/v1/pay')]
+    assert ep['web-shop', 'GET /api/orders'] == [2, 1, 0, 2, 0.12] and ep['web-shop', 'POST /api/orders'] == [1, 0, 1, 1, 2.5]
+    assert ep['web-shop', 'GET /'] == [1, 0, 0, 1, 0.01] and ep['orders-api', 'POST /api/pay'] == [1, 0, 1, 1, 2.005]
+    assert rows(con, "SELECT status, key, n FROM agg_endpoint_error WHERE service = 'web-shop' ORDER BY 1") == [(404, 'GET /api/orders', 1), (502, 'POST /api/orders', 1)]
+    assert rows(con, "SELECT status, key FROM agg_endpoint_error WHERE service = 'orders-api'") == [(500, 'POST /api/pay')]
     assert rows(con, "SELECT ip, requests, n4xx, ua_first_4xx FROM agg_ip WHERE service = 'web-shop' ORDER BY 1") == [
         ('192.0.2.10', 1, 0, None), ('198.51.100.7', 1, 0, None), ('203.0.113.5', 2, 1, 'Mozilla/5.0')]
     assert rows(con, "SELECT count(*) FROM agg_ip WHERE service = 'orders-api'") == [(0,)]       # app_line has no IP column
