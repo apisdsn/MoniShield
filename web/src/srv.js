@@ -53,6 +53,7 @@ const ID = [
   [/malformed value \(/, 'nilai rusak ('], [/invalid name \(/, 'nama tidak sah ('], [/missing body \(/, 'tanpa isi ('], [/empty line \(/, 'baris kosong ('],
   [/invalid time \(/, 'waktu tidak sah ('], [/malformed record \(/, 'record rusak ('], [/too many records \(/, 'terlalu banyak record ('],
   [/malformed attributes \(/, 'atribut rusak ('], [/malformed request \(/, 'permintaan rusak ('],
+  [/^too old$/, 'terlalu lama'], [/too old \(/, 'terlalu lama ('],
   // import job summary
   [/^(\d+) objects would be fetched, (\d+) skipped/, '$1 objek akan diambil, $2 dilewati'],
   [/^(\d+) objects fetched, (\d+) skipped/, '$1 objek diambil, $2 dilewati'],
