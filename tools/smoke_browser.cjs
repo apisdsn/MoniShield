@@ -302,9 +302,19 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.waitForSelector('.charts canvas');
   for (const w of [390, 1280]) {
     await page.setViewportSize({ width: w, height: 900 });
-    await page.waitForTimeout(300);
-    const o = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    if (o > 0) throw new Error(`Servers page scrolls sideways by ${o}px at ${w}px`);
+    // charts resize after the window does: wait up to 2 s for the layout to settle, then name what sticks out
+    let o = 0, wide = [];
+    for (let i = 0; i < 10; i++) {
+      await page.waitForTimeout(200);
+      [o, wide] = await page.evaluate(() => {
+        const cw = document.documentElement.clientWidth;
+        const out = [...document.querySelectorAll('main *')].filter((el) => el.getBoundingClientRect().right > cw + 1 && !el.closest('.scroll'))
+          .slice(0, 3).map((el) => `${el.tagName.toLowerCase()}.${String(el.className?.baseVal ?? el.className).split(' ')[0]} +${Math.round(el.getBoundingClientRect().right - cw)}px`);
+        return [document.documentElement.scrollWidth - cw, out];
+      });
+      if (o <= 0) break;
+    }
+    if (o > 0) throw new Error(`Servers page scrolls sideways by ${o}px at ${w}px (${wide.join(', ') || 'no element found'})`);
   }
   console.log('ok   Servers: cards, banner, group filter, charts, containers, ranges, no sideways scroll');
   page.off('response', watch);

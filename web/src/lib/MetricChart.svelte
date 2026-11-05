@@ -77,7 +77,9 @@
   header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   h2 { font-size: 0.9375rem; font-weight: 600; color: var(--heading); text-transform: none; }
   .now { font-family: var(--mono); font-size: 0.875rem; color: var(--fg); white-space: nowrap; }
-  .chart { position: relative; height: 180px; margin-top: 8px; }
+  /* min-width 0: the canvas has a fixed pixel width until Chart.js resizes it, and must not hold the grid track wider */
+  .card { min-width: 0; }
+  .chart { position: relative; height: 180px; margin-top: 8px; min-width: 0; overflow: hidden; }
   .none { display: grid; place-items: center; height: 180px; margin: 8px 0 0; font-size: 0.875rem; }
   .capt { margin: 8px 0 0; font-size: 0.75rem; }
 </style>

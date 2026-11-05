@@ -288,6 +288,7 @@
   .fill.err { background: var(--err); }
 
   .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 14px; margin-bottom: 16px; }
+  .charts > :global(*) { min-width: 0; }
   .ct { padding: 0; overflow: hidden; }
   .ct > header { padding: 14px 16px; margin: 0; border-bottom: 1px solid var(--line); }
   .ct h2 { font-size: 1rem; text-transform: none; overflow-wrap: anywhere; }
