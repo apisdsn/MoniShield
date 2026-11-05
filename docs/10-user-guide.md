@@ -322,8 +322,8 @@ the server started, and the reason of the last rejection.
   copy buttons: download the install script, read it, run it with the name and the token. For Kubernetes the page gives the
   `helm` and `kubectl` commands and the `values.yaml` to download. The collector appears as Waiting until it has enrolled.
   A Docker collector names each container as `docker ps` does: the installer adds a small helper and a timer that keep name links to
-  the container logs (details in `docs/12-collector.md`). A Docker collector installed earlier keeps the id names until you revoke
-  and delete it, add it again and run the installer with the new token.
+  the container logs (details in `docs/12-collector.md`). A Docker collector installed earlier keeps the id names until you upgrade
+  it: the details panel of an enrolled collector shows an upgrade command (`sudo sh install.sh --upgrade`, no token needed).
 - **Replace Key**: makes a new key, shown once, with the exact place to put it for the platform. The old key keeps working
   for 24 hours.
 - **Change Inputs**: changes what the collector sends. The server then needs its new configuration; the page shows the command.

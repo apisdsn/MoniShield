@@ -261,6 +261,43 @@ def test_install_sh_dry_run_changes_nothing(script):
     assert 'https://other.example.org/api/collector/enroll' in r.stdout
 
 
+KEY = 'msk_7_' + 'B' * 43
+
+
+@pytest.mark.skipif(not shutil.which('sh'), reason='sh needed')
+def test_upgrade_dry_run_reads_the_installed_key_and_changes_nothing(script, tmp_path):
+    conf = tmp_path / 'conf'; conf.mkdir()
+    (conf / 'monishield.env').write_text(f'MONISHIELD_COLLECTOR_KEY={KEY}\n')
+    r = run_sh(script, '--upgrade', '--dry-run', '--conf-dir', str(conf))
+    assert r.returncode == 0, r.stderr
+    for part in (f'{BASE}/api/collector/config', 'Bearer token', 'otelcol-contrib validate', 'docker-names.sh', 'would restart', 'Upgrading the collector in place'):
+        assert part in r.stdout, part
+    assert KEY not in r.stdout and KEY not in r.stderr and sorted(p.name for p in conf.iterdir()) == ['monishield.env']
+    r = run_sh(script, '--upgrade', '--dry-run', '--conf-dir', str(conf), '--url', 'https://other.example.org')
+    assert 'https://other.example.org/api/collector/config' in r.stdout
+
+
+@pytest.mark.skipif(not shutil.which('sh'), reason='sh needed')
+@pytest.mark.parametrize('content,message', [
+    (None, 'no collector key is installed'),
+    ('OTHER=1\n', 'holds no collector key'),
+    ('MONISHIELD_COLLECTOR_KEY=abc\n', 'holds no collector key'),
+    ('MONISHIELD_COLLECTOR_KEY=msk_1_a;id\n', 'unexpected characters'),
+])
+def test_upgrade_refuses_without_a_usable_key(script, tmp_path, content, message):
+    conf = tmp_path / 'conf'; conf.mkdir()
+    if content is not None: (conf / 'monishield.env').write_text(content)
+    for extra in ([], ['--dry-run']):
+        r = run_sh(script, '--upgrade', '--conf-dir', str(conf), *extra)
+        assert r.returncode == 1 and message in r.stderr and not r.stdout
+
+
+@pytest.mark.skipif(not shutil.which('sh'), reason='sh needed')
+def test_upgrade_takes_no_name_or_token(script, tmp_path):
+    r = run_sh(script, '--upgrade', '--name', 'web', '--conf-dir', str(tmp_path))
+    assert r.returncode == 1 and 'takes no --name' in r.stderr
+
+
 @pytest.mark.skipif(not shutil.which('sh'), reason='sh needed')
 @pytest.mark.parametrize('args,message', [
     ([], '--name is required'),

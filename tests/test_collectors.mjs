@@ -1,7 +1,7 @@
 // Collectors page helpers (web/src/collectors.js): the checks mirror the server's rules.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkName, checkPath, checkService, parseUnits, checkOptions, payload, sends, installSteps, keySteps, ago, counts, defaults, editable } from '../web/src/collectors.js';
+import { checkName, checkPath, checkService, parseUnits, checkOptions, payload, sends, installSteps, keySteps, upgradeSteps, ago, counts, defaults, editable } from '../web/src/collectors.js';
 
 test('names follow the server rule', () => {
   for (const ok of ['a', 'web-01', '0x', 'a'.repeat(63)]) assert.equal(checkName(ok), '', ok);
@@ -69,4 +69,15 @@ test('commands carry the token and the address', () => {
 test('relative time and counts', () => {
   assert.deepEqual(ago(5), [5, 'second']); assert.deepEqual(ago(120), [2, 'minute']); assert.deepEqual(ago(7300), [2, 'hour']); assert.deepEqual(ago(200000), [2, 'day']); assert.deepEqual(ago(-3), [0, 'second']);
   assert.deepEqual(counts([{ status: 'online' }, { status: 'online' }, { status: 'late' }, { status: 'waiting' }, { status: 'revoked' }]), { online: 2, late: 1, offline: 0, waiting: 1, revoked: 1 });
+});
+
+test('upgrade command: no token, the installer with --upgrade', () => {
+  const b = 'https://logs.example.com';
+  for (const p of ['linux', 'docker']) {
+    const [s] = upgradeSteps(p, b);
+    assert.deepEqual(s.lines, [`curl -fsSLo install.sh ${b}/collector/install.sh`, 'sudo sh install.sh --upgrade']);
+    assert.ok(!s.lines.join('').includes('mse_') && !s.lines.join('').includes('--token'));
+  }
+  assert.match(upgradeSteps('windows', b)[0].lines[1], /install\.ps1 -Upgrade$/);
+  assert.deepEqual(upgradeSteps('kubernetes', b), []);
 });

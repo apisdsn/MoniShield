@@ -9,7 +9,7 @@
   import { api } from '../api.js';
   import { route, build } from '../state.js';
   import { locale, num, tLocal, utcToLocal } from '../format.js';
-  import { PLATFORMS, ago, checkName, checkOptions, counts, defaults, editable, keySteps, payload, sends, updateSteps } from '../collectors.js';
+  import { PLATFORMS, ago, checkName, checkOptions, counts, defaults, editable, keySteps, payload, sends, updateSteps, upgradeSteps } from '../collectors.js';
   import { toast } from '../lib/Toast.svelte';
   import Dialog from '../lib/Dialog.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
@@ -225,6 +225,11 @@
               </dl>
               <p class="muted small">{$t('cl.p.counts_note')}</p>
             {:else}<p class="muted small">{$t('cl.p.no_counts')}</p>{/if}
+          {/if}
+          {#if r.enrolled_at && r.status !== 'revoked' && r.platform !== 'kubernetes'}
+            <h3>{$t('cl.p.upgrade')}</h3>
+            <p class="muted small">{$t(`cl.p.upgrade_hint.${r.platform}`)}</p>
+            {#each upgradeSteps(r.platform, base) as s}<CopyBlock label={$t('cl.a.upgrade')} lines={s.lines} />{/each}
           {/if}
           <div class="acts">
             {#if r.enrolled_at}<a class="btn accent" href={logsHref(r)}><Icon name="terminal" size={16} />{$t('cl.a.logs')}</a>{/if}

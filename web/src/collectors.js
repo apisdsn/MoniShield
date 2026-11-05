@@ -141,6 +141,16 @@ export function updateSteps(platform, base) {
     `sudo sh -c '. /etc/otelcol-contrib/monishield.env && curl -fsS -H "Authorization: Bearer $MONISHIELD_COLLECTOR_KEY" ${base}/api/collector/config -o /etc/otelcol-contrib/config.yaml && systemctl restart otelcol-contrib'`] }];
 }
 
+/** Upgrade an installed collector in place (no token; the installed key stays): download the installer, run it with --upgrade.
+ *  Kubernetes has no installer: it is upgraded with helm and the downloaded values. */
+export function upgradeSteps(platform, base) {
+  if (platform === 'kubernetes') return [];
+  if (platform === 'windows') return [{ id: 'upgrade', lines: [
+    `Invoke-WebRequest -UseBasicParsing -OutFile install.ps1 ${base}/collector/install.ps1`,
+    'powershell -ExecutionPolicy Bypass -File .\\install.ps1 -Upgrade'] }];
+  return [{ id: 'upgrade', lines: [`curl -fsSLo install.sh ${base}/collector/install.sh`, 'sudo sh install.sh --upgrade'] }];
+}
+
 /** Seconds -> the unit and number for "5 min ago": [value, 'second' | 'minute' | 'hour' | 'day']. */
 export function ago(seconds) {
   const s = Math.max(0, Math.round(seconds));

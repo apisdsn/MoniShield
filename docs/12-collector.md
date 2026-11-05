@@ -150,10 +150,8 @@ Only log inputs exist; host metrics and endpoint checks come with part 2. Choice
   The first run on a host reads the existing log files from their start. A first design with the `docker_observer` extension and
   `receiver_creator` was dropped (checked with 0.163.2 against a real Docker daemon): it finds only containers with an exposed port
   and finds a container once per exposed port.
-  **An existing Docker collector keeps its id names until its installer is run again.** The installer needs an enrollment token, which
-  works once, so for an enrolled collector: Revoke and Delete it on the Collectors page, add it again under the same name (Docker,
-  Docker containers on) and run the installer with the new token; it installs the helper, the timer and the new configuration and
-  restarts the service. Lines already stored stay under the id names.
+  **An existing Docker collector keeps its id names until it is upgraded:** `sudo sh install.sh --upgrade` (see "Upgrade in place").
+  Lines already stored stay under the id names.
 - **Always:** `resourcedetection` (`system`, so `host.name` is set), `batch` (`send_batch_size` 500, `send_batch_max_size`
   1000, `timeout` 5 s; far below the receiver's 16 MB raw limit), exporter `otlphttp` (`encoding: json`, `compression: gzip`,
   retry without a time limit, `sending_queue` on the `file_storage` extension, so data waits on disk while MoniShield is
@@ -199,7 +197,7 @@ once, for 24 hours.
   must be readable by the user `otelcol-contrib`. `--dry-run` prints the steps and changes nothing.
 - **Docker host:** the same script. Docker's log files and socket belong to root, so the drop-in runs this service as root. It also
   installs the name helper and its timer (see "Docker container names"), so the services are the container names, stopped containers
-  included. A collector installed before names existed has to be added again and installed with a new token.
+  included. A collector installed before names existed is upgraded in place (see below).
 - **Windows Server (PowerShell 5.1+, as Administrator):** `Invoke-WebRequest -UseBasicParsing -OutFile install.ps1
   https://<host>/collector/install.ps1`, then `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Name <name> -Token <token>`.
   Same flow with the MSI; the key goes into the `Environment` value of the `otelcol-contrib` service in the registry, which only
@@ -209,6 +207,14 @@ once, for 24 hours.
   --from-literal=key=…`), and `helm upgrade --install monishield-collector open-telemetry/opentelemetry-collector -f values.yaml`.
   The Helm values are not run through `otelcol-contrib validate` (there is no cluster here); their exporter, processor and
   extension parts are the same text as the host configurations'.
+- **Upgrade in place (existing collectors):** `curl -fsSLo install.sh https://<host>/collector/install.sh`, then `sudo sh install.sh --upgrade`
+  (Windows: `install.ps1 -Upgrade`). No token and no new key: the script reads the installed key (`/etc/otelcol-contrib/monishield.env`;
+  on Windows the `Environment` value of the service), fetches the current configuration with `GET /api/collector/config` (Bearer key only),
+  checks it with `otelcol-contrib validate`, writes it, installs or refreshes the Docker name helper, its service and timer and the drop-in
+  (Docker only), restarts the service and prints its status. It stops with a clear message when no key is installed or the server refuses
+  it (revoked or replaced key), and it changes nothing when the new configuration does not validate. `--dry-run` prints the steps. The
+  Collectors page shows the command in the details panel of every enrolled Linux, Docker and Windows collector. Only when the key is
+  lost or revoked: Revoke, Delete and add the collector again, then install with the new token.
 - **Changing the inputs later:** change them on the page, then on the server download the new file with the key
   (`curl -fsS -H "Authorization: Bearer $KEY" https://<host>/api/collector/config -o config.yaml`) and restart the service.
 - **Checked here:** `tools/fetch_otelcol.py` downloads the pinned release (SHA-256 from the release's `.sha256` file) into the ignored

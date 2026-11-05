@@ -95,6 +95,18 @@ def test_get_config_needs_a_key_and_follows_the_options(client):
     assert 'journald:' in r.text and 'filelog/1' not in r.text
 
 
+def test_upgrade_reads_the_config_with_the_key_alone_and_docker_is_recognised(client):
+    # install.sh --upgrade sends only the Bearer key (no X-Requested-With, no token) and tells a Docker collector by the link folder
+    admin(client)
+    c = new(client, 'dock-01', 'docker').json()
+    anon = TestClient(client.app)
+    key = enroll(anon, c['enroll_token']).json()['key']
+    r = anon.get('/api/collector/config', headers={'Authorization': f'Bearer {key}'})
+    assert r.status_code == 200 and 'otelcol-contrib/containers/' in r.text and key not in r.text
+    lin = enroll(anon, new(client, 'lin-01').json()['enroll_token']).json()['key']
+    assert 'otelcol-contrib/containers/' not in anon.get('/api/collector/config', headers={'Authorization': f'Bearer {lin}'}).text
+
+
 def test_kubernetes_enroll_returns_helm_values(client):
     admin(client)
     c = new(client, 'prod', 'kubernetes').json()

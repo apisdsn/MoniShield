@@ -7,10 +7,10 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Collector: `install.sh --upgrade` (Windows: `install.ps1 -Upgrade`) refreshes an installed collector in place with its installed key: current configuration, Docker name helper and timer, restart. The Collectors page shows the command for every enrolled collector.
 - Collector: Docker containers are named like `docker ps` instead of the first 12 characters of the id. The installer adds a small
   helper script and a systemd timer (every 15 s) that keep `<container name>.log` links to the container logs, and the collector reads
-  those links, also for stopped containers, with saved offsets. An existing Docker collector gets the names after it is added again and
-  installed again.
+  those links, also for stopped containers, with saved offsets. An existing Docker collector gets the names with `install.sh --upgrade`.
 - Collector step 8 (`docs/12-collector.md`): `DOCKER_INGEST_DOMAIN` makes Caddy serve a DNS only receiver host with its own
   Let's Encrypt certificate (only the receiver and install scripts, 404 elsewhere); the Collectors page and install scripts use it when
   `S4_COLLECTOR_PUBLIC_URL` is empty; optional `DOCKER_MAIN_CLOUDFLARE_ONLY=1` guard (`tools/cloudflare_ips.py`); a deploy
