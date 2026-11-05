@@ -88,6 +88,7 @@ Questions answered along the way, recorded so they are not asked again:
 
 ## Next steps (in order)
 
+00. **Live map from a collector (stage 57, done, 2026-11-05)**: owner steps for production: add the rule `match = "monishield-https-1"`, `format = "caddy-json"` to the server's log-formats file (`docs/11-log-formats.md`, section 2a), redeploy (the Caddy container is recreated and starts writing the JSON access log; `DOCKER_ACCESS_LOG=0` turns it off), then run `install.sh --upgrade` on the collector host. Needs the GeoLite2 file the ingest already downloads (MaxMind key); without it nothing is drawn.
 0. **Before relying on forgot password in production**: fill in Configuration → Mail server (SMTP), send the test email,
    and give every user an email address in Manage users (or let users set their own under *Account email*). Users without an email still need an admin to reset them.
 1. **Archive the internal repository**: in `apisdsn/MoniShield-internal`, delete the `production` environment secrets
