@@ -10,7 +10,8 @@
   import { untrack } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num, delta, sysName, dLabel, logDay, SPARSE_LINES } from '../format.js';
+  import { num, delta, sysName, dLabel, logDay, isFilling, SPARSE_LINES } from '../format.js';
+  import { localToday } from '../tz.js';
   import { build, route } from '../state.js';
   import { cmpNote } from '../lib/compare.js';
   import InfoTip from '../lib/InfoTip.svelte';
@@ -85,7 +86,7 @@
     return out.slice(0, 3);
   });
   const lines = $derived(sum(svc, 'lines'));
-  const sparse = $derived(lines < SPARSE_LINES);
+  const sparse = $derived(lines < SPARSE_LINES && !isFilling($route.source, view?.folder, localToday()));   // still filling: few lines are normal
   const note = $derived([...$cmpNote.values()][0] || '');
   const href = (tab) => build({ ...$route, tab, service: null, q: null });
   const svcHref = (s) => build({ ...$route, tab: 'service', service: s, q: null });

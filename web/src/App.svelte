@@ -7,7 +7,8 @@
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
   import { route, go, build, parse, ADMIN } from './state.js';
   import { setSite } from './site.js';
-  import { fLabel, logRange, num, sysName, tLocal, SPARSE_LINES } from './format.js';
+  import { fLabel, isFilling, logRange, num, sysName, tLocal, SPARSE_LINES } from './format.js';
+  import { localToday } from './tz.js';
   import { cmpNote } from './lib/compare.js';
   import { APP_NAME } from './brand.js';
   import { load, save } from './store.js';
@@ -245,7 +246,8 @@
   });
   $effect(() => { document.title = screen === 'app' ? `${title} · ${APP_NAME}` : APP_NAME; });
   // Overview shows both notes inside its status card
-  const sparse = $derived(isDataTab && !['trends', 'overview'].includes($route.tab) && folderInfo && folderInfo.lines < SPARSE_LINES);
+  const sparse = $derived(isDataTab && !['trends', 'overview'].includes($route.tab) && folderInfo && folderInfo.lines < SPARSE_LINES
+    && !isFilling($route.source, folder, localToday()));   // a folder that is still filling up is not "incomplete"
   const note = $derived(isDataTab && $route.tab !== 'overview' ? [...$cmpNote.values()][0] || '' : '');
 
   // Idle session (DRD §6.9)
