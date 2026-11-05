@@ -23,7 +23,7 @@
     if (Object.keys(errs).length) return;
     busy = true;
     try {
-      await api.post('/api/me/password', { old_password: old, new_password: nw });
+      await api.post('/api/v1/me/password', { old_password: old, new_password: nw });
       old = nw = again = '';
       toast($t('pw.done'));
       ondone();

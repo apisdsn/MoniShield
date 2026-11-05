@@ -6,8 +6,8 @@
      Owner request 2026-10-08: a third group, Configuration (admins), whose items open pop-ups (lib/ConfigDialogs.svelte),
      and every group (Analysis, Services, Configuration) folds open/closed with an animation; the choice is kept per
      browser. In the icon rail the groups are always open (their headings are only separators).
-     Redesign 2026-10-27: the Services group lists every service (error badges; "!" for a corrupt file) with a search box
-     when there are more than six (owner: "just make it the services", no problems-only list). -->
+     Redesign 2026-10-27: the Services group lists every service (error badges; "!" for a corrupt file), no problems-only list.
+     The search box above the list was removed again on 2026-11-05 (owner request). -->
 <script>
   import { lang, t } from '../i18n.js';
   import { num, sysName } from '../format.js';
@@ -31,17 +31,11 @@
   }
   const isOpen = (g) => collapsed || open[g];
 
-  // services: all of them; the search box narrows the list (the icon rail always shows all)
-  let q = $state('');
   const all = $derived(summary?.services || []);
-  const shownSvc = $derived.by(() => {
-    const term = collapsed ? '' : q.trim().toLowerCase();
-    return term ? all.filter((s) => s.service.toLowerCase().includes(term)) : all;
-  });
   const tip = (s) => (collapsed ? s : undefined);
 
   const ICON = { overview: 'overview', 'command-center': 'globe', trends: 'trend', security: 'shield', 'root-causes': 'search',
-                 availability: 'pulse', pods: 'box', business: 'briefcase', tracing: 'route', 'raw-logs': 'terminal' };
+                 availability: 'pulse', pods: 'box', business: 'briefcase', tracing: 'route', 'raw-logs': 'terminal', servers: 'server' };
   const ingestTone = $derived(ingest?.running ? 'accent' : ingest?.last_status === 'ok' ? 'ok' : ingest?.last_status ? 'err' : '');
 
   const href = (patch) => build({ ...route, ...patch, q: null, ...(patch.tab !== 'service' ? { service: null } : {}) });
@@ -77,12 +71,8 @@
   {#if summary?.services?.length}
     {@render head('services', 'nav-services', $t('nav.services'))}
     <div class="fold" class:shut={!isOpen('services')} id="grp-services" inert={!isOpen('services') || undefined}><div class="in">
-    {#if !collapsed && all.length > 6}
-      <label class="sr-only" for="svc-q">{$t('nav.svc_search')}</label>
-      <input id="svc-q" class="q" type="search" placeholder="{$t('nav.svc_search')}…" bind:value={q} />
-    {/if}
     <ul aria-labelledby="nav-services">
-      {#each shownSvc as s}
+      {#each all as s}
         <li>
           <a href={href({ tab: 'service', service: s.service })} aria-current={active('service', s.service)} onclick={onpick} title={tip(sysName(s.service))}>
             <Icon name="server" /><span class="lbl sys">{sysName(s.service)}</span>
@@ -163,7 +153,7 @@
   .item { background: none; font: inherit; cursor: pointer; text-align: left; text-transform: none !important; }
   a, .item {
     font-size: 0.84375rem; display: flex; align-items: center; gap: 10px; width: 100%; text-decoration: none;
-    color: var(--nav-fg); padding: 8px 10px; border-radius: 10px; min-height: 38px; text-transform: capitalize;
+    color: var(--nav-fg); padding: 8px 10px; border-radius: 10px; min-height: 38px;
     border: 1px solid transparent; transition: background 0.15s, color 0.15s;
   }
   a :global(svg), .item :global(svg) { color: var(--muted); }
@@ -171,10 +161,8 @@
   a[aria-current='page'], .item[aria-current='true'] { background: var(--seg-on); border-color: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent-text); }
   a[aria-current='page'] :global(svg), .item[aria-current='true'] :global(svg) { color: var(--accent-text); }
   .lbl { min-width: 0; overflow-wrap: anywhere; }
-  .q { width: 100%; box-sizing: border-box; min-height: 36px; margin: 2px 0 6px; padding: 6px 12px; border-radius: 10px; font-size: 0.8125rem; }
-  /* the group folds with overflow: hidden, so the focus ring is drawn inside the field instead of around it */
-  nav :focus-visible { outline-offset: -2px; }   /* links and buttons inside the folding groups: ring drawn inside, never clipped */
-  .q:focus-visible { outline: none; border-color: var(--focus); box-shadow: inset 0 0 0 1px var(--focus); }
+  /* the groups fold with overflow: hidden, so the focus ring of their links and buttons is drawn inside, never clipped */
+  nav :focus-visible { outline-offset: -2px; }
   .b.warn { color: var(--sev2-fg); background: color-mix(in srgb, var(--warn) 14%, transparent); }
   .b { margin-left: auto; font-size: 0.75rem; color: var(--badge-fg); background: var(--badge-bg); padding: 1px 7px; border-radius: 999px; white-space: nowrap; text-transform: none; }
   .foot {
@@ -182,7 +170,6 @@
     display: flex; flex-direction: column; gap: 6px; font-size: 0.75rem;
   }
   .row { display: flex; align-items: center; gap: 8px; color: var(--muted); }
-  .tz { text-transform: capitalize; }
   @media (max-width: 900px) {
     a, .item { min-height: var(--touch); }
     .tog { display: none; }   /* narrow screen: drawer with ☰ in the page header, not collapsed */

@@ -91,11 +91,11 @@ def make(tmp_path, auth_url, monkeypatch):
         c = dataclasses.replace(config.Config(), **dict(base, **over))
         tc = TestClient(appmod.create_app(c))
         tc.__enter__()
-        assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
-        assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
-        r = tc.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password=RINA_PW, email='Rina@Example.com'), headers=X)
+        assert tc.post('/api/v1/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
+        assert tc.post('/api/v1/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+        r = tc.post('/api/v1/admin/users', json=dict(username='rina', display_name='Rina', role='user', password=RINA_PW, email='Rina@Example.com'), headers=X)
         assert r.status_code == 201 and r.json()['email'] == 'rina@example.com'
-        tc.post('/api/auth/logout', headers=X)
+        tc.post('/api/v1/auth/logout', headers=X)
         return tc
     yield build
 
@@ -106,26 +106,26 @@ def temp_from(m):
 
 def test_forgot_password_flow(make, outbox):
     tc = make()
-    assert tc.get('/api/auth/options').json() == dict(forgot_password=True)
-    r = tc.post('/api/auth/forgot', json=dict(login='rina', lang='id'), headers=X)
+    assert tc.get('/api/v1/auth/options').json() == dict(forgot_password=True)
+    r = tc.post('/api/v1/auth/forgot', json=dict(login='rina', lang='id'), headers=X)
     assert r.status_code == 200 and r.json() == dict(sent=True, minutes=30)
     tc.app.state.resets.wait()
     assert len(outbox) == 1 and outbox[0]['To'] == 'rina@example.com' and outbox[0]['Subject'] == 'Kata sandi sementara akun MoniShield Anda'
     temp = temp_from(outbox[0])
     assert temp not in r.text and temp not in tc.app.state.auth.audit_list(50)[1].__repr__()
     # the old password still works and cancels the pending reset: asking for resets cannot lock anyone out
-    assert tc.post('/api/auth/login', json=dict(username='rina', password=RINA_PW), headers=X).status_code == 200
-    tc.post('/api/auth/logout', headers=X)
-    assert tc.post('/api/auth/login', json=dict(username='rina', password=temp), headers=X).status_code == 401
+    assert tc.post('/api/v1/auth/login', json=dict(username='rina', password=RINA_PW), headers=X).status_code == 200
+    tc.post('/api/v1/auth/logout', headers=X)
+    assert tc.post('/api/v1/auth/login', json=dict(username='rina', password=temp), headers=X).status_code == 401
     # a new request by email address; the temporary password signs in once and forces a new password
-    tc.post('/api/auth/forgot', json=dict(login='RINA@example.com', lang='en'), headers=X); tc.app.state.resets.wait()
+    tc.post('/api/v1/auth/forgot', json=dict(login='RINA@example.com', lang='en'), headers=X); tc.app.state.resets.wait()
     assert outbox[-1]['Subject'] == 'Your MoniShield temporary password'
     temp = temp_from(outbox[-1])
-    r = tc.post('/api/auth/login', json=dict(username='rina', password=temp), headers=X)
+    r = tc.post('/api/v1/auth/login', json=dict(username='rina', password=temp), headers=X)
     assert r.status_code == 200 and r.json()['must_change_password'] is True
-    assert tc.post('/api/me/password', json=dict(old_password=temp, new_password='rina-own-new-password'), headers=X).status_code == 200
-    tc.post('/api/auth/logout', headers=X)
-    assert tc.post('/api/auth/login', json=dict(username='rina', password=RINA_PW), headers=X).status_code == 401
+    assert tc.post('/api/v1/me/password', json=dict(old_password=temp, new_password='rina-own-new-password'), headers=X).status_code == 200
+    tc.post('/api/v1/auth/logout', headers=X)
+    assert tc.post('/api/v1/auth/login', json=dict(username='rina', password=RINA_PW), headers=X).status_code == 401
     audit = repr(tc.app.state.auth.audit_list(100))
     assert 'password.forgot' in audit and 'password.reset_used' in audit and temp not in audit
 
@@ -133,45 +133,45 @@ def test_forgot_password_flow(make, outbox):
 def test_same_answer_for_unknown_accounts_and_limits(make, outbox):
     tc = make()
     for login in ('does-not-exist', 'someone@other.example', 'admin'):   # admin has no email
-        r = tc.post('/api/auth/forgot', json=dict(login=login), headers=X)
+        r = tc.post('/api/v1/auth/forgot', json=dict(login=login), headers=X)
         assert r.status_code == 200 and r.json()['sent'] is True
     tc.app.state.resets.wait()
     assert len(outbox) == 0
-    for _ in range(2): assert tc.post('/api/auth/forgot', json=dict(login='rina'), headers=X).status_code == 200
-    r = tc.post('/api/auth/forgot', json=dict(login='rina'), headers=X)   # the 6th request from one address within 15 minutes
+    for _ in range(2): assert tc.post('/api/v1/auth/forgot', json=dict(login='rina'), headers=X).status_code == 200
+    r = tc.post('/api/v1/auth/forgot', json=dict(login='rina'), headers=X)   # the 6th request from one address within 15 minutes
     assert r.status_code == 429 and r.json()['error']['code'] == 'too_many_attempts'
-    assert tc.post('/api/auth/forgot', json=dict(login='rina')).status_code == 403   # CSRF header required
+    assert tc.post('/api/v1/auth/forgot', json=dict(login='rina')).status_code == 403   # CSRF header required
 
 
 def test_expired_and_failed_email(make, outbox):
     tc = make()
-    tc.post('/api/auth/forgot', json=dict(login='rina'), headers=X); tc.app.state.resets.wait()
+    tc.post('/api/v1/auth/forgot', json=dict(login='rina'), headers=X); tc.app.state.resets.wait()
     temp = temp_from(outbox[-1])
     with tc.app.state.auth.engine.begin() as c: c.execute(text("UPDATE password_reset SET expires_at = '2000-01-01 00:00:00'"))
-    assert tc.post('/api/auth/login', json=dict(username='rina', password=temp), headers=X).status_code == 401
+    assert tc.post('/api/v1/auth/login', json=dict(username='rina', password=temp), headers=X).status_code == 401
     outbox.fail = smtplib.SMTPAuthenticationError(535, b'no')
-    tc.post('/api/auth/forgot', json=dict(login='rina'), headers=X); tc.app.state.resets.wait()
+    tc.post('/api/v1/auth/forgot', json=dict(login='rina'), headers=X); tc.app.state.resets.wait()
     with tc.app.state.auth.engine.begin() as c: assert c.execute(text('SELECT count(*) FROM password_reset')).scalar() == 0   # withdrawn
     assert 'email not sent: The mail server rejected the username or password.' in repr(tc.app.state.auth.audit_list(20))
 
 
 def test_without_mail_server(make, outbox):
     tc = make(smtp_host='')
-    assert tc.get('/api/auth/options').json() == dict(forgot_password=False)
-    r = tc.post('/api/auth/forgot', json=dict(login='rina'), headers=X)
+    assert tc.get('/api/v1/auth/options').json() == dict(forgot_password=False)
+    r = tc.post('/api/v1/auth/forgot', json=dict(login='rina'), headers=X)
     assert r.status_code == 503 and r.json()['error']['code'] == 'mail_not_configured'
 
 
 def test_user_email_unique_editable_and_migrated(make, outbox, auth_url):
     tc = make()
-    tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X)
-    r = tc.post('/api/admin/users', json=dict(username='budi', role='user', password='budi-initial-password-123', email='rina@example.com'), headers=X)
+    tc.post('/api/v1/auth/login', json=dict(username='admin', password=PW2), headers=X)
+    r = tc.post('/api/v1/admin/users', json=dict(username='budi', role='user', password='budi-initial-password-123', email='rina@example.com'), headers=X)
     assert r.status_code == 409 and r.json()['error']['code'] == 'email_taken'
-    assert tc.post('/api/admin/users', json=dict(username='budi', role='user', password='budi-initial-password-123', email='not an email'), headers=X).json()['error']['code'] == 'invalid_email'
-    rid = next(u['user_id'] for u in tc.get('/api/admin/users').json()['users'] if u['username'] == 'rina')
-    r = tc.patch(f'/api/admin/users/{rid}', json=dict(email='rina.new@example.com'), headers=X)   # a new address needs the code flow
+    assert tc.post('/api/v1/admin/users', json=dict(username='budi', role='user', password='budi-initial-password-123', email='not an email'), headers=X).json()['error']['code'] == 'invalid_email'
+    rid = next(u['user_id'] for u in tc.get('/api/v1/admin/users').json()['users'] if u['username'] == 'rina')
+    r = tc.patch(f'/api/v1/admin/users/{rid}', json=dict(email='rina.new@example.com'), headers=X)   # a new address needs the code flow
     assert r.status_code == 400 and r.json()['error']['code'] == 'email_needs_code'
-    assert tc.patch(f'/api/admin/users/{rid}', json=dict(email=''), headers=X).json()['email'] is None   # removing needs no code
+    assert tc.patch(f'/api/v1/admin/users/{rid}', json=dict(email=''), headers=X).json()['email'] is None   # removing needs no code
     # an account database from before emails existed gets the column on start
     a = tc.app.state.auth
     with a.engine.begin() as c:
@@ -184,20 +184,20 @@ def test_user_email_unique_editable_and_migrated(make, outbox, auth_url):
 
 def test_mail_server_settings_and_test_email(make, outbox):
     tc = make(smtp_host='')
-    tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X)
-    r = tc.put('/api/admin/config', json=dict(smtp_host='mail.example.com', smtp_port='465', smtp_security='ssl', smtp_username='ms',
+    tc.post('/api/v1/auth/login', json=dict(username='admin', password=PW2), headers=X)
+    r = tc.put('/api/v1/admin/config', json=dict(smtp_host='mail.example.com', smtp_port='465', smtp_security='ssl', smtp_username='ms',
                                               smtp_password='smtp-secret-01', smtp_from='MoniShield <ms@example.com>'), headers=X)
     assert r.status_code == 200, r.text
     v = r.json()['smtp']
     assert v['smtp_host']['value'] == 'mail.example.com' and v['smtp_password'] == dict(set=True, source='file', env='SMTP_PASSWORD')
     assert 'smtp-secret-01' not in r.text
-    assert tc.put('/api/admin/config', json=dict(smtp_from='not an address'), headers=X).status_code == 400
-    r = tc.post('/api/admin/config/test', json=dict(kind='smtp'), headers=X)   # admin has no email yet
+    assert tc.put('/api/v1/admin/config', json=dict(smtp_from='not an address'), headers=X).status_code == 400
+    r = tc.post('/api/v1/admin/config/test', json=dict(kind='smtp'), headers=X)   # admin has no email yet
     assert r.status_code == 400 and r.json()['error']['code'] == 'mail_no_recipient'
     tc.app.state.cfg.smtp_security = 'starttls'   # the recorder speaks plain SMTP only
-    r = tc.post('/api/admin/config/test', json=dict(kind='smtp', to='ops@example.com', lang='en'), headers=X)
+    r = tc.post('/api/v1/admin/config/test', json=dict(kind='smtp', to='ops@example.com', lang='en'), headers=X)
     assert r.status_code == 200 and outbox[-1]['Subject'] == 'MoniShield email test' and outbox[-1]['To'] == 'ops@example.com'
-    assert tc.get('/api/auth/options').json() == dict(forgot_password=True)
+    assert tc.get('/api/v1/auth/options').json() == dict(forgot_password=True)
 
 
 # Own email change with verification (owner request 2026-10-08)
@@ -206,17 +206,17 @@ def code_from(m):
 
 
 def as_rina(tc):
-    assert tc.post('/api/auth/login', json=dict(username='rina', password=RINA_PW), headers=X).status_code == 200
-    assert tc.post('/api/me/password', json=dict(old_password=RINA_PW, new_password='rina-own-password-01'), headers=X).status_code == 200
+    assert tc.post('/api/v1/auth/login', json=dict(username='rina', password=RINA_PW), headers=X).status_code == 200
+    assert tc.post('/api/v1/me/password', json=dict(old_password=RINA_PW, new_password='rina-own-password-01'), headers=X).status_code == 200
 
 
 def test_own_email_change_needs_password_and_both_codes(make, outbox):
     tc = make()
     as_rina(tc)
-    assert tc.get('/api/me/email').json() == dict(email='rina@example.com', pending=None, mail_ready=True)
-    r = tc.post('/api/me/email/change', json=dict(new_email='rina.new@example.com', password='wrong'), headers=X)
+    assert tc.get('/api/v1/me/email').json() == dict(email='rina@example.com', pending=None, mail_ready=True)
+    r = tc.post('/api/v1/me/email/change', json=dict(new_email='rina.new@example.com', password='wrong'), headers=X)
     assert r.status_code == 403 and r.json()['error']['code'] == 'wrong_password' and not outbox
-    r = tc.post('/api/me/email/change', json=dict(new_email='Rina.New@example.com', password='rina-own-password-01'), headers=X)
+    r = tc.post('/api/v1/me/email/change', json=dict(new_email='Rina.New@example.com', password='rina-own-password-01'), headers=X)
     assert r.status_code == 200, r.text
     v = r.json()
     assert v['pending'] == dict(new_email='rina.new@example.com', needs_old=True, expires_at=v['pending']['expires_at'], by_admin=None)
@@ -225,39 +225,39 @@ def test_own_email_change_needs_password_and_both_codes(make, outbox):
     assert set(to) == {'rina@example.com', 'rina.new@example.com'} and outbox[0]['Subject'] == 'Kode verifikasi MoniShield Anda'
     old, new = code_from(to['rina@example.com']), code_from(to['rina.new@example.com'])
     assert old != new and old not in r.text and new not in r.text
-    r = tc.post('/api/me/email/change/confirm', json=dict(old_code=old, new_code='000000'), headers=X)
+    r = tc.post('/api/v1/me/email/change/confirm', json=dict(old_code=old, new_code='000000'), headers=X)
     assert r.status_code == 400 and r.json()['error']['code'] == 'wrong_code'
-    r = tc.post('/api/me/email/change/confirm', json=dict(old_code=old, new_code=new), headers=X)
+    r = tc.post('/api/v1/me/email/change/confirm', json=dict(old_code=old, new_code=new), headers=X)
     assert r.status_code == 200 and r.json()['email'] == 'rina.new@example.com'
     notice = outbox[-1]
     assert notice['To'] == 'rina@example.com' and notice['Subject'] == 'Email akun MoniShield Anda telah diganti'
     assert 'ri***@example.com' in notice.get_body(('plain',)).get_content()
-    assert tc.get('/api/me').json()['email'] == 'rina.new@example.com'
+    assert tc.get('/api/v1/me').json()['email'] == 'rina.new@example.com'
     audit = repr(tc.app.state.auth.audit_list(50))
     assert 'email.change_start' in audit and 'email.change_fail' in audit and "'email.change'" in audit and old not in audit and new not in audit
 
 
 def test_first_email_and_limits(make, outbox):
     tc = make()
-    assert tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X).status_code == 200
-    r = tc.post('/api/me/email/change', json=dict(new_email='rina@example.com', password=PW2), headers=X)
+    assert tc.post('/api/v1/auth/login', json=dict(username='admin', password=PW2), headers=X).status_code == 200
+    r = tc.post('/api/v1/me/email/change', json=dict(new_email='rina@example.com', password=PW2), headers=X)
     assert r.status_code == 409 and r.json()['error']['code'] == 'email_taken'
-    r = tc.post('/api/me/email/change', json=dict(new_email='admin@example.com', password=PW2), headers=X)
+    r = tc.post('/api/v1/me/email/change', json=dict(new_email='admin@example.com', password=PW2), headers=X)
     assert r.status_code == 200 and r.json()['pending']['needs_old'] is False and len(outbox) == 1   # no old address yet
     new = code_from(outbox[-1])
     for i in range(5):
-        assert tc.post('/api/me/email/change/confirm', json=dict(new_code='999999' if new != '999999' else '111111'), headers=X).status_code == 400
-    r = tc.post('/api/me/email/change/confirm', json=dict(new_code=new), headers=X)
+        assert tc.post('/api/v1/me/email/change/confirm', json=dict(new_code='999999' if new != '999999' else '111111'), headers=X).status_code == 400
+    r = tc.post('/api/v1/me/email/change/confirm', json=dict(new_code=new), headers=X)
     assert r.status_code == 429 and r.json()['error']['code'] == 'too_many_attempts'
-    assert tc.get('/api/me/email').json()['pending'] is None
+    assert tc.get('/api/v1/me/email').json()['pending'] is None
     # mail server refuses: nothing stays pending
     outbox.fail = smtplib.SMTPRecipientsRefused({'admin@example.com': (550, b'no')})
-    r = tc.post('/api/me/email/change', json=dict(new_email='admin@example.com', password=PW2), headers=X)
+    r = tc.post('/api/v1/me/email/change', json=dict(new_email='admin@example.com', password=PW2), headers=X)
     assert r.status_code == 424 and r.json()['error']['code'] == 'mail_failed'
-    assert tc.get('/api/me/email').json()['pending'] is None
+    assert tc.get('/api/v1/me/email').json()['pending'] is None
     outbox.fail = None
-    tc.post('/api/me/email/change', json=dict(new_email='admin@example.com', password=PW2), headers=X)
-    assert tc.delete('/api/me/email/change', headers=X).json()['pending'] is None
+    tc.post('/api/v1/me/email/change', json=dict(new_email='admin@example.com', password=PW2), headers=X)
+    assert tc.delete('/api/v1/me/email/change', headers=X).json()['pending'] is None
 
 
 def test_mail_logo_is_public(make, outbox):
@@ -279,15 +279,15 @@ def test_port_and_security_mismatch_is_explained(monkeypatch):
 def test_admin_enters_email_and_the_user_confirms_it(make, outbox):
     """Option B (owner decision 2026-10-12): an admin's new address for a user waits for the user's code."""
     tc = make()
-    tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X)
-    users = {u['username']: u for u in tc.get('/api/admin/users').json()['users']}
+    tc.post('/api/v1/auth/login', json=dict(username='admin', password=PW2), headers=X)
+    users = {u['username']: u for u in tc.get('/api/v1/admin/users').json()['users']}
     rid, aid = users['rina']['user_id'], users['admin']['user_id']
     body = dict(email='rina.new@example.com', password='wrong-admin-password', lang='id')
-    r = tc.post(f'/api/admin/users/{rid}/email/change', json=body, headers=X)
+    r = tc.post(f'/api/v1/admin/users/{rid}/email/change', json=body, headers=X)
     assert r.status_code == 403 and r.json()['error']['code'] == 'wrong_password' and not outbox
-    r = tc.post(f'/api/admin/users/{aid}/email/change', json=dict(body, password=PW2), headers=X)
+    r = tc.post(f'/api/v1/admin/users/{aid}/email/change', json=dict(body, password=PW2), headers=X)
     assert r.status_code == 409 and r.json()['error']['code'] == 'own_email'          # own email: Account email, with codes
-    r = tc.post(f'/api/admin/users/{rid}/email/change', json=dict(body, password=PW2), headers=X)
+    r = tc.post(f'/api/v1/admin/users/{rid}/email/change', json=dict(body, password=PW2), headers=X)
     assert r.status_code == 200, r.text
     u = r.json()
     assert (u['email'], u['email_pending'], u['email_pending_by']) == ('rina@example.com', 'rina.new@example.com', 'admin')
@@ -296,22 +296,22 @@ def test_admin_enters_email_and_the_user_confirms_it(make, outbox):
     assert 'Berlaku selama 24 jam' in outbox[0].get_body(('plain',)).get_content()
     assert code not in outbox[1].get_body(('plain',)).get_content() and 'ri***@example.com' in outbox[1].get_body(('plain',)).get_content()
     # the old address keeps working until the user confirms
-    tc.post('/api/auth/logout', headers=X)
+    tc.post('/api/v1/auth/logout', headers=X)
     as_rina(tc)
-    me = tc.get('/api/me').json()
+    me = tc.get('/api/v1/me').json()
     assert me['email'] == 'rina@example.com' and me['email_pending'] == 'rina.new@example.com'
-    p = tc.get('/api/me/email').json()['pending']
+    p = tc.get('/api/v1/me/email').json()['pending']
     assert p['needs_old'] is False and p['by_admin'] == 'admin'
-    assert tc.post('/api/me/email/change/confirm', json=dict(new_code='000000'), headers=X).json()['error']['code'] == 'wrong_code'
-    r = tc.post('/api/me/email/change/confirm', json=dict(new_code=code), headers=X)
+    assert tc.post('/api/v1/me/email/change/confirm', json=dict(new_code='000000'), headers=X).json()['error']['code'] == 'wrong_code'
+    r = tc.post('/api/v1/me/email/change/confirm', json=dict(new_code=code), headers=X)
     assert r.status_code == 200 and r.json()['email'] == 'rina.new@example.com'
     assert outbox[-1]['To'] == 'rina@example.com'                                       # changed: notice to the old address
-    assert tc.get('/api/me').json()['email_pending'] is None
+    assert tc.get('/api/v1/me').json()['email_pending'] is None
     # an admin can withdraw a waiting address
-    tc.post('/api/auth/logout', headers=X)
-    tc.post('/api/auth/login', json=dict(username='admin', password=PW2), headers=X)
-    assert tc.post(f'/api/admin/users/{rid}/email/change', json=dict(body, email='rina.other@example.com', password=PW2), headers=X).status_code == 200
-    r = tc.delete(f'/api/admin/users/{rid}/email/change', headers=X)
+    tc.post('/api/v1/auth/logout', headers=X)
+    tc.post('/api/v1/auth/login', json=dict(username='admin', password=PW2), headers=X)
+    assert tc.post(f'/api/v1/admin/users/{rid}/email/change', json=dict(body, email='rina.other@example.com', password=PW2), headers=X).status_code == 200
+    r = tc.delete(f'/api/v1/admin/users/{rid}/email/change', headers=X)
     assert r.status_code == 200 and r.json()['email_pending'] is None and r.json()['email'] == 'rina.new@example.com'
-    log = [x['detail'] or '' for x in tc.get('/api/admin/audit').json()['rows']]
+    log = [x['detail'] or '' for x in tc.get('/api/v1/admin/audit').json()['rows']]
     assert any('entered by an admin' in d for d in log) and any('cancelled by admin admin' in d for d in log)

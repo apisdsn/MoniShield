@@ -54,7 +54,7 @@ def write(ctx, values):
 
 
 def update(ctx, body):
-    """PUT /api/admin/config. -> changed groups (e.g. 'kafka': the consumer needs a restart)."""
+    """PUT /api/v1/admin/config. -> changed groups (e.g. 'kafka': the consumer needs a restart)."""
     return rules.groups_of(write(ctx, rules.screen_values(ctx.cfg, body)))
 
 

@@ -1,10 +1,11 @@
 <!-- The log inputs of a collector (Collectors page, step 6): which files, journal, containers or Windows channels it sends.
-     Only the options the platform really has are shown, and only log inputs (host metrics and endpoint checks come later).
+     Only the options the platform really has are shown. A second group, Metrics, switches on the server metrics (every platform) and the
+     container metrics (Docker hosts only; the reason is shown on the other platforms).
      `o` is edited in place (bindable); `show` makes empty fields count as mistakes (after "Create" was pressed). The server
      checks everything again (collector_config.py); the rules here are the same (collectors.js). -->
 <script>
   import { t } from '../i18n.js';
-  import { CHANNELS, MAX_FILES, checkOptions, parseUnits } from '../collectors.js';
+  import { CHANNELS, MAX_FILES, checkOptions, containerMetricsOff, parseUnits } from '../collectors.js';
   import Icon from './Icon.svelte';
   let { platform, o = $bindable(), show = false, idp = 'cf' } = $props();
 
@@ -16,6 +17,8 @@
     return e === 'empty' && !show ? '' : $t(k === 'path' ? `cl.err.path.${e}` : `cl.err.service.${e}`);
   };
   const noneErr = $derived(errs.none && show ? $t('cl.err.no_inputs') : '');
+  const noContainers = $derived(containerMetricsOff(platform));
+  const anyMetrics = $derived(!!o.host_metrics || (platform === 'docker' && !!o.container_metrics));
   const unitsErr = $derived(errs.units ? $t(`cl.err.${errs.units}`) : '');
   let unitsText = $state((o.units || []).join(' '));
   const PH = $derived(platform === 'windows' ? 'C:\\inetpub\\logs\\*.log' : '/var/log/app/*.log');
@@ -81,6 +84,18 @@
   </fieldset>
 {/if}
 
+<fieldset class="grp met">
+  <legend>{$t('cl.f.metrics')}</legend>
+  <label class="check"><input type="checkbox" bind:checked={o.host_metrics} /> {$t('cl.f.host_metrics')}</label>
+  <p class="hint indent">{$t(platform === 'kubernetes' ? 'cl.f.host_metrics_hint.kubernetes' : platform === 'windows' ? 'cl.f.host_metrics_hint.windows' : 'cl.f.host_metrics_hint')}</p>
+  <label class="check" class:off={!!noContainers}>
+    <input type="checkbox" checked={platform === 'docker' && !!o.container_metrics} disabled={!!noContainers} onchange={(e) => { if (!noContainers) o.container_metrics = e.currentTarget.checked; }}
+      aria-describedby={noContainers ? `${idp}-cm-why` : undefined} /> {$t('cl.f.container_metrics')}
+  </label>
+  <p class="hint indent" id="{idp}-cm-why">{noContainers ? $t(`cl.f.container_metrics_off.${noContainers}`) : $t('cl.f.container_metrics_hint')}</p>
+  <p class="store" role="note">{anyMetrics ? $t('cl.f.metrics_store') : $t('cl.f.metrics_none')}</p>
+</fieldset>
+
 <style>
   .note { margin: 6px 0 0; font-size: 0.875rem; }
   .grp { border: 0; padding: 0; margin: 0; min-width: 0; }
@@ -91,6 +106,10 @@
   .check { display: flex; align-items: center; gap: 10px; min-height: var(--touch); font-size: 0.9375rem; color: var(--fg); cursor: pointer; }
   .check input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
   .indent { margin-left: 28px; }
+  .met { margin-top: 18px; }
+  .check.off { cursor: not-allowed; color: var(--muted); }
+  .check.off input { cursor: not-allowed; }
+  .store { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--bg2); border: 1px solid var(--line); font-size: 0.8125rem; color: var(--muted); line-height: 1.55; }
   .lbl { display: block; font-size: 0.8125rem; color: var(--kpi-label); margin-top: 2px; }
   .hint { margin: 4px 0 0; font-size: 0.8125rem; color: var(--muted); }
   .err { margin: 4px 0 0; font-size: 0.8125rem; color: var(--err); }

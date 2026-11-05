@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from monishield.application import ingest_service
 from .common import DATE, ApiError, client_ip, require_admin, require_admin_or_job, source_ctx
 
-router = APIRouter(prefix='/api/admin')
+router = APIRouter(prefix='/api/v1/admin')
 
 
 class IngestBody(BaseModel):

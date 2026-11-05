@@ -162,6 +162,7 @@ class Collector(Base):
     revoked_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
     revoked_by: Mapped[str | None] = mapped_column(String(40))
     options: Mapped[str | None] = mapped_column(Text)   # JSON: the log inputs the admin chose (domain/collector_config.py); NULL = defaults
+    group_name: Mapped[str | None] = mapped_column(String(40))   # the section it is listed under on the Collectors and Servers pages; NULL = no group
 
 
 def now(): return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None, microsecond=0)   # all times UTC
@@ -201,6 +202,8 @@ class Auth:
                 c.execute(text('ALTER TABLE email_change ADD COLUMN requested_by VARCHAR(64)'))
             if 'options' not in {x['name'] for x in inspect(c).get_columns('collector')}:
                 c.execute(text('ALTER TABLE collector ADD COLUMN options TEXT'))
+            if 'group_name' not in {x['name'] for x in inspect(c).get_columns('collector')}:
+                c.execute(text('ALTER TABLE collector ADD COLUMN group_name VARCHAR(40)'))
 
     @contextlib.contextmanager
     def _tx(self):
@@ -637,7 +640,7 @@ class Auth:
         t = now()
         return dict(id=c.id, name=c.name, platform=c.platform, status=collectors.status(t, c.enrolled_at, c.last_seen, c.revoked_at),
                     created_at=iso(c.created_at), created_by=c.created_by, enrolled_at=iso(c.enrolled_at), last_seen=iso(c.last_seen),
-                    last_ip=c.last_ip, version=c.version, options=json.loads(c.options) if c.options else None, revoked_at=iso(c.revoked_at), revoked_by=c.revoked_by,
+                    last_ip=c.last_ip, version=c.version, options=json.loads(c.options) if c.options else None, group=c.group_name or '', revoked_at=iso(c.revoked_at), revoked_by=c.revoked_by,
                     enroll_expires=iso(c.enroll_expires) if c.enroll_hash and c.enroll_expires and c.enroll_expires > t else None,
                     previous_valid_until=iso(c.prev_until) if c.prev_key_hash and c.prev_until and c.prev_until > t else None)
 
@@ -652,10 +655,10 @@ class Auth:
         c.enroll_hash, c.enroll_expires = collectors.secret_hash(secret), now() + datetime.timedelta(hours=collectors.ENROLL_HOURS)
         return text
 
-    def collector_create(self, name, platform, by=None, ip=None, options=None):
+    def collector_create(self, name, platform, by=None, ip=None, options=None, group=''):
         with self._tx() as s:
             c = Collector(name=name, platform=platform, created_at=now(), created_by=(by or {}).get('username'),
-                          options=json.dumps(options) if options is not None else None)
+                          options=json.dumps(options) if options is not None else None, group_name=group or None)
             s.add(c)
             try: s.flush()
             except IntegrityError:
@@ -663,6 +666,18 @@ class Auth:
             token = self._new_enroll_token(c)
             self._audit(s, 'collector.add', by, f'{name} ({platform})', ip)
             return self._collector(c), token
+
+    def collector_set_group(self, cid, group, by=None, ip=None):
+        with self._tx() as s:
+            c = self._collector_row(s, cid)
+            if (c.group_name or '') != group:
+                self._audit(s, 'collector.group', by, f"{c.name}: {c.group_name or '-'} -> {group or '-'}", ip)
+                c.group_name = group or None
+            return self._collector(c)
+
+    def collector_groups(self):
+        """The distinct group names in use."""
+        with self._tx() as s: return sorted({g for (g,) in s.execute(select(Collector.group_name).where(Collector.group_name.is_not(None)).distinct()) if g}, key=str.lower)
 
     def collector_list(self):
         with self._tx() as s: return [self._collector(c) for c in s.scalars(select(Collector).order_by(Collector.name))]

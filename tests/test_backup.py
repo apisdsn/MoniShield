@@ -34,8 +34,8 @@ def cfg(tmp_path, auth_url):
 def client(cfg, monkeypatch):
     monkeypatch.setattr(accounts, 'SCRYPT', (10, 8, 1))
     with TestClient(appmod.create_app(cfg)) as tc:
-        assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
-        assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+        assert tc.post('/api/v1/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
+        assert tc.post('/api/v1/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
         yield tc
 
 
@@ -47,13 +47,14 @@ def test_next_daily_run_is_the_next_hour_in_wib():
 
 
 def test_backup_now_writes_private_copies_of_all_databases_and_the_accounts(client, cfg):
-    r = client.post('/api/admin/backup/run', headers=X)
+    client.app.state.metrics.add(7, [('web-1', '', 'cpu', '', datetime.datetime(2026, 10, 27, 1, 0, tzinfo=datetime.timezone.utc), 12.5)], {}, datetime.datetime(2026, 10, 27, 1, 0, tzinfo=datetime.timezone.utc))
+    r = client.post('/api/v1/admin/backup/run', headers=X)
     assert r.status_code == 200, r.text
     s = r.json()
     day = s['last']['day']
     assert s['last']['ok'] and s['backups'][0]['day'] == day and s['next']
     folder = os.path.join(cfg.backup_path, day)
-    assert sorted(os.listdir(folder)) == ['accounts.json.gz', 'collector.duckdb.gz', 'kafka.duckdb.gz', 'manifest.json', 's3.duckdb.gz']
+    assert sorted(os.listdir(folder)) == ['accounts.json.gz', 'collector.duckdb.gz', 'kafka.duckdb.gz', 'manifest.json', 'metrics.duckdb.gz', 's3.duckdb.gz']
     assert stat.S_IMODE(os.stat(folder).st_mode) == 0o700
     assert all(stat.S_IMODE(os.stat(os.path.join(folder, f)).st_mode) == 0o600 for f in os.listdir(folder))   # password hashes, IPs
     man = json.load(open(os.path.join(folder, 'manifest.json')))
@@ -64,6 +65,11 @@ def test_backup_now_writes_private_copies_of_all_databases_and_the_accounts(clie
     c = duckdb.connect(copy, read_only=True)
     assert c.execute('SELECT folder::VARCHAR, lines FROM folder_state ORDER BY 1').fetchall() == live and live
     c.close()
+    mcopy = str(cfg.data_dir) + '/check-metrics.duckdb'
+    with gzip.open(os.path.join(folder, 'metrics.duckdb.gz'), 'rb') as a, open(mcopy, 'wb') as b: shutil.copyfileobj(a, b)
+    c = duckdb.connect(mcopy, read_only=True)
+    assert c.execute('SELECT cid, host, name, v FROM metric_point').fetchall() == [(7, 'web-1', 'cpu', 12.5)]
+    c.close()
     acc = json.load(gzip.open(os.path.join(folder, 'accounts.json.gz'), 'rt'))['tables']
     assert [u['username'] for u in acc['app_user']] == ['admin'] and acc['app_user'][0]['password_hash']
 
@@ -72,7 +78,7 @@ def test_machine_token_can_start_a_backup_and_old_ones_are_pruned(client, cfg):
     for d in ('2026-01-01', '2026-01-02', '2026-01-03'):   # older backups
         os.makedirs(os.path.join(cfg.backup_path, d))
         json.dump(dict(day=d, files={'s3.duckdb.gz': dict(bytes=1, sha256='x')}), open(os.path.join(cfg.backup_path, d, 'manifest.json'), 'w'))
-    r = client.post('/api/admin/backup/run', headers={'Authorization': f'Bearer {JOB}'})
+    r = client.post('/api/v1/admin/backup/run', headers={'Authorization': f'Bearer {JOB}'})
     assert r.status_code == 200, r.text
     assert [b['day'] for b in r.json()['backups']] == [r.json()['last']['day'], '2026-01-03']   # backup_keep=2
     assert r.json()['last']['pruned'] == ['2026-01-02', '2026-01-01']
@@ -99,21 +105,21 @@ def test_a_failed_backup_is_reported_and_notified(client, monkeypatch):
     monkeypatch.setattr('monishield.domain.alerts.active', lambda cfg: True)
     def boom(*a, **k): raise OSError(28, 'No space left on device')
     monkeypatch.setattr(client.app.state.backups, 'make', boom)
-    r = client.post('/api/admin/backup/run', headers=X)
+    r = client.post('/api/v1/admin/backup/run', headers=X)
     assert r.status_code == 500 and 'No space left on device' in r.json()['error']['message']
-    last = client.get('/api/admin/backup', headers=X).json()['last']
+    last = client.get('/api/v1/admin/backup', headers=X).json()['last']
     assert last['ok'] is False and 'No space left' in last['error']
     assert sent and sent[0][1] == 'backup_failed' and sent[0][0].startswith('backup_failed:') and 'No space left' in sent[0][3]
 
 
 def test_restore_puts_databases_back_and_refills_an_empty_account_database(client, cfg, tmp_path):
-    day = client.post('/api/admin/backup/run', headers=X).json()['last']['day']
+    day = client.post('/api/v1/admin/backup/run', headers=X).json()['last']['day']
     folder = os.path.join(cfg.backup_path, day)
     client.__exit__(None, None, None)   # server stopped: DuckDB has one owner
     live = duckdb.connect(cfg.db_path); live.execute('DELETE FROM folder_state'); live.close()   # an accident after the backup
     engine = create_engine('sqlite:///' + str(tmp_path / 'new-auth.db')); Base.metadata.create_all(engine)
     r = backup.restore(cfg, folder, engine, Base.metadata)
-    assert r['accounts']['app_user'] == 1 and r['s3'] == cfg.db_path and os.path.exists(cfg.db_path + '.before-restore')
+    assert r['accounts']['app_user'] == 1 and r['s3'] == cfg.db_path and r['metrics'] == cfg.metrics_db_path and os.path.exists(cfg.db_path + '.before-restore')
     c = duckdb.connect(cfg.db_path, read_only=True); assert c.execute('SELECT count(*) FROM folder_state').fetchone()[0] > 0; c.close()
     with engine.connect() as k: assert k.exec_driver_sql('SELECT username FROM app_user').fetchall() == [('admin',)]
     with pytest.raises(Fail) as e: backup.restore(cfg, folder, engine, Base.metadata, databases=False)   # not empty any more

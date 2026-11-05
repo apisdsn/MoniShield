@@ -2,6 +2,7 @@
      returns focus). The list is placed `position: fixed` from the button position, so it is not clipped by a scrolling
      table container. Items not offered stay visible, disabled, with their reason (aria-disabled + text). -->
 <script>
+  import { restoreFocus } from './focus.js';
   import { tick } from 'svelte';
   /** items: [{label, onpick, disabled?: reason text, danger?}] */
   let { label, items = [], btn = $bindable() } = $props();
@@ -16,7 +17,7 @@
     open = true;
     await tick(); els()[0]?.focus();
   }
-  function close(refocus = true) { open = false; if (refocus) btn?.focus(); }
+  function close(refocus = true) { open = false; if (refocus) restoreFocus(btn); }
   function onkey(e) {
     const a = els(), i = a.indexOf(document.activeElement);
     if (e.key === 'Escape') { e.preventDefault(); close(); }

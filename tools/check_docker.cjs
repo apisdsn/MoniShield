@@ -39,7 +39,7 @@ const check = (n, ok, info = '') => { results.push(!!ok); console.log(`${ok ? 'P
     return ok;
   };
   check('overview: KPIs shown', await open('/overview', 'main .kpi', 'overview'));
-  const folders = await p.evaluate(() => fetch('/api/meta').then((r) => r.json()).then((m) => (m.folders || []).length));
+  const folders = await p.evaluate(() => fetch('/api/v1/meta').then((r) => r.json()).then((m) => (m.folders || []).length));
   check('all ingested folders readable from the volume', folders >= 1, `${folders} folders`);
   check('nginx service page', await open('/services/nginx-ingress-controller', 'main table', 'service'));
   check('Command Center: MapLibre map', await open('/command-center', 'main canvas.maplibregl-canvas', 'command-center'));

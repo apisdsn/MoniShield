@@ -8,7 +8,7 @@
 		max_size 10MB   # a little above S4_COLLECTOR_MAX_BODY_MB (default 8)
 	}
 
-	@receiver path /api/collector/* /collector/install.sh /collector/install.ps1
+	@receiver path /api/v1/collector/* /collector/install.sh /collector/install.ps1
 	handle @receiver {
 		reverse_proxy app:8000 {
 			header_up -Cf-Connecting-Ip   # a collector is no Cloudflare edge: never pass this header on

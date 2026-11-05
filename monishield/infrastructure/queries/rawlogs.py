@@ -139,7 +139,7 @@ def _roots(cfg): return [cfg.log_dir, cfg.inbox_dir]
 
 
 def search(cur, cfg, folder, params):
-    """GET /api/folders/{folder}/raw: one page of matching entries + per-service counts."""
+    """GET /api/v1/folders/{folder}/raw: one page of matching entries + per-service counts."""
     q = rawlog.query_from(params, folder, timezone.current())
     try: limit = max(1, min(int(params.get('limit') or 200), rawlog.MAX_LIMIT)); offset = max(0, int(params.get('offset') or 0))
     except ValueError: raise reject(400, 'invalid_parameter', 'limit and offset are numbers.') from None
@@ -160,7 +160,7 @@ def _oldest_first(hits):
 
 
 def download(cur, cfg, folder, params):
-    """GET /api/folders/{folder}/raw/download: every matching entry (up to 100,000), oldest first, as grep -n prints them:
+    """GET /api/v1/folders/{folder}/raw/download: every matching entry (up to 100,000), oldest first, as grep -n prints them:
     `<file>:<line>: <text>`."""
     q = rawlog.query_from(params, folder, timezone.current())
     r = run(cur, _roots(cfg), folder, q, keep=DOWNLOAD_MAX, budget=BUDGET_SECONDS * 3, newest_first=False)
@@ -171,7 +171,7 @@ def download(cur, cfg, folder, params):
 
 
 def context(cur, cfg, folder, params):
-    """GET /api/folders/{folder}/raw/context?file=&line=&n=: the entries around one line of one file of the folder."""
+    """GET /api/v1/folders/{folder}/raw/context?file=&line=&n=: the entries around one line of one file of the folder."""
     rel = params.get('file') or ''
     f = next((x for x in folder_files(_roots(cfg), folder) if x['relpath'] == rel), None)   # only a file of this folder
     if f is None: raise reject(404, 'not_found', 'File not found.')

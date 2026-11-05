@@ -57,13 +57,13 @@ def test_status_boundaries():
 
 # Store and API
 def add(tc, name='web-01', platform='linux'):
-    r = tc.post('/api/admin/collectors', json=dict(name=name, platform=platform), headers=X)
+    r = tc.post('/api/v1/admin/collectors', json=dict(name=name, platform=platform), headers=X)
     assert r.status_code == 201, r.text
     return r.json()
 
 
 def enroll(tc, token, **kw):
-    return tc.post('/api/collector/enroll', json=dict(token=token), headers={**ENROLL_H, **kw.get('headers', {})})
+    return tc.post('/api/v1/collector/enroll', json=dict(token=token), headers={**ENROLL_H, **kw.get('headers', {})})
 
 
 def shift(monkeypatch, **delta):
@@ -71,12 +71,12 @@ def shift(monkeypatch, **delta):
     monkeypatch.setattr(authmod, 'now', lambda: real() + datetime.timedelta(**delta))
 
 
-def audit_rows(tc): return tc.get('/api/admin/audit?limit=500').json()['rows']
+def audit_rows(tc): return tc.get('/api/v1/admin/audit?limit=500').json()['rows']
 
 
 def test_create_enroll_once(client):
     admin(client)
-    r = client.post('/api/admin/collectors', json=dict(name='web-01', platform='linux'), headers=X)
+    r = client.post('/api/v1/admin/collectors', json=dict(name='web-01', platform='linux'), headers=X)
     body = r.json()
     assert r.headers['cache-control'] == 'no-store' and body['collector']['status'] == 'waiting' and body['enroll_token'].startswith('mse_')
     assert body['expires'] == body['collector']['enroll_expires'] and not any('hash' in k for k in body['collector'])
@@ -88,7 +88,7 @@ def test_create_enroll_once(client):
     second = enroll(anon, body['enroll_token'])
     assert (second.status_code, error_code(second)) == (401, 'invalid_enrollment_token')
     assert second.json()['error']['message'] == 'Enrollment token is not valid.'
-    row = client.get('/api/admin/collectors').json()['rows'][0]
+    row = client.get('/api/v1/admin/collectors').json()['rows'][0]
     assert row['status'] == 'online' and row['enroll_expires'] is None and row['enrolled_at'] and len(row['version']) == 80
     assert client.app.state.auth.collector_check(got['key'])['name'] == 'web-01'
 
@@ -96,10 +96,10 @@ def test_create_enroll_once(client):
 def test_create_validation_and_unique_name(client):
     admin(client)
     add(client)
-    r = client.post('/api/admin/collectors', json=dict(name='web-01', platform='docker'), headers=X)
+    r = client.post('/api/v1/admin/collectors', json=dict(name='web-01', platform='docker'), headers=X)
     assert (r.status_code, error_code(r)) == (409, 'name_taken')
-    assert error_code(client.post('/api/admin/collectors', json=dict(name='Bad Name', platform='linux'), headers=X)) == 'invalid_name'
-    assert error_code(client.post('/api/admin/collectors', json=dict(name='ok', platform='mac'), headers=X)) == 'invalid_platform'
+    assert error_code(client.post('/api/v1/admin/collectors', json=dict(name='Bad Name', platform='linux'), headers=X)) == 'invalid_name'
+    assert error_code(client.post('/api/v1/admin/collectors', json=dict(name='ok', platform='mac'), headers=X)) == 'invalid_platform'
 
 
 def test_expired_token_fails(client, monkeypatch):
@@ -114,14 +114,14 @@ def test_new_token_replaces_old_and_only_before_enrolling(client):
     admin(client)
     c = add(client)
     cid, old = c['collector']['id'], c['enroll_token']
-    r = client.post(f'/api/admin/collectors/{cid}/token', headers=X)
+    r = client.post(f'/api/v1/admin/collectors/{cid}/token', headers=X)
     assert r.status_code == 200 and r.headers['cache-control'] == 'no-store' and set(r.json()) == {'enroll_token', 'expires'}
     anon = TestClient(client.app)
     assert enroll(anon, old).status_code == 401                                      # the first token no longer works
     assert enroll(anon, r.json()['enroll_token']).status_code == 200
-    r = client.post(f'/api/admin/collectors/{cid}/token', headers=X)
+    r = client.post(f'/api/v1/admin/collectors/{cid}/token', headers=X)
     assert (r.status_code, error_code(r)) == (409, 'collector_enrolled')
-    assert client.post('/api/admin/collectors/999/token', headers=X).status_code == 404
+    assert client.post('/api/v1/admin/collectors/999/token', headers=X).status_code == 404
 
 
 def test_wrong_tokens_share_one_error_and_count_toward_the_ip_limit(client):
@@ -134,7 +134,7 @@ def test_wrong_tokens_share_one_error_and_count_toward_the_ip_limit(client):
     for _ in range(authmod.IP_MAX_FAILED - 4): assert enroll(anon, 'garbage').status_code == 401
     r = enroll(anon, good)                                                           # the valid token is refused for this IP now
     assert (r.status_code, error_code(r)) == (429, 'too_many_attempts')
-    assert client.get('/api/admin/collectors').json()['rows'][0]['status'] == 'waiting'
+    assert client.get('/api/v1/admin/collectors').json()['rows'][0]['status'] == 'waiting'
 
 
 def test_throttle_is_shared_with_login(client):
@@ -142,7 +142,7 @@ def test_throttle_is_shared_with_login(client):
     good = add(client)['enroll_token']
     anon = TestClient(client.app)
     for _ in range(authmod.IP_MAX_FAILED):
-        anon.post('/api/auth/login', json=dict(username='nobody', password='wrong-password'), headers=X)
+        anon.post('/api/v1/auth/login', json=dict(username='nobody', password='wrong-password'), headers=X)
     assert error_code(enroll(anon, good)) == 'too_many_attempts'
 
 
@@ -154,7 +154,7 @@ def test_check_rotate_and_grace(client, monkeypatch):
     store = client.app.state.auth
     assert store.collector_check(key1)['id'] == cid
     assert store.collector_check(key1[:-1] + ('A' if key1[-1] != 'A' else 'B')) is None and store.collector_check('junk') is None
-    r = client.post(f'/api/admin/collectors/{cid}/rotate', headers=X)
+    r = client.post(f'/api/v1/admin/collectors/{cid}/rotate', headers=X)
     assert r.status_code == 200 and r.headers['cache-control'] == 'no-store'
     key2, until = r.json()['key'], r.json()['previous_valid_until']
     assert key2 != key1 and until
@@ -167,11 +167,11 @@ def test_check_rotate_and_grace(client, monkeypatch):
 def test_rotate_needs_an_enrolled_collector(client):
     admin(client)
     cid = add(client)['collector']['id']
-    assert error_code(client.post(f'/api/admin/collectors/{cid}/rotate', headers=X)) == 'collector_not_enrolled'
-    client.post(f'/api/admin/collectors/{cid}/revoke', headers=X)
-    assert error_code(client.post(f'/api/admin/collectors/{cid}/rotate', headers=X)) == 'collector_revoked'
-    assert error_code(client.post(f'/api/admin/collectors/{cid}/token', headers=X)) == 'collector_revoked'
-    assert error_code(client.post(f'/api/admin/collectors/{cid}/revoke', headers=X)) == 'collector_revoked'
+    assert error_code(client.post(f'/api/v1/admin/collectors/{cid}/rotate', headers=X)) == 'collector_not_enrolled'
+    client.post(f'/api/v1/admin/collectors/{cid}/revoke', headers=X)
+    assert error_code(client.post(f'/api/v1/admin/collectors/{cid}/rotate', headers=X)) == 'collector_revoked'
+    assert error_code(client.post(f'/api/v1/admin/collectors/{cid}/token', headers=X)) == 'collector_revoked'
+    assert error_code(client.post(f'/api/v1/admin/collectors/{cid}/revoke', headers=X)) == 'collector_revoked'
 
 
 def test_revoke_refuses_both_keys_and_the_token(client):
@@ -179,13 +179,13 @@ def test_revoke_refuses_both_keys_and_the_token(client):
     c = add(client)
     cid = c['collector']['id']
     key1 = enroll(TestClient(client.app), c['enroll_token']).json()['key']
-    key2 = client.post(f'/api/admin/collectors/{cid}/rotate', headers=X).json()['key']
-    r = client.post(f'/api/admin/collectors/{cid}/revoke', headers=X)
+    key2 = client.post(f'/api/v1/admin/collectors/{cid}/rotate', headers=X).json()['key']
+    r = client.post(f'/api/v1/admin/collectors/{cid}/revoke', headers=X)
     assert r.status_code == 200 and r.json()['collector']['status'] == 'revoked' and r.json()['collector']['revoked_by'] == 'admin'
     store = client.app.state.auth
     assert store.collector_check(key1) is None and store.collector_check(key2) is None
     other = add(client, 'web-02')
-    client.post(f"/api/admin/collectors/{other['collector']['id']}/revoke", headers=X)
+    client.post(f"/api/v1/admin/collectors/{other['collector']['id']}/revoke", headers=X)
     assert enroll(TestClient(client.app), other['enroll_token']).status_code == 401  # a revoked collector cannot enroll
 
 
@@ -194,27 +194,27 @@ def test_delete_only_after_revoke_or_before_enrolling(client):
     c = add(client)
     cid = c['collector']['id']
     enroll(TestClient(client.app), c['enroll_token'])
-    r = client.delete(f'/api/admin/collectors/{cid}', headers=X)
+    r = client.delete(f'/api/v1/admin/collectors/{cid}', headers=X)
     assert (r.status_code, error_code(r)) == (409, 'collector_active')
-    client.post(f'/api/admin/collectors/{cid}/revoke', headers=X)
-    assert client.delete(f'/api/admin/collectors/{cid}', headers=X).json() == {'ok': True}
-    assert client.get('/api/admin/collectors').json()['rows'] == []
-    assert client.delete(f'/api/admin/collectors/{cid}', headers=X).status_code == 404
+    client.post(f'/api/v1/admin/collectors/{cid}/revoke', headers=X)
+    assert client.delete(f'/api/v1/admin/collectors/{cid}', headers=X).json() == {'ok': True}
+    assert client.get('/api/v1/admin/collectors').json()['rows'] == []
+    assert client.delete(f'/api/v1/admin/collectors/{cid}', headers=X).status_code == 404
     never = add(client, 'never')                                                     # never enrolled: may be deleted right away
-    assert client.delete(f"/api/admin/collectors/{never['collector']['id']}", headers=X).status_code == 200
+    assert client.delete(f"/api/v1/admin/collectors/{never['collector']['id']}", headers=X).status_code == 200
 
 
 def test_roles_and_csrf(client):
     admin(client); make_user(client)
     user = as_user(client, 'rina', 'rina-initial-password-123')
     anon = TestClient(client.app)
-    for method, path in (('get', '/api/admin/collectors'), ('post', '/api/admin/collectors'), ('post', '/api/admin/collectors/1/token'),
-                         ('post', '/api/admin/collectors/1/rotate'), ('post', '/api/admin/collectors/1/revoke'), ('delete', '/api/admin/collectors/1')):
+    for method, path in (('get', '/api/v1/admin/collectors'), ('post', '/api/v1/admin/collectors'), ('post', '/api/v1/admin/collectors/1/token'),
+                         ('post', '/api/v1/admin/collectors/1/rotate'), ('post', '/api/v1/admin/collectors/1/revoke'), ('delete', '/api/v1/admin/collectors/1')):
         for tc, status, code in ((user, 403, 'forbidden'), (anon, 401, 'unauthenticated')):
             r = getattr(tc, method)(path, headers=X, **({} if method in ('get', 'delete') else dict(json={})))
             assert (r.status_code, error_code(r)) == (status, code), (method, path)
     token = add(client)['enroll_token']
-    r = anon.post('/api/collector/enroll', json=dict(token=token))                   # no X-Requested-With
+    r = anon.post('/api/v1/collector/enroll', json=dict(token=token))                   # no X-Requested-With
     assert (r.status_code, error_code(r)) == (403, 'csrf')
     assert enroll(anon, token).status_code == 200                                    # the refused call did not use the token
 
@@ -225,14 +225,14 @@ def test_audit_has_the_actions_and_never_a_secret(client):
     c = add(client)
     cid = c['collector']['id']
     secrets_seen.append(c['enroll_token'])
-    t2 = client.post(f'/api/admin/collectors/{cid}/token', headers=X).json()['enroll_token']
+    t2 = client.post(f'/api/v1/admin/collectors/{cid}/token', headers=X).json()['enroll_token']
     secrets_seen.append(t2)
     e = enroll(TestClient(client.app), t2, headers={'User-Agent': 'otelcol/1.0'}).json()
     secrets_seen.append(e['key'])
-    secrets_seen.append(client.post(f'/api/admin/collectors/{cid}/rotate', headers=X).json()['key'])
+    secrets_seen.append(client.post(f'/api/v1/admin/collectors/{cid}/rotate', headers=X).json()['key'])
     enroll(TestClient(client.app), c['enroll_token'])                                # a failed attempt with a real-looking token
-    client.post(f'/api/admin/collectors/{cid}/revoke', headers=X)
-    client.delete(f'/api/admin/collectors/{cid}', headers=X)
+    client.post(f'/api/v1/admin/collectors/{cid}/revoke', headers=X)
+    client.delete(f'/api/v1/admin/collectors/{cid}', headers=X)
     rows = audit_rows(client)
     actions = {r['action'] for r in rows}
     assert {'collector.add', 'collector.token', 'collector.enroll', 'collector.enroll_fail', 'collector.rotate', 'collector.revoke', 'collector.delete'} <= actions

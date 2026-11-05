@@ -1,7 +1,7 @@
 <!-- Configuration (owner request 2026-10-07: one page for all credentials), admin only. One place for:
      AWS S3 credentials + region, automatic S3 parent folder, MaxMind GeoLite2 key, notifications (Telegram/Discord/email),
-     blocklist exclusions, and the status of keys that can only be set via .env. API: /api/admin/config (monishield/
-     settings.py), /api/admin/imports/watch, /api/admin/alerts. Secrets are never sent back by the server: their fields
+     blocklist exclusions, and the status of keys that can only be set via .env. API: /api/v1/admin/config (monishield/
+     settings.py), /api/v1/admin/imports/watch, /api/v1/admin/alerts. Secrets are never sent back by the server: their fields
      show "already set"; left empty on save = unchanged; "Remove from .env" = line disabled (default).
      Every field is WRITTEN TO THE server's .env FILE (owner request 2026-10-07) and takes effect immediately without a restart.
      Since 2026-10-08 each part opens as a pop-up from the sidebar (lib/ConfigDialogs.svelte): only = storage | kafka |
@@ -69,7 +69,7 @@
   }
   async function loadImp() {
     try {
-      imp = await api.get('/api/admin/imports');
+      imp = await api.get('/api/v1/admin/imports');
       if (imp.watch) wf = { url: imp.watch.url || '', minutes: imp.watch.minutes || 60 };
     } catch { imp = null; }
   }
@@ -84,14 +84,14 @@
     if (smTyped() && !(await save('smtp', smBody()))) return;   // the test uses the SAVED settings
     busy = 'smtp-test'; msg = { ...msg, smtp: null };
     try {
-      const r = await api.post('/api/admin/config/test', { kind: 'smtp', to: smTo.trim() || null, lang: $lang });
+      const r = await api.post('/api/v1/admin/config/test', { kind: 'smtp', to: smTo.trim() || null, lang: $lang });
       msg = { ...msg, smtp: { ok: true, text: $t(r.note ? 'cf.sm.test_note' : 'cf.sm.test_ok', { to: r.to }) } };
     } catch (e) { msg = { ...msg, smtp: { ok: false, text: $errText(e) } }; }
     finally { busy = ''; }
   }
-  async function loadRet() { try { rplan = await api.get('/api/admin/retention'); } catch { rplan = null; } }
+  async function loadRet() { try { rplan = await api.get('/api/v1/admin/retention'); } catch { rplan = null; } }
   async function load() {
-    try { fill(await api.get('/api/admin/config')); error = null; } catch (e) { error = e; }
+    try { fill(await api.get('/api/v1/admin/config')); error = null; } catch (e) { error = e; }
     await Promise.all([loadImp(), loadRet()]);
   }
   async function saveRet() {
@@ -99,12 +99,12 @@
   }
   async function runRet() {
     busy = 'retention-run'; msg = { ...msg, retention: null };
-    try { rplan = await api.post('/api/admin/retention/run'); rconfirm = false; toast($t('cf.rt.done')); }
+    try { rplan = await api.post('/api/v1/admin/retention/run'); rconfirm = false; toast($t('cf.rt.done')); }
     catch (e) { msg = { ...msg, retention: { ok: false, text: $errText(e) } }; }
     finally { busy = ''; }
   }
   let ready = $state(false);
-  onMount(async () => { await load(); try { smTo = (await api.get('/api/me')).email || ''; } catch { /* keep empty */ } ready = true; });
+  onMount(async () => { await load(); try { smTo = (await api.get('/api/v1/me')).email || ''; } catch { /* keep empty */ } ready = true; });
   // #/admin/notifikasi -> straight to that section (also when coming from #/admin/konfigurasi without reloading the page)
   $effect(() => { if (ready && focus) tick().then(() => jump(focus)); });
   function jump(id) {
@@ -114,7 +114,7 @@
 
   async function save(group, body, ok = 'cf.saved') {
     busy = group; msg = { ...msg, [group]: null };
-    try { fill(await api.put('/api/admin/config', body)); toast($t(ok)); await loadImp(); return true; }
+    try { fill(await api.put('/api/v1/admin/config', body)); toast($t(ok)); await loadImp(); return true; }
     catch (e) { msg = { ...msg, [group]: { ok: false, text: $errText(e) } }; return false; }
     finally { busy = ''; }
   }
@@ -130,7 +130,7 @@
     if (typed(kind) && !(await save(kind, kind === 'aws' ? awsBody() : mmBody()))) return;   // the test uses the SAVED settings
     busy = `${kind}-test`; msg = { ...msg, [kind]: null };
     try {
-      const r = await api.post('/api/admin/config/test', { kind });
+      const r = await api.post('/api/v1/admin/config/test', { kind });
       msg = { ...msg, [kind]: { ok: true, text: kind === 'aws' ? $t('cf.aws.test_ok', { target: r.target }) : $t('cf.mm.test_ok') } };
     } catch (e) { msg = { ...msg, [kind]: { ok: false, text: $errText(e) } }; }
     finally { busy = ''; }
@@ -139,7 +139,7 @@
   async function saveWatch(enabled) {
     busy = 'watch'; msg = { ...msg, watch: null };
     try {
-      await api.put('/api/admin/imports/watch', { url: wf.url.trim(), minutes: Number(wf.minutes), enabled });
+      await api.put('/api/v1/admin/imports/watch', { url: wf.url.trim(), minutes: Number(wf.minutes), enabled });
       toast(enabled ? $t('imp.w.saved') : $t('imp.w.disabled'));
       window.dispatchEvent(new Event('monishield:watch-changed'));
       await loadImp();

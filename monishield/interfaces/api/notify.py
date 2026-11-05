@@ -1,8 +1,8 @@
 """Notification settings (monishield/application/alert_service.py), admin only. Stored in the .env file.
-  GET  /api/admin/alerts        settings (credentials only "set") + history of the latest sends
-  PUT  /api/admin/alerts        write to .env; empty credential field = unchanged, `clear` = remove
-  POST /api/admin/alerts/test   send a test message to one channel (using the SAVED settings)
-  POST /api/admin/alerts/report daily report of one folder now (again if it already went out), or every report not sent yet
+  GET  /api/v1/admin/alerts        settings (credentials only "set") + history of the latest sends
+  PUT  /api/v1/admin/alerts        write to .env; empty credential field = unchanged, `clear` = remove
+  POST /api/v1/admin/alerts/test   send a test message to one channel (using the SAVED settings)
+  POST /api/v1/admin/alerts/report daily report of one folder now (again if it already went out), or every report not sent yet
 """
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
@@ -12,7 +12,7 @@ from monishield.domain.errors import Fail
 from .admin import _audit
 from .common import require_admin
 
-router = APIRouter(prefix='/api/admin/alerts')
+router = APIRouter(prefix='/api/v1/admin/alerts')
 
 
 @router.get('')

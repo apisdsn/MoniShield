@@ -53,6 +53,9 @@ const ID = [
   [/malformed value \(/, 'nilai rusak ('], [/invalid name \(/, 'nama tidak sah ('], [/missing body \(/, 'tanpa isi ('], [/empty line \(/, 'baris kosong ('],
   [/invalid time \(/, 'waktu tidak sah ('], [/malformed record \(/, 'record rusak ('], [/too many records \(/, 'terlalu banyak record ('],
   [/malformed attributes \(/, 'atribut rusak ('], [/malformed request \(/, 'permintaan rusak ('],
+  [/^too old$/, 'terlalu lama'], [/too old \(/, 'terlalu lama ('],
+  // collector metrics: last reject reason (monishield/domain/otlp_metrics.py; the reasons above also apply)
+  [/^(\d+) data points rejected: /, '$1 titik data ditolak: '], [/malformed point \(/, 'titik data rusak ('], [/too many points \(/, 'terlalu banyak titik data ('], [/too many devices \(/, 'terlalu banyak perangkat ('],
   // import job summary
   [/^(\d+) objects would be fetched, (\d+) skipped/, '$1 objek akan diambil, $2 dilewati'],
   [/^(\d+) objects fetched, (\d+) skipped/, '$1 objek diambil, $2 dilewati'],
@@ -167,7 +170,8 @@ const ERR_ID = [
   [/^Journald units need journald to be on\.$/, 'Unit journald memerlukan journald aktif.'],
   [/^Not an option of a (\w+) collector: (.*)\.$/, 'Bukan opsi collector $1: $2.'],
   [/^Channels can be: (.*)\.$/, 'Channel yang tersedia: $1.'],
-  [/^Choose at least one log input\.$/, 'Pilih minimal satu masukan log.'],
+  [/^Choose at least one input\.$/, 'Pilih minimal satu masukan.'],
+  [/^Container metrics are only available for Docker hosts\.$/, 'Metrik container hanya tersedia untuk host Docker.'],
   [/^options must be an object\.$/, 'options harus berupa objek.'],
   [/^The receiver address must look like (.*)\.$/, 'Alamat penerima harus berbentuk $1.'],
   [/^The Host header is not a valid address; set S4_COLLECTOR_PUBLIC_URL\.$/, 'Header Host bukan alamat yang sah; isi S4_COLLECTOR_PUBLIC_URL.'],

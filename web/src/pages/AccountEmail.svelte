@@ -1,4 +1,4 @@
-<!-- Own account email (owner request 2026-10-08; API /api/me/email, monishield/application/account_service.py).
+<!-- Own account email (owner request 2026-10-08; API /api/v1/me/email, monishield/application/account_service.py).
      Changing it needs the current password, a code sent to the CURRENT email (when there is one) and a code sent to
      the NEW email, so a stolen session alone cannot move the account to another address.
      embedded = inside the account dialog (lib/AccountDialogs.svelte), which supplies the card and the title. -->
@@ -17,7 +17,7 @@
   let v = $state.raw(null), busy = $state(false), err = $state(null), wrong = $state(false);
   let f = $state({ email: '', password: '', old: '', nw: '' });
   let oldEl = $state(), newEl = $state();
-  async function load() { try { v = await api.get('/api/me/email'); err = null; } catch (e) { err = $errText(e); } }
+  async function load() { try { v = await api.get('/api/v1/me/email'); err = null; } catch (e) { err = $errText(e); } }
   onMount(load);
 
   const EMAIL = /^[^@\s<>(),;:"[\]]{1,64}@[A-Za-z0-9-]{1,63}(\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,24}$/;
@@ -28,7 +28,7 @@
     if (!f.password) { err = $t('pw.required'); return; }
     busy = true;
     try {
-      const r = await api.post('/api/me/email/change', { new_email: f.email.trim(), password: f.password, lang: $lang });
+      const r = await api.post('/api/v1/me/email/change', { new_email: f.email.trim(), password: f.password, lang: $lang });
       v = r; f.password = ''; f.old = ''; f.nw = ''; wrong = false;
       await tick(); (r.pending?.needs_old ? oldEl : newEl)?.focus();
     } catch (e2) { err = $errText(e2); } finally { busy = false; }
@@ -38,7 +38,7 @@
     if (!ready) return;
     err = null; busy = true;
     try {
-      v = await api.post('/api/me/email/change/confirm', { old_code: f.old.trim(), new_code: f.nw.trim(), lang: $lang });
+      v = await api.post('/api/v1/me/email/change/confirm', { old_code: f.old.trim(), new_code: f.nw.trim(), lang: $lang });
       f = { email: '', password: '', old: '', nw: '' };
       toast($t('em.done', { email: v.email })); ondone?.();
     } catch (e2) {
@@ -47,7 +47,7 @@
       else if (wrong) { busy = false; await tick(); const el = v.pending?.needs_old ? oldEl : newEl; el?.focus(); el?.select(); }
     } finally { busy = false; }
   }
-  async function cancel() { busy = true; try { v = await api.del('/api/me/email/change'); err = null; } catch (e2) { err = $errText(e2); } finally { busy = false; } }
+  async function cancel() { busy = true; try { v = await api.del('/api/v1/me/email/change'); err = null; } catch (e2) { err = $errText(e2); } finally { busy = false; } }
   const ready = $derived(!!v?.pending && f.nw.length === 6 && (!v.pending.needs_old || f.old.length === 6));
   $effect(() => { void f.old; void f.nw; untrack(() => { if (wrong) { wrong = false; err = null; } }); });   // typing clears the red boxes and the message
 </script>

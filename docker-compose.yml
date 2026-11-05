@@ -158,10 +158,11 @@ services:
       DOCKER_ACME_EMAIL: ${DOCKER_ACME_EMAIL:-}
       DOCKER_INGEST_DOMAIN: ${DOCKER_INGEST_DOMAIN:-}                # collector receiver host (DNS only); empty = none
       DOCKER_MAIN_CLOUDFLARE_ONLY: ${DOCKER_MAIN_CLOUDFLARE_ONLY:-}  # 1 = the main site answers Cloudflare addresses only
+      DOCKER_ACCESS_LOG: ${DOCKER_ACCESS_LOG:-1}                      # 0 = no JSON access log of the main site (stdout)
       DEPLOY_CONFIG_HASH: ${DEPLOY_CONFIG_HASH:-}                    # set by deploy/remote-deploy.sh: a changed Caddy file recreates this container
     volumes:
       - ./deploy/Caddyfile.letsencrypt:/etc/caddy/Caddyfile:ro
-      - ./deploy/caddy:/etc/caddy/extra:ro   # ingest.caddy, cloudflare-only.caddy, entrypoint.sh
+      - ./deploy/caddy:/etc/caddy/extra:ro   # ingest.caddy, cloudflare-only.caddy, access-log.caddy, trusted-proxies.caddy, entrypoint.sh
       - ./deploy/sites:/etc/caddy/sites:ro   # optional extra sites (*.caddy, not in git)
       - s4-caddy:/data          # Let's Encrypt certificates + keys (do not delete: Let's Encrypt re-issue limits)
     ports:

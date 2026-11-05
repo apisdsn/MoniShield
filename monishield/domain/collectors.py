@@ -10,6 +10,7 @@ import datetime, hashlib, re, secrets
 from monishield.domain.errors import Fail
 
 NAME = re.compile(r'[a-z0-9][a-z0-9-]{0,62}')
+GROUP = re.compile(r'[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}')   # a group name: shown as the heading of a section
 PLATFORMS = ('linux', 'windows', 'kubernetes', 'docker')
 ENROLL_HOURS = 24
 ROTATE_GRACE_HOURS = 24   # the previous key keeps working, so a running collector can be updated without losing data
@@ -23,6 +24,24 @@ def check_name(name):
     if not isinstance(name, str) or not NAME.fullmatch(name):
         raise Fail('invalid_name', 'Collector name must be 1–63 characters: lowercase letters, digits and hyphen, starting with a letter or digit.')
     return name
+
+
+def check_group(group):
+    """The group name as stored: trimmed, up to 40 characters of letters, digits, space, dot, underscore and hyphen, starting with a letter
+    or digit. Empty (or None) means no group -> ''."""
+    if group is None: return ''
+    if not isinstance(group, str): raise Fail('invalid_group', 'The group name must be text.')
+    group = group.strip()
+    if not group: return ''
+    if not GROUP.fullmatch(group):
+        raise Fail('invalid_group', 'A group name is up to 40 characters: letters, digits, space, dot, underscore and hyphen, starting with a letter or digit.')
+    return group
+
+
+def same_group(group, existing):
+    """A group that matches an existing one apart from upper and lower case takes that one's spelling, so "client a" and "Client A" are one group."""
+    if not group: return ''
+    return next((g for g in existing if g and g.lower() == group.lower()), group)
 
 
 def check_platform(platform):

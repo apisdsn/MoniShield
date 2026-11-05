@@ -1,6 +1,6 @@
 """Global search in the header (Stage 24 item 6): IP, account, requestId, URL fragment within one folder.
 
-GET /api/search?q=…&folder=YYYY-MM-DD  ->  {q, folder, results: [{type, label, sub, n, target}]}
+GET /api/v1/search?q=…&folder=YYYY-MM-DD  ->  {q, folder, results: [{type, label, sub, n, target}]}
 target = {tab, service?, q?}: target page; the frontend builds its address and fills the table filter there.
 Reads only that folder's aggregates and log tables; nothing is sent outside.
 """

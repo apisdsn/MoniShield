@@ -1,9 +1,9 @@
 <!-- Manage users (DRD §3.11, TRD §8.4), admin only: user table + per-row action menu (Edit, Reset password,
-     Deactivate/Activate, Delete) and dialogs. On top of the Stage 10 API (/api/admin/users). Not offered (disabled
+     Deactivate/Activate, Delete) and dialogs. On top of the Stage 10 API (/api/v1/admin/users). Not offered (disabled
      with the reason): deleting or deactivating yourself, deleting/demoting/deactivating the last active
      admin. The temporary password from a reset is shown ONCE and not stored anywhere.
      Email (owner decision 2026-10-12, option B): a NEW address for another user needs the admin's own password and only
-     counts once the user enters the code sent to it (POST /api/admin/users/{id}/email); until then it is shown as waiting
+     counts once the user enters the code sent to it (POST /api/v1/admin/users/{id}/email); until then it is shown as waiting
      and can be withdrawn. The admin's own email is changed under Account email (with codes). Removing an email is direct. -->
 <script>
   import { errText as srvErr } from '../srv.js';
@@ -23,7 +23,7 @@
   let { me, onme = null } = $props();
   let users = $state.raw(null), error = $state(null);
   async function load() {
-    try { users = (await api.get('/api/admin/users')).users; error = null; }
+    try { users = (await api.get('/api/v1/admin/users')).users; error = null; }
     catch (e) { error = e; }
   }
   onMount(load);
@@ -74,7 +74,7 @@
     else if (f.password === u) errs.password = $t('adm.err.password_is_name');
     if (f.email.trim() && !EMAIL.test(f.email.trim())) errs.email = $t('adm.err.invalid_email');
     if (Object.keys(errs).length) return;
-    act(() => api.post('/api/admin/users', { username: u, display_name: f.display_name.trim(), email: f.email.trim(), role: f.role, password: f.password }),
+    act(() => api.post('/api/v1/admin/users', { username: u, display_name: f.display_name.trim(), email: f.email.trim(), role: f.role, password: f.password }),
       () => { open = false; toast($t('adm.done.add', { user: u })); });
   }
   // a new address for another user: code to that address, the admin's own password (option B)
@@ -87,21 +87,21 @@
     if (newEmail && !f.apw) { errs = { apw: $t('adm.err.apw_needed') }; return; }
     const patch = { display_name: f.display_name.trim(), role: f.role, ...(!isMe(u) && !email && u.email ? { email: '' } : {}) };
     act(async () => {
-      await api.patch(`/api/admin/users/${u.user_id}`, patch);
-      if (newEmail) await api.post(`/api/admin/users/${u.user_id}/email/change`, { email, password: f.apw, lang: $lang });
+      await api.patch(`/api/v1/admin/users/${u.user_id}`, patch);
+      if (newEmail) await api.post(`/api/v1/admin/users/${u.user_id}/email/change`, { email, password: f.apw, lang: $lang });
     }, () => {
       open = false;
       toast(newEmail ? $t('adm.done.email_sent', { email, user: u.username }) : $t('adm.done.edit', { user: u.username }));
       if (isMe(u)) onme?.();
     });
   }
-  const withdraw = (u) => act(() => api.del(`/api/admin/users/${u.user_id}/email/change`),
+  const withdraw = (u) => act(() => api.del(`/api/v1/admin/users/${u.user_id}/email/change`),
     () => { open = false; toast($t('adm.done.email_cancel', { user: u.username })); });
-  const reset = (u) => act(async () => { temp = (await api.post(`/api/admin/users/${u.user_id}/reset-password`)).temporary_password; },
+  const reset = (u) => act(async () => { temp = (await api.post(`/api/v1/admin/users/${u.user_id}/reset-password`)).temporary_password; },
     () => { dlg = { kind: 'reset-done', user: u }; });
-  const setActive = (u, active) => act(() => api.patch(`/api/admin/users/${u.user_id}`, { active }),
+  const setActive = (u, active) => act(() => api.patch(`/api/v1/admin/users/${u.user_id}`, { active }),
     () => { open = false; toast($t(active ? 'adm.done.activate' : 'adm.done.deactivate', { user: u.username })); });
-  const remove = (u) => act(() => api.del(`/api/admin/users/${u.user_id}`), () => { open = false; toast($t('adm.done.delete', { user: u.username })); });
+  const remove = (u) => act(() => api.del(`/api/v1/admin/users/${u.user_id}`), () => { open = false; toast($t('adm.done.delete', { user: u.username })); });
   async function copy() {
     try { await navigator.clipboard.writeText(temp); toast($t('adm.copied')); } catch { /* clipboard permission denied: the password stays visible to copy manually */ }
   }

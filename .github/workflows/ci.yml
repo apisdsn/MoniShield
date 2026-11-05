@@ -66,7 +66,27 @@ jobs:
       - name: Check that the Indonesian and English dictionaries match
         run: node tools/check_i18n.mjs
       - name: Run the formatter tests
-        run: node --test tests/test_format.mjs tests/test_state.mjs tests/test_collectors.mjs
+        run: node --test tests/test_format.mjs tests/test_state.mjs tests/test_collectors.mjs tests/test_servers.mjs tests/test_i18n_case.mjs
+
+  caddy:
+    name: Caddy configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v6
+      # The same image, entrypoint and mounts as the https service of docker-compose.yml, with every optional file switched
+      # on (ingest site, Cloudflare-only guard, JSON access log) and then with all of them off.
+      - name: Validate the Caddy configuration with every option on
+        run: |
+          docker run --rm -e DOCKER_DOMAIN=monishield.example.com -e DOCKER_ACME_EMAIL=admin@example.com \
+            -e DOCKER_INGEST_DOMAIN=ingest.example.com -e DOCKER_MAIN_CLOUDFLARE_ONLY=1 -e DOCKER_ACCESS_LOG=1 \
+            -v "$PWD/deploy/Caddyfile.letsencrypt:/etc/caddy/Caddyfile:ro" -v "$PWD/deploy/caddy:/etc/caddy/extra:ro" \
+            --entrypoint sh caddy:2.10.2-alpine /etc/caddy/extra/entrypoint.sh validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Validate the Caddy configuration with every option off
+        run: |
+          docker run --rm -e DOCKER_DOMAIN=monishield.example.com -e DOCKER_ACME_EMAIL=admin@example.com -e DOCKER_ACCESS_LOG=0 \
+            -v "$PWD/deploy/Caddyfile.letsencrypt:/etc/caddy/Caddyfile:ro" -v "$PWD/deploy/caddy:/etc/caddy/extra:ro" \
+            --entrypoint sh caddy:2.10.2-alpine /etc/caddy/extra/entrypoint.sh validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
   browser:
     name: Browser smoke test

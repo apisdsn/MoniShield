@@ -1,11 +1,11 @@
 """Configuration: all credentials and settings that may be filled in from the UI, in one place, admin only. Everything is
 WRITTEN TO THE .env FILE (monishield/application/settings_service.py) and takes effect immediately.
-  GET  /api/admin/config        status of each group (secrets only "set" + source) + .env file status + keys only settable via .env
-  PUT  /api/admin/config        write to .env; empty secret field = unchanged, `clear` = line disabled (default value)
-  POST /api/admin/config/test   test the connection with the SAVED settings: {kind: 'aws'} (list 1 object in S3) or
+  GET  /api/v1/admin/config        status of each group (secrets only "set" + source) + .env file status + keys only settable via .env
+  PUT  /api/v1/admin/config        write to .env; empty secret field = unchanged, `clear` = line disabled (default value)
+  POST /api/v1/admin/config/test   test the connection with the SAVED settings: {kind: 'aws'} (list 1 object in S3) or
                                 {kind: 'maxmind'} (request a GeoLite2 download link; authorization only, no download)
                                 {kind: 'smtp', to?} (send the test letter; default recipient: the admin's own email)
-The automatic S3 parent folder and notifications have their own APIs (/api/admin/imports/watch, /api/admin/alerts); the
+The automatic S3 parent folder and notifications have their own APIs (/api/v1/admin/imports/watch, /api/v1/admin/alerts); the
 Configuration page uses both.
 """
 import threading
@@ -18,7 +18,7 @@ from monishield.domain.errors import Fail
 from .admin import _audit
 from .common import require_admin
 
-router = APIRouter(prefix='/api/admin/config')
+router = APIRouter(prefix='/api/v1/admin/config')
 
 
 @router.get('')

@@ -1,6 +1,6 @@
 <!-- Page header (DRD §2.1 U3, §8.2; redesign 2026-10-27, mockup "Overview: before & after"). Wide screen: one sticky
      row: title + compact status line (left), then source switch, date picker (◀ date ▶, details in its tooltip), search,
-     Sync (admin), the language menu, the dark-theme switch and the avatar menu holding reload and the account items (right). The date is shown once,
+     Sync (admin), the language menu, the dark-theme icon button and the avatar menu holding reload and the account items (right). The date is shown once,
      in the picker. ≤ 900 px: sticky bar [☰] [search] [sync] [language] [theme] [avatar] with a second row [S3 | Kafka] [◀ date ▶]; the title
      flows below it. DOM order = Tab order: tools first, title (h1, tabindex -1) after; visual placement set by the grid. -->
 <script>
@@ -70,7 +70,7 @@
      instead of squeezing the title into one word per line (owner report 2026-10-08, 1280 px in English) */
   .tools { order: 1; flex: 0 1 auto; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px; min-width: 0; }
   .ttl { order: 0; flex: 1 1 22rem; min-width: 0; }
-  h1 { font-size: 1.375rem; font-weight: 600; line-height: 1.25; color: var(--heading); text-transform: capitalize; overflow-wrap: break-word; text-wrap: balance; }
+  h1 { font-size: 1.375rem; font-weight: 600; line-height: 1.25; color: var(--heading); overflow-wrap: break-word; text-wrap: balance; }
   h1:focus { outline: none; }
   h1:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .status { margin: 4px 0 0; font-size: 0.78rem; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
@@ -79,7 +79,12 @@
   .sep { color: var(--line-strong); }
   .where { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .burger, .brand { display: none; }
-  .seg button { min-width: var(--touch); }
+  /* source switch: the same 44 px box as the other header controls (theme.css .seg is the generic version) */
+  .seg { height: var(--touch); padding: 3px; align-items: stretch; border-color: var(--line-strong); background: var(--bg2); }
+  .seg button { min-width: var(--touch); min-height: 0; border-radius: calc(var(--r-ctl) - 4px); }
+  .seg button:not([aria-checked='true']):hover { background: var(--ctl-hover); color: var(--fg); }
+  .seg button:focus-visible { outline: none; }   /* the ring goes around the whole switch, like the date picker */
+  .seg:has(button:focus-visible:not([data-quiet])) { outline: 2px solid var(--focus); outline-offset: 2px; }
   @media (max-width: 900px) {
     .top { display: contents; }
     .bar {

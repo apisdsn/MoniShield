@@ -3,17 +3,18 @@
     python tools/smoke_server.py <empty work dir> [port]
 
 Builds the small synthetic log folders of tests/logs_mini.py as the S3 source, copies the second day into the Kafka inbox
-as the Kafka source and into the collector inbox as the collector source, ingests all three offline, and serves the built web UI (web/dist) on 127.0.0.1:<port> (default 8777).
+as the Kafka source and into the collector inbox as the collector source, ingests all three offline, adds sample servers with metrics (tools/seed_metrics.py), and serves the built web UI (web/dist) on 127.0.0.1:<port> (default 8777).
 The admin password is the fixed test password below; the browser test changes it on first sign-in.
 """
-import dataclasses, os, shutil, sys
+import contextlib, dataclasses, os, shutil, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path[:0] = [ROOT, os.path.join(ROOT, 'tests')]
+sys.path[:0] = [ROOT, os.path.join(ROOT, 'tests'), os.path.join(ROOT, 'tools')]
 
 import uvicorn  # noqa: E402
 
 import logs_mini  # noqa: E402
+import seed_metrics  # noqa: E402
 from monishield.domain import config_model  # noqa: E402
 from monishield.infrastructure import config, db, ingest  # noqa: E402
 from monishield.interfaces.api import app as appmod  # noqa: E402
@@ -39,7 +40,16 @@ def main(work, port=8777):
                               city = ['Jakarta', 'Surabaya', 'Singapore', 'Medan'][k], country = ['ID', 'ID', 'SG', 'ID'][k]
                        FROM (SELECT ip AS kip, (hash(ip) % 4 + 1)::INT AS k FROM ip_info) WHERE ip = kip AND NOT coalesce(is_private, false)""")
         con.close()
-    uvicorn.run(appmod.create_app(cfg), host='127.0.0.1', port=int(port), log_level='warning')
+    app = appmod.create_app(cfg)
+    start_up = app.router.lifespan_context
+
+    @contextlib.asynccontextmanager
+    async def lifespan(a):
+        async with start_up(a):
+            seed_metrics.seed(a)       # sample servers for the Servers page, before the first request is served
+            yield
+    app.router.lifespan_context = lifespan
+    uvicorn.run(app, host='127.0.0.1', port=int(port), log_level='warning')
 
 
 if __name__ == '__main__':

@@ -7,7 +7,8 @@
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
   import { route, go, build, parse, ADMIN } from './state.js';
   import { setSite } from './site.js';
-  import { fLabel, logRange, num, sysName, tLocal, SPARSE_LINES } from './format.js';
+  import { fLabel, isFilling, logRange, num, sysName, tLocal, SPARSE_LINES } from './format.js';
+  import { localToday } from './tz.js';
   import { cmpNote } from './lib/compare.js';
   import { APP_NAME } from './brand.js';
   import { load, save } from './store.js';
@@ -32,6 +33,7 @@
   import AdminUsers from './pages/AdminUsers.svelte';
   import AdminIngest from './pages/AdminIngest.svelte';
   import Collectors from './pages/Collectors.svelte';
+  import Servers from './pages/Servers.svelte';
   import Overview from './pages/Overview.svelte';
   import Service from './pages/Service.svelte';
   import Trends from './pages/Trends.svelte';
@@ -49,9 +51,9 @@
   let lastFolder = null;
 
   // Login
-  // /api/docs (Swagger) redirects here with ?next=/api/docs when not logged in: after login (and the initial password
+  // /api/v1/docs (Swagger) redirects here with ?next=/api/v1/docs (the old /api/docs too) when not logged in: after login (and the initial password
   // change) go back there. Only addresses in this list are followed (not an open redirect).
-  const NEXT = ['/api/docs'];
+  const NEXT = ['/api/v1/docs', '/api/docs'];   // the old address too: a bookmark or a tab from before the versioned API
   function goNext() {
     const n = new URLSearchParams(location.search).get('next');
     if (!NEXT.includes(n)) return false;
@@ -77,7 +79,7 @@
     bootError = null;
     if (get(route).tab === 'home') { screen = 'home'; return; }   // public home page: no sign-in, no data of the app
     try {
-      me = await api.get('/api/me');
+      me = await api.get('/api/v1/me');
     } catch (e) {
       if (e.status === 401) { toLogin(); return; }
       bootError = e; return;
@@ -89,7 +91,7 @@
     if (meta) screen = 'app';
   }
   async function loadMeta() {
-    try { meta = await api.get('/api/meta'); setSite(meta); bootError = null; }
+    try { meta = await api.get('/api/v1/meta'); setSite(meta); bootError = null; }
     catch (e) { if (e.status !== 401) bootError = e; }
   }
   function onlogin(u) {
@@ -101,14 +103,14 @@
   // role/name can be changed by an admin at any time: re-read on every tab switch and reload ("on the next request")
   async function refreshMe() {
     try {
-      const u = await api.get('/api/me');
+      const u = await api.get('/api/v1/me');
       if (['role', 'display_name', 'email', 'email_pending'].some((k) => u[k] !== me?.[k])) me = { ...me, ...u };
       if (u.must_change_password) screen = 'force-password';
     } catch { /* 401 -> expired session handled by api.js */ }
   }
   function clear() { me = null; meta = null; summary = null; lastFolder = null; }
   async function logout() {
-    try { await api.post('/api/auth/logout'); } catch { /* session may have expired already */ }
+    try { await api.post('/api/v1/auth/logout'); } catch { /* session may have expired already */ }
     clear(); expired = false; toLogin(false);
   }
   onMount(() => {
@@ -139,7 +141,10 @@
   const folder = $derived(folders.some((f) => f.folder === $route.folder) ? $route.folder : folders[0]?.folder ?? null);
   const folderInfo = $derived(folders.find((f) => f.folder === folder) || null);
   const isAdminTab = $derived(ADMIN.includes($route.tab));
-  const isDataTab = $derived(!isAdminTab);
+  // the Servers page is about the collectors' metrics: no folder, no data source (its sidebar entry sits in the Analysis group)
+  const NO_FOLDER = ['servers'];
+  const isDataTab = $derived(!isAdminTab && !NO_FOLDER.includes($route.tab));
+  const noSource = $derived(NO_FOLDER.includes($route.tab) || $route.tab === 'collectors');   // the source switch does not apply there
   // #/password and #/email (old Indonesian path): open the account pop-up over the Overview (lib/AccountDialogs.svelte)
   $effect(() => {
     if (screen !== 'app' || ($route.tab !== 'password' && $route.tab !== 'email')) return;
@@ -165,7 +170,7 @@
   async function loadSummary(f) {
     const my = ++sumSeq;
     try {
-      const s = await api.get(`/api/folders/${encodeURIComponent(f)}`);
+      const s = await api.get(`/api/v1/folders/${encodeURIComponent(f)}`);
       if (my === sumSeq) summary = s;
     } catch (e) {
       if (my === sumSeq && e.status === 404) reload();   // folder gone (forgotten by an admin): fetch a new list
@@ -245,7 +250,8 @@
   });
   $effect(() => { document.title = screen === 'app' ? `${title} · ${APP_NAME}` : APP_NAME; });
   // Overview shows both notes inside its status card
-  const sparse = $derived(isDataTab && !['trends', 'overview'].includes($route.tab) && folderInfo && folderInfo.lines < SPARSE_LINES);
+  const sparse = $derived(isDataTab && !['trends', 'overview'].includes($route.tab) && folderInfo && folderInfo.lines < SPARSE_LINES
+    && !isFilling($route.source, folder, localToday()));   // a folder that is still filling up is not "incomplete"
   const note = $derived(isDataTab && $route.tab !== 'overview' ? [...$cmpNote.values()][0] || '' : '');
 
   // Idle session (DRD §6.9)
@@ -253,7 +259,7 @@
   onMount(() => { const id = setInterval(() => (now = Date.now()), 15000); return () => clearInterval(id); });
   // the server records activity at most once a minute: count down with a 1-minute margin
   const idleLeft = $derived(me?.session_idle_minutes ? $lastActivity + (me.session_idle_minutes - 1) * 60000 - now : Infinity);
-  async function stay() { try { await api.get('/api/me'); now = Date.now(); } catch { /* 401 -> session expired */ } }
+  async function stay() { try { await api.get('/api/v1/me'); now = Date.now(); } catch { /* 401 -> session expired */ } }
 
   // Keyboard (DRD §9.3)
   function onkey(e) {
@@ -302,7 +308,7 @@
 
   <div class="wrap" class:collapsed inert={drawer || undefined}>
     <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'trends' || !isDataTab}
-      sources={meta?.sources || []} source={$route.source} onsource={setSource} onfolder={setFolder} folderInfo={pickerInfo} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
+      sources={noSource ? [] : meta?.sources || []} source={$route.source} onsource={setSource} onfolder={setFolder} folderInfo={pickerInfo} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
       {title} sysTitle={$route.tab === 'service'} {status} bind:titleEl={h1} />
     {#if subtitle}<p class="sub"><span class="dot ok" aria-hidden="true"></span>{subtitle}</p>{/if}
 
@@ -349,6 +355,8 @@
         <AdminIngest onfinished={reload} />
       {:else if $route.tab === 'collectors'}
         <Collectors {onready} />
+      {:else if $route.tab === 'servers'}
+        <Servers admin={me.role === 'admin'} {reloadKey} {onready} />
       {:else if !folders.length}
         <EmptyState title={$t('state.no_data')} text={me.role === 'admin' ? '' : $t('state.no_data_user')}>
           {#if me.role === 'admin'}<a class="btn primary" href={build({ tab: 'admin/ingest', service: null })}>{$t('menu.ingest')}</a>{/if}

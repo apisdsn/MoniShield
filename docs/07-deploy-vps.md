@@ -189,7 +189,7 @@ A browser that has seen it opens the domain **and every subdomain** only over ht
 
 Collectors (docs/12-collector.md) send logs to their own host name that is **not behind the Cloudflare proxy**, so the logs of a
 client never pass a third party. This server's Caddy serves it with its own Let's Encrypt certificate. On that host only
-`/api/collector/*`, `/collector/install.sh` and `/collector/install.ps1` are reachable (everything else answers 404, so the
+`/api/v1/collector/*`, `/collector/install.sh` and `/collector/install.ps1` are reachable (everything else answers 404, so the
 dashboard is not available there), bodies are limited to 10 MB and no request is logged.
 
 1. **Cloudflare DNS:** add an `A` record (for example `ingest`) to the server's IP with Proxy status **DNS only** (grey cloud).
@@ -209,6 +209,24 @@ dashboard is not available there), bodies are limited to 10 MB and no request is
    - the dashboard still opens through the normal domain
    - with the guard on, `curl -k --resolve <main domain>:443:<server ip> https://<main domain>/` is refused (empty reply)
 4. **Then on the Collectors page:** Add collector, copy the commands, run them on the server to watch.
+
+**After the release of stage 58** (every endpoint under `/api/v1`): an installed collector still sends to the old address and gets 404 (its
+data waits in its queue). Run `install.sh --upgrade` (Windows `install.ps1 -Upgrade`) on each collector host; the command is on the
+Collectors page. See "Changes" in `docs/12-collector.md`.
+
+### Access log of the main site (`DOCKER_ACCESS_LOG`)
+
+The `https` profile writes a JSON access log of the main site to stdout, the container log that a collector on the Docker host reads
+(`docs/12-collector.md`, "Live map"; rule `format = "caddy-json"`, `docs/11-log-formats.md`). `DOCKER_ACCESS_LOG=1` is the default,
+`0` turns it off. It is generated at every start like the other optional files (`deploy/caddy/access-log.caddy`), and a changed value or
+file recreates the Caddy container. Cookies, `Authorization`, `Proxy-Authorization`, the encrypted-body header (`X-Ms-Enc`), the answer
+headers and the TLS details are removed from every entry; the path (with its query), the user agent and the referer stay, so
+treat the container log like the other logs. The collector receiver host is never logged (machine traffic).
+
+Behind Cloudflare the connection comes from a Cloudflare server. Caddy therefore trusts the Cloudflare ranges as proxies and takes the
+visitor from `Cf-Connecting-Ip` (`trusted_proxies static …` and `client_ip_headers Cf-Connecting-Ip` in the global options, generated into
+`deploy/caddy/trusted-proxies.caddy` by `tools/cloudflare_ips.py` from the same list as the origin guard), so `request.client_ip` in the
+log is the visitor. A request that does not come from a Cloudflare address keeps its own address; the header is not believed.
 
 With `DOCKER_INGEST_DOMAIN` empty nothing changes and no certificate is requested. The app sees the collector's own address
 (Caddy replaces `X-Forwarded-For`) and never believes a `Cf-Connecting-Ip` sent there.

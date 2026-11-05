@@ -1,0 +1,877 @@
+{
+ "resourceMetrics": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "vm"
+      }
+     },
+     {
+      "key": "os.type",
+      "value": {
+       "stringValue": "linux"
+      }
+     },
+     {
+      "key": "os.description",
+      "value": {
+       "stringValue": "Ubuntu 24.04.5 LTS (Noble Numbat) (Linux vm 6.18.44-fc-v236 #1 SMP PREEMPT_DYNAMIC @0 x86_64)"
+      }
+     }
+    ]
+   },
+   "scopeMetrics": [
+    {
+     "scope": {
+      "name": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/scraper/networkscraper",
+      "version": "0.163.2"
+     },
+     "metrics": [
+      {
+       "name": "system.network.io",
+       "description": "The number of bytes transmitted and received.",
+       "unit": "By",
+       "sum": {
+        "dataPoints": [
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "ifb0"
+            }
+           },
+           {
+            "key": "direction",
+            "value": {
+             "stringValue": "transmit"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452150827",
+          "asInt": "0"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "ifb0"
+            }
+           },
+           {
+            "key": "direction",
+            "value": {
+             "stringValue": "receive"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452150827",
+          "asInt": "0"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "ifb1"
+            }
+           },
+           {
+            "key": "direction",
+            "value": {
+             "stringValue": "transmit"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452150827",
+          "asInt": "0"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "ifb1"
+            }
+           },
+           {
+            "key": "direction",
+            "value": {
+             "stringValue": "receive"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452150827",
+          "asInt": "0"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "eth0"
+            }
+           },
+           {
+            "key": "direction",
+            "value": {
+             "stringValue": "transmit"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452150827",
+          "asInt": "120465157"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "eth0"
+            }
+           },
+           {
+            "key": "direction",
+            "value": {
+             "stringValue": "receive"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452150827",
+          "asInt": "123637882"
+         }
+        ],
+        "aggregationTemporality": 2,
+        "isMonotonic": true
+       }
+      }
+     ]
+    }
+   ],
+   "schemaUrl": "https://opentelemetry.io/schemas/1.9.0"
+  },
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "vm"
+      }
+     },
+     {
+      "key": "os.type",
+      "value": {
+       "stringValue": "linux"
+      }
+     },
+     {
+      "key": "os.description",
+      "value": {
+       "stringValue": "Ubuntu 24.04.5 LTS (Noble Numbat) (Linux vm 6.18.44-fc-v236 #1 SMP PREEMPT_DYNAMIC @0 x86_64)"
+      }
+     }
+    ]
+   },
+   "scopeMetrics": [
+    {
+     "scope": {
+      "name": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/scraper/cpuscraper",
+      "version": "0.163.2"
+     },
+     "metrics": [
+      {
+       "name": "system.cpu.utilization",
+       "description": "Difference in system.cpu.time since the last measurement per logical CPU, divided by the elapsed time (value in interval [0,1]).",
+       "unit": "1",
+       "gauge": {
+        "dataPoints": [
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "wait"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452576985",
+          "asDouble": 0
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "user"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452576985",
+          "asDouble": 0.001833472305570765
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "system"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452576985",
+          "asDouble": 0.0004999722499969388
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "idle"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452576985",
+          "asDouble": 0.9966664720277629
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "interrupt"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452576985",
+          "asDouble": 0
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "nice"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452576985",
+          "asDouble": 0
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "softirq"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452576985",
+          "asDouble": 8.33055648117135e-05
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "steal"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452576985",
+          "asDouble": 0.0009167778518642368
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "schemaUrl": "https://opentelemetry.io/schemas/1.9.0"
+  },
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "vm"
+      }
+     },
+     {
+      "key": "os.type",
+      "value": {
+       "stringValue": "linux"
+      }
+     },
+     {
+      "key": "os.description",
+      "value": {
+       "stringValue": "Ubuntu 24.04.5 LTS (Noble Numbat) (Linux vm 6.18.44-fc-v236 #1 SMP PREEMPT_DYNAMIC @0 x86_64)"
+      }
+     }
+    ]
+   },
+   "scopeMetrics": [
+    {
+     "scope": {
+      "name": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/scraper/filesystemscraper",
+      "version": "0.163.2"
+     },
+     "metrics": [
+      {
+       "name": "system.filesystem.usage",
+       "description": "Filesystem bytes used.",
+       "unit": "By",
+       "sum": {
+        "dataPoints": [
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "/dev/vda"
+            }
+           },
+           {
+            "key": "mode",
+            "value": {
+             "stringValue": "rw"
+            }
+           },
+           {
+            "key": "mountpoint",
+            "value": {
+             "stringValue": "/"
+            }
+           },
+           {
+            "key": "type",
+            "value": {
+             "stringValue": "ext4"
+            }
+           },
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "used"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452721680",
+          "asInt": "24628260864"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "/dev/vda"
+            }
+           },
+           {
+            "key": "mode",
+            "value": {
+             "stringValue": "rw"
+            }
+           },
+           {
+            "key": "mountpoint",
+            "value": {
+             "stringValue": "/"
+            }
+           },
+           {
+            "key": "type",
+            "value": {
+             "stringValue": "ext4"
+            }
+           },
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "free"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452721680",
+          "asInt": "17195597824"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "/dev/vda"
+            }
+           },
+           {
+            "key": "mode",
+            "value": {
+             "stringValue": "rw"
+            }
+           },
+           {
+            "key": "mountpoint",
+            "value": {
+             "stringValue": "/"
+            }
+           },
+           {
+            "key": "type",
+            "value": {
+             "stringValue": "ext4"
+            }
+           },
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "reserved"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452721680",
+          "asInt": "228729315328"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "/dev/vdc"
+            }
+           },
+           {
+            "key": "mode",
+            "value": {
+             "stringValue": "ro"
+            }
+           },
+           {
+            "key": "mountpoint",
+            "value": {
+             "stringValue": "/opt/claude-code"
+            }
+           },
+           {
+            "key": "type",
+            "value": {
+             "stringValue": "ext4"
+            }
+           },
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "used"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452721680",
+          "asInt": "335630336"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "/dev/vdc"
+            }
+           },
+           {
+            "key": "mode",
+            "value": {
+             "stringValue": "ro"
+            }
+           },
+           {
+            "key": "mountpoint",
+            "value": {
+             "stringValue": "/opt/claude-code"
+            }
+           },
+           {
+            "key": "type",
+            "value": {
+             "stringValue": "ext4"
+            }
+           },
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "free"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452721680",
+          "asInt": "27328512"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "/dev/vdc"
+            }
+           },
+           {
+            "key": "mode",
+            "value": {
+             "stringValue": "ro"
+            }
+           },
+           {
+            "key": "mountpoint",
+            "value": {
+             "stringValue": "/opt/claude-code"
+            }
+           },
+           {
+            "key": "type",
+            "value": {
+             "stringValue": "ext4"
+            }
+           },
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "reserved"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452721680",
+          "asInt": "7426048"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "/dev/vdd"
+            }
+           },
+           {
+            "key": "mode",
+            "value": {
+             "stringValue": "ro"
+            }
+           },
+           {
+            "key": "mountpoint",
+            "value": {
+             "stringValue": "/opt/env-runner"
+            }
+           },
+           {
+            "key": "type",
+            "value": {
+             "stringValue": "ext4"
+            }
+           },
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "used"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452721680",
+          "asInt": "33386496"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "/dev/vdd"
+            }
+           },
+           {
+            "key": "mode",
+            "value": {
+             "stringValue": "ro"
+            }
+           },
+           {
+            "key": "mountpoint",
+            "value": {
+             "stringValue": "/opt/env-runner"
+            }
+           },
+           {
+            "key": "type",
+            "value": {
+             "stringValue": "ext4"
+            }
+           },
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "free"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452721680",
+          "asInt": "16416768"
+         },
+         {
+          "attributes": [
+           {
+            "key": "device",
+            "value": {
+             "stringValue": "/dev/vdd"
+            }
+           },
+           {
+            "key": "mode",
+            "value": {
+             "stringValue": "ro"
+            }
+           },
+           {
+            "key": "mountpoint",
+            "value": {
+             "stringValue": "/opt/env-runner"
+            }
+           },
+           {
+            "key": "type",
+            "value": {
+             "stringValue": "ext4"
+            }
+           },
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "reserved"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383452721680",
+          "asInt": "1036288"
+         }
+        ],
+        "aggregationTemporality": 2
+       }
+      }
+     ]
+    }
+   ],
+   "schemaUrl": "https://opentelemetry.io/schemas/1.9.0"
+  },
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "vm"
+      }
+     },
+     {
+      "key": "os.type",
+      "value": {
+       "stringValue": "linux"
+      }
+     },
+     {
+      "key": "os.description",
+      "value": {
+       "stringValue": "Ubuntu 24.04.5 LTS (Noble Numbat) (Linux vm 6.18.44-fc-v236 #1 SMP PREEMPT_DYNAMIC @0 x86_64)"
+      }
+     }
+    ]
+   },
+   "scopeMetrics": [
+    {
+     "scope": {
+      "name": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/scraper/loadscraper",
+      "version": "0.163.2"
+     },
+     "metrics": [
+      {
+       "name": "system.cpu.load_average.1m",
+       "description": "Average CPU Load over 1 minute.",
+       "unit": "{thread}",
+       "gauge": {
+        "dataPoints": [
+         {
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383453166127",
+          "asDouble": 0.16
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "schemaUrl": "https://opentelemetry.io/schemas/1.9.0"
+  },
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "host.name",
+      "value": {
+       "stringValue": "vm"
+      }
+     },
+     {
+      "key": "os.type",
+      "value": {
+       "stringValue": "linux"
+      }
+     },
+     {
+      "key": "os.description",
+      "value": {
+       "stringValue": "Ubuntu 24.04.5 LTS (Noble Numbat) (Linux vm 6.18.44-fc-v236 #1 SMP PREEMPT_DYNAMIC @0 x86_64)"
+      }
+     }
+    ]
+   },
+   "scopeMetrics": [
+    {
+     "scope": {
+      "name": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/scraper/memoryscraper",
+      "version": "0.163.2"
+     },
+     "metrics": [
+      {
+       "name": "system.memory.limit",
+       "description": "Total bytes of memory available.",
+       "unit": "By",
+       "sum": {
+        "dataPoints": [
+         {
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383453239291",
+          "asInt": "16867418112"
+         }
+        ],
+        "aggregationTemporality": 2
+       }
+      },
+      {
+       "name": "system.memory.usage",
+       "description": "Bytes of memory in use.",
+       "unit": "By",
+       "sum": {
+        "dataPoints": [
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "used"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383453239291",
+          "asInt": "734887936"
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "free"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383453239291",
+          "asInt": "14604959744"
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "buffered"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383453239291",
+          "asInt": "85790720"
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "cached"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383453239291",
+          "asInt": "1721417728"
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "slab_reclaimable"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383453239291",
+          "asInt": "59510784"
+         },
+         {
+          "attributes": [
+           {
+            "key": "state",
+            "value": {
+             "stringValue": "slab_unreclaimable"
+            }
+           }
+          ],
+          "startTimeUnixNano": "1793877559000000000",
+          "timeUnixNano": "1793880383453239291",
+          "asInt": "34136064"
+         }
+        ],
+        "aggregationTemporality": 2
+       }
+      }
+     ]
+    }
+   ],
+   "schemaUrl": "https://opentelemetry.io/schemas/1.9.0"
+  }
+ ]
+}

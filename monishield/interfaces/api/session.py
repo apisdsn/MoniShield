@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from .common import COOKIE, _check_csrf, client_ip, public, require_user, require_user_ready
 
-router = APIRouter(prefix='/api')
+router = APIRouter(prefix='/api/v1')
 
 
 class Login(BaseModel):

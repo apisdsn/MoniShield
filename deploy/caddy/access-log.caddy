@@ -1,0 +1,18 @@
+# JSON access log of the main site (DOCKER_ACCESS_LOG not 0). Copied into /etc/caddy/generated/main by entrypoint.sh.
+# It goes to stdout, the container log that a collector reads (docs/12-collector.md); the log-format rule is `caddy-json`
+# (docs/11-log-formats.md). Secrets of a request never reach the log: cookies, authorisation headers, the encrypted-body
+# header, the answer headers and the TLS details are removed. User-Agent and Referer stay.
+log {
+	output stdout
+	format filter {
+		wrap json
+		fields {
+			request>headers>Cookie delete
+			request>headers>Authorization delete
+			request>headers>Proxy-Authorization delete
+			request>headers>X-Ms-Enc delete
+			resp_headers delete
+			request>tls delete
+		}
+	}
+}

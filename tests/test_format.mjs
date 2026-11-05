@@ -2,7 +2,7 @@
 // v2 formatters vs the examples in inventory §2.0 and the output of the old functions in dashboard_template.html.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tLocal, dur, durMs, tRange, dLabel, logDay, folderOfDay, fLabel, folderTag, num, logRange, delta, bytes, pct, sysName, cut, utcToLocal } from '../web/src/format.js';
+import { tLocal, dur, durMs, tRange, dLabel, logDay, folderOfDay, fLabel, folderTag, num, logRange, delta, bytes, pct, sysName, cut, utcToLocal, isFilling } from '../web/src/format.js';
 
 test('local time like the old system', () => {
   assert.equal(tLocal('2026-09-28 06:03', 'id'), '28 Sep 2026 06.03 WIB');
@@ -99,4 +99,15 @@ test('folder name -> log day (S3 and Kafka folders both hold the previous day)',
   assert.equal(fLabel('not-a-date', 'en'), 'not-a-date');         // not a date folder: shown unchanged
   assert.equal(fLabel(null, 'en'), '');
   assert.deepEqual(['s3', 'kafka', 'collector', 'log', 'upload', undefined].map(folderTag), ['s3', 'kafka', 'collector', null, null, null]);
+});
+
+test('a folder that is still filling up is not incomplete', () => {
+  // folder D holds (D-1 00:00, D 00:00]: the folder dated tomorrow is the day in progress
+  assert.equal(isFilling('collector', '2026-11-06', '2026-11-05'), true);
+  assert.equal(isFilling('kafka', '2026-11-06', '2026-11-05'), true);
+  assert.equal(isFilling('collector', '2026-11-05', '2026-11-05'), false);   // complete since 00:00
+  assert.equal(isFilling('collector', '2026-11-04', '2026-11-05'), false);
+  assert.equal(isFilling('s3', '2026-11-06', '2026-11-05'), false);          // S3 folders are complete exports
+  assert.equal(isFilling('collector', null, '2026-11-05'), false);
+  assert.equal(isFilling('collector', 'uploads', '2026-11-05'), false);
 });

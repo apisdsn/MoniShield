@@ -37,8 +37,8 @@ def tc(tmp_path, auth_url, monkeypatch):
                             admin_user='admin', admin_password=PW, jwt_secret=JWT_SECRET, auth_database_url=auth_url)
     con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
     with TestClient(appmod.create_app(c)) as client:
-        assert client.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
-        assert client.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+        assert client.post('/api/v1/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
+        assert client.post('/api/v1/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
         yield client
 
 
@@ -46,28 +46,28 @@ def test_cleanup_removes_old_folders_for_good(tc):
     st = tc.app.state
     old_inbox = os.path.join(st.cfg.inbox_dir, '2025-12-20', 'ns', 'svc')
     os.makedirs(old_inbox); open(os.path.join(old_inbox, 'a.log'), 'w').write('x\n')
-    assert tc.get('/api/admin/retention', headers=X).json()['db'] == []          # 0 = keep forever
-    r = tc.put('/api/admin/config', json=dict(retention_days='10', retention_inbox_days='5'), headers=X)
+    assert tc.get('/api/v1/admin/retention', headers=X).json()['db'] == []          # 0 = keep forever
+    r = tc.put('/api/v1/admin/config', json=dict(retention_days='10', retention_inbox_days='5'), headers=X)
     assert r.status_code == 200, r.text
     assert 'S4_RETENTION_DAYS=10' in open(st.env.path).read()
-    v = tc.get('/api/admin/retention', headers=X).json()
+    v = tc.get('/api/v1/admin/retention', headers=X).json()
     assert (v['db'], v['inbox'], v['cutoff_db']) == (['2026-01-01'], ['2025-12-20'], '2026-01-02')
-    r = tc.post('/api/admin/retention/run', headers=X)
+    r = tc.post('/api/v1/admin/retention/run', headers=X)
     assert r.status_code == 200, r.text
     assert r.json()['last']['db'] == ['2026-01-01'] and r.json()['last']['inbox'] == ['2025-12-20'] and r.json()['db'] == []
     assert st.warehouse.known_folders() == {'2026-01-02'}
     assert not os.path.exists(os.path.dirname(old_inbox))
     assert os.path.isdir(os.path.join(st.cfg.log_dir, '2026-01-01'))              # main log folder untouched
-    assert 'retention.run' in tc.get('/api/admin/audit', headers=X).text
+    assert 'retention.run' in tc.get('/api/v1/admin/audit', headers=X).text
     # the log files are still there, but ingest and the "new folders" badge skip them
     st.ingest.start(by='test'); st.ingest.wait(60)
     assert st.warehouse.known_folders() == {'2026-01-02'}
-    assert tc.get('/api/admin/ingest', headers=X).json()['new_folders'] == []
+    assert tc.get('/api/v1/admin/ingest', headers=X).json()['new_folders'] == []
 
 
 @pytest.mark.parametrize('body', [dict(retention_days='7'), dict(retention_inbox_days='1'), dict(retention_days='abc')])
 def test_invalid_settings_refused(tc, body):
-    r = tc.put('/api/admin/config', json=body, headers=X)
+    r = tc.put('/api/v1/admin/config', json=body, headers=X)
     assert r.status_code == 400
     path = tc.app.state.env.path
     assert not os.path.exists(path) or 'S4_RETENTION' not in open(path).read()

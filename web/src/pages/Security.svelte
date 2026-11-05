@@ -1,5 +1,5 @@
 <!-- Security (DRD §3.4, inv. §2.4): 8 KPIs (4 + 4, U5), "Temuan utama" (9 rules, components + dictionary), 6 charts, 5 tables,
-     footnotes. One request: GET /api/folders/{folder}/security (first-page tables included in the response).
+     footnotes. One request: GET /api/v1/folders/{folder}/security (first-page tables included in the response).
      Stage 21: data.scheme = 'crs' (default) -> category = "CAPEC/CRS family" (e.g. '242/xss'), severity from the CRS
      rule, "Aturan" column holds the CRS ID, the footnote names CRS + version + the request parts inspected;
      'legacy' -> old-system rule view. All data text is rendered as text. -->
@@ -30,7 +30,7 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
-      const j = await api.get(`/api/folders/${encodeURIComponent(folder)}/security`);
+      const j = await api.get(`/api/v1/folders/${encodeURIComponent(folder)}/security`);
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) error = e;
@@ -176,7 +176,7 @@
       </DataTable>
 
       {#if T['attack-ips'].total}
-        <p class="dl wide-row"><a class="btn" href={withSource(`/api/folders/${encodeURIComponent(folder)}/security/attack-ips.csv`)} download>{$t('sec.csv', { n: num(T['attack-ips'].total, $lang) })}</a>
+        <p class="dl wide-row"><a class="btn" href={withSource(`/api/v1/folders/${encodeURIComponent(folder)}/security/attack-ips.csv`)} download>{$t('sec.csv', { n: num(T['attack-ips'].total, $lang) })}</a>
           <button class="btn" onclick={() => (blOpen = true)}>{$t('bl.open')}</button>
           <span class="muted small">{$t('sec.csv_note')}</span></p>
         <BlocklistDialog {folder} bind:open={blOpen} />

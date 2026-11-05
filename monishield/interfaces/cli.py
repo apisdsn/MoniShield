@@ -107,12 +107,12 @@ def _ingest_via_api(cfg, args):
     if not cfg.job_token:
         print('server is running but S4_JOB_TOKEN is empty; set it in .env so ingest can be triggered via the API', file=sys.stderr); return 2
     q = '' if getattr(args, 'source', 's3') == 's3' else f'?source={args.source}'   # Kafka and collector have their own database
-    code, body = _api(cfg, 'POST', '/api/admin/ingest' + q, dict(folder=args.folder, force=args.force))
+    code, body = _api(cfg, 'POST', '/api/v1/admin/ingest' + q, dict(folder=args.folder, force=args.force))
     if code not in (202, 409): print(f"failed to trigger ingest: {code} {body.get('error', {}).get('message', '')}", file=sys.stderr); return 2
     if code == 409: print('ingest already running on the server; waiting for it to finish', file=sys.stderr)
     while True:
         time.sleep(1)
-        code, st = _api(cfg, 'GET', '/api/admin/ingest' + q) or (None, None)
+        code, st = _api(cfg, 'GET', '/api/v1/admin/ingest' + q) or (None, None)
         if code != 200: print('server stopped responding while ingest was running', file=sys.stderr); return 2
         if not st['running']: break
     if st['error']: print('ingest failed:', st['error'], file=sys.stderr); return 1
@@ -177,11 +177,11 @@ def cmd_import(cfg, args):
     if not up and cfg.api_url: print(f'server {cfg.api_url} unreachable; import not run', file=sys.stderr); return 2
     if up:
         if not cfg.job_token: print('server is running but S4_JOB_TOKEN is empty', file=sys.stderr); return 2
-        code, body = _api(cfg, 'POST', '/api/admin/imports', dict(url=args.url, dry_run=args.dry_run))
+        code, body = _api(cfg, 'POST', '/api/v1/admin/imports', dict(url=args.url, dry_run=args.dry_run))
         if code != 202: print(f"rejected: {body.get('error', {}).get('message', code)}", file=sys.stderr); return 2
         while True:
             time.sleep(1)
-            code, j = _api(cfg, 'GET', f"/api/admin/imports/{body['job_id']}") or (None, None)
+            code, j = _api(cfg, 'GET', f"/api/v1/admin/imports/{body['job_id']}") or (None, None)
             if code != 200: print('server stopped responding while the import was running', file=sys.stderr); return 2
             if not j['running'] and j['status'] not in ('running',) and (j['result'] or j['status'] == 'failed'): break
         if j['status'] == 'failed': print(f"import failed: {j['message']}", file=sys.stderr); return 1
@@ -203,11 +203,11 @@ def cmd_sync(cfg, args):
     import time
     if _api(cfg, 'GET', '/api/health') is None: print('server unreachable; sync runs inside the server', file=sys.stderr); return 2
     if not cfg.job_token: print('S4_JOB_TOKEN is empty; set it in .env so sync can be triggered', file=sys.stderr); return 2
-    code, body = _api(cfg, 'POST', '/api/admin/imports/sync', {})
+    code, body = _api(cfg, 'POST', '/api/v1/admin/imports/sync', {})
     if code != 202: print(f"sync not started: {body.get('error', {}).get('message', code)}", file=sys.stderr); return 2
     while True:   # the ingest status (allowed for the machine token) carries the sync state
         time.sleep(2)
-        code, v = _api(cfg, 'GET', '/api/admin/ingest') or (None, None)
+        code, v = _api(cfg, 'GET', '/api/v1/admin/ingest') or (None, None)
         if code != 200: print('server stopped responding while sync was running', file=sys.stderr); return 2
         if not v['s3']['running']: break
     s = v['s3']
@@ -285,7 +285,7 @@ def cmd_backup(cfg, args):
     """Make today's backup now: through the running server (machine token), or directly when the server is stopped."""
     if _api(cfg, 'GET', '/api/health') is not None:
         if not cfg.job_token: print('S4_JOB_TOKEN is empty; set it in .env so a backup can be started through the server', file=sys.stderr); return 2
-        code, body = _api(cfg, 'POST', '/api/admin/backup/run', {})
+        code, body = _api(cfg, 'POST', '/api/v1/admin/backup/run', {})
         if code != 200: print(f"backup failed: {body.get('error', {}).get('message', code)}", file=sys.stderr); return 1
         r = body['last']
     else:

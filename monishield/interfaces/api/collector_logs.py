@@ -1,12 +1,15 @@
 """Receiver for the OpenTelemetry Collector (docs/12-collector.md, step 3).
-  POST /api/collector/v1/logs   OTLP/HTTP log batches as JSON (otlphttp exporter: encoding json, compression gzip)
+  POST /api/v1/collector/logs     OTLP/HTTP log batches as JSON (otlp_http exporter: encoding json, compression gzip)
+  POST /api/v1/collector/metrics  the same for metric batches (server and container metrics, docs/13-metrics.md)
 
 A machine client: it authenticates with its own key (`Authorization: Bearer msk_…`), so there is no session and no CSRF
 check, and the batches are not audited. The status codes are chosen for the exporter's retry rules: it retries 429, 502,
 503 and 504 (and keeps the data in its queue) and drops the batch on other 4xx, so a batch that can never succeed must not
-get a retryable code and a temporary problem must not get a final one. The line files are on disk before the 200.
+get a retryable code and a temporary problem must not get a final one. The line files (the metric points) are stored before the 200.
 """
 import datetime, json, zlib
+
+import duckdb
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
@@ -14,7 +17,7 @@ from fastapi.responses import JSONResponse
 
 from .common import ApiError, require_collector
 
-router = APIRouter(prefix='/api/collector/v1')
+router = APIRouter(prefix='/api/v1/collector')
 MB = 1024 * 1024
 PIECE = 256 * 1024   # gunzip output is taken in pieces of this size, so a bomb is stopped early
 
@@ -77,18 +80,27 @@ def decode(raw):
 
 
 def store(feed, collector, body, encoding, max_raw):
-    """The CPU and disk work of a request (runs in a worker thread, not on the event loop). -> the OTLP answer."""
+    """The CPU and disk work of a log request (runs in a worker thread, not on the event loop). -> the OTLP answer."""
+    return handle(feed, collector, body, encoding, max_raw, lambda payload, now: feed.receive(collector, payload, now)[0], 'lines')
+
+
+def store_metrics(feed, collector, body, encoding, max_raw):
+    """The same for a metrics request: the data points go to the metrics store. -> the OTLP answer."""
+    return handle(feed, collector, body, encoding, max_raw, lambda payload, now: feed.receive(collector, payload, now), 'metrics')
+
+
+def handle(feed, collector, body, encoding, max_raw, take, what):
     raw = gunzip(body, max_raw) if encoding == 'gzip' else body
     if len(raw) > max_raw: raise _too_large()
     payload = decode(raw)
     if feed.space_low(): raise ApiError(503, 'disk_full', 'The server is low on disk space; keep the data and retry later.', {'Retry-After': '60'})
-    try: answer, _ = feed.receive(collector, payload, datetime.datetime.now(datetime.timezone.utc))
-    except OSError: raise ApiError(503, 'storage_error', 'The server could not store the lines; retry later.', {'Retry-After': '60'}) from None
-    return answer
+    try: return take(payload, datetime.datetime.now(datetime.timezone.utc))
+    except (OSError, duckdb.IOException): raise ApiError(503, 'storage_error', f'The server could not store the {what}; retry later.', {'Retry-After': '60'}) from None
 
 
-@router.post('/logs')
-async def receive_logs(request: Request, collector=Depends(require_collector)):
+async def admit(request, collector, feed_name, store_fn):
+    """The steps both receivers share: content type and encoding, the rate window, a free slot, reading the body (never more than the
+    limit in memory), then the worker thread that decodes and stores it. -> the OTLP answer."""
     st, cfg = request.app.state, request.app.state.cfg
     check_type(request)
     encoding = check_encoding(request)
@@ -100,6 +112,15 @@ async def receive_logs(request: Request, collector=Depends(require_collector)):
         raise ApiError(503, 'busy', 'The server is busy; retry shortly.', {'Retry-After': '5'})
     try:
         body = await read_body(request, cfg.collector_max_body_mb * MB)
-        answer = await run_in_threadpool(store, st.collector_feed, collector, body, encoding, cfg.collector_max_raw_mb * MB)
+        return await run_in_threadpool(store_fn, getattr(st, feed_name), collector, body, encoding, cfg.collector_max_raw_mb * MB)
     finally: st.collector_slots.release()
-    return JSONResponse(answer)
+
+
+@router.post('/logs')
+async def receive_logs(request: Request, collector=Depends(require_collector)):
+    return JSONResponse(await admit(request, collector, 'collector_feed', store))
+
+
+@router.post('/metrics')
+async def receive_metrics(request: Request, collector=Depends(require_collector)):
+    return JSONResponse(await admit(request, collector, 'metrics_feed', store_metrics))

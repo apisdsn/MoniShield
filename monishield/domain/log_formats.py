@@ -18,6 +18,7 @@ PRESETS = {
     'events-json': 'app',        # legacy: "[TAG-LEVEL] {...}" JSON events with requestId
     'spring-boot': 'app',        # legacy: Spring Boot / Logback default pattern
     'nginx-combined': 'http',
+    'caddy-json': 'http',        # Caddy's JSON access log (fields and units fixed; docs/11-log-formats.md)
     'apache-combined': 'http',
     'json': 'app',
     'logfmt': 'app',
@@ -32,10 +33,11 @@ COLUMNS = ('time', 'level', 'ip', 'method', 'path', 'status', 'bytes', 'duration
            'logger', 'upstream', 'ua', 'referer')
 LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG')
 TIME_FORMATS = ('iso', 'epoch', 'epoch_ms', 'clf')
-KEYS = ('match', 'format', 'kind', 'fields', 'pattern', 'time_format', 'multiline', 'levels', 'tag', 'features', 'ip_header')
+KEYS = ('match', 'format', 'kind', 'fields', 'pattern', 'time_format', 'multiline', 'levels', 'tag', 'features', 'ip_header', 'duration_unit')
+DURATION_UNITS = ('ms', 's', 'us', 'ns')
 MATCH = re.compile(r'(?:[A-Za-z0-9*?._-]+/)?[A-Za-z0-9*?._-]+')
 TAG = re.compile(r'[A-Za-z0-9_]{1,20}')
-FIELD = re.compile(r'[A-Za-z0-9_@$-]+(?:\.[A-Za-z0-9_@$-]+)*')
+FIELD = re.compile(r'[A-Za-z0-9_@$-]+(?:\[\d{1,3}\])?(?:\.[A-Za-z0-9_@$-]+(?:\[\d{1,3}\])?)*')
 MAX_PATTERN = 2000
 NESTED = re.compile(r'\((?:[^()\\]|\\.)*[+*}]\)\s*[+*{]')   # (a+)+, (\d*)*, (x{2,}){3}: catastrophic backtracking
 
@@ -57,6 +59,7 @@ class Rule:
     tag: str = ''
     features: tuple = ()
     ip_header: str = ''
+    duration_unit: str = 'ms'    # unit of the duration a json / logfmt rule maps (Caddy writes seconds)
 
     @property
     def namespace(self): return self.match.split('/', 1)[0] if '/' in self.match else None
@@ -103,7 +106,7 @@ def rule_from(d, n):
     kind = d.get('kind', PRESETS[fmt])
     if kind is not None and kind not in KINDS: raise FormatError(f'{where}: kind must be http or app')
     fields = d.get('fields', {})
-    if fields and fmt not in ('json', 'logfmt'): raise FormatError(f'{where}: fields only apply to the json and logfmt formats')
+    if fields and fmt not in ('json', 'logfmt', 'caddy-json'): raise FormatError(f'{where}: fields only apply to the json and logfmt formats')
     if not isinstance(fields, dict): raise FormatError(f'{where}: fields must be a table of column = "source key"')
     for col, src in fields.items():
         if col not in COLUMNS: raise FormatError(f'{where}: unknown column {col!r} (columns: {", ".join(COLUMNS)})')
@@ -131,8 +134,11 @@ def rule_from(d, n):
     ip_header = d.get('ip_header', '')
     if ip_header and kind != 'http': raise FormatError(f'{where}: ip_header only applies to http logs')
     if ip_header and (not isinstance(ip_header, str) or not FIELD.fullmatch(ip_header)): raise FormatError(f'{where}: ip_header must be a field name')
+    unit = d.get('duration_unit', 'ms')
+    if unit not in DURATION_UNITS: raise FormatError(f'{where}: duration_unit must be one of {", ".join(DURATION_UNITS)}')
+    if unit != 'ms' and fmt not in ('json', 'logfmt'): raise FormatError(f'{where}: duration_unit only applies to the json and logfmt formats')
     return Rule(match=m, format=fmt, kind=kind, fields=tuple(sorted(fields.items())), pattern=pattern, time_format=tf,
-                multiline=ml, levels=tuple(sorted(levels.items())), tag=tag, features=tuple(dict.fromkeys(feats)), ip_header=ip_header)
+                multiline=ml, levels=tuple(sorted(levels.items())), tag=tag, features=tuple(dict.fromkeys(feats)), ip_header=ip_header, duration_unit=unit)
 
 
 def rules_from(doc):

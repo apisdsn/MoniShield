@@ -8,17 +8,20 @@ from monishield.domain import collector_config
 from monishield.domain.errors import Fail
 from .common import ApiError, _check_csrf, client_ip, public, require_admin, require_collector
 
-router = APIRouter(prefix='/api')
+router = APIRouter(prefix='/api/v1')
 
 
 class NewCollector(BaseModel):
     name: str = ''
     platform: str = ''
     options: dict | None = None   # the log inputs (domain/collector_config.py); empty = the defaults of the platform
+    group: str | None = None      # the section it is listed under; empty or missing = no group
 
 
 class Options(BaseModel):
-    options: dict = {}
+    """The update call: the inputs, the group, or both (what is missing stays as it is)."""
+    options: dict | None = None
+    group: str | None = None
 
 
 class Enroll(BaseModel):
@@ -44,7 +47,7 @@ def receiver_url(request: Request):
 @router.get('/admin/collectors')
 def list_collectors(request: Request, admin=Depends(require_admin)):
     stats = request.app.state.collector_feed.status()['collectors']   # counts of the receiver since the server started
-    return dict(rows=[dict(c, stats=stats.get(c['id'])) for c in _svc(request).list()],
+    return dict(rows=[dict(c, stats=stats.get(c['id'])) for c in _svc(request).list()], groups=_svc(request).groups(),
                 receiver=receiver_url(request), otel_version=request.app.state.cfg.collector_otel_version)
 
 
@@ -59,14 +62,18 @@ def download_config(cid: int, request: Request, admin=Depends(require_admin)):
 
 @router.post('/admin/collectors', status_code=201)
 def add_collector(body: NewCollector, request: Request, response: Response, admin=Depends(require_admin)):
-    info, token, expires = _svc(request).add(body.name[:100], body.platform[:30], admin, client_ip(request), body.options)
+    info, token, expires = _svc(request).add(body.name[:100], body.platform[:30], admin, client_ip(request), body.options, (body.group or '')[:100])
     _secret(response)
     return dict(collector=info, enroll_token=token, expires=expires)
 
 
 @router.put('/admin/collectors/{cid}/options')
 def set_options(cid: int, body: Options, request: Request, admin=Depends(require_admin)):
-    return dict(collector=_svc(request).set_options(cid, body.options, admin, client_ip(request)))
+    svc, ip, info = _svc(request), client_ip(request), None
+    if body.options is not None: info = svc.set_options(cid, body.options, admin, ip)
+    if 'group' in body.model_fields_set: info = svc.set_group(cid, (body.group or '')[:100], admin, ip)
+    if info is None: raise ApiError(400, 'invalid_body', 'Send options, a group, or both.')
+    return dict(collector=info)
 
 
 @router.post('/admin/collectors/{cid}/token')

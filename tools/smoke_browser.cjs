@@ -9,7 +9,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8777';
 const SHOTS = process.argv[3] || '';
 const PW0 = 'smoke-test-first-password', PW1 = 'Smoke-Test-Second-Password-2026!';
 const PAGES = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
-  'services/event-api', 'collectors', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
+  'services/event-api', 'servers', 'collectors', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
 const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'id', source: 'collector' }, { lang: 'en', source: '' }];
 
 (async () => {
@@ -28,7 +28,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     // console errors too (a map worker that fails to load is only logged). "Failed to load resource" lines are left out: server
     // errors are caught as 5xx answers above, the 401 is the page asking whether you are signed in, and CI has no map files (404)
     hp.on('console', (m) => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) errs.push(m.text().slice(0, 200)); });
-    const mapAnswer = hp.waitForResponse((r) => r.url().endsWith('/api/public/map'));
+    const mapAnswer = hp.waitForResponse((r) => r.url().endsWith('/api/v1/public/map'));
     await hp.goto(BASE + '/');
     await hp.waitForSelector('#home-h1');
     const st = (await mapAnswer).status();
@@ -56,6 +56,30 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   const robots = await (await browser.newContext()).request.get(BASE + '/robots.txt');
   if (robots.status() !== 200 || !/Disallow: \/api\//.test(await robots.text())) throw new Error(`robots.txt: ${robots.status()}`);
   console.log('ok   robots.txt');
+
+  // sign-in page and home page: the same language menu and theme button as the dashboard header (44 x 44, line icons, no emoji),
+  // the menu stays on the screen on a phone, Esc closes it and the focus returns to its button
+  for (const [path, width] of [['/login', 1280], ['/login', 320], ['/', 390]]) {
+    const lp = await (await browser.newContext({ viewport: { width, height: 800 } })).newPage();
+    await lp.goto(BASE + path);
+    await lp.waitForSelector('.lbtn');
+    const m = await lp.evaluate(() => {
+      const l = document.querySelector('.lbtn').getBoundingClientRect(), t = document.querySelector('.icon-btn[aria-pressed]').getBoundingClientRect();
+      const text = document.querySelector('.lbtn').parentElement.parentElement.innerText + document.querySelector('.icon-btn[aria-pressed]').innerText;
+      return { l: [l.width, l.height], t: [t.width, t.height], seg: !!document.querySelector('.seg[role=radiogroup]'), emoji: /\p{Extended_Pictographic}/u.test(text), over: document.documentElement.scrollWidth - innerWidth };
+    });
+    if (m.t[0] !== 44 || m.t[1] !== 44 || m.l[1] !== 44 || m.seg || m.emoji || m.over > 0) throw new Error(`${path} at ${width}px: controls ${JSON.stringify(m)}`);
+    await lp.locator('.lbtn').click();
+    const r = await lp.locator('#lang-menu').boundingBox();
+    if (r.x < 0 || r.x + r.width > width) throw new Error(`${path} at ${width}px: the language menu leaves the screen (${r.x}, ${r.width})`);
+    await lp.keyboard.press('Escape');
+    if (await lp.locator('#lang-menu').count() || !(await lp.locator('.lbtn').evaluate((b) => document.activeElement === b))) throw new Error(`${path}: Esc did not close the language menu and return the focus`);
+    const was = await lp.evaluate(() => document.documentElement.dataset.theme);
+    await lp.locator('.icon-btn[aria-pressed]').click();
+    if ((await lp.evaluate(() => document.documentElement.dataset.theme)) === was) throw new Error(`${path}: the theme button did not switch the theme`);
+    await lp.context().close();
+  }
+  console.log('ok   sign-in and home page: language menu and theme button like the dashboard header');
 
   // link preview tags of the home page, per language (?lang=, else Accept-Language), and their images
   const req = (await browser.newContext()).request;
@@ -118,19 +142,43 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   if (await page.locator('#lang-menu').count()) throw new Error('the language menu stayed open after a choice');
   console.log('ok   header language menu (open, Esc, choose)');
 
-  // dark theme switch: toggles data-theme, both themes render the Overview without script errors
-  const sw = page.locator('button[role=switch]');
+  // header controls are one family (same height, border colour and radius), and a dialog closed with the mouse gives the focus back
+  // to its button without a ring (with the keyboard it keeps one)
+  const family = await page.evaluate(() => ['.where .seg', '.fp', 'button[aria-keyshortcuts]', '.lbtn', 'header.top button[aria-pressed]', '.who'].map((s) => {
+    const e = document.querySelector(s), c = e && getComputedStyle(e), r = e && e.getBoundingClientRect();
+    return e && `${s}: ${Math.round(r.height)}px ${c.borderTopWidth} ${c.borderTopColor} ${c.borderTopLeftRadius}`;
+  }));
+  const kinds = new Set(family.filter(Boolean).map((x) => x.replace(/^[^:]*: /, '')));
+  if (kinds.size !== 1) throw new Error(`header controls differ: ${family.join(' | ')}`);
+  const searchBtn = page.locator('button[aria-keyshortcuts]');
+  await searchBtn.click();
+  await page.keyboard.type('ab');
+  await page.locator('dialog[open] button.x').click();
+  const ring = () => searchBtn.evaluate((b) => ({ on: document.activeElement === b, ring: getComputedStyle(b).outlineStyle !== 'none' }));
+  let st = await ring();
+  if (!st.on || st.ring) throw new Error(`search button after closing the dialog with the mouse: focused ${st.on}, ring ${st.ring}`);
+  await searchBtn.press('Enter');
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');   // the first Esc only clears the field
+  st = await ring();
+  if (!st.on || !st.ring) throw new Error(`search button after closing the dialog with Esc: focused ${st.on}, ring ${st.ring}`);
+  console.log('ok   header controls look alike; focus ring only after the keyboard');
+
+  // dark theme button (an icon button with aria-pressed): toggles data-theme, shows a moon or a sun, and both themes render the Overview
+  // without script errors
+  const sw = page.locator('header.top button[aria-pressed]');
+  const box = await sw.boundingBox();
+  if (Math.round(box.width) !== 44 || Math.round(box.height) !== 44) throw new Error(`theme button is ${box.width} x ${box.height}, not 44 x 44`);
   const errsBefore = problems.length;
   for (let i = 0; i < 2; i++) {
     const was = await page.evaluate(() => document.documentElement.dataset.theme);
     await sw.click();
     const now = await page.evaluate(() => document.documentElement.dataset.theme);
-    if (now === was || (await sw.getAttribute('aria-checked')) !== String(now === 'dark')) throw new Error(`theme switch: ${was} -> ${now}`);
+    if (now === was || (await sw.getAttribute('aria-pressed')) !== String(now === 'dark')) throw new Error(`theme button: ${was} -> ${now}`);
     await page.waitForTimeout(400);
     await page.locator('main#main[aria-busy="false"]').waitFor();
   }
   if (problems.length !== errsBefore) throw new Error(`errors while switching themes: ${problems.slice(errsBefore).join('; ')}`);
-  console.log('ok   dark theme switch (both themes render the Overview)');
+  console.log('ok   dark theme button (both themes render the Overview)');
 
   // wide and narrow screens: at 3840 x 2160 the Overview fills the width (scaled up, no empty right side, no sideways scroll);
   // at 390 px nothing scrolls sideways
@@ -186,6 +234,92 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   if (over > 0) throw new Error(`Collectors page scrolls sideways by ${over}px at 390px`);
   await page.setViewportSize({ width: 1280, height: 900 });
   console.log('ok   Collectors: add dialog (Esc), token and command, list, no sideways scroll at 390px');
+
+  // Collector groups and the Servers page (the sample servers of tools/seed_metrics.py: three groups and one collector without a group).
+  // Every /api answer these pages read must be encrypted (X-MS-Enc, application/octet-stream); only the public key exchange and /api/health are plain JSON.
+  const plain = [];
+  const watch = (r) => {
+    const u = new URL(r.url());
+    if (u.pathname.startsWith('/api/') && !/^\/api\/(v1\/crypto\/handshake|health)$/.test(u.pathname) && (r.headers()['content-type'] || '').startsWith('application/json')) plain.push(`${r.request().method()} ${u.pathname}`);
+  };
+  page.on('response', watch);
+  await page.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.removeItem('cl-closed'); });
+  await page.goto(BASE + '/collectors');
+  await page.waitForSelector('h2.gh');
+  const heads = await page.locator('h2.gh .gn').allInnerTexts();
+  if (heads.join('|') !== 'Client A|Client B|Internal|No Group') throw new Error(`collector sections: ${heads.join('|')}`);
+  const hb = page.locator('h2.gh button').first();
+  if ((await hb.getAttribute('aria-expanded')) !== 'true' || (await hb.evaluate((b) => b.getBoundingClientRect().height)) < 56) throw new Error('section header: not open or under 56 px');
+  await hb.click();
+  if ((await hb.getAttribute('aria-expanded')) !== 'false' || (await page.locator('tr:has-text("db-01")').count()) !== 0) throw new Error('a section did not fold');
+  await page.reload();
+  await page.waitForSelector('h2.gh');
+  if ((await page.locator('h2.gh button').first().getAttribute('aria-expanded')) !== 'false') throw new Error('the folded section was not remembered');
+  await page.fill('.find input', 'web-01');          // a search opens every matching section
+  if ((await page.locator('h2.gh button').first().getAttribute('aria-expanded')) !== 'true' || (await page.locator('tbody tr').count()) < 1) throw new Error('a search did not open the matching section');
+  await page.fill('.find input', 'no-such-collector');
+  if (!(await page.locator('.nomatch').count())) throw new Error('no "nothing matches" line');
+  await page.fill('.find input', '');
+  await page.click('.flt button:has-text("Offline")');
+  if ((await page.locator('.flt button[aria-pressed=true]').count()) !== 1 || (await page.locator('h2.gh .gn').allInnerTexts()).join('|') !== 'No Group') throw new Error('status filter Offline');
+  await page.click('.flt button:has-text("All")');
+  await page.click('button.all');
+  if ((await page.locator('h2.gh button[aria-expanded=true]').count()) !== 0) throw new Error('Collapse All');
+  await page.click('button.all');
+  if ((await page.locator('h2.gh button[aria-expanded=false]').count()) !== 0) throw new Error('Expand All');
+  await page.click('tr:has-text("web-02") .rowbtn');         // the panel: change the group, the metric options and the upgrade note
+  await page.click('#cl-panel button:has-text("Change Group")');
+  await page.waitForSelector('dialog[open] #cl-gr-in');
+  await page.fill('#cl-gr-in', 'client b');
+  if (!(await page.locator('dialog .note:has-text("Joins the existing group Client B")').count())) throw new Error('group note');
+  await page.click('dialog button[type=submit]');
+  await page.waitForSelector('tr:has-text("web-02")');
+  await page.waitForFunction(() => [...document.querySelectorAll('h2.gh')].some((h) => h.textContent.includes('Client B') && h.textContent.includes('3 collectors')));
+  await page.waitForSelector('#cl-panel');                  // still selected: the panel stays open after the group changed
+  await page.click('#cl-panel button:has-text("Change Inputs")');
+  await page.waitForSelector('dialog[open] fieldset.met');
+  await page.click('dialog fieldset.met label:has-text("Server Metrics") input');
+  await page.click('dialog button[type=submit]');
+  await page.waitForSelector('dialog:has-text("Run the upgrade command on the server to apply this")');
+  if (!(await page.locator('dialog pre:has-text("install.sh --upgrade")').count())) throw new Error('upgrade command not shown after a metrics change');
+  await page.keyboard.press('Escape');
+  console.log('ok   Collectors: sections per group, fold (remembered), search, status filter, change group, metric options and the upgrade command');
+
+  await page.goto(BASE + '/servers');
+  await page.waitForSelector('.hc');
+  await page.waitForSelector('.charts canvas');
+  if ((await page.locator('.hc').count()) < 6 || (await page.locator('section.banner li').count()) < 1) throw new Error('Servers: cards or banner missing');
+  if ((await page.locator('.seg[role=radiogroup]').count()) !== 0) throw new Error('the source switch is shown on the Servers page');
+  const groupBtns = await page.locator('.gfilter .gb').allInnerTexts();
+  if (groupBtns[0] !== 'All Groups' || groupBtns.length < 4) throw new Error(`group filter: ${groupBtns.join('|')}`);
+  await page.click('.gfilter .gb:text-is("Client B")');
+  if ((await page.locator('.hc').count()) !== 3 || (await page.locator('.gfilter .gb[aria-pressed=true]').count()) !== 1) throw new Error('Servers: group filter Client B');
+  await page.click('.gfilter .gb:text-is("All Groups")');
+  await page.click('.hc:has-text("VM-23-71-ubuntu")');
+  await page.waitForSelector('.ct tbody tr');
+  if ((await page.locator('.ct tbody tr').count()) !== 4 || !(await page.locator('.ct tr.off').count())) throw new Error('Servers: containers table');
+  await page.click('.rng button:text-is("7 d")');
+  await page.waitForSelector('.charts canvas');
+  for (const w of [390, 1280]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    // charts resize after the window does: wait up to 2 s for the layout to settle, then name what sticks out
+    let o = 0, wide = [];
+    for (let i = 0; i < 10; i++) {
+      await page.waitForTimeout(200);
+      [o, wide] = await page.evaluate(() => {
+        const cw = document.documentElement.clientWidth;
+        const out = [...document.querySelectorAll('main *')].filter((el) => el.getBoundingClientRect().right > cw + 1 && !el.closest('.scroll'))
+          .slice(0, 3).map((el) => `${el.tagName.toLowerCase()}.${String(el.className?.baseVal ?? el.className).split(' ')[0]} +${Math.round(el.getBoundingClientRect().right - cw)}px`);
+        return [document.documentElement.scrollWidth - cw, out];
+      });
+      if (o <= 0) break;
+    }
+    if (o > 0) throw new Error(`Servers page scrolls sideways by ${o}px at ${w}px (${wide.join(', ') || 'no element found'})`);
+  }
+  console.log('ok   Servers: cards, banner, group filter, charts, containers, ranges, no sideways scroll');
+  page.off('response', watch);
+  if (plain.length) throw new Error(`these /api answers were plain JSON, not encrypted: ${[...new Set(plain)].join(', ')}`);
+  console.log('ok   Collectors and Servers read only encrypted /api answers');
 
   let failed = 0, checked = 0;
   for (const run of RUNS) {

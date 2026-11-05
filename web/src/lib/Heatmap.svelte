@@ -62,7 +62,7 @@
 
 <style>
   header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-  h2 { font-size: 0.9375rem; font-weight: 600; color: var(--heading); text-transform: capitalize; }
+  h2 { font-size: 0.9375rem; font-weight: 600; color: var(--heading); }
   .acts { display: flex; align-items: center; gap: 8px; }
   .readout { margin: 0 0 8px; font-size: 0.8125rem; min-height: 1.3em; color: var(--fg); }
   .scroll { overflow-x: auto; }
