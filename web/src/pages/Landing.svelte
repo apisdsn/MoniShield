@@ -7,10 +7,11 @@
 <script>
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
-  import { theme } from '../theme.js';
   import { num, dLabel } from '../format.js';
   import { APP_NAME } from '../brand.js';
   import Logo from '../lib/Logo.svelte';
+  import LangMenu from '../lib/LangMenu.svelte';
+  import ThemeSwitch from '../lib/ThemeSwitch.svelte';
   import MapView from '../lib/MapView.svelte';
   import AppPreview from '../lib/AppPreview.svelte';
 
@@ -86,21 +87,8 @@
       {#if REPO}<a href={REPO} target="_blank" rel="noreferrer">{$t('home.foot.code')}</a>{/if}
     {/snippet}
     <nav class="sections" aria-label={$t('home.nav')}>{@render links()}</nav>
-    <div class="seg lang" role="radiogroup" aria-label={$t('ui.language')}>
-      <button role="radio" aria-checked={$lang === 'id'} onclick={() => lang.set('id')}>ID</button>
-      <button role="radio" aria-checked={$lang === 'en'} onclick={() => lang.set('en')}>EN</button>
-    </div>
-    <!-- phones: one button that switches the language -->
-    <button class="round langbtn" type="button" onclick={() => lang.set($lang === 'id' ? 'en' : 'id')}
-      aria-label={`${$t('ui.language')}: ${$lang === 'id' ? 'Indonesia' : 'English'}`}>{$lang.toUpperCase()}</button>
-    <button class="round" type="button" onclick={() => theme.set($theme === 'dark' ? 'light' : 'dark')}
-      aria-label={$theme === 'dark' ? $t('theme.light') : $t('theme.dark')} title={$theme === 'dark' ? $t('theme.light') : $t('theme.dark')}>
-      {#if $theme === 'dark'}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
-      {:else}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
-      {/if}
-    </button>
+    <LangMenu />
+    <ThemeSwitch />
     <a class="btn primary signin" href={enter} data-reload>{signedIn ? $t('home.open') : $t('home.signin')}</a>
     <button class="menubtn" type="button" bind:this={menuBtn} aria-expanded={menu} aria-controls="home-menu"
       aria-label={menu ? $t('home.nav.close') : $t('home.nav.menu')} onclick={() => (menu = !menu)}>
@@ -265,11 +253,6 @@
   .menu a { min-height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-radius: 10px; color: var(--fg); text-decoration: none; }
   .menu a:hover { background: var(--nav-hover); }
   .scrim { position: fixed; inset: 0; z-index: 19; border: 0; padding: 0; background: rgb(0 0 0 / 0.4); cursor: default; }
-  .round.langbtn { display: none; font: inherit; font-size: 0.8125rem; font-weight: 600; }   /* .round sets display: grid */
-  .seg { display: flex; background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--r-ctl); padding: 3px; flex: none; }
-  .seg button { min-height: 36px; padding: 0 12px; border: 0; border-radius: calc(var(--r-ctl) - 3px); background: transparent; color: var(--kpi-label); font: inherit; font-size: 0.8125rem; cursor: pointer; }
-  .seg button[aria-checked='true'], .seg button[aria-pressed='true'] { background: var(--seg-on); color: var(--accent-text); font-weight: 600; }
-  .round { width: 44px; height: 44px; flex: none; border-radius: var(--r-ctl); border: 1px solid var(--line-strong); background: var(--card); color: var(--kpi-label); display: grid; place-items: center; cursor: pointer; }
   .signin { min-height: 44px; border-radius: var(--r-ctl); padding: 0 20px; display: inline-flex; align-items: center; text-decoration: none; flex: none; }
   .btn.big { min-height: 52px; padding: 0 26px; border-radius: var(--r-ctl); font-size: 1.0625rem; display: inline-flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; }
   .btn.ghost { color: var(--fg); }
@@ -348,7 +331,6 @@
   @media (max-width: 560px) {
     .top { gap: 6px; padding-top: 10px; padding-bottom: 10px; }
     .brand { font-size: 1.0625rem; gap: 8px; }
-    .seg button { padding: 0 9px; }
     .signin { padding: 0 14px; }
     .hero { padding: 56px 16px 48px; }
     .ctas { flex-direction: column; align-self: stretch; }
@@ -357,8 +339,6 @@
     .kpis { gap: 8px; }
     .kpis div { padding: 10px 12px; }
     .kpis dd { font-size: 1.25rem; }
-    .lang { display: none; }
-    .round.langbtn { display: grid; }
     .privs li { padding: 16px; gap: 14px; }
     .end { padding: 28px 20px; }
     .end .btn { align-self: stretch; }

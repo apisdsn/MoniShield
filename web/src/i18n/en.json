@@ -1151,7 +1151,6 @@
  "ui.info": "Explanation",
  "ui.language": "Language",
  "ui.skip": "Skip to content",
- "ui.theme": "Theme",
  "vb.label": "Today's volume",
  "vb.files": "{files} log files · {svc} services · {empty} empty · {corrupt} corrupt",
  "vb.rates": "4xx rate {r4} · 5xx rate {r5}",

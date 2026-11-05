@@ -8,7 +8,8 @@
   import { onMount, tick } from 'svelte';
   import { errText } from '../srv.js';
   import { lang, t } from '../i18n.js';
-  import { theme } from '../theme.js';
+  import LangMenu from '../lib/LangMenu.svelte';
+  import ThemeSwitch from '../lib/ThemeSwitch.svelte';
   import { api } from '../api.js';
   import { APP_NAME } from '../brand.js';
   let { expired = false, onlogin } = $props();
@@ -63,14 +64,8 @@
   </svg>
   <div class="prefs">
     <a class="home" href="/" data-reload>← {$t('login.home')}</a>
-    <div class="seg" role="radiogroup" aria-label={$t('ui.language')}>
-      <button role="radio" aria-checked={$lang === 'id'} onclick={() => lang.set('id')}>ID</button>
-      <button role="radio" aria-checked={$lang === 'en'} onclick={() => lang.set('en')}>EN</button>
-    </div>
-    <div class="seg" role="radiogroup" aria-label={$t('ui.theme')}>
-      <button role="radio" aria-checked={$theme === 'light'} onclick={() => theme.set('light')} aria-label={$t('theme.light')}>☀</button>
-      <button role="radio" aria-checked={$theme === 'dark'} onclick={() => theme.set('dark')} aria-label={$t('theme.dark')}>☾</button>
-    </div>
+    <LangMenu />
+    <ThemeSwitch />
   </div>
   <main id="main" class="card login">
     <div class="brand">

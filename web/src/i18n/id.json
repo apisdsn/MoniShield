@@ -1151,7 +1151,6 @@
  "ui.info": "Keterangan",
  "ui.language": "Bahasa",
  "ui.skip": "Lewati ke isi",
- "ui.theme": "Tema",
  "vb.label": "Volume hari ini",
  "vb.files": "{files} file log · {svc} layanan · {empty} kosong · {corrupt} rusak",
  "vb.rates": "Rate 4xx {r4} · Rate 5xx {r5}",

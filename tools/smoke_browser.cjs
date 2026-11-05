@@ -57,6 +57,30 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   if (robots.status() !== 200 || !/Disallow: \/api\//.test(await robots.text())) throw new Error(`robots.txt: ${robots.status()}`);
   console.log('ok   robots.txt');
 
+  // sign-in page and home page: the same language menu and theme button as the dashboard header (44 x 44, line icons, no emoji),
+  // the menu stays on the screen on a phone, Esc closes it and the focus returns to its button
+  for (const [path, width] of [['/login', 1280], ['/login', 320], ['/', 390]]) {
+    const lp = await (await browser.newContext({ viewport: { width, height: 800 } })).newPage();
+    await lp.goto(BASE + path);
+    await lp.waitForSelector('.lbtn');
+    const m = await lp.evaluate(() => {
+      const l = document.querySelector('.lbtn').getBoundingClientRect(), t = document.querySelector('button[aria-pressed]').getBoundingClientRect();
+      const text = document.querySelector('.lbtn').parentElement.parentElement.innerText + document.querySelector('button[aria-pressed]').innerText;
+      return { l: [l.width, l.height], t: [t.width, t.height], seg: !!document.querySelector('.seg[role=radiogroup]'), emoji: /\p{Extended_Pictographic}/u.test(text), over: document.documentElement.scrollWidth - innerWidth };
+    });
+    if (m.t[0] !== 44 || m.t[1] !== 44 || m.l[1] !== 44 || m.seg || m.emoji || m.over > 0) throw new Error(`${path} at ${width}px: controls ${JSON.stringify(m)}`);
+    await lp.locator('.lbtn').click();
+    const r = await lp.locator('#lang-menu').boundingBox();
+    if (r.x < 0 || r.x + r.width > width) throw new Error(`${path} at ${width}px: the language menu leaves the screen (${r.x}, ${r.width})`);
+    await lp.keyboard.press('Escape');
+    if (await lp.locator('#lang-menu').count() || !(await lp.locator('.lbtn').evaluate((b) => document.activeElement === b))) throw new Error(`${path}: Esc did not close the language menu and return the focus`);
+    const was = await lp.evaluate(() => document.documentElement.dataset.theme);
+    await lp.locator('button[aria-pressed]').click();
+    if ((await lp.evaluate(() => document.documentElement.dataset.theme)) === was) throw new Error(`${path}: the theme button did not switch the theme`);
+    await lp.context().close();
+  }
+  console.log('ok   sign-in and home page: language menu and theme button like the dashboard header');
+
   // link preview tags of the home page, per language (?lang=, else Accept-Language), and their images
   const req = (await browser.newContext()).request;
   for (const [q, hdr, want] of [['/', 'id-ID', 'id'], ['/?lang=en', 'id-ID', 'en'], ['/', 'en-US,en;q=0.9', 'en']]) {

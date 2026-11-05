@@ -16,7 +16,7 @@ in the [README](../README.md); server deployment in [`07-deploy-vps.md`](07-depl
 ### Language and theme
 
 Both are in the page header, in front of the user button: the globe button (shows `ID` or `EN`) opens the language menu,
-and the button next to it (a moon in the dark theme, a sun in the light theme) turns the dark theme on or off. The choice is kept per browser. On very wide screens (above
+and the button next to it (a moon in the dark theme, a sun in the light theme) turns the dark theme on or off. The choice is kept per browser. On very wide screens (above The same two controls are on the sign-in page and the home page.
 2200 px) the app is drawn larger automatically.
 
 ### New log folders
