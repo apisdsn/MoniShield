@@ -40,6 +40,9 @@
     moon: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
     settings: 'M4 7h9M17 7h3M15 5v4M4 12h3M11 12h9M9 10v4M4 17h11M19 17h1M17 15v4',   // sliders: configuration
     code: 'M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14',
+    radio: 'M12 11a1 1 0 1 0 0 2a1 1 0 1 0 0-2M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.7 5.7a9 9 0 0 0 0 12.6M18.3 5.7a9 9 0 0 1 0 12.6',   // a signal going out: collectors
+    copy: 'M8 8h11v12H8zM5 16V4h11',
+    plus: 'M12 5v14M5 12h14',
     database: 'M12 3c4.4 0 8 1.3 8 3s-3.6 3-8 3s-8-1.3-8-3s3.6-3 8-3M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
   };
 </script>

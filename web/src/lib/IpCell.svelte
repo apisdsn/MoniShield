@@ -33,7 +33,7 @@
   .ipc { min-width: 140px; }
   .ip { display: inline-flex; align-items: center; gap: 6px; }
   b { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }   /* IPv4 is not broken */
-  .more { color: var(--muted); font-size: 0.6875rem; }
+  .more { color: var(--muted); font-size: 0.75rem; }
   .lnk { color: inherit; text-decoration: none; }
   .lnk:hover b, .lnk:focus-visible b { color: var(--accent-text); text-decoration: underline; }
   .cp {
@@ -42,9 +42,10 @@
   }
   .ipc:hover .cp, .cp:focus-visible { opacity: 1; }
   @media (hover: none) { .cp { opacity: 1; } }
+  @media (max-width: 900px), (pointer: coarse) { .cp { min-width: var(--touch); min-height: var(--touch); margin: -10px -8px; } }   /* 44 px hit area without growing the table row */
   .own {
     display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-    font-size: 0.6875rem; color: var(--muted); font-weight: 400; text-align: left; text-transform: none;
+    font-size: 0.75rem; color: var(--muted); font-weight: 400; text-align: left; text-transform: none;
     border: 0; background: transparent; padding: 0; cursor: pointer; width: 100%;
   }
   .own.open, .own:focus-visible { -webkit-line-clamp: unset; line-clamp: unset; }

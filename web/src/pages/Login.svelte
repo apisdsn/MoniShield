@@ -121,7 +121,7 @@
 <style>
   .screen { min-height: 100vh; display: grid; place-items: center; padding: 72px 16px 32px; position: relative; overflow: hidden; }
   .prefs { position: absolute; top: 16px; left: 16px; right: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; z-index: 2; }
-  .home { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; margin-right: auto; border-radius: 999px; border: 1px solid var(--line-strong);
+  .home { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; margin-right: auto; border-radius: var(--r-ctl); border: 1px solid var(--line-strong);
     background: var(--card); color: var(--fg); text-decoration: none; font-size: 0.875rem; }
   .home:hover { background: var(--nav-hover); }
   /* background shield: not transparent; its size follows the screen, the login card in its center */

@@ -7,6 +7,29 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Added
+- Collector step 8 (`docs/12-collector.md`): `DOCKER_INGEST_DOMAIN` makes Caddy serve a DNS only receiver host with its own
+  Let's Encrypt certificate (only the receiver and install scripts, 404 elsewhere); the Collectors page and install scripts use it when
+  `S4_COLLECTOR_PUBLIC_URL` is empty; optional `DOCKER_MAIN_CLOUDFLARE_ONLY=1` guard (`tools/cloudflare_ips.py`); a deploy
+  recreates Caddy when its files change.
+- Collector step 6 (`docs/12-collector.md`): the Collectors page (Configuration group, admins): status counts, table or list with
+  what each collector sends, a details panel, add dialog per platform with the enrollment token and install commands, replace
+  key, change inputs, revoke, delete; the list answer carries the receiver's counts; Raw Logs opens at `#pod=<host>`.
+- Collector step 5 (`docs/12-collector.md`): the collector's YAML (Helm values for Kubernetes) is written per platform and
+  chosen log inputs (file groups, journald, Docker, Windows Event Log), with a disk queue and the key kept out of the file;
+  the choice is stored with the collector (`options`, `PUT /api/admin/collectors/{id}/options`); enrollment answers the
+  configuration, `GET /api/collector/config` returns the current one; public `install.sh` (systemd) and `install.ps1`
+  (Windows) with a SHA-256 check; `S4_COLLECTOR_OTEL_VERSION` (0.163.2) and `S4_COLLECTOR_PUBLIC_URL`; `tools/fetch_otelcol.py`.
+- Collector step 4 (`docs/12-collector.md`): the collector is the third data source next to S3 and Kafka, with its own
+  database, inbox, ingest (`S4_COLLECTOR_INGEST_SECONDS`, folders the receiver wrote, plus an ingest of the whole inbox at start), retention,
+  notifications, backup and a third option "Collector" in the header switch (`?source=collector`, `--source collector`).
+- Collector step 3 (`docs/12-collector.md`): `POST /api/collector/v1/logs` receives OTLP/JSON log batches (Bearer key, gzip,
+  size, rate and free-disk limits, OTLP partial-success answer) and appends the lines to the collector inbox
+  (`S4_COLLECTOR_INBOX_DIR`, `S4_COLLECTOR_MAX_BODY_MB`, `_MAX_RAW_MB`, `_RATE_PER_MIN`, `_MAX_CONCURRENT`, `_MIN_FREE_MB`).
+- Collector step 2 (`docs/12-collector.md`): admins register collectors; a one-time enrollment token (24 h) is exchanged once
+  for the collector's own key (stored as a hash); keys can be replaced (old key works 24 h more) and revoked; audited.
+- Collector step 1 (`docs/12-collector.md`): OTLP/HTTP JSON log records are read into namespace, service, pod or host, line,
+  time and an hourly inbox file path (Kubernetes, Windows Event Log, journald, Docker, plain files), with rejected
+  records counted by reason.
 - Log format rules per service (step 1a of `docs/11-log-formats.md`): `log-formats.toml` (`S4_LOG_FORMATS_FILE`, example
   `log-formats.example.toml`) lists, first match wins, which preset or format (`json`, `logfmt`, `regex`, …) reads each
   service; a file that cannot be used stops the start with the rule's position. Without the file the built-in rules
@@ -15,6 +38,10 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   `regex` or `plain` are read into the new tables `http_access` and `app_line` (multiline stack traces, level words, time
   formats); lines a format cannot read are counted per file (`lines_unmatched`). The pages read these tables from step 1c on;
   sites without `log-formats.toml` are read exactly as before.
+- Pages read the common log formats (step 1c): services read as `nginx-combined`, `json`, … now appear in the service
+  numbers, hours, status codes, endpoints, IPs, the map and (access logs) OWASP CRS attack detection; the IP profile and
+  search find them. The Service page shows the format in use and the share of unread lines. Existing folders are derived
+  once more after the upgrade, without re-parsing.
 - Raw Logs page (Analysis): search the original lines of every service in the folder's log files by text, regular
   expression, request ID or IP, filtered by service, pod, level/status and local time; follow one request across
   services, see the lines around an entry, download the matches as a `.log` file. Open to every signed-in user, text as
@@ -24,6 +51,17 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
   offset are derived again on the next ingest; existing data counts as +07:00, so nothing changes for current sites.
 
 ### Changed
+- Header: the language is a globe button with a two-row menu and the theme is a dark-theme switch, both in front of the
+  user button (they left the user menu). The user menu keeps reload and the account items.
+- Wide screens: the signed-in content fills the width next to the sidebar (no 1740 px cap); above 2200 px of window width
+  the app is drawn larger by width / 2200, at most 1.6 (`web/src/scale.js`). Chart pointer positions and `vh` heights are
+  corrected for the zoom.
+- Sidebar Configuration labels are in Title Case without bracketed notes ("GeoIP", "Mail Server", "Server Keys"); the
+  pop-up texts still name MaxMind, SMTP and the `.env` file.
+- Anti-slop audit: 44 px touch targets on phones and coarse pointers, no endless pulse on the live dots, a flat primary
+  colour, a 12 px radius for controls (pills only for chips, badges, dots and the theme switch), normal-case labels,
+  font sizes in rem and none below 12 px.
+- Plain section comments instead of separator lines; CSS animations `spin` and `shimmer` (English names).
 - Pop-ups: only their content scrolls; the title and buttons stay in place and the scrollbar no longer cuts the rounded
   corners.
 - No client data in the code: the service folder names of each log role (`S4_SERVICE_NAMES`), the events tag (`S4_EVENT_TAG`), the

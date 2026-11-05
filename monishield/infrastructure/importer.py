@@ -20,7 +20,7 @@ MANIFEST = '.s3-import.json'   # in the inbox folder: {object relpath: {key, siz
 EXTRACT_RATIO = 20             # extracted size of one .gz max. 20× the object size limit (prevents a "gzip bomb")
 
 
-# ------------------------------------------------------------------ credentials
+# Credentials
 class Credentials:
     """Order: pasted by an admin (process memory, lost on server restart), then the server configuration (.env, which
     the Configuration page also fills; or environment variables)."""
@@ -81,7 +81,7 @@ def library_ok(provider=None):
     except ModuleNotFoundError: return False   # parent package (azure) missing
 
 
-# ------------------------------------------------------------------ S3 / Azure
+# S3 / Azure
 def _client(cfg, creds):
     if storage.is_azure(cfg.storage_provider): return AzureBlob(creds['account'], creds['key'], ENDPOINT)
     import boto3
@@ -211,7 +211,7 @@ def plan(cfg, objects, prefix, folder):
     return s3_import.plan(cfg, objects, prefix, folder, before, have)
 
 
-# ------------------------------------------------------------------ run
+# Run
 def run(cfg, url, creds_store, dry_run=False, progress=None):
     """The whole import. dry_run = list + plan only, writes nothing. Ingest is run by the CALLER (owns DuckDB)."""
     progress = progress or (lambda **k: None)
@@ -334,7 +334,7 @@ def _extract_in_inbox(cfg, folder, rows):
     return len(rows)
 
 
-# ------------------------------------------------------------------ S3Gateway port (used by monishield/application/import_service.py)
+# S3Gateway port (used by monishield/application/import_service.py)
 class S3Gateway:
     """S3 access for the application layer: credentials (process memory + .env), prefix download, date folder list, connection
     test. Module functions are looked up at call time (tests can replace `library_ok`, `ENDPOINT`)."""

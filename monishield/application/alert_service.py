@@ -33,7 +33,7 @@ def deliver(ctx, cfg, key, event, title, text, channels=None, force=False, notes
     return out
 
 
-# ------------------------------------------------------------------ page (admin)
+# Page (admin)
 def view(ctx):
     try: services = ctx.warehouse.services()
     except Exception: services = []   # noqa: BLE001  database not open yet
@@ -79,7 +79,7 @@ def send_report(ctx, folder=None, source=sources.S3, pending=False):
     n = ctx.alerts
     if pending:
         rows = n.report_folders(REPORT_PENDING)
-        main = sources.S3 if any(r['source'] == sources.S3 for r in rows) else sources.KAFKA
+        main = next((s for s in sources.SOURCES if any(r['source'] == s for r in rows)), sources.S3)
         todo = [(r['folder'], r['source']) for r in rows if r['source'] == main and not r['sent']][::-1]
     else:
         if folder not in n.folders(source): raise Fail('not_found', 'Log folder not found.', 404)
@@ -97,7 +97,7 @@ def send_report(ctx, folder=None, source=sources.S3, pending=False):
 def _local(now_utc=None): return (now_utc or datetime.datetime.now(datetime.timezone.utc)) + timezone.current().delta   # S4_TIMEZONE_OFFSET
 
 
-# ------------------------------------------------------------------ automatic
+# Automatic
 class Notifier:
     RETRY = 3600   # a scheduled report that failed on every channel is tried again after an hour, not every 10 minutes
 
@@ -118,8 +118,8 @@ class Notifier:
 
     @staticmethod
     def _named(src, key, title):
-        """Notifications come from both sources (owner request 2026-10-23): the title names the source, and the Kafka key is its
-        own so S3 and Kafka never silence each other. S3 keys stay as they were (no repeats of what was already sent)."""
+        """Notifications come from every source (owner request 2026-10-23): the title names the source, and the key of Kafka and
+        collector is their own so the sources never silence each other. S3 keys stay as they were (no repeats of what was already sent)."""
         return (key if src.source == sources.S3 else f'{key}@{src.source}'), f'{title} ({sources.LABEL[src.source]})'
 
     def _after_ingest(self, result, error, src):
@@ -133,7 +133,7 @@ class Notifier:
         if not changed: return
         w = src.warehouse
         newest = w.newest_folder()
-        # S3: the newest three folders. Kafka: only the day in progress, so its first ingest does not announce old days
+        # S3: the newest three folders. Kafka and collector: only the day in progress, so a first ingest does not announce old days
         floor = newest if src.source != sources.S3 else (datetime.date.fromisoformat(newest) - datetime.timedelta(days=2)).isoformat()
         crs = self.ctx.cfg.attack_rules == 'crs'
         for f in (x for x in changed if x >= floor):   # old folders that are re-ingested do not trigger notifications
@@ -144,17 +144,17 @@ class Notifier:
         # a new folder after the report hour gets its daily report right away (before it: at the report hour)
         if src.source == sources.S3: self.daily_report(seconds=result.get('seconds'))
 
-    # ------------------------------------------------------------------ daily report
+    # Daily report
     def _src(self, source): return (getattr(self.ctx, 'sources', None) or {}).get(source) or self.ctx
 
     def _has(self, source): return source == sources.S3 or source in (getattr(self.ctx, 'sources', None) or {})
 
     def folders(self, source):
-        """Folders a daily report can be sent for, newest first. Kafka: complete ones only (the folder dated tomorrow is filling up)."""
+        """Folders a daily report can be sent for, newest first. Kafka and collector: complete ones only (the folder dated tomorrow is filling up)."""
         if not self._has(source): return []
         try: fs = sorted(self._src(source).warehouse.folder_table()[0], reverse=True)
         except Exception: return []   # noqa: BLE001  database not open
-        if source == sources.KAFKA: fs = [f for f in fs if f <= _local().date().isoformat()]
+        if source in sources.FILLING: fs = [f for f in fs if f <= _local().date().isoformat()]
         return fs
 
     def report_folders(self, limit=14):
@@ -182,7 +182,8 @@ class Notifier:
         local = _local(now_utc)
         if not alerts.active(cfg) or not alerts.report_due(cfg, local): return None
         kafka = self.folders(sources.KAFKA) if self._has(sources.KAFKA) else []
-        target = alerts.report_target(self.ctx.warehouse.newest_folder(), kafka, local.date())
+        collector = self.folders(sources.COLLECTOR) if self._has(sources.COLLECTOR) else []
+        target = alerts.report_target(self.ctx.warehouse.newest_folder(), kafka, local.date(), collector)
         if not target: return None
         key = self._named(self._src(target[1]), alerts.summary_key(target[0]), '')[0]
         if time.monotonic() - self._tried.get(key, -self.RETRY) < self.RETRY: return None

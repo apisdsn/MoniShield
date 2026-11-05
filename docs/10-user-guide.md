@@ -13,6 +13,12 @@ in the [README](../README.md); server deployment in [`07-deploy-vps.md`](07-depl
 
 ## Day-to-day use
 
+### Language and theme
+
+Both are in the page header, in front of the user button: the globe button (shows `ID` or `EN`) opens the language menu,
+and the switch next to it turns the dark theme on or off. The choice is kept per browser. On very wide screens (above
+2200 px) the app is drawn larger automatically.
+
 ### New log folders
 
 Copy the folder (`YYYY-MM-DD/…`) into the log folder, then an admin just presses the **Sync data** button
@@ -28,21 +34,25 @@ the page title, Trends, the IP profile, Command Center, sync and upload messages
 day is therefore listed as today. Folder names stay as they are in web addresses (`?folder=2026-10-21`), the API, on
 disk and in the `monishield sync` output. The exact time range of the data is under the page title.
 
-### Two data sources: S3 and Kafka
+### Data sources: S3, Kafka and collector
 
-S3 and Kafka are two separate sources. Each has its own database and its own folders (`<inbox>/<date>/` for S3 imports and
-uploads, `<inbox>/kafka/<date>/` for Kafka), so a day is never a mix of both. The page header has a switch **S3 | Kafka**
-(it appears once Kafka is set up or already holds days): the date list, every page, Trends, search, downloads and the admin
+S3, Kafka and collector are separate sources. Each has its own database and its own folders (`<inbox>/<date>/` for S3 imports and
+uploads, `<inbox>/kafka/<date>/` for Kafka), so a day is never a mix of both. The page header has a switch **S3 | Kafka | Collector**
+(Kafka appears once it is set up or already holds days, Collector once a collector is registered or its database holds days): the date list, every page, Trends, search, downloads and the admin
 folder tools show the source you chose, and the address carries it (`?source=kafka`). Both sources can hold the same day, each
 complete on its own: S3's with the services of the export, Kafka's with everything the cluster logging sent, so the Kafka
 view also has the services the S3 export lacks. The S3 sync and import never touch Kafka's files, and Kafka does not stop
 writing when S3 has the day.
 
-Notifications (Telegram, Discord, email) come from both sources: the title names it (`(S3)` or `(Kafka)`) and the link opens
-that source. Spike and critical alerts fire for the day in progress on Kafka, so you learn early; the daily summary, the "folder
-has not arrived" check and the S3 sync warning are S3 only. Retention days apply to both sources.
+Notifications (Telegram, Discord, email) come from every source: the title names it (`(S3)`, `(Kafka)` or `(Collector)`) and the link opens
+that source. Spike and critical alerts fire for the day in progress on Kafka and collector, so you learn early; the daily summary, the "folder
+has not arrived" check and the S3 sync warning are S3 only. Retention days apply to every source.
 
-`monishield ingest --source kafka` ingests the Kafka source from the command line.
+The **Collector** source holds the logs that collectors send from servers and clusters (`<inbox>/collector/<date>/`, its own
+database). What a collector sends is ingested every `S4_COLLECTOR_INGEST_SECONDS` (5 minutes by default), and after a restart
+the inbox is ingested at once. Notifications, retention and backups treat it like Kafka.
+
+`monishield ingest --source kafka` (or `collector`) ingests that source from the command line.
 
 ### Automatic S3 sync
 
@@ -56,9 +66,9 @@ kept.
 
 ### Configuration
 
-Sidebar → **Configuration** (admins). Every item opens as a pop-up over the current page: **Object storage**
-(provider, keys, region, automatic sync), **Kafka broker**, **GeoIP (MaxMind)**, **Mail server (SMTP)**,
-**Notifications**, **Block list**, **Data retention** and **Server keys (.env)**. Each has **Save** and, where it
+Sidebar → **Configuration** (admins). Every item opens as a pop-up over the current page: **Object Storage**
+(provider, keys, region, automatic sync), **Kafka Broker**, **GeoIP**, **Mail Server**,
+**Notifications**, **Block List**, **Data Retention** and **Server Keys**. Each has **Save** and, where it
 applies, **Test connection**. The sidebar groups (Analysis, Services, Configuration) fold open and closed with the
 arrow next to their name; the choice is kept per browser. The addresses `/admin/configuration` and
 `/admin/notifications` (and the old `#/…` ones) open the matching pop-up. **Save writes directly to the `.env` file** (existing lines are replaced,
@@ -98,7 +108,7 @@ saving time. After a change, the next ingest derives every folder again from the
 
 ### Object storage providers
 
-Configuration → **Object storage** → *Provider*: Amazon S3, Cloudflare R2, MinIO, Wasabi, Google Cloud Storage (HMAC
+Configuration → **Object Storage** → *Provider*: Amazon S3, Cloudflare R2, MinIO, Wasabi, Google Cloud Storage (HMAC
 keys), DigitalOcean Spaces, any other S3-compatible service, or Azure Blob Storage.
 
 | Provider | Endpoint | Region (free text) | Keys |
@@ -225,7 +235,7 @@ Every day at 02:00 WIB (`S4_BACKUP_HOUR`) the server writes a backup folder `<da
 
 | File | Contents |
 |---|---|
-| `s3.duckdb.gz`, `kafka.duckdb.gz` | the databases of both sources (rows and aggregates of every folder) |
+| `s3.duckdb.gz`, `kafka.duckdb.gz`, `collector.duckdb.gz` | the databases of the three sources (rows and aggregates of every folder) |
 | `accounts.json.gz` | every table of the account database: users, password hashes, sessions, audit log, settings |
 | `manifest.json` | size and SHA-256 of each file, time, MoniShield version |
 
@@ -296,6 +306,30 @@ with the line it belongs to. Event lines that carry no time get the time of the 
 (marked ≈). A search stops after 20 seconds or 20,000 matches and then says it is partial: narrow it. **Download .log**
 saves every match as `file:line: text`. Lines are only available while the log files are on disk (see *Data
 retention*). Every search and download is written to the audit log with who searched what.
+
+### Collectors
+
+**Collectors** (Configuration group in the left navigation, admins only) lists the servers and clusters that send their logs
+straight to MoniShield. The row of counts shows how many are Online (seen in the last 5 minutes), Late (5 to 60 minutes),
+Offline (longer) and Waiting (added, not installed yet). The table shows what each one sends, its version and when it was
+last seen (the exact time is in the tooltip); on a phone it becomes a list. Choose a row to open its details beside the
+table (below the list on a phone): platform, last address, what it sends, how many lines it received, wrote and rejected since
+the server started, and the reason of the last rejection.
+
+- **Add collector**: type a name, choose Linux, Windows, Docker or Kubernetes and choose what it sends (files with the service
+  name their lines get, the system journal, Docker containers, Windows Event Log channels; Kubernetes always sends the pod
+  logs). **Create collector** shows the enrollment token (it works once, for 24 hours) and the commands for the platform with
+  copy buttons: download the install script, read it, run it with the name and the token. For Kubernetes the page gives the
+  `helm` and `kubectl` commands and the `values.yaml` to download. The collector appears as Waiting until it has enrolled.
+- **Replace key**: makes a new key, shown once, with the exact place to put it for the platform. The old key keeps working
+  for 24 hours.
+- **Change inputs**: changes what the collector sends. The server then needs its new configuration; the page shows the command.
+- **Open its logs in Raw Logs**: opens Raw Logs for the collector source (filtered to the host when the collector has sent
+  for exactly one).
+- **Revoke collector**: its key stops working at once; the lines already received stay. **Delete collector** removes a
+  revoked collector, or one that never enrolled, from the list.
+
+How a server is connected, step by step, is in [`12-collector.md`](12-collector.md).
 
 ### Removing a folder from the list
 
@@ -502,7 +536,7 @@ cd web && npm run dev                         # terminal 2: Vite on :5173, /api 
 .venv/bin/pytest -q                       # includes tests/test_import.py (local fake S3, no AWS)
 ```
 
-Browser smoke test (also a CI job, it must pass before a deploy): it opens every page for both sources and both languages
+Browser smoke test (also a CI job, it must pass before a deploy): it opens every page for all three sources and both languages
 and fails on a script error, a 5xx answer or an error card.
 
 ```sh

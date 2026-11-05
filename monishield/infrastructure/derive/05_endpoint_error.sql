@@ -5,5 +5,7 @@ INSERT INTO agg_endpoint_error
 SELECT $f, service, status, key, count(*)
 FROM (SELECT 'nginx-ingress-controller' AS service, status, method || ' ' || path_key AS key FROM nginx_access WHERE folder = $f AND status BETWEEN 400 AND 599
       UNION ALL SELECT $fe, status, path_key FROM fe_access WHERE folder = $f AND status BETWEEN 400 AND 599
-      UNION ALL SELECT $sl, status, method || ' ' || path_key FROM sl_event WHERE folder = $f AND failed)
+      UNION ALL SELECT $sl, status, method || ' ' || path_key FROM sl_event WHERE folder = $f AND failed
+      UNION ALL SELECT service, status, coalesce(method || ' ', '') || path_key FROM http_access WHERE folder = $f AND status BETWEEN 400 AND 599
+      UNION ALL SELECT service, status, coalesce(method || ' ', '') || path_key FROM app_line WHERE folder = $f AND path_key IS NOT NULL AND status BETWEEN 400 AND 599)
 GROUP BY service, status, key;

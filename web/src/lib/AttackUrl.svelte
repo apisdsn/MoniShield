@@ -22,5 +22,5 @@
   .url { display: block; word-break: break-all; max-width: 560px; }
   .ln + .ln { margin-top: 4px; }
   b { color: var(--fg); font-weight: 600; }
-  .ua { font-size: 0.6875rem; margin-top: 4px; word-break: break-all; }
+  .ua { font-size: 0.75rem; margin-top: 4px; word-break: break-all; }
 </style>

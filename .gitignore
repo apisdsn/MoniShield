@@ -12,3 +12,6 @@ logs/
 
 # extra Caddy sites of a server (their own domains)
 deploy/sites/*.caddy
+
+# OpenTelemetry Collector binary for the configuration tests (tools/fetch_otelcol.py)
+tools/otelcol/

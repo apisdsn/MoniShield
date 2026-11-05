@@ -7,5 +7,8 @@ FROM (
     SELECT 'nginx-ingress-controller' AS service, ts_utc, 1 AS total, (status BETWEEN 500 AND 599)::INT AS err FROM nginx_access WHERE folder = $f
     UNION ALL SELECT $fe, ts_utc, 1, (status BETWEEN 500 AND 599)::INT FROM fe_access WHERE folder = $f
     UNION ALL SELECT service, ts_utc, 0, 1 FROM nginx_error WHERE folder = $f AND level IN ('error', 'crit', 'alert', 'emerg')
-    UNION ALL SELECT service, ts_utc, 1, (level = 'ERROR')::INT FROM spring_line WHERE folder = $f)
+    UNION ALL SELECT service, ts_utc, 1, (level = 'ERROR')::INT FROM spring_line WHERE folder = $f
+    -- common formats: access log 5xx, application log ERROR; an entry without a time (app_line) has no hour
+    UNION ALL SELECT service, ts_utc, 1, coalesce(status BETWEEN 500 AND 599, false)::INT FROM http_access WHERE folder = $f
+    UNION ALL SELECT service, ts_utc, 1, (level = 'ERROR')::INT FROM app_line WHERE folder = $f AND ts_utc IS NOT NULL)
 GROUP BY service, hour_wib;

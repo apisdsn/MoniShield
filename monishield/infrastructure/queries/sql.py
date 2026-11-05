@@ -8,7 +8,7 @@ def reject(status, code, message):
     return Fail(code, message, status)
 
 
-# ------------------------------------------------------------------ format
+# Format
 def local_time(ts, n=16):
     """UTC TIMESTAMP -> local text 'YYYY-MM-DD HH:MM' (n=13: up to the hour; S4_TIMEZONE_OFFSET), the old system's format."""
     return None if ts is None else timezone.current().local(ts).strftime('%Y-%m-%d %H:%M')[:n]
@@ -24,7 +24,7 @@ def ip_cell(ip, asn=None, cc=None, org=None):
     return dict(ip=ip) if org is None else dict(ip=ip, asn=asn, cc=cc, org=org)
 
 
-# ------------------------------------------------------------------ used by the page modules (TRD §5.3)
+# Used by the page modules (TRD §5.3)
 # All page numbers are read from the full aggregate tables (TRD K4), not from already-truncated lists.
 # When the needed logs are missing: 200 with available=false + reason, not an error.
 H = "strftime({}, '%Y-%m-%d %H')"   # local hour, old format

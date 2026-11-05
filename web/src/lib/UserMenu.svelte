@@ -1,10 +1,9 @@
 <!-- User menu (DRD §2.1 U28, §8.2): button holding the display name; list: name + role, Account email and Change password (pop-ups, lib/AccountDialogs.svelte), (admin) Manage
      users, Ingest & import, Log out. Standard menu pattern: Enter/Space opens, arrows move, Esc closes and
-     returns focus. Language, theme and reload live in this menu too (redesign 2026-10-27: one-row header). -->
+     returns focus. Reload lives in this menu too. Language and theme are in the header (LangMenu, ThemeSwitch). -->
 <script>
   import { tick } from 'svelte';
-  import { lang, t } from '../i18n.js';
-  import { theme } from '../theme.js';
+  import { t } from '../i18n.js';
   import { build } from '../state.js';
   import Icon from './Icon.svelte';
   import { openAccount } from './AccountDialogs.svelte';
@@ -52,14 +51,8 @@
         <b>{me.display_name || me.username}</b>
         <span class="muted">{me.username} · {$t(`role.${me.role}`)}</span>
       </div>
-        <div class="sep" role="separator"></div>
-        <button role="menuitemradio" aria-checked={$lang === 'id'} onclick={() => lang.set('id')}><span class="code" aria-hidden="true">ID</span>Bahasa Indonesia</button>
-        <button role="menuitemradio" aria-checked={$lang === 'en'} onclick={() => lang.set('en')}><span class="code" aria-hidden="true">EN</span>English</button>
-        <div class="sep" role="separator"></div>
-        <button role="menuitemradio" aria-checked={$theme === 'light'} onclick={() => theme.set('light')}><Icon name="sun" />{$t('theme.light')}</button>
-        <button role="menuitemradio" aria-checked={$theme === 'dark'} onclick={() => theme.set('dark')}><Icon name="moon" />{$t('theme.dark')}</button>
-        <div class="sep" role="separator"></div>
-        <button role="menuitem" onclick={() => { close(); onreload(); }}><Icon name="refresh" />{$t('action.reload')}</button>
+      <div class="sep" role="separator"></div>
+      <button role="menuitem" onclick={() => { close(); onreload(); }}><Icon name="refresh" />{$t('action.reload')}</button>
       <div class="sep" role="separator"></div>
       <button role="menuitem" onclick={() => { close(); openAccount('email'); }}><Icon name="mail" />{$t('menu.email')}</button>
       <button role="menuitem" onclick={() => { close(); openAccount('password'); }}><Icon name="key" />{$t('menu.password')}</button>
@@ -76,14 +69,14 @@
 
 <style>
   .um { position: relative; }
-  .who { max-width: 220px; padding-left: 5px; gap: 8px; }
+  .who { max-width: 220px; padding: 0 1.1rem 0 7px; gap: 8px; height: var(--touch); border-radius: var(--r-ctl); }
   .av {
     width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
     font-size: 0.75rem; font-weight: 700; color: var(--brand-fg); background: var(--brand-bg);
   }
-  .car { color: var(--muted); font-size: 0.7rem; }
+  .car { color: var(--muted); font-size: 0.75rem; }
   @media (max-width: 900px) {
-    .who { padding: 4px; min-width: 0; }
+    .who { padding: 0; min-width: var(--touch); }
     .car { display: none; }
     .name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }   /* still the button's name */
   }
@@ -100,13 +93,8 @@
     all: unset; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; cursor: pointer; min-height: var(--touch);
     display: flex; align-items: center; gap: 12px; color: var(--fg); font-size: 0.875rem;
   }
-  .menu :global(svg) { color: var(--muted); }   /* icons support the text; colour follows the row when it is selected */
-  .menu [aria-checked='true'] :global(svg), .menu [aria-checked='true'] .code { color: var(--accent-text); border-color: var(--accent); }
-  .code { width: 18px; flex: none; font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.02em; text-align: center; line-height: 16px;
-    border: 1.5px solid var(--line-strong); border-radius: 5px; color: var(--muted); }
+  .menu :global(svg) { color: var(--muted); }   /* icons support the text */
   .menu .out, .menu .out :global(svg) { color: var(--err); }
   .menu button:hover, .menu a:hover, .menu button:focus-visible, .menu a:focus-visible { background: var(--nav-hover); }
   .menu :focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-  .menu [aria-checked='true'] { color: var(--accent-text); font-weight: 600; }
-  .menu [aria-checked='true']::after { content: '✓'; margin-left: auto; }
 </style>

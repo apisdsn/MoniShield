@@ -197,6 +197,16 @@ def _run(cfg, con, only_folder, force, workers, progress):
             try: derive.steps.correlation(con, fd); con.execute('COMMIT')
             except BaseException: con.execute('ROLLBACK'); raise
             res['folders_recorrelated'].append(fd)
+        # 5a. derive version: folders derived by older SQL (before the common formats fed the pages) are derived again once, no re-parse;
+        #     that also brings their CRS version and time zone up to date, so 5b and 5c skip them
+        res['folders_rederived'] = []
+        for (fd,) in con.execute('SELECT folder::VARCHAR FROM folder_state WHERE derive_version IS DISTINCT FROM ? ORDER BY 1', [derive.DERIVE_VERSION]).fetchall():
+            if fd in res['folders_changed'] or (only_folder and fd != only_folder): continue
+            progress(phase='load', folder=fd)
+            con.execute('BEGIN')
+            try: derive_folder(con, fd); con.execute('COMMIT')
+            except BaseException: con.execute('ROLLBACK'); raise
+            res['folders_rederived'].append(fd)
         # 5b. CRS detection (Stage 21): folders whose CRS aggregates were built with another rules version/paranoia level are re-derived
         #     from the stored path and User-Agent (no re-parse)
         res['folders_redetected'] = []

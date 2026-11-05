@@ -167,13 +167,13 @@
   th, td { padding: 9px 12px; border-bottom: 1px solid var(--row-line); text-align: left; vertical-align: top; }
   thead th {
     position: sticky; top: 0; z-index: 2; background: var(--th-bg); color: var(--th-fg);
-    font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; white-space: nowrap;
+    font-size: 0.75rem; font-weight: 600; white-space: nowrap;
   }
   .first { position: sticky; left: 0; z-index: 1; background: var(--card); font-weight: 500; color: var(--fg); box-shadow: 1px 0 0 var(--line); }
   thead .first { z-index: 3; background: var(--th-bg); }
   .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   tr:hover td, tr:hover th.first { background: var(--row-hover); }
-  .chg { font-size: 0.6875rem; color: var(--ok-text); }
+  .chg { font-size: 0.75rem; color: var(--ok-text); }
   .chg.up { color: var(--err); }
   .muted { color: var(--muted); }
   .comp h2 { font-size: 0.9375rem; font-weight: 600; color: var(--heading); text-transform: capitalize; margin: 0 0 8px; }

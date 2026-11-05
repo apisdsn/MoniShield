@@ -1,5 +1,5 @@
 // Browser smoke test (CI job "Browser smoke test"): signs in to the server of tools/smoke_server.py, changes the forced
-// first password, then opens every page for both data sources (S3, Kafka) and both languages. A page fails when the
+// first password, then opens every page for all data sources (S3, Kafka, collector) and both languages. A page fails when the
 // browser throws a script error, the server answers 5xx, the page shows its error card, or it does not finish loading.
 //
 //   node tools/smoke_browser.cjs [base URL, default http://127.0.0.1:8777] [folder for failure screenshots]
@@ -9,8 +9,8 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8777';
 const SHOTS = process.argv[3] || '';
 const PW0 = 'smoke-test-first-password', PW1 = 'Smoke-Test-Second-Password-2026!';
 const PAGES = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
-  'services/event-api', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
-const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'en', source: '' }];
+  'services/event-api', 'collectors', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
+const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'id', source: 'collector' }, { lang: 'en', source: '' }];
 
 (async () => {
   // software WebGL (bundled SwiftShader): the maps draw in a headless browser too, so a broken map shows up here
@@ -101,6 +101,91 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   }
   await page.evaluate(() => { document.documentElement.dataset.theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; });
   console.log('ok   select lists readable in the dark and light themes');
+
+  // header language menu: opens, Esc closes and returns focus to the button, choosing a row switches the language and closes the menu
+  await page.goto(BASE + '/overview');
+  await page.waitForSelector('main#main[aria-busy="false"]');
+  const langBtn = page.locator('button[aria-controls="lang-menu"]');
+  await langBtn.click();
+  if ((await langBtn.getAttribute('aria-expanded')) !== 'true') throw new Error('language menu did not open');
+  await page.keyboard.press('Escape');
+  if (await page.locator('#lang-menu').count()) throw new Error('Esc did not close the language menu');
+  if (!(await langBtn.evaluate((b) => document.activeElement === b))) throw new Error('focus did not return to the language button');
+  const want = (await page.evaluate(() => document.documentElement.lang)) === 'en' ? 'id' : 'en';
+  await langBtn.click();
+  await page.locator(`#lang-menu [role=menuitemradio]:has(.code:text-is("${want.toUpperCase()}"))`).click();
+  if (await page.evaluate(() => document.documentElement.lang) !== want) throw new Error('the language menu did not switch the language');
+  if (await page.locator('#lang-menu').count()) throw new Error('the language menu stayed open after a choice');
+  console.log('ok   header language menu (open, Esc, choose)');
+
+  // dark theme switch: toggles data-theme, both themes render the Overview without script errors
+  const sw = page.locator('button[role=switch]');
+  const errsBefore = problems.length;
+  for (let i = 0; i < 2; i++) {
+    const was = await page.evaluate(() => document.documentElement.dataset.theme);
+    await sw.click();
+    const now = await page.evaluate(() => document.documentElement.dataset.theme);
+    if (now === was || (await sw.getAttribute('aria-checked')) !== String(now === 'dark')) throw new Error(`theme switch: ${was} -> ${now}`);
+    await page.waitForTimeout(400);
+    await page.locator('main#main[aria-busy="false"]').waitFor();
+  }
+  if (problems.length !== errsBefore) throw new Error(`errors while switching themes: ${problems.slice(errsBefore).join('; ')}`);
+  console.log('ok   dark theme switch (both themes render the Overview)');
+
+  // wide and narrow screens: at 3840 x 2160 the Overview fills the width (scaled up, no empty right side, no sideways scroll);
+  // at 390 px nothing scrolls sideways
+  for (const [w, h] of [[3840, 2160], [390, 844]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(BASE + '/overview');
+    await page.waitForSelector('main#main[aria-busy="false"]');
+    await page.waitForTimeout(600);
+    const m = await page.evaluate(() => ({ right: document.querySelector('main').getBoundingClientRect().right, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, wide: [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 2).slice(0, 3).map((e) => `${e.tagName}.${e.className}`).join(', '), w: innerWidth, zoom: document.documentElement.style.zoom }));
+    if (m.over > 0) throw new Error(`horizontal scroll of ${m.over}px at ${w}px (${m.wide})`);
+    if (w >= 3000 && (m.w - m.right > 40 || m.zoom !== '1.6')) throw new Error(`Overview main ends ${m.w - m.right}px before the right edge (zoom "${m.zoom}") at ${w}px`);
+    console.log(`ok   Overview at ${w}px (right gap ${Math.round(m.w - m.right)}px, zoom ${m.zoom || '1'}, no sideways scroll)`);
+  }
+  // narrow phone: the date picker shows the whole date (its text is not cut) and no sideways scroll
+  for (const w of [320, 360]) {
+    await page.setViewportSize({ width: w, height: 800 });
+    await page.goto(BASE + '/overview');
+    await page.waitForSelector('main#main[aria-busy="false"]');
+    const d = await page.evaluate(() => {
+      const s = document.querySelector('#folder-select'), cs = getComputedStyle(s), g = document.createElement('canvas').getContext('2d');
+      g.font = cs.font;
+      return { text: g.measureText(s.options[s.selectedIndex].text).width, room: s.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), over: document.documentElement.scrollWidth - innerWidth };
+    });
+    if (d.text > d.room || d.over > 0) throw new Error(`date picker at ${w}px: text ${Math.round(d.text)}px, room ${Math.round(d.room)}px, overflow ${d.over}px`);
+    console.log(`ok   date picker shows the whole date at ${w}px`);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  // Collectors page: the add dialog opens and closes with Esc, creating a collector shows the token and the install command,
+  // the new collector is listed and its panel opens (no sideways scroll on a phone either)
+  await page.goto(BASE + '/collectors');
+  await page.waitForSelector('main#main[aria-busy="false"]');
+  await page.click('button.add');
+  await page.waitForSelector('dialog[open] #cl-name');
+  await page.keyboard.press('Escape');
+  if (await page.locator('dialog[open]').count()) throw new Error('Esc did not close the add collector dialog');
+  await page.click('button.add');
+  await page.fill('#cl-name', 'smoke-web-01');
+  await page.click('dialog .addf');
+  await page.fill('#add-p0', '/var/log/app/*.log'); await page.fill('#add-s0', 'app');
+  await page.click('dialog button[type=submit]');
+  await page.waitForSelector('dialog code.tok');
+  const token = await page.locator('dialog code.tok').first().innerText();
+  const cmd = await page.locator('dialog pre').allInnerTexts();
+  if (!/^mse_\d+_/.test(token) || !cmd.join('\n').includes(`--token ${token}`) || !cmd.join('\n').includes('/collector/install.sh')) throw new Error(`token / command not shown: ${token} ${cmd}`);
+  await page.click('dialog .acts button.primary');
+  await page.waitForSelector('tr:has-text("smoke-web-01")');
+  if (!(await page.locator('#cl-panel').count())) throw new Error('the new collector was not selected');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(BASE + '/collectors');
+  await page.waitForSelector('tr:has-text("smoke-web-01")');
+  const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (over > 0) throw new Error(`Collectors page scrolls sideways by ${over}px at 390px`);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  console.log('ok   Collectors: add dialog (Esc), token and command, list, no sideways scroll at 390px');
 
   let failed = 0, checked = 0;
   for (const run of RUNS) {

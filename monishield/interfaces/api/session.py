@@ -81,7 +81,7 @@ def change_password(body: ChangePassword, request: Request, user=Depends(require
     return dict(ok=True)
 
 
-# ------------------------------------------------------------------ own email (monishield/application/account_service.py)
+# Own email (monishield/application/account_service.py)
 @router.get('/me/email')
 def my_email(request: Request, user=Depends(require_user_ready)):
     return request.app.state.emails.view(user)

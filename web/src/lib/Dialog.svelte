@@ -38,7 +38,7 @@
   /* Only the body scrolls: the title and buttons stay in place, and the scrollbar stops short of the rounded corners
      (owner report 2026-10-30: a scrolling dialog cut its own corners). */
   .dlg {
-    width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; color: var(--fg);
+    width: min(520px, calc(100vw - 32px)); max-height: calc(100vh / var(--ui-scale, 1) - 48px); padding: 0; color: var(--fg);
     border: 1px solid var(--line-strong); overflow: hidden;
   }
   .dlg[open] { display: flex; flex-direction: column; }

@@ -118,7 +118,8 @@
     void folder;
     untrack(() => {
       onready?.(true);
-      if ($route.q) { text = $route.q; run(); }
+      if ($route.pod && !asked) { pod = $route.pod; if ($route.q) text = $route.q; else { text = '.'; mode = 'regex'; } run(); }   // link from Collectors: the latest lines of that host or pod
+      else if ($route.q) { text = $route.q; run(); }
       else if (asked) run();
     });
   });
@@ -277,7 +278,7 @@
   .seg { align-self: center; flex-wrap: wrap; }
   .go { min-height: 46px; padding: 0 22px; }
   .f { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  .f legend, .lg { padding: 0; margin-bottom: 8px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .f legend, .lg { padding: 0; margin-bottom: 8px; font-size: 0.75rem; font-weight: 600; color: var(--muted); }
   .sel .lg { margin-bottom: 0; }
   .filters { gap: 20px; align-items: flex-end; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -298,17 +299,17 @@
   .det { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 12px; }
   .det header { margin: 0; }
   .hd, .ln { display: grid; grid-template-columns: 7.5rem 9rem 4.2rem minmax(0, 1fr); gap: 12px; align-items: start; }
-  .hd { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--th-fg); }
+  .hd { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 0.75rem; font-weight: 600; color: var(--th-fg); }
   ul { list-style: none; margin: 0; padding: 0; }
   .ln { width: 100%; padding: 11px 16px; border: 0; border-bottom: 1px solid var(--row-line); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
   .ln:hover { background: var(--row-hover); }
   .ln[aria-pressed='true'] { background: color-mix(in srgb, var(--accent) 8%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
   .ln .tm { font: 0.78rem var(--mono); color: var(--kpi-label); }
   .sv { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 0.8125rem; }
-  .sv small { font: 0.6875rem var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sv small { font: 0.75rem var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tx { font: 0.78rem/1.55 var(--mono); color: var(--code-fg); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14em; overflow: hidden; }
   mark { background: color-mix(in srgb, var(--accent) 28%, transparent); color: var(--fg); border-radius: 3px; padding: 0 1px; }
-  .kb { display: inline-block; padding: 2px 7px; border-radius: 6px; font: 600 0.72rem var(--mono); background: var(--chip-bg); }
+  .kb { display: inline-block; padding: 2px 7px; border-radius: 6px; font: 600 0.75rem var(--mono); background: var(--chip-bg); }
   .more { display: flex; justify-content: center; padding: 12px; }
   dl { margin: 0; display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 8px 12px; font-size: 0.8125rem; }
   dt { color: var(--muted); }
@@ -330,5 +331,9 @@
     .ln { grid-template-columns: auto minmax(0, 1fr) auto; }
     .ln .tx { grid-column: 1 / -1; }
     .det { position: static; }
+  }
+  @media (max-width: 900px), (pointer: coarse) {
+    .fc, .kc { min-height: var(--touch); }
+    input[type='time'], select, .q input { min-height: var(--touch); }
   }
 </style>

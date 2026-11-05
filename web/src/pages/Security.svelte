@@ -60,7 +60,7 @@
   const org = (o) => (o === 'Unknown' || o === 'Tidak diketahui' ? $t('sec.unknown_owner') : o);   // 'Tidak diketahui': servers before 2026-10-30
   const uniq = (a) => [...new Set(a)];
 
-  // ---------------------------------------------------------------- key findings (order and content as in the old one)
+  // Key findings (order and content as in the old one)
   const findings = $derived.by(() => {
     if (!data) return [];
     const f = data.findings, k = data.kpi, T = data.tables;

@@ -47,7 +47,7 @@
   /* the real field covers the boxes: invisible text, but it takes the clicks, the keyboard and the paste */
   .real {
     position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.01; border: 0; padding: 0; margin: 0;
-    color: transparent; caret-color: transparent; background: transparent; font-size: 16px; letter-spacing: 0; z-index: 1;
+    color: transparent; caret-color: transparent; background: transparent; font-size: 1rem; letter-spacing: 0; z-index: 1;
   }
   .real::selection { background: transparent; }
   @media (max-width: 400px) { .cells { gap: 6px; } .cell { height: 50px; font-size: 1.3rem; } }

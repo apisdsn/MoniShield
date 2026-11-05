@@ -1,9 +1,20 @@
 """Service page (TRD §5.3)."""
 
-from monishield.domain import services as profile
+from monishield.domain import log_formats, parse, services as profile
 from monishield.infrastructure.queries.sql import H, _all, _no, reject
 from .map import MOD
 from .tables import NG, first
+
+
+def read_format(cur, folder, service):
+    """How the service is read (log-formats.toml: the first rule that matches its namespace and name) and the share of its entries
+    that format could not read. None without rules. `unread` stays None for the legacy presets, which count no unread entries."""
+    rules = log_formats.current()
+    ns, lines, unmatched = cur.execute("SELECT min(ns), sum(lines), sum(lines_unmatched) FROM ingest_file WHERE folder = ? AND service = ?", [folder, service]).fetchone()
+    rule = log_formats.match(rules, ns, service) if rules else None
+    if rule is None: return None
+    legacy = rule.format in parse.LEGACY
+    return dict(preset=rule.format, kind=rule.kind, unread=None if legacy or not lines else round(int(unmatched or 0) / int(lines), 4))
 
 
 def service_page(cur, folder, service):
@@ -15,7 +26,7 @@ def service_page(cur, folder, service):
     corr = cur.execute('SELECT matched, total FROM agg_corr WHERE folder = ?', [folder]).fetchone() if service == profile.current().events else None
     all_tables = {t: first(cur, t, folder, service=service) for t in ('endpoints', 'endpoint-errors', 'endpoint-perf', 'endpoint-error-rate', 'slow', 'ips', 'user-agents', 'messages')}
     return dict(
-        available=True, service=service, kpi=kpi, corr=dict(matched=corr[0], total=corr[1]) if corr else None,
+        available=True, service=service, kpi=kpi, format=read_format(cur, folder, service), corr=dict(matched=corr[0], total=corr[1]) if corr else None,
         hour=_all(cur, f"SELECT {H.format('hour_wib')}, total, err FROM agg_hour WHERE folder = ? AND service = ? ORDER BY hour_wib", folder, service),
         status=_all(cur, 'SELECT status::VARCHAR, n FROM agg_status WHERE folder = ? AND service = ? ORDER BY 1', folder, service),
         upstreams=_all(cur, 'SELECT upstream, requests FROM agg_upstream WHERE folder = ? ORDER BY requests DESC, upstream LIMIT 12', folder) if service == NG else [],

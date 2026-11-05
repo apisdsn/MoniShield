@@ -19,7 +19,7 @@
   .i { width: 18px; height: 18px; border: 0; background: transparent; padding: 0; cursor: help; display: grid; place-items: center; border-radius: 50%; }
   .c {
     width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line-strong); display: grid; place-items: center;
-    color: var(--muted); font-size: 0.6875rem; font-weight: 700; font-style: italic; line-height: 1;
+    color: var(--muted); font-size: 0.75rem; font-weight: 700; font-style: italic; line-height: 1;
   }
   /* touch screens: 44 px tap area (DRD §8.2) without changing the layout; the circle stays 18 px */
   @media (max-width: 900px) { .i { width: 44px; height: 44px; margin: -13px; } }

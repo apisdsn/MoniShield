@@ -185,6 +185,34 @@ A browser that has seen it opens the domain **and every subdomain** only over ht
 - The header has no `preload` on purpose, and the domain is not registered at hstspreload.org (that list is hard to
   leave). TLS settings are Caddy's defaults (TLS 1.2 and newer).
 
+### Collector receiver subdomain
+
+Collectors (docs/12-collector.md) send logs to their own host name that is **not behind the Cloudflare proxy**, so the logs of a
+client never pass a third party. This server's Caddy serves it with its own Let's Encrypt certificate. On that host only
+`/api/collector/*`, `/collector/install.sh` and `/collector/install.ps1` are reachable (everything else answers 404, so the
+dashboard is not available there), bodies are limited to 10 MB and no request is logged.
+
+1. **Cloudflare DNS:** add an `A` record (for example `ingest`) to the server's IP with Proxy status **DNS only** (grey cloud).
+   Add the `AAAA` record only if the server has IPv6.
+2. **On the server, in `.env`:** `DOCKER_INGEST_DOMAIN=ingest.<domain>`. Leave `S4_COLLECTOR_PUBLIC_URL` empty unless another
+   address is wanted (empty means `https://<DOCKER_INGEST_DOMAIN>`). Optionally `DOCKER_MAIN_CLOUDFLARE_ONLY=1`. The trade-off:
+   a DNS only record shows the server's IP publicly, so the dashboard could be opened directly, bypassing Cloudflare. The guard
+   keeps the main site reachable only through Cloudflare (a request from any other address is dropped; monitors and scripts
+   that call the main domain directly must use the ingest host or go through Cloudflare). If Cloudflare changes its ranges the
+   list must be refreshed: `python tools/cloudflare_ips.py --fetch` (rewrites `CLOUDFLARE_IPS` in
+   `monishield/domain/client_address.py`, which the app also uses for `CF-Connecting-IP`, and `deploy/caddy/cloudflare-only.caddy`),
+   commit and deploy.
+3. **Deploy** (the CI deploy, or `bash deploy/remote-deploy.sh`; a changed Caddy file or value recreates the Caddy container),
+   then check:
+   - `curl -I https://ingest.<domain>/collector/install.sh` gives 200
+   - `curl -I https://ingest.<domain>/` gives 404
+   - the dashboard still opens through the normal domain
+   - with the guard on, `curl -k --resolve <main domain>:443:<server ip> https://<main domain>/` is refused (empty reply)
+4. **Then on the Collectors page:** Add collector, copy the commands, run them on the server to watch.
+
+With `DOCKER_INGEST_DOMAIN` empty nothing changes and no certificate is requested. The app sees the collector's own address
+(Caddy replaces `X-Forwarded-For`) and never believes a `Cf-Connecting-Ip` sent there.
+
 ---
 
 ## 8. After the first sign-in

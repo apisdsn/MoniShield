@@ -29,7 +29,7 @@ class ImportService:
             if self.state['running']: raise Busy('Another import is running; wait until it finishes.', 'import_running')
             self.state.update(running=True, job_id=None, phase=phase, done=0, total=0, mode=mode)
 
-    # -------------------------------------------------------------- import one link
+    # Import one link
     def start(self, url, dry_run, by):
         bucket, prefix, folder = s3_import.parse_url(self.ctx.cfg, url)   # the link is checked before any connection to AWS
         self.ctx.s3.ready()
@@ -82,7 +82,7 @@ class ImportService:
         live = self.state if self.state['job_id'] == job_id and self.state['running'] else None
         return dict(j, running=bool(live), progress=live, result=self.plans.get(job_id))
 
-    # -------------------------------------------------------------- automatic sync from the S3 parent prefix (S4_S3_WATCH)
+    # Automatic sync from the S3 parent prefix (S4_S3_WATCH)
     def watch_config(self):
         """Sync settings in effect (.env: S4_S3_WATCH, S4_S3_WATCH_MINUTES, S4_S3_WATCH_ENABLED; the page writes there).
         -> dict(url, minutes, enabled, source='file'|'environment'|None)"""
@@ -198,7 +198,7 @@ class ImportService:
     def wait(self, timeout=None):
         if self.thread: self.thread.join(timeout)
 
-    # -------------------------------------------------------------- import card view
+    # Import card view
     def view(self):
         cfg = self.ctx.cfg
         sources, problem = self.watch_sources()

@@ -77,7 +77,7 @@ class IngestService:
                     snapshot_error=getattr(self.ctx, 'snapshot_error', None), s3=s3)
 
 
-# ------------------------------------------------------------------ folders (owner request 2026-10-07: manage folders)
+# Folders (owner request 2026-10-07: manage folders)
 def new_folders(ctx):
     """Date folders in the log folder / inbox that are not yet in the database (and not ignored)."""
     w = ctx.warehouse

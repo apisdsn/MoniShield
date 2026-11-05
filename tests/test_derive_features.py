@@ -30,7 +30,7 @@ def sl(rid, path, status, ms, failed=False, name='E', msg='m'):
     return f"[APP-{'ERROR' if failed else 'INFO'}] " + json.dumps(e)
 
 
-# ------------------------------------------------------------------ (a) computed by hand
+# (a) computed by hand
 def test_attacks(mini):
     u = {r[:2]: r[2:] for r in q(mini, 'SELECT category, method_path, hits, ip_count, top_ip, status_counts, sizes, upstreams, ua_first, first_wib, last_wib FROM agg_attack_url')}
     assert set(u) == {('Probe PHP / CGI', 'GET /forum/core/css.php'), ('Probe file sensitif', 'GET /.git/config')}
@@ -159,7 +159,7 @@ def test_business_email_jwt_pdf(mini, tmp_path):
     con.close()
 
 
-# ------------------------------------------------------------------ (b) real folders vs the old system
+# (b) real folders vs the old system
 FOLDERS = ('2026-09-29', '2026-09-30', '2026-10-06')
 
 

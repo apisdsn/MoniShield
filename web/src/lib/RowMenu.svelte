@@ -47,6 +47,7 @@
 
 <style>
   .rm { width: 36px; height: 36px; font-size: 1.1rem; }
+  @media (max-width: 900px), (pointer: coarse) { .rm { width: var(--touch); height: var(--touch); } }
   .menu {
     position: fixed; z-index: 70; background: var(--card); border: 1px solid var(--line-strong); border-radius: 14px;
     box-shadow: var(--glow); padding: 6px; display: flex; flex-direction: column;

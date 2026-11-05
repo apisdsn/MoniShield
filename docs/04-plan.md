@@ -1361,6 +1361,19 @@ entry the format cannot read is counted in `ingest_file.lines_unmatched`. `auto`
 built-in rules the parse result is identical to before (tested file by file). Pages do not read the new tables yet
 (step 1c). Tests: `tests/test_formats.py` on public sample lines in `tests/fixtures/formats/`.
 
+**Step 1c done**: the derive SQL adds `http_access` (own `service` column) and `app_line` to the per-service aggregates
+(`agg_service`, `agg_hour`, `agg_status`, `agg_endpoint`, `agg_endpoint_error`; `agg_ip` and `agg_flow` from
+`http_access` only, since `app_line` keeps no IP). `agg_level` and `agg_message` need no new branch: the parser already
+writes the level counters and `log_message` rows of application logs. An `app_line` row counts as a request only when it
+has a status; its 5xx is not added to `err_http` (its ERROR level is already in `err`). `http_access` gets the `crs_*`
+columns and `derive/steps.crs` classifies it with the same rules (no method = `GET`); `agg_crs_*` include it, the old
+`attack_*` rules stay ingress-only. IPs of `http_access` go to the owner / location lookup and to the map
+(`upstream` = the service when the log has none, pod `-`); the IP profile and the search read it. The Service page returns
+`format` (preset, kind, unread-line rate = `lines_unmatched` / `lines`) and shows it above the KPIs; the rate is hidden at
+0 and for the legacy presets. `folder_state.derive_version` (`derive.DERIVE_VERSION`) makes ingest derive older folders once
+from the stored raw tables (`RULES_VERSION` unchanged, nothing re-parsed). Tests: `tests/test_formats_pages.py`, including
+a snapshot of every aggregate of the legacy fixtures taken before the change (`tests/fixtures/derive_snapshot.json`).
+
 
 ## Stage 53 — Raw Logs page (done, 2026-10-30)
 
@@ -1390,3 +1403,77 @@ log, and the page sits in the Analysis group after Request Tracing.
 - Tests: `tests/test_rawlogs.py`; smoke test opens `/raw-logs`.
 
 Later: live tail for the Kafka source, links from Request Tracing / IP profile / Messages rows, role per module.
+
+## Stage 54 — Collector (planned, 2026-11-04)
+
+Owner request: connect servers and clusters to MoniShield directly, without S3 or Kafka. Plan in
+[`12-collector.md`](12-collector.md): the OpenTelemetry Collector with a configuration MoniShield writes, OTLP/HTTP JSON
+to `/v1/logs` with one key per collector, the lines written to a third source's inbox in the S3 folder layout so ingest
+and the parsers stay as they are; metrics later. Decided 2026-11-04: log formats step 1c first; a third source of its
+own; the receiver on a subdomain without the Cloudflare proxy; logs before metrics; install scripts named MoniShield
+until the rename.
+
+**Step 1 done.** `monishield/domain/otlp_logs.py` turns an OTLP/HTTP JSON logs request into records (namespace, service,
+pod or host, line, time, hour file path) for Kubernetes, Windows Event Log, journald, Docker and plain files, rejects
+what is malformed with a reason, and builds the partial-success answer. Sample payloads are in `tests/fixtures/otlp/`.
+
+**Step 2 done.** Collector registry in the accounts database (`monishield/domain/collectors.py`, `Collector` in
+`infrastructure/auth.py`, `application/collector_service.py`, `interfaces/api/collectors.py`): an admin registers a
+collector and gets a one-time enrollment token (`mse_<id>_<secret>`, 24 h) that the collector exchanges once, at
+`POST /api/collector/enroll`, for its key (`msk_<id>_<secret>`); only SHA-256 hashes are stored. A replaced key keeps
+working for 24 h. Wrong enrollment attempts count toward the login's per-IP limit. Audit: `collector.add`, `.token`,
+`.enroll`, `.enroll_fail`, `.rotate`, `.revoke`, `.delete` (never a secret). Step 6 must add `web/src/srv.js` `ERR_ID`
+entries for the new messages.
+
+**Step 3 done.** `POST /api/collector/v1/logs` (`interfaces/api/collector_logs.py`, `require_collector` in `common.py`):
+Bearer key, no CSRF or session, no audit; Content-Type and Content-Encoding checks; body size limited by `Content-Length`
+and while streaming, gunzip in pieces with an output limit; a rate limit per collector; 503 when the disk is low; a
+separate per-IP limit for wrong keys. Lines go through `infrastructure/collector_inbox.py` (one locked, `fsync`ed write
+per file) and `application/collector_feed.py` (counts per collector, folders written since the last ingest). New settings
+`S4_COLLECTOR_INBOX_DIR`, `_MAX_BODY_MB`, `_MAX_RAW_MB` (16), `_RATE_PER_MIN`, `_MAX_CONCURRENT` (4, 503 `busy`), `_MIN_FREE_MB`.
+
+**Step 4 done.** The collector is the third data source, built like Kafka: `COLLECTOR` in `application/sources.py`,
+`config_model.collector_config` (inbox `S4_COLLECTOR_INBOX_DIR`, database `<data_dir>/collector/monishield.duckdb`), a
+`SourceCtx` in `wire` with its own warehouse, folders (`kind='collector'`), ingest and retention, and its database opened
+and closed in `lifespan`. `CollectorFeed` ingests the folders in `pending` through the collector source's ingest at most
+every `S4_COLLECTOR_INGEST_SECONDS` (300) from a thread started and stopped in `lifespan`; `pending` is cleared only when
+the ingest succeeded, and on start one ingest of the whole collector inbox runs (catch-up). Retention,
+notifications (key `…@collector`, title `(Collector)`; like Kafka only the day in progress), the daily report (S3, else
+Kafka, else collector; any source on request), the backup (`collector.duckdb.gz`), `monishield ingest|derive --source
+collector`, `?source=collector` on every route, and the third option in the header switch (offered when a collector is
+registered or the database knows a day). The S3-replaces-Kafka rule was already limited to those two sources.
+
+**Step 5 done.** `monishield/domain/collector_config.py` writes the collector YAML per platform and chosen log inputs (Helm values
+for Kubernetes); `Collector.options` (JSON text, added to existing databases at start) holds the choice, set on create and by
+`PUT /api/admin/collectors/{id}/options`; enrollment answers `{collector, key, config}` and `GET /api/collector/config` returns the
+current YAML. Public `GET /collector/install.sh` and `/install.ps1` (`infrastructure/assets/collector/`) check the SHA-256 of the
+release package, enroll, write the configuration and the key (outside the YAML) and start the service. Settings
+`S4_COLLECTOR_OTEL_VERSION` (0.163.2) and `S4_COLLECTOR_PUBLIC_URL`. `tools/fetch_otelcol.py` downloads the binary for the real
+`otelcol-contrib validate` test.
+
+**Step 6 done.** Page `web/src/pages/Collectors.svelte` (route `/collectors`, sidebar entry in the Configuration group, `ADMIN` list in
+`state.js`, `PAGES` in `app.py`): counts by status, table (list on phones), details panel, add / replace key / change inputs /
+revoke / delete dialogs, secrets shown once. New: `GET /api/admin/collectors/{id}/config`, `stats` and `receiver` in the list answer,
+`#pod=` for Raw Logs, `ERR_ID` entries for the collector messages (the first one lacked a comma and hid the Platform entry: fixed).
+The browser smoke test opens the page for both languages and three sources, opens and closes the add dialog with Esc and creates
+a collector.
+
+**Step 8 done.** Receiver subdomain: `DOCKER_INGEST_DOMAIN` (Caddy `https` profile; `deploy/caddy/entrypoint.sh` generates the host from
+`deploy/caddy/ingest.caddy` only when set; app paths only, 404 elsewhere, 10 MB bodies, no access log), `collector_public_url` falls back to
+`https://<DOCKER_INGEST_DOMAIN>`, optional `DOCKER_MAIN_CLOUDFLARE_ONLY=1` origin guard generated by `tools/cloudflare_ips.py` from
+the one Cloudflare list, `remote-deploy.sh` hashes the Caddy files so a change recreates Caddy. Validated with the real Caddy image.
+
+## Stage 55 — Wide screens, header language and theme, anti-slop audit (2026-11-04)
+
+Owner-approved UI changes, one commit each:
+
+- Configuration labels: Title Case, no brackets (`nav.cfg.*`); SMTP and `.env` named in the pop-up intro texts.
+- Header: `lib/LangMenu.svelte` (globe + code, two `menuitemradio` rows, Esc returns focus) and `lib/ThemeSwitch.svelte`
+  (`role="switch"`, 56 x 30 track); removed from the user menu.
+- Wide screens: no content max-width; `web/src/scale.js` zooms `<html>` by min(1.6, max(1, width / 2200)) while signed in.
+  A Chart.js plugin fixes pointer positions and the container size under zoom; `vh` heights divide by `--ui-scale`.
+  Checked at 3840 x 2160: chart tooltips appear at the pointer, the map pans with the pointer.
+- Audit: 44 px touch targets (phones, coarse pointers), no looping pulse, flat `--brand-bg`, `--r-ctl` (12 px) for
+  controls, no capitals with wide tracking, rem font sizes with a 12 px floor.
+- Plain section comments; animations `spin` and `shimmer`; `putar` and `kilau` added to `tests/test_language.py`.
+- Smoke test: header language menu, theme switch, 3840 px width (no gap, no sideways scroll) and 390 px.

@@ -561,7 +561,7 @@
   label { font-size: 0.8125rem; color: var(--kpi-label); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   input, select, textarea { min-height: var(--touch); border-radius: 12px; width: 100%; }
   textarea { font-family: var(--mono, ui-monospace, monospace); font-size: 0.8125rem; padding: 8px 10px; resize: vertical; }
-  .src { font-size: 0.6875rem; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--kpi-label); }
+  .src { font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--kpi-label); }
   .src.screen { border-color: var(--accent); color: var(--accent); }
   .src.none { border-style: dashed; }
   .src.warn { border-color: var(--warn); color: var(--warn); }

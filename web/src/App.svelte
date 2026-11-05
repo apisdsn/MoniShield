@@ -11,6 +11,7 @@
   import { cmpNote } from './lib/compare.js';
   import { APP_NAME } from './brand.js';
   import { load, save } from './store.js';
+  import { followScale } from './scale.js';
   import Sidebar from './lib/Sidebar.svelte';
   import VolumeBand from './lib/VolumeBand.svelte';
   import Header from './lib/Header.svelte';
@@ -30,6 +31,7 @@
   import IpProfile from './pages/IpProfile.svelte';
   import AdminUsers from './pages/AdminUsers.svelte';
   import AdminIngest from './pages/AdminIngest.svelte';
+  import Collectors from './pages/Collectors.svelte';
   import Overview from './pages/Overview.svelte';
   import Service from './pages/Service.svelte';
   import Trends from './pages/Trends.svelte';
@@ -46,7 +48,7 @@
   function toggleSide() { collapsed = !collapsed; save('side', collapsed ? 'collapsed' : 'open'); }   // h1 = page title in the Header (focused when switching tabs)
   let lastFolder = null;
 
-  // ---------------------------------------------------------------- login
+  // Login
   // /api/docs (Swagger) redirects here with ?next=/api/docs when not logged in: after login (and the initial password
   // change) go back there. Only addresses in this list are followed (not an open redirect).
   const NEXT = ['/api/docs'];
@@ -119,6 +121,9 @@
     return () => { off1(); off2(); };
   });
 
+  // very wide screens: the signed-in app is drawn larger (scale.js); the public home page and the sign-in screens stay at 1
+  $effect(() => { if (screen === 'app') return followScale(); });
+
   // back/forward between the home page and the app (links between them reload the page: data-reload)
   $effect(() => {
     const home = $route.tab === 'home';
@@ -126,7 +131,7 @@
     else if (!home && screen === 'home') untrack(boot);
   });
 
-  // ---------------------------------------------------------------- folders and tabs
+  // Folders and tabs
   // the folder list of the data source in the address (S3 or Kafka); until the list of the new source arrives there is none
   const folders = $derived(meta && meta.source === $route.source ? meta.folders : []);
   $effect(() => { if (screen === 'app' && meta && meta.source !== $route.source) untrack(loadMeta); });   // source switched: its own folders
@@ -203,7 +208,7 @@
     if (added.length) go({ folder: added[added.length - 1] });
   }
 
-  // ---------------------------------------------------------------- title
+  // Title
   const title = $derived.by(() => {
     const r = $route;
     if (r.tab === 'overview') return $t('title.overview');
@@ -211,6 +216,7 @@
     if (r.tab === 'ip') return $t('ipp.title', { ip: r.service });
     if (r.tab === 'admin/users') return $t('menu.users');
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
+    if (r.tab === 'collectors') return $t('nav.collectors');
     return $t(`tab.${r.tab}`);
   });
   // Trends covers every folder: one line under the header says so
@@ -242,14 +248,14 @@
   const sparse = $derived(isDataTab && !['trends', 'overview'].includes($route.tab) && folderInfo && folderInfo.lines < SPARSE_LINES);
   const note = $derived(isDataTab && $route.tab !== 'overview' ? [...$cmpNote.values()][0] || '' : '');
 
-  // ---------------------------------------------------------------- idle session (DRD §6.9)
+  // Idle session (DRD §6.9)
   let now = $state(Date.now());
   onMount(() => { const id = setInterval(() => (now = Date.now()), 15000); return () => clearInterval(id); });
   // the server records activity at most once a minute: count down with a 1-minute margin
   const idleLeft = $derived(me?.session_idle_minutes ? $lastActivity + (me.session_idle_minutes - 1) * 60000 - now : Infinity);
   async function stay() { try { await api.get('/api/me'); now = Date.now(); } catch { /* 401 -> session expired */ } }
 
-  // ---------------------------------------------------------------- keyboard (DRD §9.3)
+  // Keyboard (DRD §9.3)
   function onkey(e) {
     if (screen !== 'app' || e.ctrlKey || e.metaKey || e.altKey) return;
     const el = e.target;
@@ -341,6 +347,8 @@
         <AdminUsers {me} onme={refreshMe} />
       {:else if $route.tab === 'admin/ingest'}
         <AdminIngest onfinished={reload} />
+      {:else if $route.tab === 'collectors'}
+        <Collectors {onready} />
       {:else if !folders.length}
         <EmptyState title={$t('state.no_data')} text={me.role === 'admin' ? '' : $t('state.no_data_user')}>
           {#if me.role === 'admin'}<a class="btn primary" href={build({ tab: 'admin/ingest', service: null })}>{$t('menu.ingest')}</a>{/if}
@@ -382,7 +390,7 @@
 
 <style>
   .skip {
-    position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: 999px;
+    position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: var(--r-ctl);
     background: var(--accent); color: var(--brand-fg); font-weight: 600; text-decoration: none;
   }
   .skip:focus { top: 12px; }
@@ -390,7 +398,7 @@
     position: fixed; inset: 0 auto 0 0; width: var(--side-w); background: var(--side-bg); border-right: 1px solid var(--line);
     display: flex; flex-direction: column; padding: 18px 12px; gap: 14px; z-index: 30;
   }
-  .wrap { margin-left: var(--side-w); padding: 0 28px 40px; max-width: calc(1560px + var(--side-w)); }
+  .wrap { margin-left: var(--side-w); padding: 0 min(28px, calc(36px / var(--ui-scale, 1))) 40px; }   /* the side gutter stays under 40 px on screen when the app is scaled up */
   .sub { margin: 0 4px 16px; color: var(--muted); font-size: 0.78rem; text-align: right; }
   main:focus { outline: none; }
   .cmpnote { margin: 0 0 12px; font-size: 0.8125rem; color: var(--muted); }
@@ -407,7 +415,7 @@
     .side { transition: width 0.18s ease; }
     .side.collapsed { width: var(--side-w-c); padding-inline: 10px; }
     .wrap { transition: margin-left 0.18s ease; }
-    .wrap.collapsed { margin-left: var(--side-w-c); max-width: calc(1560px + var(--side-w-c)); }
+    .wrap.collapsed { margin-left: var(--side-w-c); }
   }
   @media (prefers-reduced-motion: reduce) { .side, .wrap { transition: none !important; } }
 

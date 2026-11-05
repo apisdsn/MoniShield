@@ -25,7 +25,7 @@ TEMP_LENGTH = 16
 SCRYPT = (15, 8, 1)          # n = 2^15, r, p: ±76 ms on the developer laptop (docs/04a-measurements.md); stored per account
 
 
-# ------------------------------------------------------------------ helpers
+# Helpers
 class AuthError(Fail):
     """Error that may be shown to the user. code = API error code, status = HTTP status."""
 
