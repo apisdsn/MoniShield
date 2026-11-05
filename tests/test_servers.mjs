@@ -1,7 +1,7 @@
 // Servers page helpers (web/src/servers.js): bar colours, card status, chart data, banner items.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { barTone, hostStatus, bars, axisLabel, fullLabel, points, alignTo, diskPercent, last, sparkPoints, bannerItems, usualBand, memoryText, memoryShare, pctText, rate } from '../web/src/servers.js';
+import { barTone, hostStatus, bars, axisLabel, fullLabel, points, alignTo, diskPercent, last, sparkPoints, bannerItems, usualBand, memoryText, memoryShare, pctText, rate, unusualValue, zText } from '../web/src/servers.js';
 import { hostSections } from '../web/src/servers.js';
 import { parse, build } from '../web/src/state.js';
 
@@ -63,6 +63,14 @@ test('numbers in the banner and the containers table', () => {
   assert.equal(usualBand({ what: 'cpu', low: 8.2, high: 14.4 }, 'en'), '8.2–14%');
   const MB = 1024 * 1024;
   assert.equal(usualBand({ what: 'memory', low: 800 * MB, high: 900 * MB }, 'en'), '800–900 MB');
+  assert.equal(usualBand({ what: 'memory', low: 764.1 * MB, high: 912.8 * MB }, 'en'), '760–910 MB');           // two significant digits
+  assert.equal(usualBand({ what: 'memory', low: 0.8 * 1024 * MB, high: 1.04 * 1024 * MB }, 'en'), '0.8–1.0 GB');   // the unit of the larger value
+  assert.equal(usualBand({ what: 'memory', low: 700 * MB, high: 1.2 * 1024 * MB }, 'id'), '0,7–1,2 GB');
+  assert.equal(unusualValue({ what: 'memory' }, 1.7 * 1024 * MB, 'en'), '1.7 GB');
+  assert.equal(unusualValue({ what: 'memory' }, 1736 * MB, 'en'), '1.7 GB');
+  assert.equal(unusualValue({ what: 'memory' }, 48.4 * MB, 'en'), '48 MB');
+  assert.equal(unusualValue({ what: 'cpu' }, 52.31, 'en'), '52%');
+  assert.equal(zText(11.64, 'en'), '11.6'); assert.equal(zText(12, 'en'), '12.0'); assert.equal(zText(3.14159, 'id'), '3,1');
   assert.equal(memoryText({ mem_used: 48 * MB, mem_limit: 0 }, 'en', 'no limit'), '48 MB / no limit');
   assert.equal(memoryText({ mem_used: null }, 'en', 'x'), '–');
   assert.equal(memoryShare({ mem_used: 50, mem_limit: 200 }), 25);

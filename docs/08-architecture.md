@@ -71,10 +71,12 @@ Every text the user reads is in `web/src/i18n/id.json` and `en.json` (the same k
 `node tools/check_i18n.mjs` (the code is `tools/i18n_case.mjs`, tested by `tests/test_i18n_case.mjs`).
 
 - **Labels are Title Case**: page titles, section and card headings, buttons, tabs, menu items, table column headers, field labels and
-  badges ("Add Collector", "Open in Raw Logs", "Last Seen"). The small words `a an and as at by for in of on or the to with` stay lower case
-  inside a title unless they come first. Product names and acronyms keep their form (MoniShield, S3, Kafka, CPU, RAM, SMTP, IP, URL, HTTP, ID,
+  badges ("Add Collector", "Open in Raw Logs", "Last Seen"). The small words `a an and as at by for from in into of on or over per than the to via vs with` stay lower case
+  inside a title unless they come first ("Errors per Service", "Import from S3"). Both parts of a hyphenated word are capitalised
+  ("Last Sign-In", "Comma-Separated"), and so is the particle of a phrasal verb ("Sign In", "Back Up Now"). Product names and acronyms keep their form (MoniShield, S3, Kafka, CPU, RAM, SMTP, IP, URL, HTTP, ID,
   EN, nginx, requestId); placeholders (`{n}`), numbers and units after a number (`24 h`) are left as they are.
-- **Sentences are sentence case**: sentences, descriptions, hints, placeholders, empty states, errors and toasts. A full sentence ends with a
+- **Sentences are sentence case**: sentences, descriptions, hints, placeholders, empty states, errors, toasts and status lines ("No ingest since
+  server start", "All times in WIB"). A short status line gets no period; a badge is a label ("1 Late", "All Online"). A full sentence ends with a
   period; a placeholder does not ("Search by name or host").
 - **Indonesian** follows the same split ("Tambah Collector", "Buka di Log Mentah"); the small words are `di ke dari dan atau yang untuk per dengan`.
 - The CSS never changes case (no `text-transform: capitalize`): the text is written the way it is shown.

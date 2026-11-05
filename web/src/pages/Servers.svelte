@@ -11,7 +11,7 @@
   import { load, save } from '../store.js';
   import { ago, groupNames } from '../collectors.js';
   import { RANGES, alignTo, hostSections, axisLabel, bannerItems, bars, barTone, clockAt, diskPercent, fullLabel, hostKey, hostStatus, last, mainDisk, memoryShare, memoryText, pctText, points,
-           rate, share, sparkPoints, unusualValue, usualBand } from '../servers.js';
+           rate, share, sparkPoints, unusualValue, usualBand, zText } from '../servers.js';
   import MetricChart from '../lib/MetricChart.svelte';
   import EmptyState from '../lib/EmptyState.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
@@ -62,7 +62,7 @@
   const nameOf = (it) => it.ctr || it.host;
   const logsHref = (host, ctr) => build({ tab: 'raw-logs', source: 'collector', service: null, folder: null, q: null, module: null, pod: host, svc: ctr });
   const itemText = (it) => it.kind === 'disk' ? $t('sv.u.disk', { mount: it.mount, pct: pctText(it.pct, $lang) })
-    : $t(it.what === 'memory' ? 'sv.u.memory' : 'sv.u.cpu', { current: unusualValue(it, it.current, $lang), band: usualBand(it, $lang), z: num(Math.round(it.z * 10) / 10, $lang) });
+    : $t(it.what === 'memory' ? 'sv.u.memory' : 'sv.u.cpu', { current: unusualValue(it, it.current, $lang), band: usualBand(it, $lang), z: zText(it.z, $lang) });
 
   // Groups: headings over the cards and a filter (only when a collector has a group)
   let pick = $state('all');

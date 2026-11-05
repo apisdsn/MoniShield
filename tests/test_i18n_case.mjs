@@ -8,7 +8,11 @@ test('English labels: Title Case, small words stay lower case unless first', () 
   assert.equal(titleCase('open in raw logs', 'en'), 'Open in Raw Logs');
   assert.equal(titleCase('last seen', 'en'), 'Last Seen');
   assert.equal(titleCase('the end of the line', 'en'), 'The End of the Line');
-  assert.equal(titleCase('Back to sign in', 'en'), 'Back to Sign in');
+  assert.equal(titleCase('Back to sign in', 'en'), 'Back to Sign In');
+  assert.equal(titleCase('Errors per service from the log', 'en'), 'Errors per Service from the Log');
+  assert.equal(titleCase('last sign-in', 'en'), 'Last Sign-In');
+  assert.equal(titleCase('change vs previous day', 'en'), 'Change vs Previous Day');
+  assert.equal(titleCase('back up now', 'en'), 'Back Up Now');
   assert.equal(titleCase('Send test email to', 'en'), 'Send Test Email to');
 });
 
@@ -16,7 +20,7 @@ test('product names, acronyms, placeholders, numbers and units keep their form',
   assert.equal(titleCase('MoniShield s3 and kafka settings', 'en'), 'MoniShield S3 and Kafka Settings');
   assert.equal(titleCase('cpu, ram and smtp', 'en'), 'CPU, RAM and SMTP');
   assert.equal(titleCase('Details of {name}', 'en'), 'Details of {name}');
-  assert.equal(titleCase('5xx responses per hour ({tz})', 'en'), '5xx Responses Per Hour ({tz})');
+  assert.equal(titleCase('5xx responses per hour ({tz})', 'en'), '5xx Responses per Hour ({tz})');
   assert.equal(titleCase('last 24 h', 'en'), 'Last 24 h');
   assert.equal(titleCase('Search by requestId', 'en'), 'Search by requestId');
   assert.equal(titleCase('nginx ingress log', 'en'), 'nginx Ingress Log');
@@ -35,7 +39,10 @@ test('which keys are labels and which are sentences', () => {
   assert.equal(isLabel('cl.intro', 'Servers and clusters that send logs'), false);        // named as a sentence
   assert.equal(isLabel('x.title', 'Saved to the file.'), false);                          // ends with a period
   assert.equal(isLabel('x.title', 'Ingest running'), true);
-  assert.equal(isLabel('cl.pill.late', '{n} late'), false);                               // starts with a placeholder: a fragment
+  assert.equal(isLabel('cl.pill.late', '{n} late'), true);                                // a badge, although it starts with a number
+  assert.equal(isLabel('x.count', '{n} late'), false);                                    // a fragment that starts with a placeholder
+  assert.equal(isLabel('ingest.none', 'No ingest since server start'), false);            // status lines are listed as sentences
+  assert.equal(titleCase('{n} late', 'en'), '{n} Late');
   assert.equal(isLabel('x.cpu_cap', 'Share of all cores'), false);                        // a name ending in _cap
   assert.equal(isLabel('x.t', 'one two three four five six seven eight'), false);         // long
   assert.equal(isLabel('raw.ph.text', 'Words to find'), false);

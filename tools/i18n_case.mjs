@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SMALL = {
-  en: new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with']),
+  en: new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'from', 'in', 'into', 'of', 'on', 'or', 'over', 'per', 'than', 'the', 'to', 'via', 'with']),   // 'vs' is in KEEP; 'up' is not here: "Back Up Now"
   id: new Set(['di', 'ke', 'dari', 'dan', 'atau', 'yang', 'untuk', 'per', 'dengan']),
 };
 // Product names and acronyms keep their form, in both languages (matched without regard to case; the listed spelling is written).
@@ -23,6 +23,8 @@ export const KEEP = ['MoniShield', 'S3', 'Kafka', 'CPU', 'RAM', 'SMTP', 'IP', 'I
   'journald', 'ingress-nginx', 'coredns', 'requestId', 'requestIds', 'env', '.env', 'e.g.', 'vs', 'UTF-8', 'HTML', 'SQL', 'JSON', 'YAML', 'Helm', 'Ctrl+K'];
 const KEEP_BY_LOWER = new Map(KEEP.map((w) => [w.toLowerCase(), w]));
 // after a number these are units, not words ("Last 24 h", "5 min")
+const EMPTY = new Set();
+const PHRASAL = /^(sign|signed|log|logged|zoom)$/i;
 const UNITS = new Set(['h', 'd', 'min', 's', 'ms', 'kb', 'mb', 'gb', 'x']);
 
 // A part of the key counts when it is one of these or ends with `_<one of these>` (`cpu_cap`, `delete_aria`, `upgrade_hint`).
@@ -46,7 +48,8 @@ export function isLabel(key, value) {
   if (!v || SENTENCE_KEYS.has(key)) return false;
   const parts = key.split('.');
   if (parts.some(isSentencePart) || parts[0] === 'err' || key.startsWith('imp.err.') || key.startsWith('adm.err.')) return false;
-  if (/[.?!:…,;]$/.test(v) || /^[^\p{Lu}\p{N}]/u.test(v)) return false;        // a sentence, or a fragment that starts in lower case or with a placeholder
+  const badge = parts.includes('pill');                                          // "{n} Late": a badge that starts with a number
+  if (/[.?!:…,;]$/.test(v) || (!badge && /^[^\p{Lu}\p{N}]/u.test(v))) return false;   // a sentence, or a fragment that starts in lower case or with a placeholder
   if (/\{(msg|list|q)\}|'\{/.test(v) || words(v).length > 7) return false;
   return true;
 }
@@ -66,9 +69,11 @@ function word(w, first, small, prev) {
   if (/\p{Lu}/u.test(core.slice(1))) return w;                                // mixed case such as requestId, SQLi, McAfee
   if (core.includes('-') || core.includes('/')) {
     // hyphenated and slashed compounds: each part on its own, small words inside stay small
-    return lead + core.split(/([-/])/).map((p, i) => (p === '-' || p === '/' || !p ? p : word(p, first && i === 0, small, null))).join('') + tail;
+    return lead + core.split(/([-/])/).map((p, i) => (p === '-' || p === '/' || !p ? p : word(p, true, EMPTY, null))).join('') + tail;
   }
-  if (!first && small.has(core.toLowerCase())) return lead + core.toLowerCase() + tail;
+  // the particle of a phrasal verb is part of the action: "Sign In", "Zoom In" (not a small word there)
+  const particle = prev && PHRASAL.test(prev.replace(/[^\p{L}]/gu, '')) && ['in', 'out', 'up'].includes(core.toLowerCase());
+  if (!first && !particle && small.has(core.toLowerCase())) return lead + core.toLowerCase() + tail;
   if (/^\p{Lu}+$/u.test(core)) return w;                                      // an acronym that is not listed (SSL)
   return lead + capitalize(core) + tail;
 }
@@ -95,7 +100,7 @@ export function labelProblems(en, id) {
     if (!isLabel(key, value)) continue;
     for (const [lang, dict] of [['en', en], ['id', id]]) {
       const v = dict[key];
-      if (v === undefined || /[.?!:…,;]$/.test(v.trim()) || /^[^\p{Lu}\p{N}]/u.test(v.trim())) continue;   // a sentence or fragment in this language
+      if (v === undefined || /[.?!:…,;]$/.test(v.trim()) || (!key.split('.').includes('pill') && /^[^\p{Lu}\p{N}]/u.test(v.trim()))) continue;   // a sentence or fragment in this language
       const want = titleCase(v, lang);
       if (want !== v) out.push({ key, lang, value: v, want });
     }

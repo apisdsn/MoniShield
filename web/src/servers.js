@@ -1,6 +1,6 @@
 // Servers page helpers (docs/13-metrics.md): what the cards, the banner, the charts and the containers table show, worked out from
 // the answers of GET /api/servers and /api/servers/host. Pure: no DOM, no stores; the time zone and the language come in as arguments.
-import { bytes, num } from './format.js';
+import { bytes, locale, num } from './format.js';
 import { groupItems } from './collectors.js';
 
 export const RANGES = ['1h', '24h', '7d', '30d'];
@@ -118,16 +118,34 @@ export function bannerItems(unusual, diskFull, max = MAX_BANNER) {
   return { items: all.slice(0, max), more: Math.max(0, all.length - max) };
 }
 
-/** A value of an unusual item in its unit: a share of CPU in percent, memory in bytes. */
-export const unusualValue = (item, v, lang) => (item.what === 'memory' ? bytes(v, lang) : `${pctText(v, lang)}%`);
-/** "0.8–1.0 GB" or "8–14%": the usual band, with the unit once. */
-export function usualBand(item, lang) {
-  if (item.what !== 'memory') return `${pctText(item.low, lang)}–${pctText(item.high, lang)}%`;
-  const lo = bytes(item.low, lang), hi = bytes(item.high, lang);
-  const [lv, lu] = lo.split(' '), [, hu] = hi.split(' ');
-  return lu === hu ? `${lv}–${hi}` : `${lo}–${hi}`;
+/** Two significant digits in the unit that fits the larger of the values: 764 MB and 913 MB -> "760–910 MB", 0.8 and 1.0 GB -> "0.8–1.0 GB". */
+function roundedBytes(values, lang) {
+  const top = Math.max(...values);
+  let i = 0;
+  while (top / 1024 ** i >= 1024 && i < 3) i++;
+  const unit = ['B', 'KB', 'MB', 'GB'][i];
+  const text = values.map((v) => {
+    const x = Number((v / 1024 ** i).toPrecision(2));
+    return (x >= 10 ? Math.round(x) : x).toLocaleString(locale(lang), x >= 10 ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  });
+  return { text, unit };
 }
 
+/** A value of an unusual item in its unit: a share of CPU in percent, memory in bytes with two significant digits ("1.7 GB"). */
+export function unusualValue(item, v, lang) {
+  if (item.what !== 'memory') return `${pctText(v, lang)}%`;
+  const { text, unit } = roundedBytes([v], lang);
+  return `${text[0]} ${unit}`;
+}
+/** "760–910 MB" or "8.2–14%": the usual band, with the unit once. */
+export function usualBand(item, lang) {
+  if (item.what !== 'memory') return `${pctText(item.low, lang)}–${pctText(item.high, lang)}%`;
+  const { text, unit } = roundedBytes([item.low, item.high], lang);
+  return `${text[0]}–${text[1]} ${unit}`;
+}
+
+/** The distance from the usual value in standard deviations, always with one decimal ("12.0"). */
+export const zText = (z, lang) => num(Math.round(z * 10) / 10, lang, 1);
 
 // Groups
 /** The host cards under their group headings: [{name, hosts}] (group names alphabetical, "No Group" = '' last). `pick` is 'all' or one group;
