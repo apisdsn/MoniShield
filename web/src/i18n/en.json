@@ -1454,7 +1454,7 @@
  "cl.f.units": "Units (Optional)",
  "cl.f.units_hint": "Separate with spaces or commas. Empty: every unit.",
  "cl.f.containers": "Docker Containers",
- "cl.f.containers_hint": "The logs of every container on this host, read from Docker's JSON files. A container is named by the first 12 characters of its id.",
+ "cl.f.containers_hint": "The logs of the containers on this host that expose a port, found through the Docker socket and named like in docker ps. The collector must be able to read /var/run/docker.sock.",
  "cl.f.channels": "Windows Event Log",
  "cl.ch.application": "Application",
  "cl.ch.system": "System",

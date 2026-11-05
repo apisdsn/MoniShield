@@ -1454,7 +1454,7 @@
  "cl.f.units": "Unit (Opsional)",
  "cl.f.units_hint": "Pisahkan dengan spasi atau koma. Kosong: semua unit.",
  "cl.f.containers": "Container Docker",
- "cl.f.containers_hint": "Log semua container di host ini, dibaca dari file JSON Docker. Container dinamai dengan 12 karakter pertama id-nya.",
+ "cl.f.containers_hint": "Log container di host ini yang membuka port, ditemukan lewat socket Docker dan dinamai seperti di docker ps. Collector harus bisa membaca /var/run/docker.sock.",
  "cl.f.channels": "Windows Event Log",
  "cl.ch.application": "Application",
  "cl.ch.system": "System",

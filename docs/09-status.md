@@ -105,7 +105,7 @@ Questions answered along the way, recorded so they are not asked again:
    detection and map read the new tables, unread-line rate on the Service page; existing folders are derived once more
    after the upgrade) done. Collector (stage 54, [`12-collector.md`](12-collector.md)): steps 1 (OTLP/JSON log records read into lines),
    2 (collector registry, enrollment tokens, keys) and 3 (the `POST /api/collector/v1/logs` receiver writing to the collector
-   inbox) done; 4 (the third source `collector`: own database, ingest of `CollectorFeed.pending`, catch-up, retention, notifications, backup, header switch) done; 5 (configuration writer, `install.sh` / `install.ps1`, options per collector) done; 6 (Collectors page) and 8 (receiver subdomain `DOCKER_INGEST_DOMAIN`, optional `DOCKER_MAIN_CLOUDFLARE_ONLY` guard; owner steps in `07-deploy-vps.md`) done; step 7 (end-to-end check with a real `otelcol-contrib`) is still open. Then 1d
+   inbox) done; 4 (the third source `collector`: own database, ingest of `CollectorFeed.pending`, catch-up, retention, notifications, backup, header switch) done; 5 (configuration writer, `install.sh` / `install.ps1`, options per collector) done; 6 (Collectors page) and 8 (receiver subdomain `DOCKER_INGEST_DOMAIN`, optional `DOCKER_MAIN_CLOUDFLARE_ONLY` guard; owner steps in `07-deploy-vps.md`) done; step 7 (end-to-end check with a real `otelcol-contrib`) is still open (a real Docker run of 2026-11-05 showed container names through `docker_observer`, see "Docker container names" in `12-collector.md`; containers without an exposed port are not found). Then 1d
    (`auto` detection, per-file re-parse, CLI) and 1e (Log formats page, docs).
 
 ## Known issues

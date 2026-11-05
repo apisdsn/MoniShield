@@ -190,7 +190,7 @@ def _where(attrs, body, t, collector):
         host, svc = _name(host or _clean(body.get('_HOSTNAME')) or collector), _journald_service(body)
         return host, svc, host, _journald(body, t, host, svc)
     host = host or collector
-    if container := _clean(attrs.get('container.name')): return host, container, host, _plain(body)      # Docker
+    if container := _slug_keep(_text(attrs.get('container.name')) or ''): return host, container, host, _plain(body)   # Docker
     svc = _clean(attrs.get('service.name')) or file_stem(_text(attrs.get('log.file.name')) or '') or 'app'
     return host, svc, host, _plain(body)
 
@@ -200,7 +200,7 @@ def _plain(body):
 
 
 def read_record(rec, res_attrs, collector, now):
-    """One logRecord -> dict(ns, svc, pod, line, t, relpath). Bad with the reason when it cannot be used."""
+    """One logRecord -> dict(ns, svc, pod, line, t, relpath, cid). Bad with the reason when it cannot be used."""
     if not isinstance(rec, dict): raise Bad('malformed record')
     attrs = {**res_attrs, **pairs(rec.get('attributes'))}          # a record's own attribute wins over its resource's
     body, t = _body(rec), time_of(rec, now)
@@ -210,7 +210,8 @@ def read_record(rec, res_attrs, collector, now):
     folder = kafka_message.folder_of(t)
     name = f'log_{svc}_{pod}_{folder}-{timezone.current().local(t).hour:02d}-00.log'
     if len(name.encode()) > MAX_FILE_NAME: raise Bad('invalid name')
-    return dict(ns=ns, svc=svc, pod=pod, line=cut_line(line), t=t, relpath=os.path.join(folder, ns, svc, name))
+    return dict(ns=ns, svc=svc, pod=pod, line=cut_line(line), t=t, relpath=os.path.join(folder, ns, svc, name),
+                cid=_text(attrs.get('container.id')))
 
 
 # Request
@@ -245,15 +246,20 @@ def _records(payload):
 
 def parse_logs(payload, collector, now):
     """Decoded OTLP/JSON logs request -> (records, rejected). `rejected` maps a reason to the number of records."""
-    records, rejected = [], {}
+    records, rejected, seen = [], {}, set()
     def reject(reason): rejected[reason] = rejected.get(reason, 0) + 1
     try:
         for attrs, rec in _records(payload):
             if isinstance(attrs, Bad): reject(str(attrs))
             elif len(records) + sum(rejected.values()) >= MAX_RECORDS: reject('too many records')
             else:
-                try: records.append(read_record(rec, attrs, collector, now))
+                try: r = read_record(rec, attrs, collector, now)
                 except Bad as e: reject(str(e))
+                else:
+                    if r['cid']:                # a container with several exposed ports is found once per port: same line, same time
+                        if (r['cid'], r['t'], r['line']) in seen: continue
+                        seen.add((r['cid'], r['t'], r['line']))
+                    records.append(r)
     except Bad as e:
         reject(str(e))
     return records, rejected

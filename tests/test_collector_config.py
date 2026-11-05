@@ -93,11 +93,21 @@ def test_linux_files_and_journald():
     assert 'operators' not in y and 'regex_parser' not in y and 'json_parser' not in y     # the body stays the original line
 
 
-def test_docker_uses_only_the_container_operator():
+def test_docker_names_come_from_the_docker_socket():
     y = build('docker', dict(containers=True, journald=False, files=[]))
-    assert 'include:\n      - "/var/lib/docker/containers/*/*-json.log"' in y and 'type: "container"' in y
-    assert 'container.name' in y and y.count('type:') == 2 and 'type: "add"' in y
-    assert 'parser' not in y.replace('container-parser', '')
+    assert '  docker_observer:\n    endpoint: "unix:///var/run/docker.sock"' in y
+    assert 'service:\n  extensions:\n    - "file_storage"\n    - "docker_observer"' in y and '- "receiver_creator/docker"' in y
+    assert 'watch_observers:\n      - "docker_observer"' in y and 'rule: "type == \\"container\\""' in y
+    assert '- "/var/lib/docker/containers/`container_id`/`container_id`-json.log"' in y and '*-json.log' not in y
+    assert 'container.name: "`name`"' in y and 'container.image.name: "`image`"' in y and 'container.id: "`container_id`"' in y
+    assert y.count('type:') == 1 and 'type: "container"' in y and 'format: "docker"' in y and 'add_metadata_from_filepath: false' in y      # the only operator: the body stays the line
+    assert 'parser' not in y.replace('container-parser', '') and 'EXPR' not in y
+
+
+def test_docker_socket_is_only_used_when_containers_are_on():
+    y = build('docker', dict(containers=False, journald=True, units=[], files=[]))
+    assert 'docker_observer' not in y and 'receiver_creator' not in y and 'service:\n  extensions:\n    - "file_storage"\n  pipelines' in y
+    assert 'docker_observer' not in build('linux')
 
 
 def test_windows_channels_and_files():

@@ -321,6 +321,9 @@ the server started, and the reason of the last rejection.
   logs). **Create Collector** shows the enrollment token (it works once, for 24 hours) and the commands for the platform with
   copy buttons: download the install script, read it, run it with the name and the token. For Kubernetes the page gives the
   `helm` and `kubectl` commands and the `values.yaml` to download. The collector appears as Waiting until it has enrolled.
+  A Docker collector names each container as `docker ps` does and finds containers through the Docker socket, so only containers
+  that expose a port are collected (details in `docs/12-collector.md`). A Docker collector installed earlier keeps the id names until
+  you run the install script again, or download its configuration again and restart the service.
 - **Replace Key**: makes a new key, shown once, with the exact place to put it for the platform. The old key keeps working
   for 24 hours.
 - **Change Inputs**: changes what the collector sends. The server then needs its new configuration; the page shows the command.
