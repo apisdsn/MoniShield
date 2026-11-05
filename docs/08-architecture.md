@@ -55,6 +55,25 @@ email, request ID, file name) also gets a POST form with the same parameters in 
 UI uses only that form so the values travel in the encrypted body and never in a URL. Downloads (block list, attack-IP CSV) return
 `dict(file, media_type, filename)` and the router turns that into an attachment response.
 
+## API versions
+
+The major version is in the path: every endpoint of the FastAPI app is under `/api/v1/...` (routers declare `prefix='/api/v1/...'`;
+`web/src/api.js` has the `API` constant). The rules:
+
+- **Additive changes stay in v1**: a new endpoint, a new optional parameter, a new field in an answer.
+- **A breaking change gets `/api/v2/...` next to v1** (a removed or renamed field, a changed meaning, a new required parameter). v1 then answers
+  with `Deprecation: true`, a `Sunset` date and `Link: <the v2 address>; rel="successor-version"` until it is removed in a later release.
+- **Not versioned** (operational): `/api/health` (the Docker healthcheck and `deploy/remote-deploy.sh` call it), the downloads
+  `/collector/install.sh` and `/collector/install.ps1`, the page routes, static files and `/map/labels.json`.
+- **The collector machine API** is `/api/v1/collector/enroll`, `/config`, `/logs` and `/metrics`. The collector's `otlp_http` exporter is
+  given the full `logs_endpoint` and `metrics_endpoint` (not a base `endpoint`, to which it would add its own `/v1/logs`).
+- **One release of grace for the browser API**: `interfaces/api/versioning.py` rewrites an unversioned `/api/<x>` request (except
+  `/api/health` and `/api/collector/...`) to `/api/v1/<x>` and adds `Deprecation: true`, so a tab left open during the deploy keeps working
+  until it reloads. The wire encryption binds the body to the address, so it uses the address as sent (`scope['sent_path']`). The module is
+  removed in the next release ("Next" in `docs/09-status.md`). There is no alias for the old collector paths.
+
+`tests/test_api_versions.py` fails on any `/api/` route outside `/api/v1/` except `/api/health`.
+
 ## Errors
 
 Domain and application code raise `monishield.domain.errors.Fail(code, message, status)` (or a subclass:

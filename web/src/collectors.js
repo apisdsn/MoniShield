@@ -70,7 +70,7 @@ export function checkOptions(platform, o) {
   return err;
 }
 
-/** The body of POST /api/admin/collectors (options part): only what the platform has, trimmed. */
+/** The body of POST /api/v1/admin/collectors (options part): only what the platform has, trimmed. */
 export function payload(platform, o) {
   const metrics = { host_metrics: !!o.host_metrics };
   if (platform === 'kubernetes') return metrics;
@@ -112,7 +112,7 @@ export function installSteps(platform, base, name, token) {
     { id: 'repo', lines: ['helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts', 'helm repo update'] },
     { id: 'enroll', lines: [
       `KEY=$(curl -fsS -D - -o /dev/null -X POST -H 'Content-Type: application/json' -H 'X-Requested-With: monishield-collector' \\`,
-      `  -d '{"token":"${token}"}' '${base}/api/collector/enroll?format=install' \\`,
+      `  -d '{"token":"${token}"}' '${base}/api/v1/collector/enroll?format=install' \\`,
       `  | awk 'tolower($1)=="x-collector-key:" {print $2}' | tr -d '\\r')`] },
     { id: 'secret', lines: ['kubectl create namespace monishield', 'kubectl -n monishield create secret generic monishield-collector --from-literal=key="$KEY"'] },
     { id: 'helm', lines: ['helm upgrade --install monishield-collector open-telemetry/opentelemetry-collector -n monishield -f values.yaml'] },
@@ -142,11 +142,11 @@ export function keySteps(platform, key) {
 export function updateSteps(platform, base) {
   if (platform === 'windows') return [{ id: 'update', lines: [
     `$key = ((Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\otelcol-contrib').Environment | Where-Object { $_ -like 'MONISHIELD_COLLECTOR_KEY=*' }).Split('=', 2)[1]`,
-    `Invoke-WebRequest -UseBasicParsing -Headers @{ Authorization = "Bearer $key" } -Uri ${base}/api/collector/config -OutFile "$env:ProgramFiles\\OpenTelemetry Collector\\config.yaml"`,
+    `Invoke-WebRequest -UseBasicParsing -Headers @{ Authorization = "Bearer $key" } -Uri ${base}/api/v1/collector/config -OutFile "$env:ProgramFiles\\OpenTelemetry Collector\\config.yaml"`,
     'Restart-Service otelcol-contrib'] }];
   if (platform === 'kubernetes') return [{ id: 'update', lines: ['helm upgrade --install monishield-collector open-telemetry/opentelemetry-collector -n monishield -f values.yaml'] }];
   return [{ id: 'update', lines: [
-    `sudo sh -c '. /etc/otelcol-contrib/monishield.env && curl -fsS -H "Authorization: Bearer $MONISHIELD_COLLECTOR_KEY" ${base}/api/collector/config -o /etc/otelcol-contrib/config.yaml && systemctl restart otelcol-contrib'`] }];
+    `sudo sh -c '. /etc/otelcol-contrib/monishield.env && curl -fsS -H "Authorization: Bearer $MONISHIELD_COLLECTOR_KEY" ${base}/api/v1/collector/config -o /etc/otelcol-contrib/config.yaml && systemctl restart otelcol-contrib'`] }];
 }
 
 /** Upgrade an installed collector in place (no token; the installed key stays): download the installer, run it with --upgrade.

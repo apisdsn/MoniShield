@@ -19,11 +19,11 @@
   // forgot password: mode 'login' | 'forgot' | 'sent'
   let mode = $state('login'), canForgot = $state(false), who = $state(''), fbusy = $state(false), ferror = $state(null), minutes = $state(30);
   let whoEl = $state();
-  onMount(async () => { try { canForgot = (await api.get('/api/auth/options')).forgot_password; } catch { canForgot = false; } });
+  onMount(async () => { try { canForgot = (await api.get('/api/v1/auth/options')).forgot_password; } catch { canForgot = false; } });
   let offEl = $state();
   async function toForgot() {
     mode = 'forgot'; ferror = null; who = username.trim();
-    try { canForgot = (await api.get('/api/auth/options')).forgot_password; } catch { /* keep the last answer */ }
+    try { canForgot = (await api.get('/api/v1/auth/options')).forgot_password; } catch { /* keep the last answer */ }
     await tick(); (canForgot ? whoEl : offEl)?.focus();
   }
   async function toLogin() { mode = 'login'; await tick(); (username ? pw : document.getElementById('u'))?.focus(); }
@@ -31,7 +31,7 @@
     e.preventDefault();
     if (!who.trim()) { ferror = $t('forgot.empty'); return; }
     fbusy = true; ferror = null;
-    try { minutes = (await api.post('/api/auth/forgot', { login: who.trim(), lang: $lang })).minutes; mode = 'sent'; }
+    try { minutes = (await api.post('/api/v1/auth/forgot', { login: who.trim(), lang: $lang })).minutes; mode = 'sent'; }
     catch (err) { ferror = err.code === 'too_many_attempts' ? $t('forgot.too_many') : $errText(err); }
     finally { fbusy = false; }
   }
@@ -40,7 +40,7 @@
     e.preventDefault();
     busy = true; error = null;
     try {
-      const me = await api.post('/api/auth/login', { username: username.trim(), password });
+      const me = await api.post('/api/v1/auth/login', { username: username.trim(), password });
       password = '';
       onlogin(me);
     } catch (err) {

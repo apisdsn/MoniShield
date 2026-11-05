@@ -22,7 +22,7 @@ of both, and the dashboard shows one source at a time.
 Delivery: offsets are committed AFTER the lines are written to disk (at-least-once). If the server dies in between, some
 lines may be written twice; rare and small.
 
-Realtime (map animation): nginx-ingress lines are forwarded to `LiveHub` (application/live_map.py) -> SSE /api/live/map. Only location coordinates
+Realtime (map animation): nginx-ingress lines are forwarded to `LiveHub` (application/live_map.py) -> SSE /api/v1/live/map. Only location coordinates
 (from the local/offline IP database, ip_info table) + module are sent to the browser, NOT IP addresses. IPs not yet known
 (never ingested) are not drawn until the next ingest fills in their location.
 """

@@ -1,11 +1,11 @@
 """Logs from Kafka (monishield/application/kafka_service.py).
-  GET  /api/admin/kafka          consumer status: connected?, messages received/written/skipped per service, last 50 messages
-  POST /api/admin/kafka/peek     "Check messages": the LAST n messages of the topic (no consumer group; does not move the read position)
-  POST /api/admin/kafka/ingest   ingest now (without waiting for the S4_KAFKA_INGEST_MINUTES interval)
-  GET  /api/live/map             Server-Sent Events for the realtime map animation: {p: [[lat, lon, count, module], …]} per
+  GET  /api/v1/admin/kafka          consumer status: connected?, messages received/written/skipped per service, last 50 messages
+  POST /api/v1/admin/kafka/peek     "Check messages": the LAST n messages of the topic (no consumer group; does not move the read position)
+  POST /api/v1/admin/kafka/ingest   ingest now (without waiting for the S4_KAFKA_INGEST_MINUTES interval)
+  GET  /api/v1/live/map             Server-Sent Events for the realtime map animation: {p: [[lat, lon, count, module], …]} per
                                  second. Location coordinates only (from the local IP database), no IP addresses. ?source=kafka (default) or
                                  ?source=collector picks the hub; 204 when that source is not running.
-  GET  /api/public/map           public (home page): coarse request origins, live (last minute) or of the newest folder;
+  GET  /api/v1/public/map           public (home page): coarse request origins, live (last minute) or of the newest folder;
                                  cells of ~55 km, no IP addresses (monishield/domain/public_map.py). {enabled: false} when turned off.
 """
 import asyncio, json
@@ -22,7 +22,7 @@ from .common import public, require_admin, require_user_ready
 router = APIRouter()
 
 
-@router.get('/api/admin/kafka')
+@router.get('/api/v1/admin/kafka')
 def kafka_status(request: Request, admin=Depends(require_admin)):
     return request.app.state.kafka.status()
 
@@ -31,7 +31,7 @@ class PeekBody(BaseModel):
     n: int = 10
 
 
-@router.post('/api/admin/kafka/peek')
+@router.post('/api/v1/admin/kafka/peek')
 def kafka_peek(request: Request, body: PeekBody = PeekBody(), admin=Depends(require_admin)):
     try: r = request.app.state.kafka.peek(max(1, min(50, body.n)))
     except Fail as e:
@@ -40,14 +40,14 @@ def kafka_peek(request: Request, body: PeekBody = PeekBody(), admin=Depends(requ
     return r
 
 
-@router.post('/api/admin/kafka/ingest')
+@router.post('/api/v1/admin/kafka/ingest')
 def kafka_ingest(request: Request, admin=Depends(require_admin)):
     request.app.state.kafka.ingest_now()
     _audit(request, admin, 'kafka.ingest', 'ingest folder from Kafka')
     return dict(started=True)
 
 
-@router.get('/api/public/map', dependencies=[Depends(public)])
+@router.get('/api/v1/public/map', dependencies=[Depends(public)])
 def public_map(request: Request, response: Response):
     response.headers['Cache-Control'] = 'no-store'
     return request.app.state.public_map.snapshot()
@@ -60,7 +60,7 @@ def live_feed(request, source):
     return feed if feed is not None and feed.running() else None
 
 
-@router.get('/api/live/map')
+@router.get('/api/v1/live/map')
 async def live_map(request: Request, user=Depends(require_user_ready)):
     feed = live_feed(request, request.query_params.get('source') or sources.KAFKA)   # no ?source=: Kafka, as before the collector had a map
     if feed is None: return Response(status_code=204)   # EventSource does not reconnect

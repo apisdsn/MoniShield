@@ -1,5 +1,5 @@
 """Encrypted request and response bodies for the web UI (monishield/infrastructure/wirecrypto.py).
-  POST /api/crypto/handshake   {pub: browser ECDH key} -> {enabled, kid, pub: server ECDH key}; public (needed before sign-in)
+  POST /api/v1/crypto/handshake   {pub: browser ECDH key} -> {enabled, kid, pub: server ECDH key}; public (needed before sign-in)
 
 A request carrying `X-MS-Enc: <key id>` has an encrypted body (application/octet-stream) and gets its JSON response
 encrypted the same way (header `X-MS-Enc: 1`). Requests without the header are served as plain JSON, so Swagger, the
@@ -20,7 +20,7 @@ from monishield.domain.errors import Fail
 from monishield.infrastructure.wirecrypto import WireError
 from .common import public
 
-router = APIRouter(prefix='/api/crypto')
+router = APIRouter(prefix='/api/v1/crypto')
 HEADER = b'x-ms-enc'
 
 
@@ -37,7 +37,9 @@ def handshake(body: Handshake, request: Request):
     return dict(enabled=True, kid=kid, pub=pub)
 
 
-def _aad(kind, scope): return f"{kind} {scope['method']} {scope['path']}".encode()
+def _aad(kind, scope):
+    """The address as the browser sent it (an old tab sealed its body with the unversioned path, versioning.py)."""
+    return f"{kind} {scope['method']} {scope.get('sent_path', scope['path'])}".encode()
 
 
 class PayloadCrypto:

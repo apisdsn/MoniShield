@@ -1,4 +1,4 @@
-"""Interactive API documentation (owner request 2026-10-07): Swagger UI at /api/docs and the schema at /api/openapi.json.
+"""Interactive API documentation (owner request 2026-10-07): Swagger UI at /api/v1/docs and the schema at /api/v1/openapi.json.
 Only for users signed in through the same login page (session cookie) who have changed their initial password; not
 signed in -> redirected to the login page and then back here. "Try it out" uses that session, so every route still obeys
 its role (a regular user sees admin routes but gets 403). Swagger UI assets come from our own server (CSP 'self')."""
@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from monishield import __version__
 from .common import ApiError, public, require_user, require_user_ready
 
-router = APIRouter(prefix='/api')
+router = APIRouter(prefix='/api/v1')
 
 DESCRIPTION = """MoniShield log and security dashboard. All times are UTC unless stated otherwise; log folder = WIB date (YYYY-MM-DD).
 
@@ -17,15 +17,19 @@ DESCRIPTION = """MoniShield log and security dashboard. All times are UTC unless
 Requests that change data (POST/PUT/PATCH/DELETE) must carry the `X-Requested-With` header (added automatically
 here). The **machine token** (`S4_JOB_TOKEN`) only works for the ingest and import routes: *Authorize* button → `jobToken`.
 
-Roles: `admin` for the `/api/admin/*` routes, otherwise any signed-in user. Errors always have the form
-`{"error": {"code": "...", "message": "..."}}`."""
+Roles: `admin` for the `/api/v1/admin/*` routes, otherwise any signed-in user. Errors always have the form
+`{"error": {"code": "...", "message": "..."}}`.
 
-# Swagger groups by whole-segment path prefix (first match wins; /api/me is not /api/meta); order = display order
-TAGS = [('/api/auth', 'Sign-in & session'), ('/api/me', 'Sign-in & session'), ('/api/admin/users', 'Users (admin)'),
-        ('/api/admin/imports', 'Object storage import & sync (admin)'), ('/api/admin/uploads', 'Folder upload (admin)'),
-        ('/api/admin/kafka', 'Kafka (admin)'), ('/api/live', 'Realtime (Kafka)'), ('/collector', 'Collector install scripts'),
-        ('/api/admin', 'Ingest, folder & audit (admin)'), ('/api/folders/{folder}/tables', 'Tables'),
-        ('/api/folders', 'Folder pages'), ('/api', 'General')]
+**Versions**: every endpoint is under `/api/v1`. Only `/api/health` (health check), `/collector/install.sh` and `.ps1` (downloads)
+and the page routes have no version. A breaking change gets `/api/v2` next to v1; v1 then answers with `Deprecation` and `Sunset`
+headers (and `Link: <new address>; rel="successor-version"`) until it is removed."""
+
+# Swagger groups by whole-segment path prefix (first match wins; /api/v1/me is not /api/v1/meta); order = display order
+TAGS = [('/api/v1/auth', 'Sign-in & session'), ('/api/v1/me', 'Sign-in & session'), ('/api/v1/admin/users', 'Users (admin)'),
+        ('/api/v1/admin/imports', 'Object storage import & sync (admin)'), ('/api/v1/admin/uploads', 'Folder upload (admin)'),
+        ('/api/v1/admin/kafka', 'Kafka (admin)'), ('/api/v1/live', 'Realtime (Kafka, collector)'), ('/api/v1/collector', 'Collector machine API (key)'), ('/collector', 'Collector install scripts'),
+        ('/api/v1/admin', 'Ingest, folder & audit (admin)'), ('/api/v1/folders/{folder}/tables', 'Tables'),
+        ('/api/v1/folders', 'Folder pages'), ('/api', 'General')]   # '/api' also takes the unversioned /api/health
 
 PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -55,9 +59,9 @@ def schema(app):
 
 @router.get('/docs', include_in_schema=False, dependencies=[Depends(public)])
 def docs(request: Request):
-    """Not signed in / initial password not changed -> login page with ?next=/api/docs (the SPA returns here afterwards)."""
+    """Not signed in / initial password not changed -> login page with ?next=/api/v1/docs (the SPA returns here afterwards)."""
     try: require_user_ready(require_user(request))
-    except ApiError: return RedirectResponse('/login?next=/api/docs', status_code=303)
+    except ApiError: return RedirectResponse('/login?next=/api/v1/docs', status_code=303)
     return HTMLResponse(PAGE, headers={'Cache-Control': 'no-store'})
 
 

@@ -25,7 +25,7 @@
 
   async function load() {
     const wasSyncing = syncing;
-    try { ov = await api.get('/api/admin/imports'); error = null; } catch (e) { error = e; }
+    try { ov = await api.get('/api/v1/admin/imports'); error = null; } catch (e) { error = e; }
     const autoRun = ov?.running && ov.state?.mode === 'sync';
     if (ov?.running && ov.state?.job_id && !timer && !autoRun) poll(ov.state.job_id);
     clearTimeout(syncTimer);
@@ -48,7 +48,7 @@
   async function saveWatch(enabled) {
     wErr = null; wBusy = true;
     try {
-      await api.put('/api/admin/imports/watch', { url: wUrl.trim(), minutes: Number(wMin), enabled });
+      await api.put('/api/v1/admin/imports/watch', { url: wUrl.trim(), minutes: Number(wMin), enabled });
       toast(enabled ? $t('imp.w.saved') : $t('imp.w.disabled'));
       window.dispatchEvent(new Event('monishield:watch-changed'));
       await load();
@@ -58,7 +58,7 @@
 
   async function syncNow() {
     syncErr = null;
-    try { await api.post('/api/admin/imports/sync', {}); syncing = true; load(); }
+    try { await api.post('/api/v1/admin/imports/sync', {}); syncing = true; load(); }
     catch (e) { syncErr = why(e); }
   }
 
@@ -69,14 +69,14 @@
   async function start(dry) {
     confirm = false; fail = null; busy = true; job = null;
     try {
-      const r = await api.post('/api/admin/imports', { url: url.trim(), dry_run: dry });
+      const r = await api.post('/api/v1/admin/imports', { url: url.trim(), dry_run: dry });
       poll(r.job_id);
     } catch (e) { fail = why(e); busy = false; }
   }
   async function poll(id) {
     clearTimeout(timer); timer = null; busy = true;
     try {
-      const j = await api.get(`/api/admin/imports/${id}`);
+      const j = await api.get(`/api/v1/admin/imports/${id}`);
       job = j;
       if (j.running || (j.status === 'running') || (!j.result && j.status !== 'failed')) { timer = setTimeout(() => poll(id), 1000); return; }
       busy = false; timer = null;
@@ -88,12 +88,12 @@
   async function saveCred(e) {
     e.preventDefault(); credErr = null; credBusy = true;
     try {
-      await api.post('/api/admin/imports/credentials', { access_key_id: ak.trim(), secret_access_key: sk, session_token: sessToken });
+      await api.post('/api/v1/admin/imports/credentials', { access_key_id: ak.trim(), secret_access_key: sk, session_token: sessToken });
       ak = sk = sessToken = ''; showCred = false; toast($t('imp.cred_saved')); load();
     } catch (err) { credErr = why(err); } finally { credBusy = false; }
   }
   async function clearCred() {
-    try { await api.del('/api/admin/imports/credentials'); toast($t('imp.cred_cleared')); load(); } catch (e) { toast(why(e)); }
+    try { await api.del('/api/v1/admin/imports/credentials'); toast($t('imp.cred_cleared')); load(); } catch (e) { toast(why(e)); }
   }
 
   const prog = $derived(job?.progress);

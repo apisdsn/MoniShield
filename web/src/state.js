@@ -104,7 +104,7 @@ function sync() {
   if (JSON.stringify(r) !== JSON.stringify(get(route))) route.set(r);
 }
 // a click on an app link (<a href="/security?…">) changes the page without reloading; new tabs, downloads and
-// server paths (/api/…, /map/…) are left to the browser
+// server paths (/api/v1/…, /map/…) are left to the browser
 function follow(e) {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   const a = e.target.closest?.('a[href]');

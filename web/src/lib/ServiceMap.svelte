@@ -15,7 +15,7 @@
     data = null; open = false;
     if (!hasFlows) return;   // from the service page response: no flows -> do not request the map (which answers 404)
     const q = s === NG ? '' : `?module=${encodeURIComponent(s)}`;
-    api.get(`/api/folders/${encodeURIComponent(f)}/map${q}`).then((j) => { if (f === folder && s === service) data = j; }, () => {});
+    api.get(`/api/v1/folders/${encodeURIComponent(f)}/map${q}`).then((j) => { if (f === folder && s === service) data = j; }, () => {});
   });
 </script>
 

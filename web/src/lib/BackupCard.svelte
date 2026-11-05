@@ -13,7 +13,7 @@
   let { onfinished = null } = $props();
   let s = $state.raw(null), err = $state(null), busy = $state(false);
 
-  async function load() { try { s = await api.get('/api/admin/backup'); err = null; } catch (e) { err = $errText(e); } }
+  async function load() { try { s = await api.get('/api/v1/admin/backup'); err = null; } catch (e) { err = $errText(e); } }
   onMount(() => {
     load();
     const iv = setInterval(() => { if (!document.hidden && (s?.running || busy)) load(); }, 3000);
@@ -23,7 +23,7 @@
   async function run() {
     busy = true;
     try {
-      s = await api.post('/api/admin/backup/run', {});
+      s = await api.post('/api/v1/admin/backup/run', {});
       toast($t('bk.done', { day: dLabel(s.last.day, $lang), size: bytes(s.last.bytes, $lang) }));
     } catch (e) { toast($errText(e)); await load(); }
     finally { busy = false; onfinished?.(); }

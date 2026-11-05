@@ -109,15 +109,15 @@ def test_stream_has_coordinates_and_no_address(make, rules):
     tc.app.state.geo = FakeGeo()
     feed = tc.app.state.collector_feed
     feed.stop()   # the app started it
-    assert tc.get('/api/live/map?source=collector', headers=X).status_code == 204   # no collector feed running
-    assert tc.get('/api/live/map?source=kafka', headers=X).status_code == 204
-    assert tc.get('/api/live/map?source=s3', headers=X).status_code == 204
+    assert tc.get('/api/v1/live/map?source=collector', headers=X).status_code == 204   # no collector feed running
+    assert tc.get('/api/v1/live/map?source=kafka', headers=X).status_code == 204
+    assert tc.get('/api/v1/live/map?source=s3', headers=X).status_code == 204
     feed.start()
     srv, port = serve(tc.app)
     got = []
     try:
         with httpx.Client(base_url=f'http://127.0.0.1:{port}', cookies={c.name: c.value for c in tc.cookies.jar}, trust_env=False, timeout=15) as h, \
-                h.stream('GET', '/api/live/map?source=collector', headers=X) as r:
+                h.stream('GET', '/api/v1/live/map?source=collector', headers=X) as r:
             assert r.status_code == 200 and r.headers['content-type'].startswith('text/event-stream')
             for raw in r.iter_lines():
                 if raw.startswith('data: ') and '"live"' in raw:

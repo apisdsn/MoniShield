@@ -1,9 +1,9 @@
 """IP profile and attacker IP list (Stage 24 item 4).
 
-GET /api/folders/{folder}/ips/{ip}          one IP: owner & location (offline database), numbers in this folder, its trail in
+GET /api/v1/folders/{folder}/ips/{ip}          one IP: owner & location (offline database), numbers in this folder, its trail in
                                             all folders, and its requests in this folder (nginx ingress, at most 1,000).
-GET /api/folders/{folder}/security/attack-ips.csv   this folder's attack source IPs as CSV (for a WAF block list).
-GET /api/folders/{folder}/security/blocklist        ready-to-use block list: nginx / ingress-nginx / text / json (2026-10-07).
+GET /api/v1/folders/{folder}/security/attack-ips.csv   this folder's attack source IPs as CSV (for a WAF block list).
+GET /api/v1/folders/{folder}/security/blocklist        ready-to-use block list: nginx / ingress-nginx / text / json (2026-10-07).
 Nothing is sent to third-party services: location and owner come from the ip_info table.
 """
 import csv, io, ipaddress, re

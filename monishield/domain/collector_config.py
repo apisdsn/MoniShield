@@ -175,9 +175,10 @@ def emit(value, indent=0):
 
 # Pieces
 def exporter(base, metrics=False):
-    """One exporter for both signals: `endpoint` + /v1/logs for logs, `metrics_endpoint` for metrics (the same headers, retry and queue)."""
+    """One exporter for both signals, with the full address of each (`logs_endpoint`, `metrics_endpoint`): the exporter's own
+    `endpoint` setting would add its OTLP suffix `/v1/logs`, which would put a second `v1` in MoniShield's /api/v1/collector/logs."""
     return {'otlp_http/monishield': dict(
-        endpoint=base + '/api/collector', **(dict(metrics_endpoint=base + '/api/collector/v1/metrics') if metrics else {}), encoding='json', compression='gzip',
+        logs_endpoint=base + '/api/v1/collector/logs', **(dict(metrics_endpoint=base + '/api/v1/collector/metrics') if metrics else {}), encoding='json', compression='gzip',
         headers={'Authorization': 'Bearer ${env:' + KEY_ENV + '}'},   # the collector replaces this with the variable's value
         retry_on_failure=dict(enabled=True, initial_interval='5s', max_interval='60s', max_elapsed_time='0s'),   # 0 = never give up
         sending_queue=dict(enabled=True, storage='file_storage'))}

@@ -21,7 +21,7 @@ New collectors have the options on. A collector registered before this stage has
 
 - A `metrics` pipeline: receivers, `resource_detection` (host name, OS type and description), `metrics_transform/monishield` (keeps one
   CPU value per state), `batch/metrics` (no maximum size, so one scrape is never split) and the same `otlp_http/monishield` exporter with
-  `metrics_endpoint` set to `<address>/api/collector/v1/metrics`. Same key, gzip, retry and disk queue as the logs.
+  `metrics_endpoint` set to `<address>/api/v1/collector/metrics`. Same key, gzip, retry and disk queue as the logs.
 - Linux, Docker and Windows: the `host_metrics` receiver with the scrapers `cpu`, `memory` (with `system.memory.limit`), `load`,
   `filesystem` and `network`. File systems of type tmpfs, overlay, squashfs and the like and the mounts `/run`, `/snap`,
   `/var/lib/docker` and `/boot/efi` are left out; network devices `lo`, `veth*`, `br-*`, `docker*`, `cali*`, `flannel*`, `cni*` and
@@ -40,7 +40,7 @@ Checked with the real `otelcol-contrib` 0.163.2 (`tools/fetch_otelcol.py`; the t
 
 ## 3. Receiver and storage
 
-`POST /api/collector/v1/metrics` (`interfaces/api/collector_logs.py`, next to the log receiver) uses the same key, content-type and
+`POST /api/v1/collector/metrics` (`interfaces/api/collector_logs.py`, next to the log receiver) uses the same key, content-type and
 encoding checks, rate window, request slots, size limits before and after gunzip and 503 answers (`disk_full`, `busy`,
 `storage_error`) as the log receiver, and the same `S4_COLLECTOR_*` limits and `S4_COLLECTOR_MAX_AGE_HOURS`.
 
@@ -74,7 +74,7 @@ Deleting a collector deletes its metrics too (the id may be given to a new colle
 
 ## 5. Unusual values
 
-`domain/metric_anomaly.py`, used by `GET /api/servers`. For the CPU and the memory in use of every server and container:
+`domain/metric_anomaly.py`, used by `GET /api/v1/servers`. For the CPU and the memory in use of every server and container:
 
 - **current** = the mean of the last 10 minutes (at least 4 points);
 - **baseline** = the hourly averages of the same hour of the day on each of the previous 7 days (a day counts when that hour has at least
@@ -91,11 +91,11 @@ Disks have no z-score: a mount point that is 90 % full or more is listed under `
 
 For every signed-in user (like the Pods page); host and container names and numbers are not personal data, so these are plain GETs.
 
-- `GET /api/servers?range=1h|24h|7d|30d` (default 24h) -> `hosts` (collector id and name, platform, collector status `online` / `late` /
+- `GET /api/v1/servers?range=1h|24h|7d|30d` (default 24h) -> `hosts` (collector id and name, platform, collector status `online` / `late` /
   `offline` / `revoked`, host, OS, last seen, number of containers, current cpu, mem_used, mem_total, load1, net_rx, net_tx, and the
   `disks` with used, total and percent), `unusual` (worst first: kind, host, container, name, z, current, usual low and high, started) and
   `disk_full`. "Current" is the newest point of the last hour, else null.
-- `GET /api/servers/host?cid=&host=&range=` -> the series for the charts (`cpu`, `mem_used` and `mem_total`, `disk_used` and `disk_total`
+- `GET /api/v1/servers/host?cid=&host=&range=` -> the series for the charts (`cpu`, `mem_used` and `mem_total`, `disk_used` and `disk_total`
   of `/` or else the first mount point, `net_rx` and `net_tx`, `load1`) and the `containers` (name, image, running = seen in the last 2
   minutes, last seen, current values, restarts, and a memory sparkline of 24 hourly averages). Containers last seen before the range
   (at least 24 hours) are left out.
@@ -104,7 +104,7 @@ For every signed-in user (like the Pods page); host and container names and numb
 - Errors: `invalid_parameter` (400) for a range that is not one of the four, `not_found` (404) for an unknown collector or server.
 
 The two read calls are used by the Servers page through `api.js`, so their answers are encrypted like every other browser call
-(`tests/test_wire_collectors.py`). The receiver `POST /api/collector/v1/metrics` is a machine endpoint used by `otelcol-contrib`: it is
+(`tests/test_wire_collectors.py`). The receiver `POST /api/v1/collector/metrics` is a machine endpoint used by `otelcol-contrib`: it is
 protected by HTTPS on the ingest subdomain and the collector key, not by the page key.
 
 ## 7. Storage size (measured)
@@ -141,8 +141,8 @@ block of `/etc/otelcol-contrib/config.yaml` by hand (an upgrade overwrites the f
 ## 10. The Servers page
 
 `web/src/pages/Servers.svelte`, helpers in `web/src/servers.js` (tested by `tests/test_servers.mjs`), route `/servers`, sidebar entry in
-the Analysis group after Raw Logs. No folder and no data source: the header hides the source switch. Reads `GET /api/servers?range=` and
-`GET /api/servers/host` through `api.js` every 30 seconds (the answers are encrypted like every browser call).
+the Analysis group after Raw Logs. No folder and no data source: the header hides the source switch. Reads `GET /api/v1/servers?range=` and
+`GET /api/v1/servers/host` through `api.js` every 30 seconds (the answers are encrypted like every browser call).
 
 - **Banner**: `unusual` items (a container gets "Open Its Logs", Raw Logs of the collector source at `#pod=<host>&svc=<container>`; a
   server has no link) then `disk_full`; at most 3, then "and N more".

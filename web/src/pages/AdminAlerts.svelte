@@ -1,4 +1,4 @@
-<!-- Notifications (owner request 2026-10-07; API /api/admin/alerts, monishield/alerts.py), admin only.
+<!-- Notifications (owner request 2026-10-07; API /api/v1/admin/alerts, monishield/alerts.py), admin only.
      Three channels (Telegram, Discord, email): on/off + credentials + "Send test". Secret fields (bot token, webhook URL,
      SMTP password) are never refilled from the server: shown as "already set"; left empty on save = not
      changed; "Hapus" removes them. Events sent, message language, dashboard address for links, daily folder check
@@ -52,7 +52,7 @@
     service_spike: { default: pair(th.def), services: Object.fromEntries(th.svc.filter((x) => x.service.trim()).map((x) => [x.service.trim().toLowerCase(), pair(x)])) },
   });
   function addSvc() { th.svc = [...th.svc, { service: '', on: true, factor: 3, min: 100 }]; }
-  async function load() { try { fill(await api.get('/api/admin/alerts')); error = null; } catch (e) { error = e; } }
+  async function load() { try { fill(await api.get('/api/v1/admin/alerts')); error = null; } catch (e) { error = e; } }
   onMount(load);
 
   const body = (clear = []) => ({
@@ -65,7 +65,7 @@
   });
   async function save(clear = []) {
     err = null; busy = true;
-    try { fill(await api.put('/api/admin/alerts', body(clear))); toast($t('al.saved')); }
+    try { fill(await api.put('/api/v1/admin/alerts', body(clear))); toast($t('al.saved')); }
     catch (e) { err = $errText(e); } finally { busy = false; }
   }
   async function test(ch) {
@@ -73,7 +73,7 @@
     await save();                     // the test uses the SAVED settings: save the form first
     if (err) { testing = ''; return; }
     try {
-      const r = await api.post('/api/admin/alerts/test', { channel: ch });
+      const r = await api.post('/api/v1/admin/alerts/test', { channel: ch });
       toast($t(r.note ? 'al.test_note' : 'al.test_ok', { ch: $t(`al.ch.${ch}`) }));
     }
     catch (e) { err = $errText(e); } finally { testing = ''; await load(); }
@@ -84,7 +84,7 @@
     if (err) { sending = ''; return; }
     const [source, folder] = repSel.split('|');
     try {
-      const r = await api.post('/api/admin/alerts/report', pending ? { pending: true } : { folder, source });
+      const r = await api.post('/api/v1/admin/alerts/report', pending ? { pending: true } : { folder, source });
       if (r.failed.length) err = $t('al.rep.fail', { list: r.failed.map(repName).join(', ') });
       if (r.sent.length) toast($t('al.rep.ok', { list: r.sent.map(repName).join(', ') }));
       else if (!r.failed.length) toast($t('al.rep.none'));

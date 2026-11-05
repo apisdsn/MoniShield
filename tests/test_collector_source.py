@@ -105,20 +105,20 @@ def test_receiver_to_database_and_pages(boot):
     assert known(tc, 'collector') == {DAY}
     assert DAY not in known(tc, 's3') and known(tc, 'kafka') == set()                          # the other sources do not know the day
     assert os.path.exists(tc.app.state.cfg.collector_db_path)
-    meta = tc.get('/api/meta?source=collector', headers=X).json()
+    meta = tc.get('/api/v1/meta?source=collector', headers=X).json()
     assert meta['source'] == 'collector' and [(f['folder'], f['source']) for f in meta['folders']] == [(DAY, 'collector')]
-    ov = tc.get(f'/api/folders/{DAY}/overview?source=collector', headers=X)
+    ov = tc.get(f'/api/v1/folders/{DAY}/overview?source=collector', headers=X)
     assert ov.status_code == 200, ov.text
-    names = {s['service'] for s in tc.get(f'/api/folders/{DAY}?source=collector', headers=X).json()['services']}
+    names = {s['service'] for s in tc.get(f'/api/v1/folders/{DAY}?source=collector', headers=X).json()['services']}
     assert {'orders-api', 'payments', 'app'} <= names
-    sv = tc.get(f'/api/folders/{DAY}/services/payments?source=collector', headers=X)
+    sv = tc.get(f'/api/v1/folders/{DAY}/services/payments?source=collector', headers=X)
     assert sv.status_code == 200, sv.text
-    raw = tc.get(f'/api/folders/{DAY}/raw', params=dict(q='charged', source='collector'), headers=X).json()
+    raw = tc.get(f'/api/v1/folders/{DAY}/raw', params=dict(q='charged', source='collector'), headers=X).json()
     assert raw['total'] == 1 and raw['rows'][0]['service'] == 'payments'
-    assert tc.get(f'/api/folders/{DAY}?source=s3', headers=X).status_code == 404               # S3 has no such day
-    rows = tc.get('/api/admin/folders?source=collector', headers=X).json()['rows']
+    assert tc.get(f'/api/v1/folders/{DAY}?source=s3', headers=X).status_code == 404               # S3 has no such day
+    rows = tc.get('/api/v1/admin/folders?source=collector', headers=X).json()['rows']
     assert [(r['folder'], r['source'], r['in_db']) for r in rows] == [(DAY, 'collector', True)]
-    assert DAY not in {r['folder'] for r in tc.get('/api/admin/folders', headers=X).json()['rows']}   # the S3 side does not list it
+    assert DAY not in {r['folder'] for r in tc.get('/api/v1/admin/folders', headers=X).json()['rows']}   # the S3 side does not list it
 
 
 def test_second_batch_is_read_again_and_the_interval_is_kept(boot):
@@ -170,7 +170,7 @@ def test_catch_up_ingests_folders_the_database_does_not_know(boot):
     tc, key, root = boot(prefill=lay_down)
     assert wait_for(lambda: known(tc, 'collector') == {DAY})
     assert tc.app.state.collector_feed.status()['pending'] == [] and tc.app.state.collector_feed.running()
-    assert tc.get(f'/api/folders/{DAY}?source=collector', headers=X).status_code == 200
+    assert tc.get(f'/api/v1/folders/{DAY}?source=collector', headers=X).status_code == 200
 
 
 def test_catch_up_skips_known_and_expired_folders(boot, tmp_path, monkeypatch):
@@ -195,7 +195,7 @@ def test_the_thread_ingests_on_its_own_and_stops_with_the_app(boot):
 # The guard, the source list, retention, backup
 def test_source_guard_names_all_three_sources(boot):
     tc, key, root = boot(register=False)
-    for path in ('/api/meta', '/api/admin/folders', '/api/admin/ingest', '/api/admin/retention'):
+    for path in ('/api/v1/meta', '/api/v1/admin/folders', '/api/v1/admin/ingest', '/api/v1/admin/retention'):
         r = tc.get(path + '?source=bogus', headers=X)
         assert r.status_code == 400 and r.json()['error']['code'] == 'invalid_parameter'
         assert all(s in r.json()['error']['message'] for s in ('s3', 'kafka', 'collector'))
@@ -204,18 +204,18 @@ def test_source_guard_names_all_three_sources(boot):
 
 def test_meta_offers_the_collector_once_one_exists(boot):
     tc, key, root = boot(register=False)
-    assert tc.get('/api/meta', headers=X).json()['sources'] == ['s3']
+    assert tc.get('/api/v1/meta', headers=X).json()['sources'] == ['s3']
     add(tc)
-    assert tc.get('/api/meta', headers=X).json()['sources'] == ['s3', 'collector']
+    assert tc.get('/api/v1/meta', headers=X).json()['sources'] == ['s3', 'collector']
 
 
 def test_meta_offers_the_collector_when_its_database_knows_a_day(boot):
     tc, key, root = boot()
     send_samples(tc, key)
     tc.app.state.collector_feed.ingest_pending(force=True)
-    cid = tc.get('/api/admin/collectors').json()['rows'][0]['id']
-    assert tc.post(f'/api/admin/collectors/{cid}/revoke', headers=X).status_code == 200 and tc.delete(f'/api/admin/collectors/{cid}', headers=X).status_code == 200
-    assert tc.app.state.auth.collector_list() == [] and tc.get('/api/meta', headers=X).json()['sources'] == ['s3', 'collector']
+    cid = tc.get('/api/v1/admin/collectors').json()['rows'][0]['id']
+    assert tc.post(f'/api/v1/admin/collectors/{cid}/revoke', headers=X).status_code == 200 and tc.delete(f'/api/v1/admin/collectors/{cid}', headers=X).status_code == 200
+    assert tc.app.state.auth.collector_list() == [] and tc.get('/api/v1/meta', headers=X).json()['sources'] == ['s3', 'collector']
 
 
 def test_retention_cleans_the_collector_source_only(boot, cfg, monkeypatch):
@@ -230,9 +230,9 @@ def test_retention_cleans_the_collector_source_only(boot, cfg, monkeypatch):
     s3_before = known(tc, 's3')
     assert s3_before and known(tc, 'kafka') == {'2026-11-02'} and known(tc, 'collector') == {DAY}
     st.cfg.retention_days = st.cfg.retention_inbox_days = 10                                    # the settings are live; every source reads them
-    v = tc.get('/api/admin/retention?source=collector', headers=X).json()
+    v = tc.get('/api/v1/admin/retention?source=collector', headers=X).json()
     assert v['db'] == [DAY] and v['inbox'] == [DAY]
-    assert tc.post('/api/admin/retention/run?source=collector', headers=X).status_code == 200
+    assert tc.post('/api/v1/admin/retention/run?source=collector', headers=X).status_code == 200
     assert known(tc, 'collector') == set() and not os.path.exists(os.path.join(root, DAY))
     assert known(tc, 's3') == s3_before and known(tc, 'kafka') == {'2026-11-02'} and os.path.isdir(kafka_day)
     assert not st.collector_feed.status()['pending']
@@ -242,7 +242,7 @@ def test_backup_includes_the_collector_database(boot, tmp_path):
     tc, key, root = boot()
     send_samples(tc, key)
     tc.app.state.collector_feed.ingest_pending(force=True)
-    r = tc.post('/api/admin/backup/run', headers=X)
+    r = tc.post('/api/v1/admin/backup/run', headers=X)
     assert r.status_code == 200, r.text
     folder = os.path.join(tc.app.state.cfg.backup_path, r.json()['last']['day'])
     assert 'collector.duckdb.gz' in os.listdir(folder)

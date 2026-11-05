@@ -11,10 +11,10 @@ from test_collectors import audit_rows
 
 def new(tc, name, group=None, platform='linux'):
     body = dict(name=name, platform=platform, **({} if group is None else dict(group=group)))
-    return tc.post('/api/admin/collectors', json=body, headers=X)
+    return tc.post('/api/v1/admin/collectors', json=body, headers=X)
 
 
-def rows(tc): return {r['name']: r for r in tc.get('/api/admin/collectors').json()['rows']}
+def rows(tc): return {r['name']: r for r in tc.get('/api/v1/admin/collectors').json()['rows']}
 
 
 # Domain
@@ -53,7 +53,7 @@ def test_the_column_is_added_to_an_old_collector_table(tmp_path):
 def test_add_with_a_group_list_and_get(client):
     admin(client)
     assert new(client, 'web-01', 'Client A').status_code == 201 and new(client, 'web-02').status_code == 201
-    out = client.get('/api/admin/collectors').json()
+    out = client.get('/api/v1/admin/collectors').json()
     assert out['groups'] == ['Client A'] and [(r['name'], r['group']) for r in out['rows']] == [('web-01', 'Client A'), ('web-02', '')]
 
 
@@ -63,26 +63,26 @@ def test_the_group_is_trimmed_and_reuses_the_spelling_in_any_case(client):
     new(client, 'b-1', 'Client B'); new(client, 'b-2', 'CLIENT B')
     r = rows(client)
     assert (r['a-2']['group'], r['b-2']['group']) == ('Client A', 'Client B')
-    assert client.get('/api/admin/collectors').json()['groups'] == ['Client A', 'Client B']
+    assert client.get('/api/v1/admin/collectors').json()['groups'] == ['Client A', 'Client B']
 
 
 def test_a_bad_group_is_refused(client):
     admin(client)
     r = new(client, 'web-01', '-x')
     assert r.status_code == 400 and error_code(r) == 'invalid_group'
-    assert client.get('/api/admin/collectors').json()['rows'] == []                              # nothing was created
+    assert client.get('/api/v1/admin/collectors').json()['rows'] == []                              # nothing was created
     cid = new(client, 'web-02').json()['collector']['id']
-    assert error_code(client.put(f'/api/admin/collectors/{cid}/options', json=dict(group='a;b'), headers=X)) == 'invalid_group'
+    assert error_code(client.put(f'/api/v1/admin/collectors/{cid}/options', json=dict(group='a;b'), headers=X)) == 'invalid_group'
 
 
 def test_set_change_and_clear_the_group_and_the_audit_entry_only_on_a_change(client):
     admin(client)
     cid = new(client, 'web-01').json()['collector']['id']
-    put = lambda **body: client.put(f'/api/admin/collectors/{cid}/options', json=body, headers=X)   # noqa: E731
+    put = lambda **body: client.put(f'/api/v1/admin/collectors/{cid}/options', json=body, headers=X)   # noqa: E731
     assert put(group='Internal').json()['collector']['group'] == 'Internal'
     assert put(group='internal').json()['collector']['group'] == 'Internal'                      # same group, no change
     assert put(group='Client A').json()['collector']['group'] == 'Client A'
-    assert client.get('/api/admin/collectors').json()['groups'] == ['Client A']                  # the old group is gone with its last member
+    assert client.get('/api/v1/admin/collectors').json()['groups'] == ['Client A']                  # the old group is gone with its last member
     assert put(group='').json()['collector']['group'] == '' and put(group=None).json()['collector']['group'] == ''
     changes = [r['detail'] for r in audit_rows(client) if r['action'] == 'collector.group']
     assert sorted(changes) == sorted(['web-01: - -> Internal', 'web-01: Internal -> Client A', 'web-01: Client A -> -'])
@@ -91,11 +91,11 @@ def test_set_change_and_clear_the_group_and_the_audit_entry_only_on_a_change(cli
 def test_options_and_group_can_be_sent_together_or_alone(client):
     admin(client)
     cid = new(client, 'web-01', 'Client A').json()['collector']['id']
-    r = client.put(f'/api/admin/collectors/{cid}/options', json=dict(options=dict(files=[], journald=True, units=[], host_metrics=False)), headers=X).json()['collector']
+    r = client.put(f'/api/v1/admin/collectors/{cid}/options', json=dict(options=dict(files=[], journald=True, units=[], host_metrics=False)), headers=X).json()['collector']
     assert r['group'] == 'Client A' and r['options']['host_metrics'] is False                    # the group stays
-    r = client.put(f'/api/admin/collectors/{cid}/options', json=dict(options=dict(files=[], journald=True, units=[], host_metrics=True), group='Other'), headers=X).json()['collector']
+    r = client.put(f'/api/v1/admin/collectors/{cid}/options', json=dict(options=dict(files=[], journald=True, units=[], host_metrics=True), group='Other'), headers=X).json()['collector']
     assert (r['group'], r['options']['host_metrics']) == ('Other', True)
-    assert client.put(f'/api/admin/collectors/{cid}/options', json={}, headers=X).status_code == 400
+    assert client.put(f'/api/v1/admin/collectors/{cid}/options', json={}, headers=X).status_code == 400
 
 
 def test_only_an_admin_can_change_groups(client):
@@ -103,20 +103,20 @@ def test_only_an_admin_can_change_groups(client):
     cid = new(client, 'web-01', 'Client A').json()['collector']['id']
     make_user(client, 'rina')
     user = as_user(client, 'rina', 'rina-initial-password-123')
-    assert user.put(f'/api/admin/collectors/{cid}/options', json=dict(group='X'), headers=X).status_code == 403
-    assert user.post('/api/admin/collectors', json=dict(name='x-1', platform='linux', group='X'), headers=X).status_code == 403
+    assert user.put(f'/api/v1/admin/collectors/{cid}/options', json=dict(group='X'), headers=X).status_code == 403
+    assert user.post('/api/v1/admin/collectors', json=dict(name='x-1', platform='linux', group='X'), headers=X).status_code == 403
     assert rows(client)['web-01']['group'] == 'Client A'
 
 
 def test_servers_carry_the_group_of_their_collector(client):
     admin(client)
     cid = new(client, 'web-01', 'Client A').json()['collector']['id']
-    token = client.post(f'/api/admin/collectors/{cid}/token', headers=X).json()['enroll_token']
+    token = client.post(f'/api/v1/admin/collectors/{cid}/token', headers=X).json()['enroll_token']
     from test_collectors import enroll
     from fastapi.testclient import TestClient
     enroll(TestClient(client.app), token)
     import datetime
     now = datetime.datetime.now(datetime.timezone.utc)
     client.app.state.metrics.add(cid, [('h1', '', 'cpu', '', now, 5.0)], {('h1', ''): dict(os=None, image=None)}, now)
-    assert client.get('/api/servers').json()['hosts'][0]['group'] == 'Client A'
-    assert client.get(f'/api/servers/host?cid={cid}&host=h1').json()['group'] == 'Client A'
+    assert client.get('/api/v1/servers').json()['hosts'][0]['group'] == 'Client A'
+    assert client.get(f'/api/v1/servers/host?cid={cid}&host=h1').json()['group'] == 'Client A'

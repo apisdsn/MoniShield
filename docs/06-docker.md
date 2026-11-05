@@ -62,7 +62,7 @@ read-only. The chosen option (TRD §7.2, K1): **ingest runs inside the `app` pro
 same DuckDB connection. Dashboard reads use their own cursor and keep seeing the old, consistent data until the per-folder
 ingest transaction is committed (DuckDB MVCC).
 
-- The `ingest` service does **not** mount the data volume. It calls `POST /api/admin/ingest` on `app` with
+- The `ingest` service does **not** mount the data volume. It calls `POST /api/v1/admin/ingest` on `app` with
   `S4_JOB_TOKEN`, waits until it finishes, then exits with code 0 (success) or ≠ 0 (failure / server stopped).
 - Rejected: "read-only app + ingest writes a new file that is then swapped in". That approach copies ±100 MB per ingest and requires
   `app` to reopen its connection. Moreover, DuckDB cannot be opened read-only while another process is writing the same file.
@@ -106,7 +106,7 @@ cron on the host:
 
 ### API documentation
 
-Swagger UI at `https://<server>/api/docs` (schema: `/api/openapi.json`), only after signing in with the same dashboard
+Swagger UI at `https://<server>/api/v1/docs` (schema: `/api/v1/openapi.json`), only after signing in with the same dashboard
 account. The Swagger UI assets are copied into the image at build time (`web/dist/swagger/`, from `swagger-ui-dist`); there is no CDN.
 
 ## 5. Viewing the database contents
@@ -240,7 +240,7 @@ has not been deployed on the server yet, simply recreate it with `docker compose
 | 3 | `docker compose up -d` | `app` *healthy* within ±11 seconds |
 | 4 | browser (`tools/check_docker.cjs`) | 8/8 PASSED: sign-in + forced password change, Overview (KPIs), service `nginx-ingress-controller`, Command Center (MapLibre map), 11 folders, no JS errors; pgAdmin sign-in + registered server; DbGate sign-in + `nginx_access` table readable from the copy |
 | 5 | `down` then `up -d` | data intact without re-ingesting (`last_run ok 195`, start-up ingest "0 files changed"); admin account with the changed password and 4 audit rows still present |
-| — | dashboard during ingest | 73 `/api/folders/…` requests during a 51-second forced ingest: 73 OK, 0 failed |
+| — | dashboard during ingest | 73 `/api/v1/folders/…` requests during a 51-second forced ingest: 73 OK, 0 failed |
 | — | `kill -9` in the middle of an ingest | the job exits ≠ 0; after `up`, data intact; leftover `tmp/run-6` (194 MB of CSV) and the `running` run row cleaned up by the next ingest |
 | — | ingest while DbGate has the copy open | `snapshot_error: None`; the copy is replaced, DbGate reads the new version after reconnecting |
 

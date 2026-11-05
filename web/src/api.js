@@ -22,10 +22,12 @@ let retryTimer = null;
 // time. state.js keeps this in step with the address (?source=kafka); every data request carries it.
 let source = 's3';
 export function setSource(s) { source = s === 'kafka' || s === 'collector' ? s : 's3'; }
-const OWN = /^\/api\/(auth|me|crypto|health|servers)(\/|\?|$)/;   // not about the data of a source (the metrics of the Servers page have none)
+/** The major version of the server API (docs/08-architecture.md, "API versions"). Only /api/health, /collector/install.* and the page routes have none. */
+export const API = '/api/v1';
+const OWN = /^\/api\/v1\/(auth|me|crypto|servers)(\/|\?|$)/;   // not about the data of a source (the metrics of the Servers page have none)
 /** An /api path with the current data source (S3 is the default and is not written). Use it for links the browser follows itself. */
 export function withSource(path) {
-  if (source === 's3' || !path.startsWith('/api/') || OWN.test(path)) return path;
+  if (source === 's3' || !path.startsWith(API + '/') || OWN.test(path)) return path;
   return path + (path.includes('?') ? '&' : '?') + 'source=' + source;
 }
 
@@ -51,7 +53,7 @@ async function request(method, path, body, retried = false) {
   if (r.ok) { lastActivity.set(Date.now()); return data; }
   const err = data?.error || {};
   if (k && !retried && (err.code === 'enc_key_unknown' || err.code === 'enc_invalid')) { forget(); return request(method, path, body, true); }
-  if (r.status === 401 && path !== '/api/auth/login' && path !== '/api/me') session.set('expired');
+  if (r.status === 401 && path !== '/api/v1/auth/login' && path !== '/api/v1/me') session.set('expired');
   throw new ApiError(r.status, err.code || String(r.status), err.message);
 }
 

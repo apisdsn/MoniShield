@@ -102,7 +102,7 @@ def test_events_borrow_the_time_of_their_ingress_request(tmp_path):
 def test_raw_logs_api_for_every_user_with_audit(client):
     admin(client); make_user(client)
     user = as_user(client, 'rina', 'rina-initial-password-123')     # an ordinary user, not an admin
-    base = f'/api/folders/{B}/raw'
+    base = f'/api/v1/folders/{B}/raw'
     r = user.get(base, params=dict(q='GET', services='nginx-ingress-controller', limit=2))
     assert r.status_code == 200, r.text
     j = r.json()
@@ -118,10 +118,10 @@ def test_raw_logs_api_for_every_user_with_audit(client):
     assert user.get(base, params=dict(q='(a+)+', mode='regex')).json()['error']['code'] == 'invalid_parameter'
     d = user.get(f'{base}/download', params=dict(q='GET', services='nginx-ingress-controller'))
     assert d.status_code == 200 and 'attachment' in d.headers['content-disposition'] and d.text.startswith(f'{B}/') and ': ' in d.text.splitlines()[0]
-    audit = [x for x in client.get('/api/admin/audit').json()['rows'] if x['action'].startswith('raw.')]
+    audit = [x for x in client.get('/api/v1/admin/audit').json()['rows'] if x['action'].startswith('raw.')]
     assert [(x['action'], x['username']) for x in audit] == [('raw.download', 'rina'), ('raw.search', 'rina')]
     assert f'folder={B}' in audit[1]['detail'] and 'mode=text q=GET' in audit[1]['detail'] and 'matches=' in audit[1]['detail']
-    assert client.get(base, params=dict(q='GET')).status_code == 200 and user.get(f'/api/folders/2030-01-01/raw', params=dict(q='x')).status_code == 404
+    assert client.get(base, params=dict(q='GET')).status_code == 200 and user.get(f'/api/v1/folders/2030-01-01/raw', params=dict(q='x')).status_code == 404
 
 
 def test_folder_files_prefers_the_log_over_its_gz(tmp_path):

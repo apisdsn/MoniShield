@@ -27,7 +27,7 @@
   let selId = $state(null), addBtn = $state(), panelEl = $state();
 
   async function load() {
-    try { data = await api.get('/api/admin/collectors'); error = null; }
+    try { data = await api.get('/api/v1/admin/collectors'); error = null; }
     catch (e) { error = e; }
     onready?.(true);
   }
@@ -110,7 +110,7 @@
     if (checkName(f.name) || checkGroup(f.group) || Object.keys(checkOptions(f.platform, opts)).length) { general = $t('cl.err.fix'); return; }
     busy = true;
     try {
-      const r = await api.post('/api/admin/collectors', { name: f.name, platform: f.platform, group: f.group.trim(), options: payload(f.platform, opts) });
+      const r = await api.post('/api/v1/admin/collectors', { name: f.name, platform: f.platform, group: f.group.trim(), options: payload(f.platform, opts) });
       dlg = { kind: 'add', done: { id: r.collector.id, name: r.collector.name, platform: r.collector.platform, token: r.enroll_token, expires: r.expires } };
       selId = r.collector.id;
       await load();
@@ -125,11 +125,11 @@
     try { await fn(); await load(); } catch (err) { general = $errText(err); } finally { busy = false; }
   }
   const rotate = (r) => act(async () => {
-    const x = await api.post(`/api/admin/collectors/${r.id}/rotate`);
+    const x = await api.post(`/api/v1/admin/collectors/${r.id}/rotate`);
     dlg = { kind: 'key', r, key: x.key, until: x.previous_valid_until };
   });
   const newToken = (r) => act(async () => {
-    const x = await api.post(`/api/admin/collectors/${r.id}/token`);
+    const x = await api.post(`/api/v1/admin/collectors/${r.id}/token`);
     dlg = { kind: 'token', r, token: x.enroll_token, expires: x.expires };
   });
   let inOpts = $state(null), inTried = $state(false);
@@ -139,7 +139,7 @@
     inTried = true; general = null;
     if (Object.keys(checkOptions(dlg.r.platform, inOpts)).length) { general = $t('cl.err.fix'); return; }
     const r = dlg.r;
-    await act(async () => { await api.put(`/api/admin/collectors/${r.id}/options`, { options: payload(r.platform, inOpts) }); dlg = { ...dlg, saved: true }; toast($t('cl.in.saved', { name: r.name })); });
+    await act(async () => { await api.put(`/api/v1/admin/collectors/${r.id}/options`, { options: payload(r.platform, inOpts) }); dlg = { ...dlg, saved: true }; toast($t('cl.in.saved', { name: r.name })); });
   }
   let gval = $state('');
   function openGroup(r) { gval = r.group || ''; show('group', { r }); }
@@ -147,10 +147,10 @@
     e.preventDefault();
     if (checkGroup(gval)) { general = $t('cl.err.fix'); return; }
     const r = dlg.r;
-    await act(async () => { await api.put(`/api/admin/collectors/${r.id}/options`, { group: gval.trim() }); open = false; toast($t('cl.gr.saved', { name: r.name })); });
+    await act(async () => { await api.put(`/api/v1/admin/collectors/${r.id}/options`, { group: gval.trim() }); open = false; toast($t('cl.gr.saved', { name: r.name })); });
   }
-  const revoke = (r) => act(async () => { await api.post(`/api/admin/collectors/${r.id}/revoke`); open = false; toast($t('cl.rv.done', { name: r.name })); });
-  const remove = (r) => act(async () => { await api.del(`/api/admin/collectors/${r.id}`); open = false; if (selId === r.id) selId = null; toast($t('cl.del.done', { name: r.name })); });
+  const revoke = (r) => act(async () => { await api.post(`/api/v1/admin/collectors/${r.id}/revoke`); open = false; toast($t('cl.rv.done', { name: r.name })); });
+  const remove = (r) => act(async () => { await api.del(`/api/v1/admin/collectors/${r.id}`); open = false; if (selId === r.id) selId = null; toast($t('cl.del.done', { name: r.name })); });
 
   const title = $derived(!dlg ? '' : dlg.kind === 'add' ? (dlg.done ? $t('cl.tok.title', { name: dlg.done.name }) : $t('cl.add'))
     : dlg.kind === 'token' ? $t('cl.tok.title', { name: dlg.r.name }) : $t(`cl.${{ key: 'key', 'key-ask': 'key', inputs: 'in', group: 'gr', revoke: 'rv', delete: 'del' }[dlg.kind]}.title`, { name: dlg.r.name }));
@@ -298,7 +298,7 @@
             {#if r.enrolled_at && r.status !== 'revoked'}<button class="btn" disabled={busy} onclick={() => show('key-ask', { r })}><Icon name="key" size={16} />{$t('cl.a.key')}</button>{/if}
             <button class="btn" onclick={() => openGroup(r)}><Icon name="users" size={16} />{$t('cl.a.group')}</button>
             {#if r.status !== 'revoked'}<button class="btn" onclick={() => openInputs(r)}><Icon name="settings" size={16} />{$t('cl.a.inputs')}</button>{/if}
-            {#if r.status !== 'revoked'}<a class="btn" href="/api/admin/collectors/{r.id}/config" download={r.platform === 'kubernetes' ? 'values.yaml' : 'config.yaml'}><Icon name="download" size={16} />{$t('cl.a.config')}</a>{/if}
+            {#if r.status !== 'revoked'}<a class="btn" href="/api/v1/admin/collectors/{r.id}/config" download={r.platform === 'kubernetes' ? 'values.yaml' : 'config.yaml'}><Icon name="download" size={16} />{$t('cl.a.config')}</a>{/if}
             {#if r.status !== 'revoked'}<button class="btn danger" onclick={() => show('revoke', { r })}><Icon name="ban" size={16} />{$t('cl.a.revoke')}</button>{/if}
             {#if canDelete(r)}<button class="btn danger" onclick={() => show('delete', { r })}><Icon name="archive" size={16} />{$t('cl.a.delete')}</button>{/if}
           </div>
@@ -372,7 +372,7 @@
     {:else}
       <p>{dlg.r.enrolled_at ? (dlg.r.platform === 'kubernetes' ? $t('cl.in.next_k8s') : $t('cl.in.upgrade')) : $t('cl.in.waiting')}</p>
       {#if dlg.r.platform === 'kubernetes' && dlg.r.enrolled_at}
-        <p class="vals"><a class="btn accent" href="/api/admin/collectors/{dlg.r.id}/config" download="values.yaml"><Icon name="download" size={16} />{$t('cl.tok.values')}</a></p>
+        <p class="vals"><a class="btn accent" href="/api/v1/admin/collectors/{dlg.r.id}/config" download="values.yaml"><Icon name="download" size={16} />{$t('cl.tok.values')}</a></p>
       {/if}
       {#if dlg.r.enrolled_at}{#each (dlg.r.platform === 'kubernetes' ? updateSteps : upgradeSteps)(dlg.r.platform, base) as s}<CopyBlock label={$t(dlg.r.platform === 'kubernetes' ? 'cl.a.inputs' : 'cl.a.upgrade')} lines={s.lines} />{/each}{/if}
       <div class="acts"><button class="btn primary" onclick={() => (open = false)}>{$t('adm.done_btn')}</button></div>

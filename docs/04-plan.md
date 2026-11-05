@@ -1506,3 +1506,11 @@ Owner request: with a collector and no Kafka the Command Center live map stayed 
    `/api/v1/live/map?source=` serves the hub of the page's source. **Done.**
 4. Real check with `otelcol-contrib` and a Caddy JSON file, screenshots, docs. **Done** (`docs/09-status.md`).
 
+## Stage 58 — Every endpoint under /api/v1 (done, 2026-11-05)
+
+Owner decision 2026-11-05: the major version of the API is in the path. Every router moved to `/api/v1/...` (browser API, admin, config,
+crypto handshake, public map, upload, Swagger and its schema, live map, Kafka, collectors, servers); the collector machine API is
+`/api/v1/collector/{enroll,config,logs,metrics}` with explicit exporter endpoints. Unversioned: `/api/health`, `/collector/install.*`,
+pages, static files, `/map/labels.json`. A small ASGI alias (`interfaces/api/versioning.py`) keeps the old browser paths for one release;
+old collector paths answer 404. Rules and the next-release removal: `docs/08-architecture.md` ("API versions"), `docs/09-status.md`.
+

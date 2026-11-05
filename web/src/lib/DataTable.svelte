@@ -63,7 +63,7 @@
   async function load({ append = false } = {}) {
     busy = true; error = null;
     try {
-      const j = await api.post(`/api/folders/${encodeURIComponent(folder)}/tables/${encodeURIComponent(table)}`, compact({ ...params, q: qSent,
+      const j = await api.post(`/api/v1/folders/${encodeURIComponent(folder)}/tables/${encodeURIComponent(table)}`, compact({ ...params, q: qSent,
         sort, dir: sort ? dir : null, limit: append ? STEP : Math.max(baseLimit, 1), offset: append ? data.rows.length : 0 }));
       data = append ? { ...j, rows: [...data.rows, ...j.rows] } : j;
     } catch (e) {

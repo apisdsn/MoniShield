@@ -282,9 +282,10 @@ text; range 1/7/30 folders; minimum severity → **Download** / **Copy**. Privat
 
 ### API documentation (Swagger)
 
-User menu → **API documentation**, or open `/api/docs`. Sign in with the same account
+User menu → **API documentation**, or open `/api/v1/docs`. Sign in with the same account
 as on the login page (not signed in → redirected to login and back); "Try it out" uses that session and is still subject to
-the role. Raw schema: `/api/openapi.json`.
+the role. Raw schema: `/api/v1/openapi.json`. Every endpoint is under `/api/v1`; only `/api/health` and the collector install scripts have no version
+(`docs/08-architecture.md`, "API versions"). The old unversioned browser addresses still answer for one release, with a `Deprecation: true` header.
 
 ### Upload from your computer
 
@@ -476,8 +477,8 @@ From an external system (automated, unattended):
 
 ```sh
 curl -H "Authorization: Bearer $S4_JOB_TOKEN" -H "X-Requested-With: job" -H "Content-Type: application/json" \
-     -d '{"url": "s3://nama-bucket/k8s-logs/2026-09-26/"}' https://<server>/api/admin/imports      # 202 + job_id
-curl -H "Authorization: Bearer $S4_JOB_TOKEN" https://<server>/api/admin/imports/<job_id>           # status
+     -d '{"url": "s3://nama-bucket/k8s-logs/2026-09-26/"}' https://<server>/api/v1/admin/imports      # 202 + job_id
+curl -H "Authorization: Bearer $S4_JOB_TOKEN" https://<server>/api/v1/admin/imports/<job_id>           # status
 ```
 
 Credentials are never sent to the browser and never appear in API responses, logs, the database, or the audit log.
@@ -518,7 +519,7 @@ deletes, or lists buckets. Before relying on this feature, make sure the server 
 On top of HTTPS, the web UI encrypts the JSON bodies of its API calls, so they cannot be read in the browser's network
 panel or in proxy and CDN logs that record bodies (passive readers):
 
-1. When a page loads, the browser and the server exchange ephemeral ECDH P-256 keys (`POST /api/crypto/handshake`) and
+1. When a page loads, the browser and the server exchange ephemeral ECDH P-256 keys (`POST /api/v1/crypto/handshake`) and
    both derive the same AES-256-GCM key (HKDF-SHA256). The browser's key cannot be exported from the tab.
 2. Every JSON request body and response is `nonce + ciphertext`, bound to the method and path, marked with the header
    `X-MS-Enc`. A body cannot be replayed on another endpoint.

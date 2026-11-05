@@ -119,7 +119,7 @@ class Config:
     kafka_ca_file: str = ''           # CA certificate (PEM) for ssl/sasl_ssl; empty = system CA
     kafka_offset_reset: str = 'earliest'   # a new group starts from: earliest (all messages still retained) | latest
     kafka_ingest_minutes: int = 5     # interval of periodic ingest of files grown from Kafka
-    # logs from collectors (OpenTelemetry Collector -> POST /api/collector/v1/logs; docs/12-collector.md)
+    # logs from collectors (OpenTelemetry Collector -> POST /api/v1/collector/logs; docs/12-collector.md)
     collector_inbox_dir: str = ''     # default: <inbox>/collector
     collector_max_body_mb: int = 8    # request body as sent (usually gzip)
     collector_max_raw_mb: int = 16    # body after gunzip
@@ -130,7 +130,7 @@ class Config:
     collector_max_age_hours: int = 24   # a log record whose own time is older than this is rejected as "too old" (0 = no limit)
     collector_otel_version: str = '0.163.2'   # otelcol-contrib release the install scripts and the Helm values use (released 2026-10-21)
     collector_public_url: str = ''    # address collectors send to (https://logs.example.com); empty = the address the request used
-    # server and container metrics from collectors (POST /api/collector/v1/metrics; docs/13-metrics.md)
+    # server and container metrics from collectors (POST /api/v1/collector/metrics; docs/13-metrics.md)
     metrics_raw_days: int = 7         # values as they arrived (about every 30 seconds) are kept this long
     metrics_hour_days: int = 90       # hourly averages are kept this long
     # download source & external service addresses (formerly hard-coded; default = official addresses)

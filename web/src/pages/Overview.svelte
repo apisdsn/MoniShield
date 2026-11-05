@@ -1,5 +1,5 @@
 <!-- Overview (DRD §3.1, inv. §2.1). Sources (TRD §5.3): /overview (period, hourly errors per service, top 25
-     messages), folder summary from App (/api/folders/{f}: KPIs, services, files), and /services/nginx-ingress-controller
+     messages), folder summary from App (/api/v1/folders/{f}: KPIs, services, files), and /services/nginx-ingress-controller
      for the "Traffic HTTP seluruh sistem" section (nginx service cards without the map and without the message card). The two
      page requests run concurrently and are shown together (U31).
      Redesign 2026-10-27 (mockup "Overview: before & after"): a status card first (Critical / Needs a look / All clear,
@@ -38,7 +38,7 @@
     const f = encodeURIComponent(sum.folder);
     const hasNg = sum.services.some((s) => s.service === NG && s.lines);
     try {
-      const [o, n] = await Promise.all([api.get(`/api/folders/${f}/overview`), hasNg ? api.get(`/api/folders/${f}/services/${NG}`) : null]);
+      const [o, n] = await Promise.all([api.get(`/api/v1/folders/${f}/overview`), hasNg ? api.get(`/api/v1/folders/${f}/services/${NG}`) : null]);
       if (my === seq) view = { folder: sum.folder, summary: sum, page: o, nginx: n };
     } catch (e) {
       if (my === seq) error = e;

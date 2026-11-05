@@ -26,7 +26,7 @@ GROUPS = {
               'kafka_password', 'kafka_offset_reset', 'kafka_ingest_minutes'),
 }
 SCREEN_GROUPS = ('aws', 'maxmind', 'blocklist', 'kafka', 'retention', 'smtp', 'public')
-SCREEN = {k for g in SCREEN_GROUPS for k in GROUPS[g]}   # PUT /api/admin/config
+SCREEN = {k for g in SCREEN_GROUPS for k in GROUPS[g]}   # PUT /api/v1/admin/config
 SECRET = set(SECRETS)
 MASKED = ('aws_access_key_id', 'maxmind_account_id', 'azure_storage_account')
 ENV_ONLY = ('jwt_secret', 'job_token', 'auth_database_url', 'admin_password')   # only set/empty status
@@ -60,7 +60,7 @@ def changed_only(cfg, values):
 
 
 def screen_values(cfg, body):
-    """PUT /api/admin/config input -> {field: value | None}. Empty secret = unchanged; empty ordinary field = back to
+    """PUT /api/v1/admin/config input -> {field: value | None}. Empty secret = unchanged; empty ordinary field = back to
     default; `clear: [field]` = erased. Validated together with the values currently in effect, using only the rules
     of the sections being saved."""
     values = {}

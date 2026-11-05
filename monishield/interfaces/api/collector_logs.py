@@ -1,6 +1,6 @@
 """Receiver for the OpenTelemetry Collector (docs/12-collector.md, step 3).
-  POST /api/collector/v1/logs     OTLP/HTTP log batches as JSON (otlp_http exporter: encoding json, compression gzip)
-  POST /api/collector/v1/metrics  the same for metric batches (server and container metrics, docs/13-metrics.md)
+  POST /api/v1/collector/logs     OTLP/HTTP log batches as JSON (otlp_http exporter: encoding json, compression gzip)
+  POST /api/v1/collector/metrics  the same for metric batches (server and container metrics, docs/13-metrics.md)
 
 A machine client: it authenticates with its own key (`Authorization: Bearer msk_…`), so there is no session and no CSRF
 check, and the batches are not audited. The status codes are chosen for the exporter's retry rules: it retries 429, 502,
@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 
 from .common import ApiError, require_collector
 
-router = APIRouter(prefix='/api/collector/v1')
+router = APIRouter(prefix='/api/v1/collector')
 MB = 1024 * 1024
 PIECE = 256 * 1024   # gunzip output is taken in pieces of this size, so a bomb is stopped early
 

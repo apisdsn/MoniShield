@@ -1,7 +1,7 @@
 <!-- Trends (DRD §3.3, inv. §2.3): comparison across folders, independent of the folder picker (disabled in the header).
      Range picker 14 / 30 / 90 / all latest folders (U4; default 30, ASSUMPTION Q4), remembered per browser.
      6 charts + 2 tables; tables always scroll horizontally with the Service column locked and the newest folder on the right.
-     One request: GET /api/trends?last=… Stage 24: data completeness card (dates without a log folder, folders with corrupt/empty
+     One request: GET /api/v1/trends?last=… Stage 24: data completeness card (dates without a log folder, folders with corrupt/empty
      files, last ingest) above the charts, and an hour × date heatmap (ingress requests / errors of all services). -->
 <script>
   import { lang, t } from '../i18n.js';
@@ -28,7 +28,7 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     try {
-      const j = await api.get(`/api/trends?last=${range}`);
+      const j = await api.get(`/api/v1/trends?last=${range}`);
       if (my === seq) data = j;
     } catch (e) {
       if (my === seq) error = e;

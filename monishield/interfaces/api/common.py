@@ -51,7 +51,7 @@ def require_user(request: Request):
 
 
 def require_user_ready(user=Depends(require_user)):
-    """A user who has changed their initial password; before that only /api/me and changing the password are allowed."""
+    """A user who has changed their initial password; before that only /api/v1/me and changing the password are allowed."""
     if user['must_change_password']: raise ApiError(403, 'must_change_password', 'Change your password before continuing.')
     return user
 

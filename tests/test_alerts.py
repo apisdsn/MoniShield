@@ -47,8 +47,8 @@ def app_env(tmp_path, auth_url, monkeypatch):
                             jwt_secret=JWT_SECRET, auth_database_url=auth_url)
     con = db.open(c.db_path); ingest.run(c, con, workers=0); con.close()
     with TestClient(appmod.create_app(c)) as tc:
-        assert tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
-        assert tc.post('/api/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
+        assert tc.post('/api/v1/auth/login', json=dict(username='admin', password=PW), headers=X).status_code == 200
+        assert tc.post('/api/v1/me/password', json=dict(old_password=PW, new_password=PW2), headers=X).status_code == 200
         yield tc, c, root
 
 
@@ -58,7 +58,7 @@ def configure(tc, **over):
                               email=dict(enabled=True, host='smtp.example.com', port=587, security='starttls', username='monishield',
                                          password=SMTP_PW, sender='monishield@example.com', to='tim@example.com, ketua@example.com')),
                 dashboard_url='https://monishield.example.com', **over)
-    r = tc.put('/api/admin/alerts', json=body, headers=X)
+    r = tc.put('/api/v1/admin/alerts', json=body, headers=X)
     assert r.status_code == 200, r.text
     return r
 
@@ -66,7 +66,7 @@ def configure(tc, **over):
 def test_credentials_are_never_sent_back(app_env):
     tc, c, _ = app_env
     r = configure(tc)
-    for s in (TOKEN, HOOK, SMTP_PW): assert s not in r.text and s not in tc.get('/api/admin/alerts').text
+    for s in (TOKEN, HOOK, SMTP_PW): assert s not in r.text and s not in tc.get('/api/v1/admin/alerts').text
     ch = r.json()['channels']
     assert (ch['telegram']['bot_token'], ch['discord']['webhook_url'], ch['email']['password']) == (True, True, True)
     assert ch['telegram']['chat_id'] == '-1001234567890' and ch['email']['to'].startswith('tim@')
@@ -77,12 +77,12 @@ def test_credentials_are_never_sent_back(app_env):
     assert env['S4_SMTP_TO'] == 'tim@example.com, ketua@example.com' and env['S4_DASHBOARD_URL'] == 'https://monishield.example.com'
     assert tc.app.state.cfg.telegram_bot_token == TOKEN and tc.app.state.auth.setting_get('alerts') is None
     # save again without credentials: they stay stored; `clear` removes them
-    r = tc.put('/api/admin/alerts', json=dict(channels=dict(telegram=dict(bot_token='', enabled=True))), headers=X)
+    r = tc.put('/api/v1/admin/alerts', json=dict(channels=dict(telegram=dict(bot_token='', enabled=True))), headers=X)
     assert r.json()['channels']['telegram']['bot_token'] is True
-    r = tc.put('/api/admin/alerts', json=dict(channels=dict(discord=dict(enabled=False)), clear=['discord.webhook_url']), headers=X)
+    r = tc.put('/api/v1/admin/alerts', json=dict(channels=dict(discord=dict(enabled=False)), clear=['discord.webhook_url']), headers=X)
     assert r.json()['channels']['discord']['webhook_url'] is False
     assert config.read_dotenv(os.path.join(c.state_dir, '.env'))['DISCORD_WEBHOOK_URL'] == ''
-    audit = tc.get('/api/admin/audit').text
+    audit = tc.get('/api/v1/admin/audit').text
     assert 'alerts.update' in audit and TOKEN not in audit and SMTP_PW not in audit
 
 
@@ -93,7 +93,7 @@ def test_credentials_are_never_sent_back(app_env):
                                     (dict(telegram=dict(enabled=True)), 'not set')])
 def test_fields_are_validated(app_env, ch, msg):
     tc, _, _ = app_env
-    r = tc.put('/api/admin/alerts', json=dict(channels=ch), headers=X)
+    r = tc.put('/api/v1/admin/alerts', json=dict(channels=ch), headers=X)
     assert r.status_code == 400 and r.json()['error']['code'] == 'invalid_alerts' and msg in r.json()['error']['message']
 
 
@@ -101,14 +101,14 @@ def test_send_a_test_on_every_channel(app_env, sent):
     tc, _, _ = app_env
     configure(tc)
     for ch in ('telegram', 'discord', 'email'):
-        r = tc.post('/api/admin/alerts/test', json=dict(channel=ch), headers=X)
+        r = tc.post('/api/v1/admin/alerts/test', json=dict(channel=ch), headers=X)
         assert r.status_code == 200, r.text
     http = [x for x in sent if x[0] == 'http']
     assert http[0][1] == f'{alerts.TELEGRAM_API}/bot{TOKEN}/sendMessage' and http[0][2]['chat_id'] == '-1001234567890' and 'MoniShield' in http[0][2]['text']
     assert http[1][1] == HOOK and http[1][2]['allowed_mentions'] == {'parse': []}
     assert ('smtp-open', 'smtp.example.com', 587) in sent and ('smtp-starttls',) in sent and ('smtp-login', 'monishield', True) in sent
     assert [x for x in sent if x[0] == 'smtp-send'][0][2] == 'tim@example.com, ketua@example.com'
-    hist = tc.get('/api/admin/alerts').json()['history']
+    hist = tc.get('/api/v1/admin/alerts').json()['history']
     assert [h['channel'] for h in hist[:3]] == ['email', 'discord', 'telegram'] and all(h['ok'] for h in hist[:3])
 
 
@@ -117,9 +117,9 @@ def test_send_failure_is_reported_without_credentials(app_env, monkeypatch):
     configure(tc)
     def refuse(url, payload): raise alerts.AlertFail('ditolak HTTP 401')
     monkeypatch.setattr(notify_channels, '_post_json', refuse)
-    r = tc.post('/api/admin/alerts/test', json=dict(channel='telegram'), headers=X)
+    r = tc.post('/api/v1/admin/alerts/test', json=dict(channel='telegram'), headers=X)
     assert r.status_code == 424 and 'HTTP 401' in r.json()['error']['message'] and TOKEN not in r.text
-    assert tc.get('/api/admin/alerts').json()['history'][0]['ok'] is False
+    assert tc.get('/api/v1/admin/alerts').json()['history'][0]['ok'] is False
 
 
 def test_spikes_and_critical_attacks_without_ip_addresses(app_env, sent):
@@ -143,7 +143,7 @@ def test_spikes_and_critical_attacks_without_ip_addresses(app_env, sent):
     assert alert_service.deliver(tc.app.state, cfg, ev['spike'][1], 'spike', 'x', 'y') == {}
     for x in sent: assert '33.33.33.199' not in json.dumps(x)
     # English
-    tc.put('/api/admin/alerts', json=dict(lang='en'), headers=X)
+    tc.put('/api/v1/admin/alerts', json=dict(lang='en'), headers=X)
     con = tc.app.state.con.cursor()
     try: ev = {e[0]: e for e in alerts.folder_events(alerts.load(tc.app.state.cfg), '2026-01-06', tc.app.state.warehouse.folder_facts('2026-01-06', True))}
     finally: con.close()
@@ -154,7 +154,7 @@ def test_sent_after_ingest_and_failed_sync(app_env, sent):
     tc, c, root = app_env
     configure(tc, events=dict(summary=True), summary_hour=0)   # report hour 00:00 WIB: the new folder's report goes out right after ingest
     shutil.copytree(os.path.join(root, B), os.path.join(root, '2026-01-07'))
-    assert tc.post('/api/admin/ingest', json={}, headers=X).status_code == 202
+    assert tc.post('/api/v1/admin/ingest', json={}, headers=X).status_code == 202
     tc.app.state.ingest.wait(60)
     for _ in range(100):
         if any('2026-01-07' in json.dumps(x) for x in sent): break
@@ -207,11 +207,11 @@ def test_real_json_post_to_a_local_server(monkeypatch):
 
 def test_plain_user_not_allowed(app_env):
     tc, _, _ = app_env
-    assert tc.post('/api/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='rina-initial-password-123'), headers=X).status_code == 201
+    assert tc.post('/api/v1/admin/users', json=dict(username='rina', display_name='Rina', role='user', password='rina-initial-password-123'), headers=X).status_code == 201
     u = TestClient(tc.app)
-    u.post('/api/auth/login', json=dict(username='rina', password='rina-initial-password-123'), headers=X)
-    u.post('/api/me/password', json=dict(old_password='rina-initial-password-123', new_password='rina-new-password-123'), headers=X)
-    assert u.get('/api/admin/alerts').status_code == 403 and u.post('/api/admin/alerts/test', json=dict(channel='email'), headers=X).status_code == 403
+    u.post('/api/v1/auth/login', json=dict(username='rina', password='rina-initial-password-123'), headers=X)
+    u.post('/api/v1/me/password', json=dict(old_password='rina-initial-password-123', new_password='rina-new-password-123'), headers=X)
+    assert u.get('/api/v1/admin/alerts').status_code == 403 and u.post('/api/v1/admin/alerts/test', json=dict(channel='email'), headers=X).status_code == 403
 
 
 # Thresholds per number and per service (owner request 2026-10-08)
@@ -250,7 +250,7 @@ def test_service_spikes_use_their_own_thresholds():
 def test_thresholds_saved_from_the_page(app_env):
     tc, c, _ = app_env
     configure(tc)
-    r = tc.put('/api/admin/alerts', json=dict(spike=dict(n5xx=dict(factor=3, min=50), errors=None),
+    r = tc.put('/api/v1/admin/alerts', json=dict(spike=dict(n5xx=dict(factor=3, min=50), errors=None),
                                                service_spike=dict(default=dict(factor=2, min=80), services={'coredns': None, 'report-service': dict(factor=4, min=300)})), headers=X)
     assert r.status_code == 200, r.text
     v = r.json()
@@ -259,7 +259,7 @@ def test_thresholds_saved_from_the_page(app_env):
     assert isinstance(v['services'], list)
     env = config.read_dotenv(os.path.join(c.state_dir, '.env'))
     assert env['S4_ALERT_SPIKE'] == 'n5xx=3:50,errors=off' and env['S4_ALERT_SERVICE_SPIKE'] == 'default=2:80,coredns=off,report-service=4:300'
-    r = tc.put('/api/admin/alerts', json=dict(service_spike=dict(services={'report-service': dict(factor=1, min=5)})), headers=X)
+    r = tc.put('/api/v1/admin/alerts', json=dict(service_spike=dict(services={'report-service': dict(factor=1, min=5)})), headers=X)
     assert r.status_code == 400 and 'factor' in r.json()['error']['message']
 
 
@@ -347,19 +347,19 @@ def test_scheduled_daily_report_newest_folder_once(app_env, sent):
     assert n.daily_report(jam8) == dict(telegram=None, discord=None, email=None)
     assert any('Ringkasan log 2026-01-05 (S3)' in json.dumps(x) for x in sent)                           # newest folder 2026-01-06
     assert n.daily_report(jam8) == {}                                                                    # once per folder
-    v = tc.get('/api/admin/alerts').json()
+    v = tc.get('/api/v1/admin/alerts').json()
     assert v['summary_hour'] == 9 and [(x['folder'], x['sent']) for x in v['report_folders'] if x['source'] == 's3'][:3] == \
         [('2026-01-06', True), ('2026-01-05', False), ('2026-01-04', False)]
-    tc.put('/api/admin/alerts', json=dict(events=dict(summary=False)), headers=X)
+    tc.put('/api/v1/admin/alerts', json=dict(events=dict(summary=False)), headers=X)
     assert n.daily_report(jam8) is None                                                                  # event off
-    r = tc.put('/api/admin/alerts', json=dict(summary_hour=24), headers=X)
+    r = tc.put('/api/v1/admin/alerts', json=dict(summary_hour=24), headers=X)
     assert r.status_code == 400 and 'Daily report hour' in r.json()['error']['message']
 
 
 def test_failed_scheduled_report_is_retried_an_hour_later(app_env, sent, monkeypatch):
     tc, _, _ = app_env
     configure(tc, summary_hour=0)
-    tc.put('/api/admin/alerts', json=dict(channels=dict(discord=dict(enabled=False), email=dict(enabled=False))), headers=X)
+    tc.put('/api/v1/admin/alerts', json=dict(channels=dict(discord=dict(enabled=False), email=dict(enabled=False))), headers=X)
     def down(url, payload): raise alerts.AlertFail('Telegram is down')
     monkeypatch.setattr(notify_channels, '_post_json', down)
     n, now = tc.app.state.alerts, datetime.datetime(2026, 10, 7, 3, 0, tzinfo=UTC)
@@ -371,19 +371,19 @@ def test_failed_scheduled_report_is_retried_an_hour_later(app_env, sent, monkeyp
 
 def test_send_the_report_for_old_and_unsent_folders(app_env, sent):
     tc, _, _ = app_env
-    r = tc.post('/api/admin/alerts/report', json=dict(folder='2026-01-03'), headers=X)
+    r = tc.post('/api/v1/admin/alerts/report', json=dict(folder='2026-01-03'), headers=X)
     assert r.status_code == 400 and r.json()['error']['message'] == 'Turn on and save at least one channel first.'
     configure(tc, events=dict(summary=False))                                   # a report asked for goes out even with the event off
-    one = lambda: tc.post('/api/admin/alerts/report', json=dict(folder='2026-01-03'), headers=X)
+    one = lambda: tc.post('/api/v1/admin/alerts/report', json=dict(folder='2026-01-03'), headers=X)
     r = one()
     assert r.status_code == 200 and r.json() == dict(sent=[dict(folder='2026-01-03', source='s3')], failed=[])
     assert any('Ringkasan log 2026-01-02 (S3)' in json.dumps(x) for x in sent)
     n = len(sent)
     assert one().json()['sent'] and len(sent) > n                           # sent again on request
-    r = tc.post('/api/admin/alerts/report', json=dict(pending=True), headers=X).json()
+    r = tc.post('/api/v1/admin/alerts/report', json=dict(pending=True), headers=X).json()
     assert [x['folder'] for x in r['sent']] == ['2026-01-01', '2026-01-02', '2026-01-04', '2026-01-05', '2026-01-06'] and r['failed'] == []   # oldest first
-    assert tc.post('/api/admin/alerts/report', json=dict(pending=True), headers=X).json() == dict(sent=[], failed=[])
-    r = tc.post('/api/admin/alerts/report', json=dict(folder='2025-12-31'), headers=X)
+    assert tc.post('/api/v1/admin/alerts/report', json=dict(pending=True), headers=X).json() == dict(sent=[], failed=[])
+    r = tc.post('/api/v1/admin/alerts/report', json=dict(folder='2025-12-31'), headers=X)
     assert r.status_code == 404 and r.json()['error']['message'] == 'Log folder not found.'
-    assert tc.post('/api/admin/alerts/report', json=dict(folder='2026-01-03', source='x'), headers=X).status_code == 400
-    assert 'reports not sent yet: 5 sent, 0 failed' in tc.get('/api/admin/audit').text
+    assert tc.post('/api/v1/admin/alerts/report', json=dict(folder='2026-01-03', source='x'), headers=X).status_code == 400
+    assert 'reports not sent yet: 5 sent, 0 failed' in tc.get('/api/v1/admin/audit').text

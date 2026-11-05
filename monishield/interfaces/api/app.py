@@ -16,14 +16,14 @@ from monishield.application import account_service, alert_service, collector_fee
 from monishield.domain import config_model, detect, log_formats, services, timezone
 from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, geo_lookup, importer, inbox, kafka_client, letter, logfolders, mailer, metrics_store, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
-from monishield.interfaces.api import admin, collector_install, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, servers, session, upload, users, wire as payload
+from monishield.interfaces.api import admin, collector_install, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, servers, session, upload, users, versioning, wire as payload
 from .common import ROLE_DEPS, FailureLimiter, RateWindow, Slots
 
 WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
-ROUTERS = (meta.router, session.router, payload.router, users.router, collectors.router, collector_install.router, collector_logs.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router, servers.router)
+ROUTERS = (meta.router, meta.operational, session.router, payload.router, users.router, collectors.router, collector_install.router, collector_logs.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router, servers.router)
 
 
 
@@ -35,6 +35,7 @@ class SpaFiles(StaticFiles):
              'services', 'ips', 'collectors', 'admin', 'password', 'email', 'login'}
 
     async def get_response(self, path, scope):
+        if path == 'api' or path.startswith('api/'): raise StarletteHTTPException(404)   # no API route: 404 for every method (not the 405 of a static file)
         try: return await super().get_response(path, scope)
         except StarletteHTTPException as e:
             if e.status_code != 404 or path.split('/', 1)[0] not in self.PAGES: raise
@@ -190,6 +191,7 @@ def create_app(cfg=None, env_path=None):
         return response
 
     app.add_middleware(payload.PayloadCrypto, state=app.state)   # encrypted bodies for the web UI (X-MS-Enc)
+    app.add_middleware(versioning.OldPathAlias)   # outermost: the old unversioned browser paths for one release (versioning.py)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request, exc):

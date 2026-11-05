@@ -189,7 +189,7 @@ A browser that has seen it opens the domain **and every subdomain** only over ht
 
 Collectors (docs/12-collector.md) send logs to their own host name that is **not behind the Cloudflare proxy**, so the logs of a
 client never pass a third party. This server's Caddy serves it with its own Let's Encrypt certificate. On that host only
-`/api/collector/*`, `/collector/install.sh` and `/collector/install.ps1` are reachable (everything else answers 404, so the
+`/api/v1/collector/*`, `/collector/install.sh` and `/collector/install.ps1` are reachable (everything else answers 404, so the
 dashboard is not available there), bodies are limited to 10 MB and no request is logged.
 
 1. **Cloudflare DNS:** add an `A` record (for example `ingest`) to the server's IP with Proxy status **DNS only** (grey cloud).
@@ -209,6 +209,10 @@ dashboard is not available there), bodies are limited to 10 MB and no request is
    - the dashboard still opens through the normal domain
    - with the guard on, `curl -k --resolve <main domain>:443:<server ip> https://<main domain>/` is refused (empty reply)
 4. **Then on the Collectors page:** Add collector, copy the commands, run them on the server to watch.
+
+**After the release of stage 58** (every endpoint under `/api/v1`): an installed collector still sends to the old address and gets 404 (its
+data waits in its queue). Run `install.sh --upgrade` (Windows `install.ps1 -Upgrade`) on each collector host; the command is on the
+Collectors page. See "Changes" in `docs/12-collector.md`.
 
 ### Access log of the main site (`DOCKER_ACCESS_LOG`)
 

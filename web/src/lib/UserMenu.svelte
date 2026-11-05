@@ -61,7 +61,7 @@
         <a role="menuitem" href={link('admin/users')} onclick={() => close(false)}><Icon name="users" />{$t('menu.users')}</a>
         <a role="menuitem" href={link('admin/ingest')} onclick={() => close(false)}><Icon name="database" />{$t('menu.ingest')}</a>
       {/if}
-      <a role="menuitem" href="/api/docs" target="_blank" rel="noopener" onclick={() => close(false)}><Icon name="code" />{$t('menu.api_docs')}</a>
+      <a role="menuitem" href="/api/v1/docs" target="_blank" rel="noopener" onclick={() => close(false)}><Icon name="code" />{$t('menu.api_docs')}</a>
       <div class="sep" role="separator"></div>
       <button role="menuitem" class="out" onclick={() => { close(false); onlogout(); }}><Icon name="logout" />{$t('menu.logout')}</button>
     </div>

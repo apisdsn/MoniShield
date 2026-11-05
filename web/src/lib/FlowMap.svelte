@@ -1,5 +1,5 @@
 <!-- "Peta IP Asal → IP Tujuan" card + legend + flow table + notes (DRD §3.2, §7; inv. §2.2). Used by the IP Map
-     page and the service page (collapsed). `data` = response of GET /api/folders/{folder}/map[?module=…]. The flow table
+     page and the service page (collapsed). `data` = response of GET /api/v1/folders/{folder}/map[?module=…]. The flow table
      is the map's alternative (§7.9): the "Skip the map" link jumps there; "View in table" fills its filter.
      `aside` (Command Center, Stage 22): card shown beside the map on wide screens, below it on narrow screens;
      `tall`: map as tall as the screen and `aside` always below the map (owner request: Command Center map as wide as the screen). -->
@@ -14,13 +14,13 @@
 
   let { data, folder, module = null, server = null, aside = null, tall = false } = $props();
   let preset = $state('id'), search = $state(null), seq = 0;
-  // realtime (Kafka or collector, the page's source): /api/live/map sends event locations per second (no IPs). Only for the folder
+  // realtime (Kafka or collector, the page's source): /api/v1/live/map sends event locations per second (no IPs). Only for the folder
   // currently being filled ("hello".folder); 204 = that source is not running -> EventSource stops, the map uses the normal animation.
   let liveOn = $state(false), mapRef = $state();
   $effect(() => {
     const f = folder, mod = module;
     if (typeof EventSource === 'undefined') return;
-    const es = new EventSource(withSource('/api/live/map'));
+    const es = new EventSource(withSource('/api/v1/live/map'));
     es.addEventListener('hello', (e) => { try { liveOn = JSON.parse(e.data).folder === f; } catch { liveOn = false; } });
     es.onmessage = (e) => {
       if (!liveOn) return;

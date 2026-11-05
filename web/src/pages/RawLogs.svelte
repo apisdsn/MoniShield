@@ -1,5 +1,5 @@
 <!-- Raw Logs (owner request 2026-10-30, mockup "MoniShield Raw Logs mockup"): search the original lines of every service in
-     the folder's log files. GET /api/folders/{folder}/raw (one page of entries + matches per service),
+     the folder's log files. GET /api/v1/folders/{folder}/raw (one page of entries + matches per service),
      …/raw/context (lines around one entry), …/raw/download (all matches as a .log file). The text is shown exactly as the
      service wrote it (no masking, owner decision); every new search and every download is recorded in the audit log. -->
 <script>
@@ -33,7 +33,7 @@
   function params(extra = {}) {
     return compact({ q: text.trim(), mode, order, services: picked.join(','), kinds: kinds.join(','), pods: pod, from, to, ...extra });
   }
-  const base = () => `/api/folders/${encodeURIComponent(folder)}/raw`;
+  const base = () => `/api/v1/folders/${encodeURIComponent(folder)}/raw`;
 
   async function run() {
     if (!text.trim()) return;

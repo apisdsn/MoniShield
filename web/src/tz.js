@@ -1,4 +1,4 @@
-// Local time zone of the site (S4_TIMEZONE_OFFSET / S4_TIMEZONE_LABEL), from /api/meta (site.js). Times from the API are
+// Local time zone of the site (S4_TIMEZONE_OFFSET / S4_TIMEZONE_LABEL), from /api/v1/meta (site.js). Times from the API are
 // already local; this only names the zone and converts the few UTC values (server clock) and "today".
 export const TZ = { minutes: 7 * 60, label: 'WIB' };
 

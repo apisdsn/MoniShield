@@ -109,7 +109,7 @@ if [ "$UPGRADE" = 1 ]; then
   case "$KEY" in *[!A-Za-z0-9_-]*) die "the collector key in ${ENVF} has unexpected characters" ;; esac
   say "Upgrading the collector in place: receiver ${URL}, key from ${ENVF}"
   if [ "$DRY" = 1 ]; then
-    say "[dry-run] would GET ${URL}/api/collector/config with the installed key as a Bearer token"
+    say "[dry-run] would GET ${URL}/api/v1/collector/config with the installed key as a Bearer token"
     say "[dry-run] would check it with otelcol-contrib validate, then write ${CONF_DIR}/config.yaml (mode 0640)"
     say "[dry-run] for a Docker collector: would install ${HELPER} and the systemd units monishield-docker-names.service and .timer (every 15 s), and run the collector as root with the helper before it starts"
     say "[dry-run] would restart ${SERVICE} and show its status"
@@ -122,7 +122,7 @@ if [ "$UPGRADE" = 1 ]; then
   trap 'rm -rf "$WORK"' EXIT INT TERM
   say 'Fetching the current configuration'
   printf 'header = "Authorization: Bearer %s"\n' "$KEY" | curl -sS --proto '=https,http' -K - -o "${WORK}/config.yaml" -w '%{http_code}' \
-    "${URL}/api/collector/config" >"${WORK}/status" || die "could not reach ${URL}"
+    "${URL}/api/v1/collector/config" >"${WORK}/status" || die "could not reach ${URL}"
   [ "$(cat "${WORK}/status")" = 200 ] || die "the server refused the key (HTTP $(cat "${WORK}/status")): it may be revoked or replaced. Replace the key on the Collectors page. ($(head -c 200 "${WORK}/config.yaml"))"
   if grep -qE 'otelcol-contrib/containers/|docker_stats:' "${WORK}/config.yaml"; then PLATFORM=docker; else PLATFORM=linux; fi
   RUN_USER="$(id -un otelcol-contrib 2>/dev/null || echo root)"
@@ -174,7 +174,7 @@ if [ "$DRY" = 1 ]; then
   say "[dry-run] would download ${RELEASE}/${ASSET}"
   say "[dry-run] would download ${RELEASE}/${ASSET}.sha256 and stop if the SHA-256 differs"
   say "[dry-run] would install the package (${PKG})"
-  say "[dry-run] would POST the token to ${URL}/api/collector/enroll with X-Requested-With: monishield-collector"
+  say "[dry-run] would POST the token to ${URL}/api/v1/collector/enroll with X-Requested-With: monishield-collector"
   say "[dry-run] would write ${CONF_DIR}/config.yaml (mode 0640) from the answer"
   say "[dry-run] would write the key to ${CONF_DIR}/monishield.env (mode 0600) and reference it from a systemd drop-in"
   say "[dry-run] for a Docker collector: would install ${HELPER} and the systemd units monishield-docker-names.service and .timer (every 15 s), which keep name-based links to the container logs in ${STATE_DIR}/containers"
@@ -203,7 +203,7 @@ command -v otelcol-contrib >/dev/null 2>&1 || die 'the package did not install o
 say 'Enrolling this collector'
 printf '{"token":"%s"}' "$TOKEN" | curl -sS --proto '=https,http' -o "${WORK}/config.yaml" -D "${WORK}/headers" -w '%{http_code}' \
   -H 'Content-Type: application/json' -H 'X-Requested-With: monishield-collector' --data-binary @- \
-  "${URL}/api/collector/enroll?format=install" >"${WORK}/status" || die "could not reach ${URL}"
+  "${URL}/api/v1/collector/enroll?format=install" >"${WORK}/status" || die "could not reach ${URL}"
 if [ "$(cat "${WORK}/status")" != 200 ]; then
   die "enrollment was refused (HTTP $(cat "${WORK}/status")): the token is wrong, used or expired. Make a new one on the Collectors page. ($(head -c 300 "${WORK}/config.yaml"))"
 fi

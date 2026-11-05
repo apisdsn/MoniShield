@@ -28,7 +28,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     // console errors too (a map worker that fails to load is only logged). "Failed to load resource" lines are left out: server
     // errors are caught as 5xx answers above, the 401 is the page asking whether you are signed in, and CI has no map files (404)
     hp.on('console', (m) => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) errs.push(m.text().slice(0, 200)); });
-    const mapAnswer = hp.waitForResponse((r) => r.url().endsWith('/api/public/map'));
+    const mapAnswer = hp.waitForResponse((r) => r.url().endsWith('/api/v1/public/map'));
     await hp.goto(BASE + '/');
     await hp.waitForSelector('#home-h1');
     const st = (await mapAnswer).status();
@@ -240,7 +240,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   const plain = [];
   const watch = (r) => {
     const u = new URL(r.url());
-    if (u.pathname.startsWith('/api/') && !/^\/api\/(crypto\/handshake|health)$/.test(u.pathname) && (r.headers()['content-type'] || '').startsWith('application/json')) plain.push(`${r.request().method()} ${u.pathname}`);
+    if (u.pathname.startsWith('/api/') && !/^\/api\/(v1\/crypto\/handshake|health)$/.test(u.pathname) && (r.headers()['content-type'] || '').startsWith('application/json')) plain.push(`${r.request().method()} ${u.pathname}`);
   };
   page.on('response', watch);
   await page.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.removeItem('cl-closed'); });

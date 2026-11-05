@@ -42,7 +42,7 @@ class Browser:
         self.tc = tc
         mine = ec.generate_private_key(ec.SECP256R1())
         pub = base64.b64encode(mine.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)).decode()
-        r = tc.post('/api/crypto/handshake', json=dict(pub=pub), headers=WEB)
+        r = tc.post('/api/v1/crypto/handshake', json=dict(pub=pub), headers=WEB)
         assert r.status_code == 200, r.text
         d = r.json()
         assert d['enabled'] is True
@@ -66,45 +66,45 @@ class Browser:
 
 def test_encrypted_login_and_pages(tc, base):
     b = Browser(tc)
-    r = b.call('POST', '/api/auth/login', dict(username='admin', password=PW))
+    r = b.call('POST', '/api/v1/auth/login', dict(username='admin', password=PW))
     assert r.status_code == 200 and PW.encode() not in r.content and b'admin' not in r.content   # response body is ciphertext too
-    assert b.json(r, 'POST', '/api/auth/login')['username'] == 'admin'
-    r = b.call('POST', '/api/me/password', dict(old_password=PW, new_password=PW2))
+    assert b.json(r, 'POST', '/api/v1/auth/login')['username'] == 'admin'
+    r = b.call('POST', '/api/v1/me/password', dict(old_password=PW, new_password=PW2))
     assert r.status_code == 200, r.content
-    r = b.call('GET', '/api/meta')
-    assert r.status_code == 200 and b.json(r, 'GET', '/api/meta')['folders']
+    r = b.call('GET', '/api/v1/meta')
+    assert r.status_code == 200 and b.json(r, 'GET', '/api/v1/meta')['folders']
     # errors from the application are encrypted as well
-    r = b.call('GET', '/api/folders/1999-01-01/overview')
-    assert r.status_code == 404 and b.json(r, 'GET', '/api/folders/1999-01-01/overview')['error']['code'] == 'not_found'
+    r = b.call('GET', '/api/v1/folders/1999-01-01/overview')
+    assert r.status_code == 404 and b.json(r, 'GET', '/api/v1/folders/1999-01-01/overview')['error']['code'] == 'not_found'
 
 
 def test_plain_clients_still_work(tc):
-    r = tc.post('/api/auth/login', json=dict(username='admin', password=PW), headers=WEB)
+    r = tc.post('/api/v1/auth/login', json=dict(username='admin', password=PW), headers=WEB)
     assert r.status_code == 200 and r.headers['content-type'].startswith('application/json') and 'x-ms-enc' not in r.headers
 
 
 def test_unknown_key_and_tampered_body_rejected(tc):
     b = Browser(tc)
-    r = b.call('GET', '/api/me', kid='unknown')
+    r = b.call('GET', '/api/v1/me', kid='unknown')
     assert r.status_code == 400 and r.json()['error']['code'] == 'enc_key_unknown'
     # a body encrypted for one endpoint cannot be replayed on another (method + path are bound)
     nonce = os.urandom(12)
-    blob = nonce + b.key.encrypt(nonce, b'{"username": "admin", "password": "x"}', b'req POST /api/auth/login')
-    r = tc.post('/api/me/password', content=blob, headers=dict(WEB, **{'X-MS-Enc': b.kid, 'Content-Type': 'application/octet-stream'}))
+    blob = nonce + b.key.encrypt(nonce, b'{"username": "admin", "password": "x"}', b'req POST /api/v1/auth/login')
+    r = tc.post('/api/v1/me/password', content=blob, headers=dict(WEB, **{'X-MS-Enc': b.kid, 'Content-Type': 'application/octet-stream'}))
     assert r.status_code == 400 and r.json()['error']['code'] == 'enc_invalid'
-    r = tc.post('/api/crypto/handshake', json=dict(pub='not-a-key'), headers=WEB)
+    r = tc.post('/api/v1/crypto/handshake', json=dict(pub='not-a-key'), headers=WEB)
     assert r.status_code == 400 and r.json()['error']['code'] == 'enc_invalid'
 
 
 def test_files_untouched_and_switch_off(tc, base, auth_url):
     b = Browser(tc)
-    b.call('POST', '/api/auth/login', dict(username='admin', password=PW))
-    b.call('POST', '/api/me/password', dict(old_password=PW, new_password=PW2))
-    folder = b.json(b.call('GET', '/api/meta'), 'GET', '/api/meta')['folders'][0]['folder']
-    r = b.call('GET', f'/api/folders/{folder}/security/attack-ips.csv')
+    b.call('POST', '/api/v1/auth/login', dict(username='admin', password=PW))
+    b.call('POST', '/api/v1/me/password', dict(old_password=PW, new_password=PW2))
+    folder = b.json(b.call('GET', '/api/v1/meta'), 'GET', '/api/v1/meta')['folders'][0]['folder']
+    r = b.call('GET', f'/api/v1/folders/{folder}/security/attack-ips.csv')
     assert r.status_code == 200 and r.headers['content-type'].startswith('text/csv') and 'x-ms-enc' not in r.headers
     tc.app.state.cfg.api_encryption = False
-    r = tc.post('/api/crypto/handshake', json=dict(pub='x'), headers=WEB)
+    r = tc.post('/api/v1/crypto/handshake', json=dict(pub='x'), headers=WEB)
     assert r.json() == dict(enabled=False)
 
 

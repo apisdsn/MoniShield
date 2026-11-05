@@ -40,8 +40,8 @@ Contents: [1 Architecture](#1-architecture-and-data-flow) · [2 Schema](#2-duckd
  log folder (read-only)                         one "app" process
  <date>/[ns/]<service>/*.log(.gz)  ┌──────────────────────────────────────────────┐
         │                          │  FastAPI (1 worker)                          │
-        │  1. scan + fingerprint   │   ├─ /api/...      read aggregate tables     │
-        ▼                          │   ├─ /api/admin/ingest   trigger ingest      │
+        │  1. scan + fingerprint   │   ├─ /api/v1/...      read aggregate tables     │
+        ▼                          │   ├─ /api/v1/admin/ingest   trigger ingest      │
  ┌──────────────┐  2. parse        │   └─ static files: Svelte app, map           │
  │ parser proc. │  (subprocess,    │                                              │
  │ rules.py     │   per file)      │  Ingest (thread in the same process)         │
@@ -320,7 +320,7 @@ Field = output of the old system's `summarize()` (inv. §1.3). "N" = old limit, 
 | `flow` (3,000; 3 pods) | `agg_flow` | stored per pod; "top 3 pods" at query time |
 | `D.files` | `ingest_file` | |
 | `D.ipinfo`, `D.geo` | `ip_info` | |
-| `D.hosts`, `D.server` | configuration (§6.3), sent via `/api/meta` | |
+| `D.hosts`, `D.server` | configuration (§6.3), sent via `/api/v1/meta` | |
 | `D.land` | static GeoJSON file (§5.7) | no longer an SVG path string |
 | `D.labels` | static file `labels.json` | same content |
 
@@ -490,7 +490,7 @@ AWS credentials can only be obtained through the AWS website. The dashboard must
 **Flow**
 
 1. An admin (through the "Ingest & import" screen) or an external system with a **machine token** sends the link to
-   `POST /api/admin/imports` (§5.5).
+   `POST /api/v1/admin/imports` (§5.5).
 2. The server checks the link, **lists the objects** under that prefix, selects the objects to fetch, downloads them
    to a temporary directory, then atomically moves the `YYYY-MM-DD` folder into the **inbox**
    (`S4_INBOX_DIR`).
@@ -549,7 +549,7 @@ see all buckets in the Jakarta region. Consequently:
 fetched or skipped, without downloading.
 
 Credentials are never sent to the browser, do not appear in API responses, and are not written to logs.
-`/api/meta` only reports "credentials available: yes/no, source, expiry".
+`/api/v1/meta` only reports "credentials available: yes/no, source, expiry".
 
 This feature is scheduled **after** equivalence is proven (PRD R9); its API interface is fixed now so that the
 schema and access rights do not change again.
@@ -665,21 +665,21 @@ parser for it.
 ## 5. API contract
 
 **Naming (owner request 2026-10-12).** Paths are English, lower case, kebab-case nouns; collections are plural
-(`/api/admin/imports`, `/api/admin/uploads`, `/api/admin/users`); the HTTP method says what happens (`DELETE
-/api/admin/folders/{folder}`, not `POST …/delete`); an action that is not create/read/update/delete is a verb
+(`/api/v1/admin/imports`, `/api/v1/admin/uploads`, `/api/v1/admin/users`); the HTTP method says what happens (`DELETE
+/api/v1/admin/folders/{folder}`, not `POST …/delete`); an action that is not create/read/update/delete is a verb
 sub-resource with `POST` (`…/restore`, `…/sync`, `…/confirm`, `…/reset-password`). The old paths were removed on
 2026-10-12 (no aliases):
 
 | Old (removed) | New |
 |---|---|
-| `GET /api/admin/ingest/status` | `GET /api/admin/ingest` |
-| `POST /api/admin/folders/{folder}/delete` (body `delete_inbox`) | `DELETE /api/admin/folders/{folder}?delete_inbox=` |
-| `/api/admin/import…` | `/api/admin/imports…` |
-| `/api/admin/upload…` | `/api/admin/uploads…` |
-| `GET /api/folders/{folder}/command` | `GET /api/folders/{folder}/command-center` |
-| `GET /api/folders/{folder}/rootcause` | `GET /api/folders/{folder}/root-causes` |
-| `POST`/`DELETE /api/me/email/start`, `POST /api/me/email/confirm` | `/api/me/email/change`, `/api/me/email/change/confirm` |
-| `POST`/`DELETE /api/admin/users/{id}/email` | `/api/admin/users/{id}/email/change` |
+| `GET /api/v1/admin/ingest/status` | `GET /api/v1/admin/ingest` |
+| `POST /api/v1/admin/folders/{folder}/delete` (body `delete_inbox`) | `DELETE /api/v1/admin/folders/{folder}?delete_inbox=` |
+| `/api/v1/admin/import…` | `/api/v1/admin/imports…` |
+| `/api/v1/admin/upload…` | `/api/v1/admin/uploads…` |
+| `GET /api/v1/folders/{folder}/command` | `GET /api/v1/folders/{folder}/command-center` |
+| `GET /api/v1/folders/{folder}/rootcause` | `GET /api/v1/folders/{folder}/root-causes` |
+| `POST`/`DELETE /api/v1/me/email/start`, `POST /api/v1/me/email/confirm` | `/api/v1/me/email/change`, `/api/v1/me/email/change/confirm` |
+| `POST`/`DELETE /api/v1/admin/users/{id}/email` | `/api/v1/admin/users/{id}/email/change` |
 
 **Web addresses** are plain paths, without `#` (History API): `/overview`, `/command-center`, `/trends`, `/security`,
 `/root-causes`, `/availability`, `/pods`, `/business`, `/tracing`, `/services/<name>`, `/ips/<ip>`, `/admin/users`,
@@ -692,7 +692,7 @@ any more; they open the Overview. Scripts that need a sync use `python -m monish
 ### 5.1 General rules
 
 **Data source (2026-10-23).** S3 and Kafka are two sources with their own database and folders. Every data route and the admin
-folder/ingest/retention routes take `?source=s3` (default) or `?source=kafka`; anything else is 400. `/api/meta` answers for the
+folder/ingest/retention routes take `?source=s3` (default) or `?source=kafka`; anything else is 400. `/api/v1/meta` answers for the
 chosen source (`source`, and `sources` = the sources the page offers).
 
 - Prefix `/api`. Only `GET`, except for the ingest trigger.
@@ -706,8 +706,8 @@ chosen source (`source`, and `sources` = the sources the page offers).
 - Errors: `{"error": {"code": "…", "message": "…"}}` with status 400 (bad parameter), 401 (not
   signed in / session expired), 403 (not an admin), 404 (folder / service / table does not exist), 409
   (ingest running), 429 (too many sign-in attempts), 503 (no data yet).
-- All endpoints other than `/api/health` and `/api/auth/login` require a session. Data endpoints are open to both
-  roles; `/api/admin/*` is admin only (§8.3).
+- All endpoints other than `/api/health` and `/api/v1/auth/login` require a session. Data endpoints are open to both
+  roles; `/api/v1/admin/*` is admin only (§8.3).
 - Cache: data responses carry `ETag` = the last ingest time of that folder. (Stage 11: the header is sent; the 304 answer is not built yet because the slowest endpoint takes 56 ms.)
 
 ### 5.2 Frame
@@ -715,10 +715,10 @@ chosen source (`source`, and `sources` = the sources the page offers).
 | Endpoint | Purpose | DRD page |
 |---|---|---|
 | `GET /api/health` | Liveness (no data, no session) | — |
-| `GET /api/meta` | Folder list, display configuration, ingest status | Frame (§2), folder picker (§6.1) |
-| `GET /api/folders/{folder}` | Services + badges, files, previous folder's numbers for comparison. | Sidebar, Overview, Pods |
+| `GET /api/v1/meta` | Folder list, display configuration, ingest status | Frame (§2), folder picker (§6.1) |
+| `GET /api/v1/folders/{folder}` | Services + badges, files, previous folder's numbers for comparison. | Sidebar, Overview, Pods |
 
-Example `GET /api/meta`:
+Example `GET /api/v1/meta`:
 
 ```json
 {
@@ -738,7 +738,7 @@ Example `GET /api/meta`:
 }
 ```
 
-Example `GET /api/folders/2026-10-06` (abridged):
+Example `GET /api/v1/folders/2026-10-06` (abridged):
 
 ```json
 {
@@ -763,22 +763,22 @@ The "comparable" rule and the ▲/▼ text (inv. §2.0) are computed by the fron
 
 | Endpoint | Parameters | DRD page | Content |
 |---|---|---|---|
-| `GET /api/folders/{folder}/overview` | — | §3.1 Overview | period, errors per hour per service, top 25 messages across services. (KPIs and the service/file table come from `/api/folders/{folder}`; the "HTTP traffic" part from the nginx service endpoint) |
-| `GET /api/folders/{folder}/map` | `module` (optional) | §3.2 IP Map; map in §3.10 | module list, 6 KPIs, location points, abroad / unlocated counts, first page of flows |
-| `GET /api/trends` | `last` = 14 \| 30 \| 90 \| `all` (default 30) | §3.3 Trends | per folder × service: lines, errors, warnings; nginx total/4xx/5xx; attacks; wrong passwords; resets; 5 business metrics |
-| `GET /api/folders/{folder}/security` | — | §3.4 Security | 8 KPIs, series for 6 charts, material for "Key findings", first page of 5 tables |
-| `GET /api/folders/{folder}/root-causes` | — | §3.5 Root Causes | summary material, series for 4 charts, first page of 3 tables, expired refresh tokens |
-| `GET /api/folders/{folder}/availability` | — | §3.6 Availability | 7 KPIs, series for 3 charts, first page of 4 tables |
-| `GET /api/folders/{folder}/pods` | — | §3.7 Pods | KPIs, series for 2 charts, first page of 2 tables (pod health from `/api/folders/{folder}`) |
-| `GET /api/folders/{folder}/business` | — | §3.8 Business | 11 KPIs + previous folder values, series for 5 charts, 2 tables |
-| `GET /api/folders/{folder}/tracing` | — | §3.9 Request Tracing | `corr`, KPIs, series for 2 charts, first page of traces |
-| `GET /api/folders/{folder}/services/{service}` | — | §3.10 Service; §3.1 traffic part | KPIs, per hour, status, upstream, level, top 10/20 of each list, endpoint performance, messages |
+| `GET /api/v1/folders/{folder}/overview` | — | §3.1 Overview | period, errors per hour per service, top 25 messages across services. (KPIs and the service/file table come from `/api/v1/folders/{folder}`; the "HTTP traffic" part from the nginx service endpoint) |
+| `GET /api/v1/folders/{folder}/map` | `module` (optional) | §3.2 IP Map; map in §3.10 | module list, 6 KPIs, location points, abroad / unlocated counts, first page of flows |
+| `GET /api/v1/trends` | `last` = 14 \| 30 \| 90 \| `all` (default 30) | §3.3 Trends | per folder × service: lines, errors, warnings; nginx total/4xx/5xx; attacks; wrong passwords; resets; 5 business metrics |
+| `GET /api/v1/folders/{folder}/security` | — | §3.4 Security | 8 KPIs, series for 6 charts, material for "Key findings", first page of 5 tables |
+| `GET /api/v1/folders/{folder}/root-causes` | — | §3.5 Root Causes | summary material, series for 4 charts, first page of 3 tables, expired refresh tokens |
+| `GET /api/v1/folders/{folder}/availability` | — | §3.6 Availability | 7 KPIs, series for 3 charts, first page of 4 tables |
+| `GET /api/v1/folders/{folder}/pods` | — | §3.7 Pods | KPIs, series for 2 charts, first page of 2 tables (pod health from `/api/v1/folders/{folder}`) |
+| `GET /api/v1/folders/{folder}/business` | — | §3.8 Business | 11 KPIs + previous folder values, series for 5 charts, 2 tables |
+| `GET /api/v1/folders/{folder}/tracing` | — | §3.9 Request Tracing | `corr`, KPIs, series for 2 charts, first page of traces |
+| `GET /api/v1/folders/{folder}/services/{service}` | — | §3.10 Service; §3.1 traffic part | KPIs, per hour, status, upstream, level, top 10/20 of each list, endpoint performance, messages |
 
 When the log a page needs does not exist, the response is still 200 with `"available": false` and
 `"reason"` (`no_nginx`, `no_correlation`, `no_events_service`, `empty`), so that the frontend shows the right empty
 state (DRD §6.6) and can tell "0" from "no log" (U16).
 
-Example `GET /api/folders/2026-10-06/security` (abridged):
+Example `GET /api/v1/folders/2026-10-06/security` (abridged):
 
 ```json
 {
@@ -817,7 +817,7 @@ Example `GET /api/folders/2026-10-06/security` (abridged):
 }
 ```
 
-Example `GET /api/folders/2026-10-06/map` (abridged):
+Example `GET /api/v1/folders/2026-10-06/map` (abridged):
 
 ```json
 {
@@ -838,7 +838,7 @@ Example `GET /api/folders/2026-10-06/map` (abridged):
 }
 ```
 
-Example `GET /api/trends?last=30` (abridged):
+Example `GET /api/v1/trends?last=30` (abridged):
 
 ```json
 {
@@ -859,7 +859,7 @@ A service that is absent from a folder has the value `null` at that position ("N
 
 ### 5.4 Table endpoint
 
-`GET /api/folders/{folder}/tables/{table}` — one contract for every table that can be continued,
+`GET /api/v1/folders/{folder}/tables/{table}` — one contract for every table that can be continued,
 filtered, and sorted (DRD §4.3).
 
 | Parameter | Value | Default |
@@ -907,7 +907,7 @@ One deviation from the old limits: `flows` shows the first 100 rows (not 3,000) 
 continued and filtered; 3,000 rows × IP cells was the largest rendering load on the old page. The KPIs and map
 points are still computed from all flows.
 
-Example `GET /api/folders/2026-10-06/tables/c401?limit=2`:
+Example `GET /api/v1/folders/2026-10-06/tables/c401?limit=2`:
 
 ```json
 {"table": "c401", "total": 555, "matched": 555, "limit": 2, "offset": 0, "rows": [
@@ -927,15 +927,15 @@ Example `GET /api/folders/2026-10-06/tables/c401?limit=2`:
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/admin/ingest` | Starts an ingest in the API process. Optional body `{"folder": "YYYY-MM-DD", "force": false}`. Answer 202 + `run_id`; 409 when one is running |
-| `GET /api/admin/ingest` | Status of the running/last ingest: phase, folder, files done/total, warnings |
-| `POST /api/admin/derive` | Re-derive aggregates from the raw tables (all or one folder) |
-| `POST /api/admin/forget` | Delete one folder's data (replacing the old "missing folder" behavior) |
+| `POST /api/v1/admin/ingest` | Starts an ingest in the API process. Optional body `{"folder": "YYYY-MM-DD", "force": false}`. Answer 202 + `run_id`; 409 when one is running |
+| `GET /api/v1/admin/ingest` | Status of the running/last ingest: phase, folder, files done/total, warnings |
+| `POST /api/v1/admin/derive` | Re-derive aggregates from the raw tables (all or one folder) |
+| `POST /api/v1/admin/forget` | Delete one folder's data (replacing the old "missing folder" behavior) |
 
-| `POST /api/admin/imports` | Import from an S3 prefix (§3.8). Body `{"url": "s3://example-log-bucket/k8s-logs/2026-09-26/", "dry_run": false}`. Answer 202 + `job_id`; `dry_run` only lists objects |
-| `POST /api/admin/imports/credentials` | **Admin only** (not the machine token). Stores temporary AWS credentials in memory: `access_key_id`, `secret_access_key`, `session_token`. The answer does not contain the values |
-| `DELETE /api/admin/imports/credentials` | Removes the credentials from memory |
-| `GET /api/admin/imports/{job_id}` | Import status |
+| `POST /api/v1/admin/imports` | Import from an S3 prefix (§3.8). Body `{"url": "s3://example-log-bucket/k8s-logs/2026-09-26/", "dry_run": false}`. Answer 202 + `job_id`; `dry_run` only lists objects |
+| `POST /api/v1/admin/imports/credentials` | **Admin only** (not the machine token). Stores temporary AWS credentials in memory: `access_key_id`, `secret_access_key`, `session_token`. The answer does not contain the values |
+| `DELETE /api/v1/admin/imports/credentials` | Removes the credentials from memory |
+| `GET /api/v1/admin/imports/{job_id}` | Import status |
 
 Only for the **admin** role, or for machine callers with a token (§8.2): the `ingest` task in compose and
 external systems that send bucket links.
@@ -944,24 +944,24 @@ external systems that send bucket links.
 
 | Endpoint | Who | Purpose |
 |---|---|---|
-| `POST /api/auth/login` | public | Body `{"username", "password"}` → creates a session (cookie). 401 with the same message for "user does not exist" and "wrong password"; 429 when rate-limited |
-| `POST /api/auth/logout` | session | Deletes the session |
-| `GET /api/me` | session | User, role, `must_change_password` |
-| `POST /api/me/password` | session | Change one's own password (requires the old password); the user's other sessions are revoked |
-| `GET /api/admin/users` | admin | User list |
-| `POST /api/admin/users` | admin | Create a user: `username`, `display_name`, `role` (`admin` \| `user`), initial password (must be changed at first sign-in) |
-| `PATCH /api/admin/users/{id}` | admin | Change name, role, active/inactive |
-| `POST /api/admin/users/{id}/reset-password` | admin | New temporary password; all of the user's sessions are revoked |
-| `DELETE /api/admin/users/{id}` | admin | Delete a user (the last admin cannot be deleted/demoted) |
-| `GET /api/admin/audit` | admin | Audit log, newest first, paginated |
+| `POST /api/v1/auth/login` | public | Body `{"username", "password"}` → creates a session (cookie). 401 with the same message for "user does not exist" and "wrong password"; 429 when rate-limited |
+| `POST /api/v1/auth/logout` | session | Deletes the session |
+| `GET /api/v1/me` | session | User, role, `must_change_password` |
+| `POST /api/v1/me/password` | session | Change one's own password (requires the old password); the user's other sessions are revoked |
+| `GET /api/v1/admin/users` | admin | User list |
+| `POST /api/v1/admin/users` | admin | Create a user: `username`, `display_name`, `role` (`admin` \| `user`), initial password (must be changed at first sign-in) |
+| `PATCH /api/v1/admin/users/{id}` | admin | Change name, role, active/inactive |
+| `POST /api/v1/admin/users/{id}/reset-password` | admin | New temporary password; all of the user's sessions are revoked |
+| `DELETE /api/v1/admin/users/{id}` | admin | Delete a user (the last admin cannot be deleted/demoted) |
+| `GET /api/v1/admin/audit` | admin | Audit log, newest first, paginated |
 
-Example `GET /api/me`:
+Example `GET /api/v1/me`:
 
 ```json
 {"username": "rina", "display_name": "Rina", "role": "user", "must_change_password": false}
 ```
 
-Example `POST /api/admin/users`:
+Example `POST /api/v1/admin/users`:
 
 ```json
 {"username": "budi", "display_name": "Budi", "role": "user", "password": "<initial password>"}
@@ -978,7 +978,7 @@ Example `POST /api/admin/users`:
 | `/map/labels.json` | Country / province / regency-city labels (content of `D.labels`) | same |
 | `/fonts/{fontstack}/{range}.pbf` | Map label glyphs for MapLibre, Latin range | committed to the repo (§6.4) |
 
-When the `/map/*` files do not exist yet (download failed), `/api/meta` reports it and the frontend shows the map's
+When the `/map/*` files do not exist yet (download failed), `/api/v1/meta` reports it and the frontend shows the map's
 empty state (DRD §6.6).
 
 ---
@@ -1145,7 +1145,7 @@ The `Dockerfile` and `docker-compose.yml` files are written in step 7; what is d
 | Service | Role | Opens DuckDB? |
 |---|---|:-:|
 | `app` | The only long-running service: API + static frontend + in-process ingest. **Uvicorn 1 worker.** | **yes, the only one** |
-| `ingest` | One-shot task (profile `job`): calls `POST /api/admin/ingest` on `app` with `S4_JOB_TOKEN`, waits until done, exits with a success/failure code. Mounts no volumes at all. | no |
+| `ingest` | One-shot task (profile `job`): calls `POST /api/v1/admin/ingest` on `app` with `S4_JOB_TOKEN`, waits until done, exits with a success/failure code. Mounts no volumes at all. | no |
 | `proxy` | **HTTPS** termination in front of `app`. Required because the dashboard is opened from many computers (P3) and the session cookie is only sent over HTTPS. Can be a proxy that already exists on the server, or a service in this compose file (ASSUMPTION T5). | no |
 | `postgres` | PostgreSQL for accounts, sessions, audit (K11). Only reachable from `app` on the compose network, with no external port; password from `.env`. | no |
 
@@ -1190,7 +1190,7 @@ again, `s4-state` is irreplaceable, `s4-inbox` holds raw logs that exist only he
 - **Health check**: `GET /api/health`.
 - **Daily ingest**: two paths. (a) Mounted log folder: a cron job on the host runs
   `docker compose run --rm ingest` after the log export arrives (ASSUMPTION T7; the export time is not known yet).
-  (b) Bucket: the link sender calls `POST /api/admin/imports` (§3.8), which ends with an ingest. `S4_INGEST_ON_START` also catches folders missed while the
+  (b) Bucket: the link sender calls `POST /api/v1/admin/imports` (§3.8), which ends with an ingest. `S4_INGEST_ON_START` also catches folders missed while the
   service was restarting.
 - **Outbound network**: to download the IP databases and map data (`iptoasn.com`, `download.maxmind.com`
   and its download storage, `raw.githubusercontent.com`, `download.geonames.org`), and to S3 in the
@@ -1252,7 +1252,7 @@ The dashboard is opened from many computers and contains account emails, client 
 | Sessions | **JWT** (HS256, signed with `S4_JWT_SECRET`) containing `sub` (user id), `sid` (session id), `iat`, `exp`; sent only via an `HttpOnly`, `Secure`, `SameSite=Strict` **cookie**, not accepted from the `Authorization` header. After the signature, issuer, and validity period pass, the `sid` session row is **still checked in the database**. Expires after 60 minutes without activity or 12 hours in total. Sign-out, password change, reset, and deactivation revoke sessions immediately. The role is not carried in the token. | Requested by the owner (JWT). A pure JWT cannot be revoked before it expires; the `sid` check preserves immediate revocation. Only the HS256 algorithm is accepted (`alg: none` and other algorithms are rejected). The token cannot be read by page scripts |
 | CSRF | `SameSite=Strict` + every data-changing request must carry a custom header and a matching `Origin`. | API and pages share one origin; no separate token needed |
 | Sign-in attempts | After 5 failures: the account is locked for 15 minutes; also limited per IP. The error message does not distinguish "user does not exist" from "wrong password". The hash is still computed for nonexistent users. | Resists password guessing and user enumeration |
-| Machine callers | The `ingest` task and bucket link senders use `S4_JOB_TOKEN` in a header; the token is only valid for `POST /api/admin/ingest`, `POST /api/admin/imports`, and the status of both. | Machines have no session; the token scope is as narrow as possible |
+| Machine callers | The `ingest` task and bucket link senders use `S4_JOB_TOKEN` in a header; the token is only valid for `POST /api/v1/admin/ingest`, `POST /api/v1/admin/imports`, and the status of both. | Machines have no session; the token scope is as narrow as possible |
 | Audit | Recorded: successful/failed sign-in, sign-out, password change/reset, user create/update/delete, role changes, ingest, import, `forget`. Not recorded: passwords, tokens, the content of pages opened. | A trail for actions that change access or data |
 | No session | The API answers 401; the frontend goes to the sign-in page and returns to the original address after success. | |
 
@@ -1271,9 +1271,9 @@ For now only two roles, without per-module restrictions:
 
 | Endpoint | Who |
 |---|---|
-| `/api/health`, `/api/auth/login` | public |
-| All data endpoints (§5.2–§5.4), `/api/me`, `/api/auth/logout`, `/api/me/password` | user and admin |
-| `/api/admin/*` | admin; machine token only for ingest and import (§8.2) |
+| `/api/health`, `/api/v1/auth/login` | public |
+| All data endpoints (§5.2–§5.4), `/api/v1/me`, `/api/v1/auth/logout`, `/api/v1/me/password` | user and admin |
+| `/api/v1/admin/*` | admin; machine token only for ingest and import (§8.2) |
 
 Rules:
 
@@ -1511,7 +1511,7 @@ a stream can be added as a source without changing the display.
 - **Still one process owns DuckDB (K1).** The Kafka consumer runs as a thread in the same server process (like
   in-process ingest, Stage 10), writing in small batches (e.g. every 2 seconds or 5,000 messages) to time-windowed
   `rt_*` tables, using the same parser (`parse.py`) so that number definitions do not diverge.
-- **To the browser via Server-Sent Events** (`GET /api/stream`, one-way, the same session cookie, passes the CSP `'self'`,
+- **To the browser via Server-Sent Events** (`GET /api/v1/stream`, one-way, the same session cookie, passes the CSP `'self'`,
   reconnects automatically). WebSocket is not needed because the browser sends nothing.
 - **Command Center** = one page using shared components: running KPIs, the map, "what needs attention"
   (the existing automatic findings: attacks, failed logins, 5xx, pod connection errors), and a stream of recent events;

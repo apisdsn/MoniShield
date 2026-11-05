@@ -123,11 +123,13 @@ def test_common_parts_and_the_key_is_never_in_the_text(platform):
     y = build(platform)
     assert 'resource_detection:\n    detectors:\n      - "system"' in y
     assert 'send_batch_size: 500\n    send_batch_max_size: 1000\n    timeout: "5s"' in y
-    for line in ('endpoint: "https://logs.example.com/api/collector"', 'encoding: "json"', 'compression: "gzip"',
+    for line in ('logs_endpoint: "https://logs.example.com/api/v1/collector/logs"', 'encoding: "json"', 'compression: "gzip"',
                  'Authorization: "Bearer ${env:MONISHIELD_COLLECTOR_KEY}"', 'retry_on_failure:\n      enabled: true',
                  'sending_queue:\n      enabled: true\n      storage: "file_storage"', 'file_storage:\n    directory:'):
         assert line in y, line
     assert 'msk_' not in y and 'mse_' not in y
+    # full addresses: a base `endpoint` would get the exporter's own /v1/logs suffix appended (a double v1)
+    assert not re.search(r'^\s+endpoint: "https', y, re.M) and '/v1/logs' not in y and '/v1/metrics' not in y and y.count('/api/v1/collector/logs') == 1
     assert 'processors:\n        - "resource_detection"\n        - "batch"' in y
 
 
@@ -140,7 +142,7 @@ def test_batch_stays_far_below_the_receiver_limit():
 def test_kubernetes_values():
     y = build('kubernetes')
     for line in ('mode: "daemonset"', 'repository: "otel/opentelemetry-collector-contrib"', f'tag: "{VERSION}"', 'logsCollection:\n    enabled: true',
-                 'kubernetesAttributes:\n    enabled: true', 'name: "otelcol-contrib"', 'endpoint: "https://logs.example.com/api/collector"',
+                 'kubernetesAttributes:\n    enabled: true', 'name: "otelcol-contrib"', 'logs_endpoint: "https://logs.example.com/api/v1/collector/logs"',
                  'storage: "file_storage"', 'secretKeyRef:\n        name: "monishield-collector"\n        key: "key"', 'hostPath:', 'traces: null'):
         assert line in y, line
     assert 'msk_' not in y and 'Bearer ${env:MONISHIELD_COLLECTOR_KEY}' in y and 'file_log' not in y     # the chart's preset adds the receiver
@@ -207,7 +209,7 @@ def test_metrics_off_leaves_the_log_configuration_as_it_was():
 
 def test_linux_metrics_pipeline():
     y = build('linux', METRIC_OPTIONS['linux'])
-    assert 'metrics_endpoint: "https://logs.example.com/api/collector/v1/metrics"' in y and 'endpoint: "https://logs.example.com/api/collector"' in y
+    assert 'metrics_endpoint: "https://logs.example.com/api/v1/collector/metrics"' in y and 'logs_endpoint: "https://logs.example.com/api/v1/collector/logs"' in y
     assert '  host_metrics:\n    collection_interval: "30s"' in y and 'docker_stats' not in y and 'root_path' not in y
     assert ('    metrics:\n      receivers:\n        - "host_metrics"\n      processors:\n        - "resource_detection"\n        - "metrics_transform/monishield"\n'
             '        - "batch/metrics"\n      exporters:\n        - "otlp_http/monishield"') in y
@@ -239,7 +241,7 @@ def test_kubernetes_node_metrics_values():
     y = build('kubernetes', dict(host_metrics=True))
     for part in ('host_metrics:\n      collection_interval: "30s"\n      root_path: "/hostfs"', 'name: "K8S_NODE_NAME"', 'fieldPath: "spec.nodeName"',
                  'mountPath: "/hostfs"', 'readOnly: true', 'mountPropagation: "HostToContainer"', 'resource/node:', 'key: "k8s.node.name"',
-                 'value: "${env:K8S_NODE_NAME}"', 'metrics_endpoint: "https://logs.example.com/api/collector/v1/metrics"', '- "^/var/lib/kubelet/.*"'):
+                 'value: "${env:K8S_NODE_NAME}"', 'metrics_endpoint: "https://logs.example.com/api/v1/collector/metrics"', '- "^/var/lib/kubelet/.*"'):
         assert part in y, part
     assert ('metrics:\n        receivers:\n          - "host_metrics"\n        processors:\n          - "memory_limiter"\n          - "resource_detection"\n'
             '          - "resource/node"\n          - "metrics_transform/monishield"\n          - "batch/metrics"') in y
@@ -389,13 +391,13 @@ def test_install_sh_syntax(script):
 def test_install_sh_dry_run_changes_nothing(script):
     r = run_sh(script, '--name', 'web-01', '--token', 'mse_7_' + 'A' * 43, '--dry-run')
     assert r.returncode == 0, r.stderr
-    for part in (f'otelcol-contrib {VERSION}', f'{BASE}/api/collector/enroll', 'X-Requested-With: monishield-collector', '/etc/otelcol-contrib/config.yaml',
+    for part in (f'otelcol-contrib {VERSION}', f'{BASE}/api/v1/collector/enroll', 'X-Requested-With: monishield-collector', '/etc/otelcol-contrib/config.yaml',
                  '(mode 0640)', 'monishield.env', '(mode 0600)', 'SHA-256', '.sha256', '/var/lib/otelcol-contrib/queue', 'enable and restart',
                  'for a Docker collector', 'docker-names.sh', 'every 15 s'):
         assert part in r.stdout, part
     assert 'mse_7_' not in r.stdout and 'mse_7_' not in r.stderr                                  # the token is never echoed
     r = run_sh(script, '--name', 'web-01', '--token', 'mse_7_' + 'A' * 43, '--url', 'https://other.example.org', '--dry-run')
-    assert 'https://other.example.org/api/collector/enroll' in r.stdout
+    assert 'https://other.example.org/api/v1/collector/enroll' in r.stdout
 
 
 KEY = 'msk_7_' + 'B' * 43
@@ -407,11 +409,11 @@ def test_upgrade_dry_run_reads_the_installed_key_and_changes_nothing(script, tmp
     (conf / 'monishield.env').write_text(f'MONISHIELD_COLLECTOR_KEY={KEY}\n')
     r = run_sh(script, '--upgrade', '--dry-run', '--conf-dir', str(conf))
     assert r.returncode == 0, r.stderr
-    for part in (f'{BASE}/api/collector/config', 'Bearer token', 'otelcol-contrib validate', 'docker-names.sh', 'would restart', 'Upgrading the collector in place'):
+    for part in (f'{BASE}/api/v1/collector/config', 'Bearer token', 'otelcol-contrib validate', 'docker-names.sh', 'would restart', 'Upgrading the collector in place'):
         assert part in r.stdout, part
     assert KEY not in r.stdout and KEY not in r.stderr and sorted(p.name for p in conf.iterdir()) == ['monishield.env']
     r = run_sh(script, '--upgrade', '--dry-run', '--conf-dir', str(conf), '--url', 'https://other.example.org')
-    assert 'https://other.example.org/api/collector/config' in r.stdout
+    assert 'https://other.example.org/api/v1/collector/config' in r.stdout
 
 
 @pytest.mark.skipif(not shutil.which('sh'), reason='sh needed')

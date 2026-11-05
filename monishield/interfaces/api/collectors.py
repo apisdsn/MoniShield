@@ -8,7 +8,7 @@ from monishield.domain import collector_config
 from monishield.domain.errors import Fail
 from .common import ApiError, _check_csrf, client_ip, public, require_admin, require_collector
 
-router = APIRouter(prefix='/api')
+router = APIRouter(prefix='/api/v1')
 
 
 class NewCollector(BaseModel):

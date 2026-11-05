@@ -9,10 +9,11 @@ from monishield.domain import services as profile, timezone
 from monishield.domain.kafka_message import configured as kafka_configured
 from .common import cursor, folder_param, public, require_user_ready, source_ctx
 
-router = APIRouter(prefix='/api')
+router = APIRouter(prefix='/api/v1')
+operational = APIRouter(prefix='/api')   # not versioned: the Docker healthcheck and the deploy script call it (docs/08-architecture.md, "API versions")
 
 
-@router.get('/health', dependencies=[Depends(public)])
+@operational.get('/health', dependencies=[Depends(public)])
 def health(): return dict(ok=True)   # no data, no session
 
 

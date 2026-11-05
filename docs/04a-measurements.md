@@ -111,8 +111,8 @@ PRD target §5.1–§5.2: each page endpoint ≤ 300 ms and ≤ 500 KB.
 
 | Endpoint | Time (ms) | Size (KB) |
 |---|--:|--:|
-| `/api/meta` | 3.5 | 2.5 |
-| `/api/folders/{folder}` | 7.1 | 5.4 |
+| `/api/v1/meta` | 3.5 | 2.5 |
+| `/api/v1/folders/{folder}` | 7.1 | 5.4 |
 | `overview` | 4.3 | 12.2 |
 | `map` | 32.3 | 68.5 |
 | `security` | 37.5 | 65.3 |
@@ -122,7 +122,7 @@ PRD target §5.1–§5.2: each page endpoint ≤ 300 ms and ≤ 500 KB.
 | `business` | 6.7 | 4.9 |
 | `tracing` | 31.7 | 173.6 |
 | `services/{service}` (7 services) | 13.3 – 18.0 | 2.5 – 17.6 |
-| `/api/trends?last=all` | 4.1 | 2.6 |
+| `/api/v1/trends?last=all` | 4.1 | 2.6 |
 | `tables/flows?limit=500` | 55.6 | 159.3 |
 | `tables/trace?q=…` | 28.5 | 172.6 |
 

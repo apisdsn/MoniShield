@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from .common import client_ip, require_admin
 
-router = APIRouter(prefix='/api/admin', dependencies=[Depends(require_admin)])
+router = APIRouter(prefix='/api/v1/admin', dependencies=[Depends(require_admin)])
 
 
 class NewUser(BaseModel):

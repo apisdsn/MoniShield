@@ -27,7 +27,7 @@
 <p class="muted small">{$t('cl.tok.read')}</p>
 {#if platform === 'kubernetes'}
   <p class="vals">
-    <a class="btn accent" href="/api/admin/collectors/{id}/config" download="values.yaml"><Icon name="download" size={16} />{$t('cl.tok.values')}</a>
+    <a class="btn accent" href="/api/v1/admin/collectors/{id}/config" download="values.yaml"><Icon name="download" size={16} />{$t('cl.tok.values')}</a>
   </p>
   <p class="muted small">{$t('cl.tok.values_hint')}</p>
 {/if}

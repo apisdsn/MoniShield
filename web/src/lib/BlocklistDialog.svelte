@@ -11,7 +11,7 @@
   let { folder, open = $bindable(false) } = $props();
   let format = $state('nginx'), days = $state(1), sev = $state(1), prev = $state.raw(null), err = $state(null), copied = $state(false), seq = 0;
 
-  const q = (f) => withSource(`/api/folders/${encodeURIComponent(folder)}/security/blocklist?format=${f}&days=${days}&min_severity=${sev}&lang=${$lang}`);
+  const q = (f) => withSource(`/api/v1/folders/${encodeURIComponent(folder)}/security/blocklist?format=${f}&days=${days}&min_severity=${sev}&lang=${$lang}`);
   $effect(() => {
     if (!open) return;
     void [days, sev, folder];

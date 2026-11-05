@@ -1,8 +1,8 @@
 """Servers page (docs/13-metrics.md): what the collectors report about servers and containers. Read only, for every signed-in
 user like the Pods page. Host and container names and numbers are not personal data, so these are plain GET reads.
 
-  GET /api/servers?range=1h|24h|7d|30d            servers with their current values, unusual values, disks that are almost full
-  GET /api/servers/host?cid=&host=&range=         the charts of one server and its containers
+  GET /api/v1/servers?range=1h|24h|7d|30d            servers with their current values, unusual values, disks that are almost full
+  GET /api/v1/servers/host?cid=&host=&range=         the charts of one server and its containers
 """
 import datetime, re
 
@@ -12,7 +12,7 @@ from monishield.domain import kafka_message
 from monishield.infrastructure.queries import servers as q_servers
 from .common import ApiError, require_user_ready
 
-router = APIRouter(prefix='/api', dependencies=[Depends(require_user_ready)])
+router = APIRouter(prefix='/api/v1', dependencies=[Depends(require_user_ready)])
 
 
 def _now(): return datetime.datetime.now(datetime.timezone.utc)

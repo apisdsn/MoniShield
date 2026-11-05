@@ -32,9 +32,9 @@ def test_nginx_combined():
     rows = d['http_access']
     assert (s['lines'], s['unmatched_lines'], s['err'], len(rows)) == (4, 1, 1, 3)    # the 502 is an error; one line is not a log line
     first = dict(zip(parse.TABLES['http_access'], rows[0]))
-    assert (first['ts_utc'], first['ip'], first['method'], first['path'], first['status'], first['bytes']) == ('2026-10-10 13:55:36', '203.0.113.5', 'GET', '/api/orders?id=1', 200, 2326)
+    assert (first['ts_utc'], first['ip'], first['method'], first['path'], first['status'], first['bytes']) == ('2026-10-10 13:55:36', '203.0.113.5', 'GET', '/api/v1/orders?id=1', 200, 2326)
     assert (first['user_name'], first['duration_ms'], first['ua']) == ('alice', 123.0, 'Mozilla/5.0 (X11; Linux x86_64)')
-    assert first['path_key'] == '/api/orders' and s['known_service']
+    assert first['path_key'] == '/api/v1/orders' and s['known_service']
 
 
 def test_apache_combined_with_offset_and_no_bytes():
@@ -48,7 +48,7 @@ def test_json_lines_pino():
     s, d = read('pino.json.log', 'orders-api')
     rows = [dict(zip(parse.TABLES['app_line'], r)) for r in d['app_line']]
     assert (s['lines'], s['unmatched_lines'], s['err'], s['warn'], len(rows)) == (4, 1, 1, 1, 3)
-    assert (rows[0]['level'], rows[0]['request_id'], rows[0]['method'], rows[0]['path_key'], rows[0]['status'], rows[0]['duration_ms']) == ('INFO', 'r-1', 'GET', '/api/items', 200, 12.5)
+    assert (rows[0]['level'], rows[0]['request_id'], rows[0]['method'], rows[0]['path_key'], rows[0]['status'], rows[0]['duration_ms']) == ('INFO', 'r-1', 'GET', '/api/v1/items', 200, 12.5)
     assert rows[0]['ts_utc'] == '2026-10-10 13:55:36'                                     # epoch milliseconds
     assert (rows[1]['level'], rows[1]['message']) == ('ERROR', 'payment provider timeout') and rows[2]['ts_utc'] == '2026-10-10 13:55:38'
     assert ['level', 'ERROR', 1] in s['counters'] and d['log_message'][0][2] == 'ERROR'   # error messages feed the Messages table

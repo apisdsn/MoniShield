@@ -57,7 +57,7 @@ if ($Upgrade) {
   if ($key -notmatch '^msk_[0-9]+_[A-Za-z0-9_-]+$') { Stop-Install "no collector key is installed in the Environment value of the $ServiceName service. Install the collector first: install.ps1 -Name <name> -Token <token>" }
   Say "Upgrading the collector in place: receiver $Url, key from the $ServiceName service"
   if ($DryRun) {
-    Say "[dry-run] would GET $Url/api/collector/config with the installed key as a Bearer token"
+    Say "[dry-run] would GET $Url/api/v1/collector/config with the installed key as a Bearer token"
     Say "[dry-run] would check it with otelcol-contrib validate, then write $InstallDir\config.yaml"
     Say "[dry-run] would restart the $ServiceName service and show its status"
     exit 0
@@ -68,7 +68,7 @@ if ($Upgrade) {
   $exe = Join-Path $InstallDir 'otelcol-contrib.exe'
   if (-not (Test-Path $exe)) { Stop-Install "$exe was not found: install the collector first" }
   Say 'Fetching the current configuration'
-  try { $r = Invoke-WebRequest -UseBasicParsing -Headers @{ Authorization = "Bearer $key" } -Uri "$Url/api/collector/config" }
+  try { $r = Invoke-WebRequest -UseBasicParsing -Headers @{ Authorization = "Bearer $key" } -Uri "$Url/api/v1/collector/config" }
   catch {
     $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     if ($code -gt 0) { Stop-Install "the server refused the key (HTTP $code): it may be revoked or replaced. Replace the key on the Collectors page." }
@@ -98,7 +98,7 @@ if ($DryRun) {
   Say "[dry-run] would download $Release/$Asset"
   Say "[dry-run] would download $Release/$Asset.sha256 and stop if the SHA-256 differs"
   Say '[dry-run] would install the MSI silently'
-  Say "[dry-run] would POST the token to $Url/api/collector/enroll with X-Requested-With: monishield-collector"
+  Say "[dry-run] would POST the token to $Url/api/v1/collector/enroll with X-Requested-With: monishield-collector"
   Say "[dry-run] would write $InstallDir\config.yaml from the answer"
   Say "[dry-run] would store the key in the Environment value of the $ServiceName service (administrators and system only)"
   Say "[dry-run] would create $QueueDir, validate the configuration, restart the $ServiceName service and show its status"
@@ -131,7 +131,7 @@ try {
 
   Say 'Enrolling this collector'
   try {
-    $r = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Url/api/collector/enroll?format=install" `
+    $r = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Url/api/v1/collector/enroll?format=install" `
       -Headers @{ 'X-Requested-With' = 'monishield-collector' } -ContentType 'application/json' `
       -Body (@{ token = $Token } | ConvertTo-Json -Compress)
   } catch {

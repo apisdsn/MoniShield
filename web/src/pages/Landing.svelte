@@ -1,5 +1,5 @@
 <!-- Public home page at / (owner request 2026-10-28; mockup "Halaman utama" on the design canvas). Open to anyone: what
-     MoniShield is, the traffic map, and "Sign in". The map data comes from GET /api/public/map (no sign-in): request origins
+     MoniShield is, the traffic map, and "Sign in". The map data comes from GET /api/v1/public/map (no sign-in): request origins
      rounded to ~50 km areas, small areas left out, no IP addresses (monishield/domain/public_map.py). Live when the Kafka feed
      has traffic in the last minute (real events animate the map), otherwise the newest day. Polled every 5 s while the tab is
      visible. Links into the app load the page anew (data-reload): the home page carries none of the app's data.
@@ -48,7 +48,7 @@
 
   async function poll() {
     try {
-      const r = await fetch('/api/public/map', { headers: { Accept: 'application/json' } });
+      const r = await fetch('/api/v1/public/map', { headers: { Accept: 'application/json' } });
       if (!r.ok) return;
       const m = await r.json();
       map = m.enabled ? { ...m, points: m.points.map((p) => ({ ...p, ips: 0, modules: {} })) } : m;
@@ -65,7 +65,7 @@
     return () => io.disconnect();
   });
   onMount(() => {
-    fetch('/api/me').then((r) => (signedIn = r.ok)).catch(() => {});
+    fetch('/api/v1/me').then((r) => (signedIn = r.ok)).catch(() => {});
     poll();   // once: whether the map is on, and its numbers
     const id = setInterval(() => { if (inView && document.visibilityState === 'visible') poll(); }, 5000);
     return () => clearInterval(id);

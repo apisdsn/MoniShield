@@ -1,6 +1,6 @@
 <!-- Servers (docs/13-metrics.md): the load of the servers and Docker containers that collectors report. A banner for unusual values
      and almost-full disks, one card per server (CPU, memory and disk bars), four charts for the chosen server and a table of its
-     containers (a list of cards on phones). GET /api/servers and /api/servers/host, refreshed every 30 seconds. Numbers and names only. -->
+     containers (a list of cards on phones). GET /api/v1/servers and /api/v1/servers/host, refreshed every 30 seconds. Numbers and names only. -->
 <script>
   import { onMount } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -29,7 +29,7 @@
   async function loadOverview() {
     const my = ++seq;
     try {
-      const j = await api.get(`/api/servers?range=${range}`);
+      const j = await api.get(`/api/v1/servers?range=${range}`);
       if (my === seq) { data = j; error = null; }
     } catch (e) { if (my === seq) error = e; }
     onready?.(true);
@@ -42,7 +42,7 @@
     if (!h) { detail = null; return; }
     const my = ++dseq;
     try {
-      const j = await api.get(`/api/servers/host?cid=${h.cid}&host=${encodeURIComponent(h.host)}&range=${range}`);
+      const j = await api.get(`/api/v1/servers/host?cid=${h.cid}&host=${encodeURIComponent(h.host)}&range=${range}`);
       if (my === dseq) { detail = j; detailError = null; }
     } catch (e) { if (my === dseq) detailError = e; }
   }

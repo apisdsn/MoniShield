@@ -27,7 +27,7 @@
 
   async function loadStatus() {
     try {
-      const s = await api.get('/api/admin/ingest');
+      const s = await api.get('/api/v1/admin/ingest');
       const justFinished = (st?.running || watching) && !s.running;
       if (!s.running) watching = false;
       st = s; error = null;
@@ -40,13 +40,13 @@
     if (st?.running) timer = setTimeout(loadStatus, 2000);
   }
   async function loadAudit() {
-    try { audit = await api.get(`/api/admin/audit?limit=${AUDIT_MAX}`); } catch (e) { error = e; }
+    try { audit = await api.get(`/api/v1/admin/audit?limit=${AUDIT_MAX}`); } catch (e) { error = e; }
   }
   onMount(() => { loadStatus(); loadAudit(); return () => clearTimeout(timer); });
 
   async function start() {
     starting = true;
-    try { await api.post('/api/admin/ingest', {}); watching = true; toast($t('ing.started')); }
+    try { await api.post('/api/v1/admin/ingest', {}); watching = true; toast($t('ing.started')); }
     catch (e) { toast(e.code === 'ingest_running' ? $t('ing.already') : $errText(e)); }
     finally { starting = false; await loadStatus(); loadAudit(); }
   }

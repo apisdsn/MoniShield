@@ -1,4 +1,4 @@
-"""Metrics receiver (docs/13-metrics.md): POST /api/collector/v1/metrics on the real requests in fixtures/otlp_metrics_*.json."""
+"""Metrics receiver (docs/13-metrics.md): POST /api/v1/collector/metrics on the real requests in fixtures/otlp_metrics_*.json."""
 import collections, copy, dataclasses, datetime, gzip, json, os, shutil, threading, time, zlib
 
 import pytest
@@ -10,7 +10,7 @@ from test_api import X, admin, cfg, error_code   # noqa: F401  (fixtures and hel
 from test_collectors import add, enroll
 
 FIX = os.path.join(os.path.dirname(__file__), 'fixtures')
-URL = '/api/collector/v1/metrics'
+URL = '/api/v1/collector/metrics'
 JSON = {'Content-Type': 'application/json'}
 
 
@@ -75,7 +75,7 @@ def test_a_real_request_is_stored(make, zipped):
     assert 0 <= values(store, 'cpu')[0] < 5
     (row,) = store.rows("SELECT host, os FROM metric_target WHERE ctr = ''")
     assert row[0] == 'vm' and row[1].startswith('Ubuntu 24.04')
-    cid = tc.get('/api/admin/collectors').json()['rows'][0]['id']
+    cid = tc.get('/api/v1/admin/collectors').json()['rows'][0]['id']
     assert store.rows('SELECT DISTINCT cid FROM metric_point') == [(cid,)]
     assert tc.app.state.metrics_feed.status()['collectors'][cid]['stored'] == 10
 
@@ -121,10 +121,10 @@ def test_points_older_than_the_limit_are_rejected_once(make):
 
 def test_no_session_no_csrf_header_and_no_audit(make):
     tc, key, store = make()
-    before = tc.get('/api/admin/audit?limit=500').json()['rows']
+    before = tc.get('/api/v1/admin/audit?limit=500').json()['rows']
     anon = TestClient(tc.app)
     assert anon.post(URL, content=sample('hostmetrics'), headers={**JSON, 'Authorization': f'Bearer {key}'}).status_code == 200
-    assert tc.get('/api/admin/audit?limit=500').json()['rows'] == before
+    assert tc.get('/api/v1/admin/audit?limit=500').json()['rows'] == before
 
 
 # Keys
@@ -135,9 +135,9 @@ def test_missing_wrong_and_revoked_keys_are_refused(make):
         r = post(tc, bad, sample('hostmetrics'))
         assert (r.status_code, error_code(r)) == (401, 'invalid_collector_key'), bad
     assert store.rows('SELECT count(*) FROM metric_point') == [(0,)]
-    cid = tc.get('/api/admin/collectors').json()['rows'][0]['id']
+    cid = tc.get('/api/v1/admin/collectors').json()['rows'][0]['id']
     assert post(tc, key, sample('hostmetrics')).status_code == 200
-    assert tc.post(f'/api/admin/collectors/{cid}/revoke', headers=X).status_code == 200
+    assert tc.post(f'/api/v1/admin/collectors/{cid}/revoke', headers=X).status_code == 200
     assert error_code(post(tc, key, sample('hostmetrics'))) == 'invalid_collector_key'
 
 
