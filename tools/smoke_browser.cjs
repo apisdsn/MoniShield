@@ -9,7 +9,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8777';
 const SHOTS = process.argv[3] || '';
 const PW0 = 'smoke-test-first-password', PW1 = 'Smoke-Test-Second-Password-2026!';
 const PAGES = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
-  'services/event-api', 'collectors', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
+  'services/event-api', 'servers', 'collectors', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
 const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'id', source: 'collector' }, { lang: 'en', source: '' }];
 
 (async () => {

@@ -33,6 +33,7 @@
   import AdminUsers from './pages/AdminUsers.svelte';
   import AdminIngest from './pages/AdminIngest.svelte';
   import Collectors from './pages/Collectors.svelte';
+  import Servers from './pages/Servers.svelte';
   import Overview from './pages/Overview.svelte';
   import Service from './pages/Service.svelte';
   import Trends from './pages/Trends.svelte';
@@ -140,7 +141,10 @@
   const folder = $derived(folders.some((f) => f.folder === $route.folder) ? $route.folder : folders[0]?.folder ?? null);
   const folderInfo = $derived(folders.find((f) => f.folder === folder) || null);
   const isAdminTab = $derived(ADMIN.includes($route.tab));
-  const isDataTab = $derived(!isAdminTab);
+  // the Servers page is about the collectors' metrics: no folder, no data source (its sidebar entry sits in the Analysis group)
+  const NO_FOLDER = ['servers'];
+  const isDataTab = $derived(!isAdminTab && !NO_FOLDER.includes($route.tab));
+  const noSource = $derived(NO_FOLDER.includes($route.tab) || $route.tab === 'collectors');   // the source switch does not apply there
   // #/password and #/email (old Indonesian path): open the account pop-up over the Overview (lib/AccountDialogs.svelte)
   $effect(() => {
     if (screen !== 'app' || ($route.tab !== 'password' && $route.tab !== 'email')) return;
@@ -304,7 +308,7 @@
 
   <div class="wrap" class:collapsed inert={drawer || undefined}>
     <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'trends' || !isDataTab}
-      sources={meta?.sources || []} source={$route.source} onsource={setSource} onfolder={setFolder} folderInfo={pickerInfo} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
+      sources={noSource ? [] : meta?.sources || []} source={$route.source} onsource={setSource} onfolder={setFolder} folderInfo={pickerInfo} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
       {title} sysTitle={$route.tab === 'service'} {status} bind:titleEl={h1} />
     {#if subtitle}<p class="sub"><span class="dot ok" aria-hidden="true"></span>{subtitle}</p>{/if}
 
@@ -351,6 +355,8 @@
         <AdminIngest onfinished={reload} />
       {:else if $route.tab === 'collectors'}
         <Collectors {onready} />
+      {:else if $route.tab === 'servers'}
+        <Servers admin={me.role === 'admin'} {reloadKey} {onready} />
       {:else if !folders.length}
         <EmptyState title={$t('state.no_data')} text={me.role === 'admin' ? '' : $t('state.no_data_user')}>
           {#if me.role === 'admin'}<a class="btn primary" href={build({ tab: 'admin/ingest', service: null })}>{$t('menu.ingest')}</a>{/if}

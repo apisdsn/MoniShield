@@ -6,7 +6,9 @@
 // server, so it stays out of the server and CDN logs while the address can still be bookmarked and shared. Old
 // addresses (/ips/<ip>, ?search=) are still read and rewritten to the new form.
 //   /admin/users, /admin/ingest, /collectors          admin screens
-// #pod=<host or pod> on /raw-logs: the page opens with that pod's lines (the Collectors page links to it)
+// #pod=<host or pod> on /raw-logs: the page opens with that pod's lines (the Collectors page links to it); #svc=<service> adds one service
+//   (the Servers page links to a container's lines)
+//   /servers   load of the servers and containers that collectors report (no folder; not about a data source)
 //   /password, /email, /admin/configuration, /admin/notifications   open a pop-up over the Overview (App.svelte)
 //   /login?next=<app address>   sign-in page (App.svelte); afterwards the app goes to `next` (only an app address)
 //   /   public home page (pages/Landing.svelte, no sign-in): what MoniShield is, the coarse traffic map, "Sign in"
@@ -18,7 +20,7 @@
 import { writable, get } from 'svelte/store';
 import { setSource } from './api.js';
 
-export const TABS = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs'];
+export const TABS = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs', 'servers'];
 export const ADMIN = ['admin/users', 'admin/ingest', 'collectors'];
 export const SOURCES = ['s3', 'kafka', 'collector'];   // data sources (the API's ?source=); S3 is the default and is not written to the address
 const DIALOGS = ['password', 'email', 'admin/configuration', 'admin/notifications'];
@@ -48,11 +50,11 @@ export function parse(address) {
   else if (tab.startsWith('ips/')) { service = tab.slice(4); tab = 'ip'; }          // old address: rewritten by canonical()
   else if (tab.startsWith('services/')) { service = tab.slice(9); tab = 'service'; }
   else if (!TABS.includes(tab) && !ADMIN.includes(tab) && !DIALOGS.includes(tab)) tab = 'overview';   // unknown address
-  return { tab, service, folder: q.get('folder') || null, module: q.get('module') || null, q: f.get('search') || q.get('search') || null, pod: tab === 'raw-logs' ? f.get('pod') || null : null,
+  return { tab, service, folder: q.get('folder') || null, module: q.get('module') || null, q: f.get('search') || q.get('search') || null, pod: tab === 'raw-logs' ? f.get('pod') || null : null, svc: tab === 'raw-logs' ? f.get('svc') || null : null,
            source: SOURCES.includes(q.get('source')) ? q.get('source') : 's3' };
 }
 
-export function build({ tab, service, folder, module, q = null, pod = null, source }) {
+export function build({ tab, service, folder, module, q = null, pod = null, svc = null, source }) {
   if (tab === 'home') return '/';
   const path = tab === 'service' ? `services/${encodeURIComponent(service)}` : tab === 'ip' ? 'ips' : tab;
   const qs = new URLSearchParams(), hs = new URLSearchParams();
@@ -63,6 +65,7 @@ export function build({ tab, service, folder, module, q = null, pod = null, sour
   if (tab === 'ip' && service) hs.set('ip', service);   // personal data: after "#", never sent to a server
   if (q) hs.set('search', q);
   if (pod && tab === 'raw-logs') hs.set('pod', pod);
+  if (svc && tab === 'raw-logs') hs.set('svc', svc);
   const s = qs.toString(), f = hs.toString();
   return `/${path}${s ? '?' + s : ''}${f ? '#' + f : ''}`;
 }
@@ -88,6 +91,7 @@ export function go(patch, { replace = false } = {}) {
   if (patch.tab && patch.tab !== 'service' && patch.tab !== 'ip') next.service = null;
   if (patch.tab && !('q' in patch)) next.q = null;
   if (patch.tab && !('pod' in patch)) next.pod = null;
+  if (patch.tab && !('svc' in patch)) next.svc = null;
   const url = build(next);
   if (url !== here()) (replace ? history.replaceState : history.pushState).call(history, null, '', url);
   route.set(parse(url));

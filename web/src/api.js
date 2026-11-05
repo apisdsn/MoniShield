@@ -22,7 +22,7 @@ let retryTimer = null;
 // time. state.js keeps this in step with the address (?source=kafka); every data request carries it.
 let source = 's3';
 export function setSource(s) { source = s === 'kafka' || s === 'collector' ? s : 's3'; }
-const OWN = /^\/api\/(auth|me|crypto|health)(\/|\?|$)/;   // not about the data of a source
+const OWN = /^\/api\/(auth|me|crypto|health|servers)(\/|\?|$)/;   // not about the data of a source (the metrics of the Servers page have none)
 /** An /api path with the current data source (S3 is the default and is not written). Use it for links the browser follows itself. */
 export function withSource(path) {
   if (source === 's3' || !path.startsWith('/api/') || OWN.test(path)) return path;
