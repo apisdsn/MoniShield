@@ -64,8 +64,8 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     await lp.goto(BASE + path);
     await lp.waitForSelector('.lbtn');
     const m = await lp.evaluate(() => {
-      const l = document.querySelector('.lbtn').getBoundingClientRect(), t = document.querySelector('button[aria-pressed]').getBoundingClientRect();
-      const text = document.querySelector('.lbtn').parentElement.parentElement.innerText + document.querySelector('button[aria-pressed]').innerText;
+      const l = document.querySelector('.lbtn').getBoundingClientRect(), t = document.querySelector('.icon-btn[aria-pressed]').getBoundingClientRect();
+      const text = document.querySelector('.lbtn').parentElement.parentElement.innerText + document.querySelector('.icon-btn[aria-pressed]').innerText;
       return { l: [l.width, l.height], t: [t.width, t.height], seg: !!document.querySelector('.seg[role=radiogroup]'), emoji: /\p{Extended_Pictographic}/u.test(text), over: document.documentElement.scrollWidth - innerWidth };
     });
     if (m.t[0] !== 44 || m.t[1] !== 44 || m.l[1] !== 44 || m.seg || m.emoji || m.over > 0) throw new Error(`${path} at ${width}px: controls ${JSON.stringify(m)}`);
@@ -75,7 +75,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     await lp.keyboard.press('Escape');
     if (await lp.locator('#lang-menu').count() || !(await lp.locator('.lbtn').evaluate((b) => document.activeElement === b))) throw new Error(`${path}: Esc did not close the language menu and return the focus`);
     const was = await lp.evaluate(() => document.documentElement.dataset.theme);
-    await lp.locator('button[aria-pressed]').click();
+    await lp.locator('.icon-btn[aria-pressed]').click();
     if ((await lp.evaluate(() => document.documentElement.dataset.theme)) === was) throw new Error(`${path}: the theme button did not switch the theme`);
     await lp.context().close();
   }
