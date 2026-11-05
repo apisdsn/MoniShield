@@ -124,7 +124,7 @@ if [ "$UPGRADE" = 1 ]; then
   printf 'header = "Authorization: Bearer %s"\n' "$KEY" | curl -sS --proto '=https,http' -K - -o "${WORK}/config.yaml" -w '%{http_code}' \
     "${URL}/api/collector/config" >"${WORK}/status" || die "could not reach ${URL}"
   [ "$(cat "${WORK}/status")" = 200 ] || die "the server refused the key (HTTP $(cat "${WORK}/status")): it may be revoked or replaced. Replace the key on the Collectors page. ($(head -c 200 "${WORK}/config.yaml"))"
-  if grep -q 'otelcol-contrib/containers/' "${WORK}/config.yaml"; then PLATFORM=docker; else PLATFORM=linux; fi
+  if grep -qE 'otelcol-contrib/containers/|docker_stats:' "${WORK}/config.yaml"; then PLATFORM=docker; else PLATFORM=linux; fi
   RUN_USER="$(id -un otelcol-contrib 2>/dev/null || echo root)"
   RUN_GROUP="$(id -gn "$RUN_USER" 2>/dev/null || echo root)"
   if [ "$PLATFORM" = docker ]; then RUN_USER=root; RUN_GROUP=root; fi

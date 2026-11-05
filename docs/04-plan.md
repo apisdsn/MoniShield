@@ -1477,3 +1477,15 @@ Owner-approved UI changes, one commit each:
   controls, no capitals with wide tracking, rem font sizes with a 12 px floor.
 - Plain section comments; animations `spin` and `shimmer`; `putar` and `kilau` added to `tests/test_language.py`.
 - Smoke test: header language menu, theme switch, 3840 px width (no gap, no sideways scroll) and 390 px.
+
+## Stage 56 — Server and container metrics (in progress, 2026-11-05)
+
+Part 2 of the collector ([`12-collector.md`](12-collector.md), steps 9 and 10; details in [`13-metrics.md`](13-metrics.md)): CPU, memory,
+disk, network and load of servers and nodes, and CPU, memory, network and restarts of Docker containers, from the same collector.
+Built and committed in parts so the backend can be reviewed before the page:
+
+1. Collector configuration: the options `host_metrics` and `container_metrics`, the `metrics` pipeline, the `hostmetrics` and
+   `docker_stats` receivers, checked with the real `otelcol-contrib validate`. **Done.**
+2. Receiver `POST /api/collector/v1/metrics`, the pure parser and the store (`metrics.duckdb`).
+3. Roll-up to hours, retention, unusual values, and the read API (`/api/servers`).
+4. Servers page. 5. Metric options on the Collectors page. 6. Docs.

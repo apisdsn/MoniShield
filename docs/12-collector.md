@@ -47,8 +47,8 @@ Code is written by Sonnet 5.5 from a written specification; planning and the rev
 | 6 (done) | Admin › Collectors page (after the mockup): list, status counts, add dialog with platform tabs and the install command, details, replace / revoke key |
 | 7 | End-to-end check with a real `otelcol-contrib`: lines reach Raw Logs and the pages; data queued while the link is down arrives later; a revoked key is refused |
 | 8 (done) | Deploy and docs: receiver subdomain, new `.env` settings, user guide, status, changelog |
-| 9 | Part 2: `POST /v1/metrics`, time-series tables in DuckDB (minute → hour roll-up, retention) |
-| 10 | Part 2: Servers and Kubernetes pages, z-score anomalies |
+| 9 | Part 2: `POST /v1/metrics`, time-series tables in DuckDB (minute → hour roll-up, retention); see [`13-metrics.md`](13-metrics.md) |
+| 10 | Part 2: Servers page, unusual values (z-score); see [`13-metrics.md`](13-metrics.md) |
 
 ### Step 2: registry, enrollment and keys
 
@@ -128,7 +128,10 @@ inputs the admin chose (`options`, stored with the collector, changed with `PUT 
 | `windows` | `channels` (application, system, security), `files` | `windowseventlog/<channel>`, `filelog/<n>` |
 | `kubernetes` | none (pod logs are always on) | Helm values; the chart's `logsCollection` preset adds the receiver |
 
-Only log inputs exist; host metrics and endpoint checks come with part 2. Choices:
+Every platform also has the option `host_metrics` (CPU, memory, load, file systems, network traffic of the server or node) and Docker
+hosts have `container_metrics` (CPU, memory, network traffic and restarts of each container). Both are described in
+[`13-metrics.md`](13-metrics.md); they add a `metrics` pipeline and the exporter's `metrics_endpoint`. A collector registered before they
+existed has both off until an admin turns them on and runs `install.sh --upgrade`. Endpoint checks come later. Choices:
 
 - **The body is the original line.** The only operator is `container` (format `docker`, unwraps Docker's JSON-file format).
 - **Docker container names.** Docker's log files are named by container id (`/var/lib/docker/containers/<id>/<id>-json.log`) and hold

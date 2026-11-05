@@ -12,8 +12,9 @@ class CollectorService:
 
     @staticmethod
     def _open(info):
-        """The collector with the options it really uses (a collector from before the options existed gets the defaults)."""
-        return dict(info, options=collector_config.normalize(info['platform'], info.get('options')))
+        """The collector with the options it really uses (a collector from before the options existed gets the defaults, but sends no
+        metrics until an admin turns them on)."""
+        return dict(info, options=collector_config.stored(info['platform'], info.get('options')))
 
     def list(self): return [self._open(c) for c in self.store.collector_list()]
 
@@ -31,7 +32,7 @@ class CollectorService:
 
     def config(self, info, base_url):
         """The collector's configuration text for its platform (Helm values for Kubernetes)."""
-        return collector_config.build(info['platform'], base_url, info.get('options'), self.ctx.cfg.collector_otel_version)
+        return collector_config.build(info['platform'], base_url, collector_config.stored(info['platform'], info.get('options')), self.ctx.cfg.collector_otel_version)
 
     def new_token(self, cid, admin, ip=None):
         token = self.store.collector_new_token(cid, admin, ip)

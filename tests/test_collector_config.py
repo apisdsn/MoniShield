@@ -26,14 +26,16 @@ def build(platform='linux', options=None): return cc.build(platform, BASE, optio
 
 # Options
 def test_defaults_per_platform():
-    assert cc.normalize('linux', None) == dict(files=[], journald=True, units=[])
+    assert cc.normalize('linux', None) == dict(files=[], journald=True, units=[], host_metrics=True)
     assert cc.normalize('docker', None)['containers'] is True and cc.normalize('windows', None)['channels'] == ['application', 'system']
-    assert cc.normalize('kubernetes', None) == {} and cc.normalize('kubernetes', {}) == {}
+    assert cc.normalize('docker', None)['host_metrics'] is True and cc.normalize('docker', None)['container_metrics'] is True
+    assert cc.normalize('windows', None)['host_metrics'] is True and 'container_metrics' not in cc.normalize('linux', None)
+    assert cc.normalize('kubernetes', None) == dict(host_metrics=True) and cc.normalize('kubernetes', {}) == dict(host_metrics=False)
 
 
 def test_normalize_is_canonical():
     o = cc.normalize('linux', dict(files=[dict(path=' /var/log/a.log ', service='a')], units=['ssh.service', 'ssh.service'], journald=True))
-    assert o == dict(files=[dict(path='/var/log/a.log', service='a')], journald=True, units=['ssh.service'])
+    assert o == dict(files=[dict(path='/var/log/a.log', service='a')], journald=True, units=['ssh.service'], host_metrics=False)
     assert cc.normalize('windows', dict(channels=['security', 'application']))['channels'] == ['application', 'security']
 
 
@@ -157,16 +159,105 @@ def test_unknown_platform_and_bad_url():
     assert code(cc.build, 'linux', 'nonsense', None, VERSION) == 'invalid_url'
 
 
+# Metric inputs (stage 56)
+METRIC_OPTIONS = {
+    'linux': dict(files=[], journald=True, units=[], host_metrics=True),
+    'docker': dict(files=[], journald=False, units=[], containers=True, host_metrics=True, container_metrics=True),
+    'windows': dict(files=[], channels=['application'], host_metrics=True),
+}
+
+
+def test_metric_options_are_booleans_and_missing_means_off():
+    assert cc.normalize('linux', dict(journald=True))['host_metrics'] is False
+    assert cc.normalize('docker', dict(containers=True)) == dict(files=[], journald=False, units=[], containers=True, host_metrics=False, container_metrics=False)
+    assert cc.normalize('windows', dict(channels=['system'], host_metrics=True))['host_metrics'] is True
+    assert code(cc.normalize, 'linux', dict(journald=True, host_metrics='yes')) == 'invalid_options'
+    assert code(cc.normalize, 'docker', dict(containers=True, container_metrics=1)) == 'invalid_options'
+
+
+@pytest.mark.parametrize('platform', ['linux', 'windows', 'kubernetes'])
+def test_container_metrics_belong_to_docker_hosts(platform):
+    assert code(cc.normalize, platform, dict(container_metrics=True, host_metrics=True)) == 'invalid_options'
+    assert 'container_metrics' not in cc.normalize(platform, dict(container_metrics=False, host_metrics=True))      # off is accepted, and dropped
+
+
+def test_metrics_alone_are_an_input_but_nothing_at_all_is_not():
+    assert cc.normalize('linux', dict(journald=False, host_metrics=True))['host_metrics'] is True
+    assert cc.normalize('docker', dict(journald=False, containers=False, container_metrics=True))['container_metrics'] is True
+    assert code(cc.normalize, 'linux', dict(journald=False, host_metrics=False)) == 'no_inputs'
+    assert code(cc.normalize, 'docker', dict(journald=False, containers=False, host_metrics=False, container_metrics=False)) == 'no_inputs'
+
+
+def test_collectors_made_before_the_metrics_send_none():
+    for platform in cc.QUEUE_DIRS:
+        o = cc.stored(platform, None)
+        assert o['host_metrics'] is False and not o.get('container_metrics'), platform
+        assert cc.stored(platform, {k: v for k, v in cc.default_options(platform).items() if 'metrics' not in k}) == o
+    assert cc.stored('linux', dict(journald=True, host_metrics=True))['host_metrics'] is True
+    assert 'metrics' not in build('linux', cc.stored('linux', None)).replace('hostmetrics', '')       # no metrics pipeline, no metrics endpoint
+
+
+def test_metrics_off_leaves_the_log_configuration_as_it_was():
+    for platform, options in (('linux', dict(journald=True, host_metrics=False)), ('windows', dict(channels=['system'], host_metrics=False)),
+                              ('docker', dict(containers=True, host_metrics=False, container_metrics=False)), ('kubernetes', dict(host_metrics=False))):
+        y = build(platform, options)
+        assert 'hostmetrics' not in y and 'docker_stats' not in y and 'metrics_endpoint' not in y and 'metricstransform' not in y and 'batch/metrics' not in y
+        assert 'os.description' not in y and 'metrics:\n' not in y.replace('hostmetrics', '')
+
+
+def test_linux_metrics_pipeline():
+    y = build('linux', METRIC_OPTIONS['linux'])
+    assert 'metrics_endpoint: "https://logs.example.com/api/collector/v1/metrics"' in y and 'endpoint: "https://logs.example.com/api/collector"' in y
+    assert '  hostmetrics:\n    collection_interval: "30s"' in y and 'docker_stats' not in y and 'root_path' not in y
+    assert ('    metrics:\n      receivers:\n        - "hostmetrics"\n      processors:\n        - "resourcedetection"\n        - "metricstransform/monishield"\n'
+            '        - "batch/metrics"\n      exporters:\n        - "otlphttp/monishield"') in y
+    assert 'logs:\n      receivers:\n        - "journald"' in y
+    for part in ('system.cpu.utilization:\n            enabled: true', 'system.cpu.time:\n            enabled: false', 'system.memory.limit:\n            enabled: true',
+                 'system.cpu.load_average.5m:\n            enabled: false', 'system.filesystem.inodes.usage:\n            enabled: false',
+                 'system.network.packets:\n            enabled: false', '- "^docker\\\\d*$"', '- "^/var/lib/docker/.*"', '- "^/boot/efi$"', '- "tmpfs"',
+                 'aggregation_type: "mean"', 'label_set:\n              - "state"', 'os.description:\n          enabled: true'):
+        assert part in y, part
+    assert 'process' not in y.replace('processors', '')                                       # never the process scrapers
+
+
+def test_windows_has_no_mount_excludes_and_docker_stats_is_docker_only():
+    y = build('windows', METRIC_OPTIONS['windows'])
+    assert 'hostmetrics' in y and 'exclude_mount_points' not in y and 'exclude_fs_types' not in y and '"^lo$"' in y and 'docker_stats' not in y
+    y = build('docker', METRIC_OPTIONS['docker'])
+    assert '  docker_stats:\n    endpoint: "unix:///var/run/docker.sock"\n    collection_interval: "30s"' in y and 'container.restarts:\n        enabled: true' in y
+    assert 'api_version' not in y and '        - "hostmetrics"\n        - "docker_stats"' in y
+    only = build('docker', dict(files=[], journald=False, units=[], containers=False, host_metrics=False, container_metrics=True))
+    assert '  docker_stats:' in only and 'hostmetrics' not in only and 'logs:' not in only and 'filelog' not in only
+
+
+def test_metrics_only_collector_has_no_logs_pipeline():
+    y = build('linux', dict(files=[], journald=False, units=[], host_metrics=True))
+    assert 'service:\n  extensions:\n    - "file_storage"\n  pipelines:\n    metrics:' in y and 'logs:' not in y
+
+
+def test_kubernetes_node_metrics_values():
+    y = build('kubernetes', dict(host_metrics=True))
+    for part in ('hostmetrics:\n      collection_interval: "30s"\n      root_path: "/hostfs"', 'name: "K8S_NODE_NAME"', 'fieldPath: "spec.nodeName"',
+                 'mountPath: "/hostfs"', 'readOnly: true', 'mountPropagation: "HostToContainer"', 'resource/node:', 'key: "k8s.node.name"',
+                 'value: "${env:K8S_NODE_NAME}"', 'metrics_endpoint: "https://logs.example.com/api/collector/v1/metrics"', '- "^/var/lib/kubelet/.*"'):
+        assert part in y, part
+    assert ('metrics:\n        receivers:\n          - "hostmetrics"\n        processors:\n          - "memory_limiter"\n          - "resourcedetection"\n'
+            '          - "resource/node"\n          - "metricstransform/monishield"\n          - "batch/metrics"') in y
+    assert 'network:' not in y and 'hostMetrics' not in y and 'os.description' not in y and 'traces: null' in y
+    off = build('kubernetes', dict(host_metrics=False))
+    assert 'hostmetrics' not in off and 'hostfs' not in off and 'K8S_NODE_NAME' not in off and 'metrics: null' in off and 'metrics_endpoint' not in off
+
+
 # The real collector
 def otelcol():
     path = os.path.join(ROOT, 'tools', 'otelcol', VERSION, 'otelcol-contrib')
     return path if os.access(path, os.X_OK) else None
 
 
-def validate(binary, tmp_path, text):
+def validate(binary, tmp_path, text, **env):
     f = tmp_path / 'config.yaml'
     f.write_text(text, encoding='utf-8')
-    r = subprocess.run([binary, 'validate', f'--config={f}'], env=dict(os.environ, MONISHIELD_COLLECTOR_KEY='dummy-key-for-validate'), capture_output=True, text=True, timeout=120)
+    r = subprocess.run([binary, 'validate', f'--config={f}'], env=dict(os.environ, MONISHIELD_COLLECTOR_KEY='dummy-key-for-validate', **env), capture_output=True, text=True, timeout=120)
     return r.returncode, r.stdout + r.stderr
 
 
@@ -182,6 +273,48 @@ def validate(binary, tmp_path, text):
 def test_real_collector_accepts_the_config(tmp_path, platform, options):
     code_, out = validate(otelcol(), tmp_path, build(platform, options))
     assert code_ == 0, out
+
+
+METRIC_CASES = [
+    ('linux', METRIC_OPTIONS['linux']),
+    ('linux', dict(files=[], journald=False, units=[], host_metrics=True)),                       # metrics only
+    ('docker', METRIC_OPTIONS['docker']),
+    ('docker', dict(files=[], journald=True, units=[], containers=False, host_metrics=False, container_metrics=True)),
+    ('docker', dict(files=FILES, journald=False, units=[], containers=True, host_metrics=True, container_metrics=False)),
+]
+
+
+@pytest.mark.skipif(not otelcol(), reason='run tools/fetch_otelcol.py to download otelcol-contrib')
+@pytest.mark.parametrize('platform,options', METRIC_CASES)
+def test_real_collector_accepts_the_metric_config(tmp_path, platform, options):
+    code_, out = validate(otelcol(), tmp_path, build(platform, options))
+    assert code_ == 0, out
+
+
+@pytest.mark.skipif(not otelcol(), reason='run tools/fetch_otelcol.py to download otelcol-contrib')
+def test_real_collector_reads_the_windows_metric_settings(tmp_path):
+    # Linux can read the whole file and builds the receivers; the Windows file system paths are not checked, the keys are.
+    code_, out = validate(otelcol(), tmp_path, build('windows', dict(files=[], channels=['application'], host_metrics=True)))
+    assert 'unknown' not in out and 'invalid keys' not in out and ('only supported on Windows' in out or code_ == 0), out
+    code_, out = validate(otelcol(), tmp_path, build('windows', dict(files=[], channels=[], host_metrics=True)))
+    assert code_ == 0, out
+
+
+@pytest.mark.skipif(not otelcol(), reason='run tools/fetch_otelcol.py to download otelcol-contrib')
+def test_real_collector_accepts_the_kubernetes_metric_pipeline(tmp_path):
+    # The Helm chart merges these values into its own configuration; the part that is ours is checked as a collector file of its own:
+    # the chart's memory_limiter and pre-set log receiver are stood in for, the rest is exactly what the values hold.
+    cfg = cc.helm_values(BASE, VERSION, cc.normalize('kubernetes', dict(host_metrics=True)))['config']
+    cfg['receivers'] = {k: v for k, v in cfg['receivers'].items() if v is not None}
+    cfg['receivers']['hostmetrics']['root_path'] = str(tmp_path)       # the real collector checks that the folder exists
+    cfg['receivers']['filelog'] = dict(include=['/var/log/pods/*/*/*.log'])
+    cfg['processors']['memory_limiter'] = dict(check_interval='5s', limit_percentage=80, spike_limit_percentage=25)
+    cfg['service']['extensions'] = ['file_storage']
+    cfg['service']['pipelines'] = {k: v for k, v in cfg['service']['pipelines'].items() if v is not None}
+    cfg['service']['pipelines']['logs']['receivers'] = ['filelog']
+    code_, out = validate(otelcol(), tmp_path, '\n'.join(cc.emit(cfg)) + '\n', K8S_NODE_NAME='node-1')     # the pod's downward API sets it
+    assert code_ == 0, out
+    assert 'resource/node' in cfg['processors'] and cfg['service']['pipelines']['metrics']['receivers'] == ['hostmetrics']
 
 
 @pytest.mark.skipif(not otelcol(), reason='run tools/fetch_otelcol.py to download otelcol-contrib')

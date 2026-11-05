@@ -23,11 +23,11 @@ def new(tc, name='web-01', platform='linux', options=None):
 def test_options_on_create_and_defaults(client):
     admin(client)
     r = new(client, options=dict(files=FILES, journald=False))
-    assert r.status_code == 201 and r.json()['collector']['options'] == dict(files=FILES, journald=False, units=[])
+    assert r.status_code == 201 and r.json()['collector']['options'] == dict(files=FILES, journald=False, units=[], host_metrics=False)
     r = new(client, 'web-02')                                                       # nothing chosen: the defaults of the platform
     assert r.json()['collector']['options'] == cc.default_options('linux')
     assert new(client, 'win-01', 'windows').json()['collector']['options']['channels'] == ['application', 'system']
-    assert new(client, 'k8s', 'kubernetes').json()['collector']['options'] == {}
+    assert new(client, 'k8s', 'kubernetes').json()['collector']['options'] == dict(host_metrics=True)
     rows = {c['name']: c for c in client.get('/api/admin/collectors').json()['rows']}
     assert rows['web-01']['options']['files'] == FILES and all('stats' in c for c in rows.values())
 
