@@ -156,12 +156,12 @@ def test_sent_after_ingest_and_failed_sync(app_env, sent):
     shutil.copytree(os.path.join(root, B), os.path.join(root, '2026-01-07'))
     assert tc.post('/api/v1/admin/ingest', json={}, headers=X).status_code == 202
     tc.app.state.ingest.wait(60)
-    for _ in range(100):
-        if any('2026-01-07' in json.dumps(x) for x in sent): break
+    want = {'Serangan kritis di log 2026-01-06 (S3)', 'Ringkasan log 2026-01-06 (S3)'}
+    def titles(): return [re.sub(r'</?b>', '', x[2]['text'].split('\n')[0]) for x in list(sent) if x[0] == 'http' and 'sendMessage' in x[1]]
+    for _ in range(200):                     # both messages, up to 10 s: the report follows the alert, later on a busy machine
+        if want <= set(titles()): break
         time.sleep(0.05)
-    time.sleep(0.3)
-    titles = [re.sub(r'</?b>', '', x[2]['text'].split('\n')[0]) for x in sent if x[0] == 'http' and 'sendMessage' in x[1]]
-    assert 'Serangan kritis di log 2026-01-06 (S3)' in titles and 'Ringkasan log 2026-01-06 (S3)' in titles
+    assert want <= set(titles()), titles()
     report = next(x[2] for x in sent if x[0] == 'http' and 'sendMessage' in x[1] and 'Ringkasan log 2026-01-06' in x[2]['text'])
     assert report['parse_mode'] == 'HTML' and 'Status: <b>' in report['text'] and '<b>📥 Hasil ingest</b>' in report['text']
     assert '<b>📊 Ringkasan</b>' in report['text'] or 'Status: <b>AMAN' in report['text']

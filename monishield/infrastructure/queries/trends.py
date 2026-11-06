@@ -4,7 +4,7 @@ import datetime
 
 
 from monishield.infrastructure.queries.sql import local_time, _all, reject
-from .tables import NG
+from .tables import http_rows
 
 TREND_BIZ = ('reports_created', 'report_registrations', 'files_uploaded', 'emails_sent', 'otp_requested')
 
@@ -25,11 +25,12 @@ def trends(cur, cfg, params):
                                      GROUP BY f.service, f.f ORDER BY f.f, min(i.relpath)""", lo)]
     out = {k: {s: blank() for s in names} for k in ('lines', 'err', 'warn', 'file_status')}   # None = service absent in that folder
     http = {k: blank(0) for k in ('total', 'n4xx', 'n5xx')}
+    pick = http_rows(cur, since=lo)   # per folder: the ingress, else the busiest access log
     for f, s, lines, err, warn, n_corrupt, req, n4, n5 in rows:
         i = pos[f]
         out['lines'][s][i], out['err'][s][i], out['warn'][s][i] = lines, err, warn
         out['file_status'][s][i] = 'corrupt' if n_corrupt else 'empty' if not lines else 'ok'
-        if s == NG: http['total'][i], http['n4xx'][i], http['n5xx'][i] = req, n4, n5
+        if pick.get(f, {}).get('service') == s: http['total'][i], http['n4xx'][i], http['n5xx'][i] = req, n4, n5
     sec = {k: blank(0) for k in ('attack_requests', 'login_fail', 'resets')}
     atk = 'agg_crs_url' if cfg.attack_rules == 'crs' else 'agg_attack_url'   # Stage 21: the detection rules in use
     for f, n in _all(cur, f'SELECT folder::VARCHAR, sum(hits) FROM {atk} WHERE folder >= ? GROUP BY 1', lo): sec['attack_requests'][pos[f]] = int(n)
@@ -39,7 +40,7 @@ def trends(cur, cfg, params):
     biz = {k: blank(0) for k in TREND_BIZ}
     for f, m, n in _all(cur, f"SELECT folder::VARCHAR, metric, n FROM agg_biz WHERE folder >= ? AND metric IN ({', '.join('?' * len(TREND_BIZ))})", lo, *TREND_BIZ): biz[m][pos[f]] = n
     return dict(folders=folders, services=names, **out, http=http, security=sec, business=biz,
-                completeness=_completeness(cur, folders), heat=_heat(cur, lo))
+                completeness=_completeness(cur, folders), heat=_heat(cur, lo, pick))
 
 
 def _completeness(cur, folders):
@@ -53,12 +54,13 @@ def _completeness(cur, folders):
                 last_ingest=dict(time=local_time(run[0]), status=run[1], files_changed=run[2]) if run else None)
 
 
-def _heat(cur, lo):
-    """Hour (WIB) × date: nginx ingress requests and errors of all services, from agg_hour."""
-    rows = _all(cur, f"""SELECT strftime(hour_wib, '%Y-%m-%d'), hour(hour_wib)::INTEGER, coalesce(sum(total) FILTER (WHERE service = '{NG}'), 0), sum(err)
-                          FROM agg_hour WHERE folder >= ? GROUP BY 1, 2 ORDER BY 1, 2""", lo)
-    days = sorted({r[0] for r in rows})
+def _heat(cur, lo, pick):
+    """Hour (WIB) × date: requests of each folder's access log (the ingress, else the busiest access log) and errors of all services, from agg_hour."""
+    rows = _all(cur, "SELECT folder::VARCHAR, strftime(hour_wib, '%Y-%m-%d'), hour(hour_wib)::INTEGER, service, total, err FROM agg_hour WHERE folder >= ?", lo)
+    days = sorted({r[1] for r in rows})
     pos = {d: i for i, d in enumerate(days)}
     req, err = [[0] * 24 for _ in days], [[0] * 24 for _ in days]
-    for d, h, n, e in rows: req[pos[d]][h], err[pos[d]][h] = int(n), int(e)
+    for f, d, h, svc, n, e in rows:
+        err[pos[d]][h] += int(e)
+        if pick.get(f, {}).get('service') == svc: req[pos[d]][h] += int(n)
     return dict(days=days, requests=req, errors=err)

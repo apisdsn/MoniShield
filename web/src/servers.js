@@ -1,5 +1,5 @@
 // Servers page helpers (docs/13-metrics.md): what the cards, the banner, the charts and the containers table show, worked out from
-// the answers of GET /api/v1/servers and /api/v1/servers/host. Pure: no DOM, no stores; the time zone and the language come in as arguments.
+// the answers of POST /api/v1/servers and /api/v1/servers/host. Pure: no DOM, no stores; the time zone and the language come in as arguments.
 import { bytes, locale, num } from './format.js';
 import { groupItems } from './collectors.js';
 

@@ -304,6 +304,11 @@ const ERR_ID = [
   [/^The pattern is not a valid regular expression \((.*)\)\.$/, 'Pola bukan regular expression yang sah ($1).'],
   [/^No log entry starts at that line\.$/, 'Tidak ada entri log yang dimulai di baris itu.'],
   [/^File not found\.$/, 'Berkas tidak ditemukan.'],
+  // Log Formats page (monishield/application/log_format_service.py, domain/log_formats.py)
+  [/^The last rule must be "\*", so every other service has a format\.$/, 'Aturan terakhir harus "*", supaya setiap layanan lain punya format.'],
+  [/^The file needs at least one rule\.$/, 'Berkas butuh sedikitnya satu aturan.'],
+  [/^This source has no folder for today\.$/, 'Sumber ini tidak punya folder untuk hari ini.'],
+  [/^Rule (\d+)( \([^)]*\))?: (.*)$/, 'Aturan $1$2: $3'],
 ];
 
 // Dictionary prefixes holding translations of API error codes, tried in order.

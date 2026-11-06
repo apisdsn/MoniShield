@@ -215,6 +215,8 @@ select option:disabled { color: var(--muted); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #04201c; font-weight: 600; }
 :root[data-theme='light'] .btn.primary { background: var(--accent-text); border-color: var(--accent-text); color: #fff; }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+/* one disabled style for every button, main or not: a neutral surface and a muted label (readable, AA), never a pale accent */
+.btn:disabled, .btn:disabled:hover, .btn.primary:disabled, :root[data-theme='light'] .btn.primary:disabled { opacity: 1; background: var(--bg2); border-color: var(--line); color: var(--muted); font-weight: 500; cursor: not-allowed; }
 /* accented action button (reference "Open Incident Report →") */
 .btn.accent { border-color: color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent-text); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .btn.accent:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }

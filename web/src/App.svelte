@@ -5,7 +5,7 @@
   import { get } from 'svelte/store';
   import { lang, t } from './i18n.js';
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
-  import { route, go, build, parse, ADMIN } from './state.js';
+  import { route, go, build, parse, ADMIN, NO_DATE } from './state.js';
   import { setSite } from './site.js';
   import { fLabel, isFilling, logRange, num, sysName, tLocal, SPARSE_LINES } from './format.js';
   import { localToday } from './tz.js';
@@ -16,6 +16,7 @@
   import Sidebar from './lib/Sidebar.svelte';
   import VolumeBand from './lib/VolumeBand.svelte';
   import Header from './lib/Header.svelte';
+  import LogFormats from './pages/LogFormats.svelte';
   import EmptyState from './lib/EmptyState.svelte';
   import ErrorState from './lib/ErrorState.svelte';
   import Toast, { toast } from './lib/Toast.svelte';
@@ -144,7 +145,7 @@
   // the Servers page is about the collectors' metrics: no folder, no data source (its sidebar entry sits in the Analysis group)
   const NO_FOLDER = ['servers'];
   const isDataTab = $derived(!isAdminTab && !NO_FOLDER.includes($route.tab));
-  const noSource = $derived(NO_FOLDER.includes($route.tab) || $route.tab === 'collectors');   // the source switch does not apply there
+  const noSource = $derived(NO_DATE.includes($route.tab));   // the source switch does not apply there
   // #/password and #/email (old Indonesian path): open the account pop-up over the Overview (lib/AccountDialogs.svelte)
   $effect(() => {
     if (screen !== 'app' || ($route.tab !== 'password' && $route.tab !== 'email')) return;
@@ -222,6 +223,7 @@
     if (r.tab === 'admin/users') return $t('menu.users');
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
     if (r.tab === 'collectors') return $t('nav.collectors');
+    if (r.tab === 'admin/log-formats') return $t('nav.cfg.logformats');
     return $t(`tab.${r.tab}`);
   });
   // Trends covers every folder: one line under the header says so
@@ -241,11 +243,12 @@
     const sv = $route.tab === 'service' ? summary.services.filter((x) => x.service === $route.service) : summary.services;
     const sum = (k) => sv.reduce((a, x) => a + (x[k] || 0), 0);
     const out = [];
-    if ($route.tab !== 'service') out.push({ tone: 'accent', n: num(summary.services.length, $lang), text: $t('status.services') });
-    else out.push({ tone: 'accent', n: num(sum('lines'), $lang), text: $t('status.lines') });
-    out.push({ tone: sum('err') ? 'err' : 'ok', n: num(sum('err'), $lang), text: $t('status.errors') });
-    out.push({ tone: sum('warn') ? 'warn' : 'ok', n: num(sum('warn'), $lang), text: $t('status.warnings') });
-    if ($route.tab !== 'service' && summary.attack_ip_count) out.push({ tone: 'err', n: num(summary.attack_ip_count, $lang), text: $t('status.attack_ips') });
+    const word = (key, n) => $t(n === 1 ? `status.${key}_one` : `status.${key}`);   // "1 error", "2 errors"
+    if ($route.tab !== 'service') out.push({ tone: 'accent', n: num(summary.services.length, $lang), text: word('services', summary.services.length) });
+    else out.push({ tone: 'accent', n: num(sum('lines'), $lang), text: word('lines', sum('lines')) });
+    out.push({ tone: sum('err') ? 'err' : 'ok', n: num(sum('err'), $lang), text: word('errors', sum('err')) });
+    out.push({ tone: sum('warn') ? 'warn' : 'ok', n: num(sum('warn'), $lang), text: word('warnings', sum('warn')) });
+    if ($route.tab !== 'service' && summary.attack_ip_count) out.push({ tone: 'err', n: num(summary.attack_ip_count, $lang), text: word('attack_ips', summary.attack_ip_count) });
     return out;
   });
   $effect(() => { document.title = screen === 'app' ? `${title} · ${APP_NAME}` : APP_NAME; });
@@ -307,7 +310,7 @@
   {#if drawer}<button class="backdrop" aria-label={$t('nav.close')} onclick={closeDrawer}></button>{/if}
 
   <div class="wrap" class:collapsed inert={drawer || undefined}>
-    <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'trends' || !isDataTab}
+    <Header {me} route={{ ...$route, folder }} {folders} {folder} showDate={!NO_DATE.includes($route.tab)} folderDisabled={$route.tab === 'trends' || !isDataTab}
       sources={noSource ? [] : meta?.sources || []} source={$route.source} onsource={setSource} onfolder={setFolder} folderInfo={pickerInfo} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
       {title} sysTitle={$route.tab === 'service'} {status} bind:titleEl={h1} />
     {#if subtitle}<p class="sub"><span class="dot ok" aria-hidden="true"></span>{subtitle}</p>{/if}
@@ -355,6 +358,8 @@
         <AdminIngest onfinished={reload} />
       {:else if $route.tab === 'collectors'}
         <Collectors {onready} />
+      {:else if $route.tab === 'admin/log-formats'}
+        <LogFormats {onready} />
       {:else if $route.tab === 'servers'}
         <Servers admin={me.role === 'admin'} {reloadKey} {onready} />
       {:else if !folders.length}
@@ -415,6 +420,7 @@
     display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     padding: 10px 16px; border-radius: 14px; margin: 8px 0 14px; font-size: 0.875rem;
   }
+  .band a { display: inline-flex; align-items: center; min-height: var(--touch); }
   .band.err { background: color-mix(in srgb, var(--err) 16%, var(--card)); box-shadow: inset 3px 0 0 var(--err); }
   .band.info { background: color-mix(in srgb, var(--accent) 12%, var(--card)); box-shadow: inset 3px 0 0 var(--accent); }
   .band.warn { background: color-mix(in srgb, var(--warn) 14%, var(--card)); box-shadow: inset 3px 0 0 var(--warn); }
