@@ -4,6 +4,8 @@ the web UI encrypts (interfaces/api/wire.py), and no host name stands in a URL, 
 
   POST /api/v1/servers        {range: 1h|24h|7d|30d}          servers with their current values, unusual values, disks that are almost full
   POST /api/v1/servers/host   {cid, host, range}              the charts of one server and its containers (each container says whether it has log lines today: `logs_today`)
+                                                              and its details (uptime, cores, load, memory, disk, containers, collector, operating system; `null` for what the
+                                                              collector does not send) with `needs_upgrade` for a collector configuration from before stage 61
 """
 import datetime, re
 
