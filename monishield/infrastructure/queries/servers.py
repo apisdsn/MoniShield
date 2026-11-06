@@ -6,7 +6,7 @@ web UI shows them in the configured time zone. Nothing here is personal data: ho
 """
 import datetime
 
-from monishield.domain import metric_anomaly
+from monishield.domain import host_info, metric_anomaly
 
 RANGES = {'1h': datetime.timedelta(hours=1), '24h': datetime.timedelta(hours=24), '7d': datetime.timedelta(days=7), '30d': datetime.timedelta(days=30)}
 BUCKET = {'1h': 0, '24h': 1800, '7d': 3 * 3600, '30d': 12 * 3600}      # seconds; 0 = the points as they arrived (every 30 s)
@@ -19,6 +19,7 @@ MAX_UNUSUAL = 50
 SPARK_POINTS = 24
 
 HOST_CURRENT = ('cpu', 'mem_used', 'mem_total', 'load1', 'net_rx', 'net_tx')
+NEW_METRICS = ('load5', 'uptime', 'disk_read', 'disk_write', 'cores')     # an older collector configuration sends none of these
 CONTAINER_CURRENT = ('cpu', 'mem_used', 'mem_limit', 'net_rx', 'net_tx', 'restarts')
 
 
@@ -26,6 +27,13 @@ def _naive(t): return t.astimezone(datetime.timezone.utc).replace(tzinfo=None) i
 
 
 def iso(t): return t.strftime('%Y-%m-%dT%H:%M:%SZ') if t else None
+
+
+def _stamp(v):
+    """A time the account side gives as text ('2026-01-01 10:00:00', UTC) -> ISO 8601 with a Z; None when it is not a time."""
+    try: t = datetime.datetime.fromisoformat(v.replace('Z', '+00:00')) if isinstance(v, str) and v else None
+    except ValueError: return None
+    return iso(t.astimezone(datetime.timezone.utc) if t.tzinfo else t) if t else None
 
 
 def _marks(items): return ', '.join('?' * len(items))
@@ -77,7 +85,7 @@ def overview(cur, collectors, now, rng):
         if ctr: continue
         c = by_id[cid]
         disks = _disks(values, cid, host)
-        hosts.append(dict(cid=cid, collector=c['name'], group=c.get('group') or '', platform=c['platform'], status=c['status'], host=host, os=os_text, last_seen=iso(last),
+        hosts.append(dict(cid=cid, collector=c['name'], group=c.get('group') or '', platform=c['platform'], status=c['status'], host=host, os=host_info.parse_os(os_text)['name'], last_seen=iso(last),
                           containers=counts.get((cid, host), 0), disks=disks,
                           **{k: value(values, cid, host, '', k) for k in HOST_CURRENT}))
         disk_full += [dict(cid=cid, collector=c['name'], host=host, mount=d['mount'], pct=d['pct']) for d in disks if metric_anomaly.almost_full(d['used'], d['total'])]
@@ -149,6 +157,30 @@ def _spark(cur, cid, host, ctr, n):
     return [_num(got.get(start + datetime.timedelta(hours=i))) for i in range(SPARK_POINTS)]
 
 
+def _restarts(cur, cid, host, since):
+    """Restarts of the containers of a server since `since`: the rise of each container's restart counter (never below 0)."""
+    rows = cur.execute("SELECT arg_max(v, t) - arg_min(v, t) FROM metric_point WHERE cid = ? AND host = ? AND ctr <> '' AND name = 'restarts' AND t >= ? GROUP BY ctr",
+                       [cid, host, since]).fetchall()
+    return int(sum(max(0.0, d) for (d,) in rows if d is not None))
+
+
+def _details(values, cid, name, collector, platform, me, disks, mount, containers, restarts, n):
+    """The Server Details card: only what the collector sent, `None` for the rest. `containers` only on a Docker host."""
+    one = lambda k: value(values, cid, name, '', k)      # noqa: E731
+    uptime = values.get((cid, name, '', 'uptime', ''))
+    disk = next((d for d in disks if d['mount'] == mount), None)
+    cur = {k: one(k) for k in HOST_CURRENT}
+    memory = dict(used=cur['mem_used'], total=cur['mem_total']) if cur['mem_used'] is not None and cur['mem_total'] is not None else None
+    running = sum(1 for c in containers if c['running'])
+    return dict(
+        uptime_s=_num(uptime[0]) if uptime else None, booted_at=iso(uptime[1] - datetime.timedelta(seconds=float(uptime[0]))) if uptime else None,
+        cores=one('cores'), load=dict(m1=one('load1'), m5=one('load5'), m15=one('load15')), disk_io=dict(read=one('disk_read'), write=one('disk_write')), memory=memory,
+        disk=dict(mount=disk['mount'], used=disk['used'], total=disk['total']) if disk else None,
+        containers=dict(running=running, stopped=len(containers) - running, restarts_24h=restarts) if platform == 'docker' else None,
+        collector=dict(version=collector.get('version'), name=collector['name'], group=collector.get('group') or '', last_seen=_stamp(collector.get('last_seen'))),
+        os=host_info.parse_os(me[3] if me else None))
+
+
 def host(cur, collector, name, now, rng):
     """-> dict for one server, or None when this collector never reported it. `collector` = dict(id, name, platform, status)."""
     n, cid = _naive(now), collector['id']
@@ -159,7 +191,7 @@ def host(cur, collector, name, now, rng):
     disks = _disks(values, cid, name)
     mount = next((d['mount'] for d in disks if d['mount'] == '/'), disks[0]['mount'] if disks else None)
     since = n - RANGES[rng]
-    srv = _series(cur, cid, name, '', ('cpu', 'mem_used', 'mem_total', 'net_rx', 'net_tx', 'load1'), since, n, rng)
+    srv = _series(cur, cid, name, '', ('cpu', 'mem_used', 'mem_total', 'net_rx', 'net_tx', 'load1', 'load5', 'load15', 'disk_read', 'disk_write'), since, n, rng)
     disk = _series(cur, cid, name, '', ('disk_used', 'disk_total'), since, n, rng) if mount else {}
     window = n - max(RANGES[rng], RANGES['24h'])
     containers = []
@@ -169,11 +201,17 @@ def host(cur, collector, name, now, rng):
                                **{k: value(values, cid, name, ctr, k) for k in CONTAINER_CURRENT}))
     containers.sort(key=lambda c: (not c['running'], c['name']))
     pick = lambda d, k, dim='': d.get((k, dim), [])    # noqa: E731
+    current = {k: value(values, cid, name, '', k) for k in HOST_CURRENT}
+    sent = any(v is not None for v in current.values())
+    needs_upgrade = sent and all(value(values, cid, name, '', k) is None for k in NEW_METRICS)
     return dict(
-        cid=cid, collector=collector['name'], group=collector.get('group') or '', platform=collector['platform'], status=collector['status'], host=name, os=me[3] if me else None,
+        cid=cid, collector=collector['name'], group=collector.get('group') or '', platform=collector['platform'], status=collector['status'], host=name, os=host_info.parse_os(me[3] if me else None)['name'],
         last_seen=iso(me[6] if me else max(r[6] for r in rows)), range=rng, bucket_seconds=BUCKET[rng] or None,
-        current={k: value(values, cid, name, '', k) for k in HOST_CURRENT}, disks=disks,
+        current=current, disks=disks, needs_upgrade=needs_upgrade,
+        details=_details(values, cid, name, collector, collector['platform'], me, disks, mount, containers, _restarts(cur, cid, name, n - RANGES['24h']), n),
         series=dict(cpu=pick(srv, 'cpu'), mem_used=pick(srv, 'mem_used'), mem_total=pick(srv, 'mem_total'), load1=pick(srv, 'load1'),
                     disk_mount=mount, disk_used=pick(disk, 'disk_used', mount or ''), disk_total=pick(disk, 'disk_total', mount or ''),
-                    net_rx=pick(srv, 'net_rx'), net_tx=pick(srv, 'net_tx')),
+                    net_rx=pick(srv, 'net_rx'), net_tx=pick(srv, 'net_tx'),
+                    load=dict(m1=pick(srv, 'load1'), m5=pick(srv, 'load5'), m15=pick(srv, 'load15'), cores=value(values, cid, name, '', 'cores')),
+                    disk_io=dict(read=pick(srv, 'disk_read'), write=pick(srv, 'disk_write'))),
         containers=containers)

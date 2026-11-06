@@ -73,8 +73,7 @@
   .tools { order: 1; flex: 0 1 auto; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px; min-width: 0; }
   .ttl { order: 0; flex: 1 1 15rem; min-width: 0; }
   h1 { font-size: 1.375rem; font-weight: 600; line-height: 1.25; color: var(--heading); overflow-wrap: break-word; text-wrap: balance; }
-  h1:focus { outline: none; }
-  h1:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  h1:focus { outline: none; }   /* the title is focused by code on a page change (screen readers); it is not a control, so it never shows a ring */
   .status { margin: 4px 0 0; font-size: 0.78rem; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
   .it { display: inline-flex; align-items: center; white-space: nowrap; }
   .status .it :global(b) { color: var(--fg); font-weight: 600; }

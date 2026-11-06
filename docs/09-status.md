@@ -69,6 +69,7 @@ In order of the requests. "Plan" = section of [`04-plan.md`](04-plan.md).
 | 44 | Scrolling pop-ups cut their own rounded corners | Dialog body scrolls, title and buttons stay | plan stage 53 |
 | 45 | Code still had Indonesian (test data, comments) | Translated; `tests/test_language.py` guards it | CHANGELOG *Maintenance* |
 | 46 | Search texts and IPs visible in request URLs (network panel, server and CDN logs) | Those reads are POSTed with an encrypted body; IP and search text in page addresses after `#` | [`10-user-guide.md`](10-user-guide.md) *Encrypted API traffic* |
+| 47 | Home page and README up to date: four preview tabs including Servers, six feature cards, *Connect a Server in Two Commands*, updated How It Works and Privacy and Security, link preview with servers | `/`; `web/src/pages/Landing.svelte`, `web/src/lib/AppPreview.svelte`, `README.md` | plan stage 60 |
 
 Questions answered along the way, recorded so they are not asked again:
 
@@ -87,6 +88,10 @@ Questions answered along the way, recorded so they are not asked again:
   radius, no text under 12 px) apply to new UI.
 
 ## Next steps (in order)
+
+000000. **Server details (stage 61, done, 2026-11-06)**: the Servers page has a details card and Load Average and Disk I/O charts ([`13-metrics.md`](13-metrics.md) sections 1, 2, 10). Existing collectors send the new numbers only after `install.sh --upgrade` (Windows `install.ps1 -Upgrade`, Kubernetes `helm upgrade`); until then the page shows the upgrade line. Not done: architecture of the server (only read from the OS text when it names one), network values on Kubernetes nodes.
+
+00000. **Home page and README (stage 60, done, 2026-11-06)**: the home page follows the approved mockups; the preview labels "Errors" and "Warnings / App 4xx" are the mockup's wording, while the app's own Overview still says "Error" and "Warning / App 4xx" (align one of them when the owner decides).
 
 0000. **Log Formats page (stage 59, done, 2026-11-06)**: Configuration → *Log Formats* ([`11-log-formats.md`](11-log-formats.md) section 6a). Open: step 1d (`auto` detection, a per-file re-parse when a rule changes, CLI `formats list/test`); until then *Read Today Again* is the way to apply a new rule to files already read. The HTTP cards fall back to the busiest access log when a folder has no ingress.
 

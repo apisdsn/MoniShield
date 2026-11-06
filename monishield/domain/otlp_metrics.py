@@ -12,11 +12,12 @@ The output is a list of points `(host, ctr, name, dim, t, v)`; `ctr` is '' for t
 disk values and '' otherwise.
 
     host:       cpu (%, 100 x (1 - idle share)), mem_used, mem_total (bytes), disk_used, disk_total (bytes, dim = mount point),
-                net_rx, net_tx (bytes per second), load1
+                net_rx, net_tx (bytes per second), load1, load5, load15, cores (logical CPUs), uptime (seconds), disk_read, disk_write
+                (bytes per second, all disks added up)
     container:  cpu (% as Docker reports it, can pass 100 with several cores), mem_used, mem_limit (bytes), net_rx, net_tx
                 (bytes per second), restarts (count)
 
-Network values arrive as counters. `Rates` turns them into bytes per second from the previous sample of the same series, which
+Network and disk values arrive as counters. `Rates` turns them into bytes per second from the previous sample of the same series, which
 the caller keeps in memory (no rate for the first sample, after a counter reset or after a gap of more than 5 minutes).
 Pure: standard library and monishield.domain only."""
 import datetime, math, re
@@ -33,14 +34,17 @@ AGGREGATION = {0: 'cumulative', 1: 'delta', 2: 'cumulative', 'AGGREGATION_TEMPOR
                'AGGREGATION_TEMPORALITY_DELTA': 'delta', 'AGGREGATION_TEMPORALITY_CUMULATIVE': 'cumulative'}
 
 # metric name -> what it feeds
-HOST_GAUGES = {'system.cpu.utilization', 'system.cpu.load_average.1m'}
-HOST_SUMS = {'system.memory.usage', 'system.memory.limit', 'system.filesystem.usage', 'system.network.io'}
+LOAD = {'system.cpu.load_average.1m': 'load1', 'system.cpu.load_average.5m': 'load5', 'system.cpu.load_average.15m': 'load15'}
+SINGLE = {**LOAD, 'system.cpu.logical.count': 'cores', 'system.uptime': 'uptime'}      # one value per server and time
+HOST_GAUGES = {'system.cpu.utilization', *SINGLE}
+HOST_SUMS = {'system.memory.usage', 'system.memory.limit', 'system.filesystem.usage', 'system.network.io', 'system.disk.io'}
 CONTAINER_GAUGES = {'container.cpu.utilization'}
 CONTAINER_SUMS = {'container.memory.usage.total', 'container.memory.usage.limit', 'container.restarts',
                   'container.network.io.usage.rx_bytes', 'container.network.io.usage.tx_bytes'}
 USED = {*HOST_GAUGES, *HOST_SUMS, *CONTAINER_GAUGES, *CONTAINER_SUMS}
-COUNTERS = {'system.network.io', 'container.network.io.usage.rx_bytes', 'container.network.io.usage.tx_bytes'}
+COUNTERS = {'system.network.io', 'system.disk.io', 'container.network.io.usage.rx_bytes', 'container.network.io.usage.tx_bytes'}
 DIRECTION = {'receive': 'net_rx', 'transmit': 'net_tx'}
+DISK_DIRECTION = {'read': 'disk_read', 'write': 'disk_write'}
 
 
 # Values
@@ -141,7 +145,7 @@ class Reader:
         attrs = pairs(dp.get('attributes'))
         v, t = _number(dp), _time(dp.get('timeUnixNano'), self.now, self.max_age)
         if metric in COUNTERS:
-            name = (DIRECTION.get(attrs.get('direction')) if metric == 'system.network.io' else 'net_rx' if metric.endswith('rx_bytes') else 'net_tx')
+            name = (DIRECTION.get(attrs.get('direction')) if metric == 'system.network.io' else DISK_DIRECTION.get(attrs.get('direction')) if metric == 'system.disk.io' else 'net_rx' if metric.endswith('rx_bytes') else 'net_tx')
             if not name: raise Bad('malformed point')
             device = _text(attrs.get('device') or attrs.get('interface')) or ''
             start = _time(dp.get('startTimeUnixNano'), self.now, None, required=False)
@@ -151,7 +155,8 @@ class Reader:
             self.counters.append(dict(host=host, ctr=ctr, name=name, dim=device, t=t, start=start, v=v, delta=agg == 'delta'))
         elif metric == 'system.cpu.utilization':
             if attrs.get('state') == 'idle': self.cpu_idle.setdefault((host, t), []).append(v)
-        elif metric == 'system.cpu.load_average.1m': self.add(host, '', 'load1', '', t, v)
+        elif metric in SINGLE:
+            if v >= 0: self.add(host, '', SINGLE[metric], '', t, v)
         elif metric == 'system.memory.usage':
             state = attrs.get('state')
             if isinstance(state, str): self.mem.setdefault((host, t), {})[state] = v
@@ -293,7 +298,7 @@ class Rates:
 
 
 def rate_points(counters, rates, scope=None):
-    """Network counters -> points: bytes per second of each device, summed per server or container and time."""
+    """Network and disk counters -> points: bytes per second of each device, summed per server or container and time."""
     sums = {}
     for c in counters:
         if c['delta']:

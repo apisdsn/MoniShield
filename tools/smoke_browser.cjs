@@ -23,6 +23,31 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   page.on('response', (r) => { if (r.status() >= 500) problems.push(`${r.status()} ${r.request().method()} ${r.url().replace(BASE, '')}`); });
 
   // public home page (no sign-in), on a wide screen and on a phone: renders, reads the public map, no sideways scroll
+  // the Servers tab of the home page preview: one server on show (its card beside the Server Details card), eight tiles, six charts, nothing cut or sideways
+  for (const width of [1440, 1280, 390]) {
+    const pp = await (await browser.newContext({ viewport: { width, height: 900 }, isMobile: width < 800, hasTouch: width < 800 })).newPage();
+    await pp.goto(BASE + '/');
+    await pp.waitForSelector('#pv-tab-servers');
+    await pp.locator('#pv-tab-servers').click();
+    await pp.waitForTimeout(500);
+    const root = width < 760 ? '.phone' : '.win';
+    const r = await pp.evaluate((root) => {
+      const q = (s) => [...document.querySelectorAll(`${root} ${s}`)].filter((e) => e.getClientRects().length);
+      const h = (els) => els.map((e) => Math.round(e.getBoundingClientRect().height));
+      const cut = q('.tile > span').filter((e) => e.scrollWidth > e.clientWidth).map((e) => `${e.textContent} (${e.scrollWidth} > ${e.clientWidth})`);
+      const card = q('.hc')[0], dtc = q('.dtc')[0];
+      return { tiles: h(q('.tile')), charts: q('.chart').length, chartH: h(q('.chart')), cut, over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+               beside: card && dtc ? Math.abs(card.getBoundingClientRect().top - dtc.getBoundingClientRect().top) < 2 : null, cardH: card && Math.round(card.getBoundingClientRect().height), dtcH: dtc && Math.round(dtc.getBoundingClientRect().height) };
+    }, root);
+    const want = width < 760 ? 2 : 6;
+    if (r.tiles.length !== 8 || new Set(r.tiles).size !== 1) throw new Error(`home preview Servers at ${width}: tiles ${JSON.stringify(r.tiles)}`);
+    if (r.charts !== want || new Set(r.chartH).size !== 1) throw new Error(`home preview Servers at ${width}: charts ${r.charts} (want ${want}), heights ${JSON.stringify(r.chartH)}`);
+    if (r.cut.length) throw new Error(`home preview Servers at ${width}: tile text is cut: ${r.cut.join('; ')}`);
+    if (r.over > 0) throw new Error(`home preview Servers at ${width}: sideways scroll by ${r.over}px`);
+    if (width >= 1101 && (!r.beside || Math.abs(r.cardH - r.dtcH) > 1)) throw new Error(`home preview Servers at ${width}: the host card (${r.cardH}px) and the details card (${r.dtcH}px) are not side by side at one height`);
+    await pp.close();
+  }
+  console.log('ok   home page preview, Servers tab: host card beside the details card, 8 tiles, six charts (two on a phone), nothing cut, no sideways scroll at 1440, 1280 and 390 px');
   for (const width of [1280, 360]) {
     const hp = await (await browser.newContext({ viewport: { width, height: 800 }, isMobile: width < 800, hasTouch: width < 800 })).newPage();
     const errs = [];
@@ -45,10 +70,50 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
       if (early && width >= 800) errs.push('the map loaded before it came near the screen');
     }
     // the dashboard preview tabs switch the page shown (Security, Command Center, back to Overview)
-    for (const id of ['security', 'command-center', 'overview']) {
+    for (const id of ['security', 'command-center', 'servers', 'overview']) {
       await hp.locator(`#pv-tab-${id}`).click();
       if ((await hp.locator(`#pv-tab-${id}`).getAttribute('aria-selected')) !== 'true') errs.push(`preview tab ${id} not selected`);
     }
+    await hp.locator('#pv-tab-overview').press('ArrowRight');
+    if ((await hp.locator('#pv-tab-security').getAttribute('aria-selected')) !== 'true') errs.push('preview tabs: the arrow key does not move to the next tab');
+    // "Connect a server": the platform tabs switch the commands (from collectors.js), arrow keys move, and only the command box scrolls
+    await hp.locator('#home-collector').scrollIntoViewIfNeeded();
+    for (const [id, want] of [['windows', 'install.ps1'], ['kubernetes', 'helm upgrade --install'], ['docker', 'install.sh'], ['linux', 'install.sh']]) {
+      await hp.locator(`#col-tab-${id}`).click();
+      const txt = await hp.locator('#col-panel').innerText();
+      if ((await hp.locator(`#col-tab-${id}`).getAttribute('aria-selected')) !== 'true' || !txt.includes(want) || (id !== 'kubernetes' && !txt.includes('ingest.example.com'))) errs.push(`collector tab ${id}: selected or commands wrong`);
+    }
+    await hp.locator('#col-tab-linux').press('ArrowRight');
+    if ((await hp.locator('#col-tab-docker').getAttribute('aria-selected')) !== 'true') errs.push('collector tabs: the arrow key does not move to the next tab');
+    await hp.locator('#col-tab-windows').click();
+    // "Getting Started": five tabs switch the step shown, arrow keys move, the buttons are disabled at the ends
+    await hp.locator('#home-start').scrollIntoViewIfNeeded();
+    for (const i of [3, 5, 1]) {
+      await hp.locator(`#gs-tab-${i}`).click();
+      if ((await hp.locator(`#gs-tab-${i}`).getAttribute('aria-selected')) !== 'true' || !(await hp.locator('#gs-panel h3').innerText()).trim()) errs.push(`getting started tab ${i} not selected`);
+    }
+    if (!(await hp.locator('#gs-panel .gact .btn').first().isDisabled())) errs.push('getting started: Previous Step is not disabled at the first step');
+    await hp.locator('#gs-tab-1').press('ArrowRight');
+    if ((await hp.locator('#gs-tab-2').getAttribute('aria-selected')) !== 'true') errs.push('getting started: the arrow key does not move to the next tab');
+    await hp.locator('#gs-panel .gact .btn.primary').click();
+    if ((await hp.locator('#gs-tab-3').getAttribute('aria-selected')) !== 'true') errs.push('getting started: Next Step does not move on');
+    // one height and centre line per row of controls: preview tabs, platform tabs and the preview header (wide); 44 px targets on a phone
+    const rows = await hp.evaluate((phone) => {
+      const out = [], vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+      for (const sel of ['.pv .tabs', '.plats', '.pv .hd .tools', '.gact']) for (const bar of document.querySelectorAll(sel)) {
+        const kids = [...bar.children].filter(vis).map((e) => e.getBoundingClientRect());
+        const top = Math.min(...kids.map((r) => r.top)), line = kids.filter((r) => Math.abs(r.top - top) < 8);
+        const hs = line.map((r) => r.height), cs = line.map((r) => r.top + r.height / 2);
+        if (Math.max(...hs) - Math.min(...hs) > 1.01 || Math.max(...cs) - Math.min(...cs) > 1.01) out.push(`${sel}: heights ${hs.map(Math.round)}`);
+      }
+      if (phone) for (const e of document.querySelectorAll('.pv .tabs button, .plats button, .gsteps button, .gact .btn, .guide, .top a.btn, .menubtn, .top .icon-btn')) { const r = e.getBoundingClientRect(); if (vis(e) && (r.width < 43.5 || r.height < 43.5)) out.push(`target ${e.className || e.textContent.trim()} ${Math.round(r.width)}x${Math.round(r.height)}`); }
+      const glyph = [...document.querySelectorAll('.pv .tabs button, .plats button, .menubtn, .top .icon-btn')].filter((e) => /^[×✕✖▲▼◀▶⌄☰]+$/u.test(e.innerText.trim()));
+      if (glyph.length) out.push('glyph used as an icon');
+      const box = document.querySelector('#col-panel');
+      if (box && box.scrollWidth <= box.clientWidth && phone) out.push('the command box does not scroll inside itself on a phone');
+      return out;
+    }, width < 800);
+    if (rows.length) errs.push(`home page consistency: ${rows.join(' | ')}`);
     if (errs.length || st !== 200 || wide > 0 || !drawn) throw new Error(`home page at ${width}px: errors ${errs.join('; ')} map ${st} overflow ${wide}px drawn ${drawn}`);
     await hp.context().close();
     console.log(`ok   home page at ${width}px`);
@@ -354,9 +419,73 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.click('.gfilter .gb:text-is("Client B")');
   if ((await page.locator('.hc').count()) !== 3 || (await page.locator('.gfilter .gb[aria-pressed=true]').count()) !== 1) throw new Error('Servers: group filter Client B');
   await page.click('.gfilter .gb:text-is("All Groups")');
-  await page.click('.hc:has-text("VM-23-71-ubuntu")');
+  await page.click('.hc:has-text("docker-host-01")');
   await page.waitForSelector('.ct tbody tr');
   if ((await page.locator('.ct tbody tr').count()) !== 4 || !(await page.locator('.ct tr.off').count())) throw new Error('Servers: containers table');
+  // Server Details, Load Average and Disk I/O at 1440 and 1280: six charts in two rows of three with one height, tiles of one height,
+  // the details card as high as the host card when one server is on show, the upgrade line on the older server only
+  const rects = async (sel) => page.$$eval(sel, (els) => els.map((e) => { const r = e.getBoundingClientRect(); return { top: Math.round(r.top + scrollY), h: Math.round(r.height), w: Math.round(r.width), left: Math.round(r.left) }; }));
+  const near = (a, b) => Math.abs(a - b) <= 1;
+  const settle = async (sel) => { await page.waitForSelector(sel); await page.waitForTimeout(700); };
+  // the plot areas of the six charts share their left edge and width (the same y-axis width), and no tile text is cut
+  const areas = async () => page.$$eval('.charts canvas', (cs) => cs.map((c) => [c.dataset.left, c.dataset.width].join('/')));
+  const cut = async () => page.$$eval('.dt .tile > span', (els) => els.filter((e) => e.scrollWidth > e.clientWidth).map((e) => `${e.textContent} (${e.scrollWidth} > ${e.clientWidth})`));
+  for (const w of [1100, 700]) {      // two columns, one column
+    await page.setViewportSize({ width: w, height: 1000 });
+    await page.click('.gfilter .gb:text-is("All Groups")');
+    await page.click('.hc:has-text("docker-host-01")');
+    await settle('.charts canvas[data-left]');
+    const a = await areas();
+    if (a.length !== 6 || new Set(a).size !== 1) throw new Error(`Servers ${w}: the plot areas of the charts differ (left/width): ${a.join(' ')}`);
+  }
+  for (const w of [1440, 1366, 1280]) {
+    await page.setViewportSize({ width: w, height: 1000 });
+    await page.click('.gfilter .gb:text-is("All Groups")');
+    await page.click('.hc:has-text("docker-host-01")');
+    await settle('.dt .tile:not(.blk) .tv');
+    const charts = await rects('.charts > section.card');
+    if (charts.length !== 6) throw new Error(`Servers ${w}: ${charts.length} charts, expected 6`);
+    if (!(near(charts[0].top, charts[1].top) && near(charts[1].top, charts[2].top) && near(charts[3].top, charts[4].top) && near(charts[4].top, charts[5].top) && charts[3].top > charts[0].top))
+      throw new Error(`Servers ${w}: the charts are not two rows of three`);
+    if (!charts.every((c) => near(c.h, charts[0].h) && near(c.w, charts[0].w))) throw new Error(`Servers ${w}: chart cards differ in size: ${JSON.stringify(charts.map((c) => [c.w, c.h]))}`);
+    const titles = await page.locator('.charts > section.card h2').allInnerTexts();
+    if (titles.join('|') !== 'CPU|Memory|Disk|Network|Load Average|Disk I/O') throw new Error(`Servers ${w}: chart order ${titles.join('|')}`);
+    const tiles = await rects('.dt .tile');
+    if (tiles.length !== 8 || !tiles.every((t) => near(t.h, tiles[0].h))) throw new Error(`Servers ${w}: tiles ${JSON.stringify(tiles.map((t) => t.h))}`);
+    if ((await page.locator('.dt .up').count()) !== 0) throw new Error('Servers: the upgrade line is shown on a server that sends the new numbers');
+    const a = await areas();
+    if (a.length !== 6 || new Set(a).size !== 1 || a[0].startsWith('undefined')) throw new Error(`Servers ${w}: the plot areas of the charts differ (left/width): ${a.join(' ')}`);
+    const clipped = await page.$$eval('.charts canvas', (cs) => cs.filter((c) => c.dataset.width === undefined).length);
+    if (clipped) throw new Error(`Servers ${w}: chart areas not measured`);
+    if ((await cut()).length) throw new Error(`Servers ${w} (several servers): tile text is cut: ${(await cut()).join('; ')}`);
+    // one server on show: its card and the details card side by side, one height
+    await page.click('.gfilter .gb:text-is("Internal")');
+    await settle('.first .dt .tile:not(.blk) .tv');
+    const [hc] = await rects('.first .hc'), [dt] = await rects('.first .dt'), [row] = await rects('.first');
+    if (!hc || !dt) throw new Error(`Servers ${w}: no host card or details card`);
+    if (row.w >= 1200) {      // beside each other, one height
+      if (!near(hc.h, dt.h) || !near(hc.top, dt.top) || dt.w < hc.w * 1.5) throw new Error(`Servers ${w}: the details card (${dt.h}px) is not as high as the host card (${hc.h}px)`);
+    } else if (dt.top < hc.top + hc.h) throw new Error(`Servers ${w}: the row is ${row.w}px wide, so the details card should sit under the host card`);
+    if ((await cut()).length) throw new Error(`Servers ${w} (one server, row ${row.w}px): tile text is cut: ${(await cut()).join('; ')}`);
+    console.log(`     ${w}: one server on show, row ${row.w}px: ${row.w >= 1200 ? 'side by side' : 'stacked'}, no tile text cut; chart areas ${a[0]}`);
+    if (!/Ubuntu 24\.04 LTS/.test(await page.locator('.first .hc .nm small').innerText()) || /Linux 6\./.test(await page.locator('.first .hc .nm small').innerText())) throw new Error('Servers: the host card should show the short OS name');
+    if (!/Last data/.test(await page.locator('.first .hc .ft').innerText())) throw new Error('Servers: no "Last data" line on the host card');
+    // a Linux host has no Containers tile; the older collector shows the upgrade line, the others do not
+    await page.click('.gfilter .gb:text-is("All Groups")');
+    await page.click('.hc:has-text("web-02")');
+    await settle('.dt .up');
+    if (!/install\.sh --upgrade/.test(await page.locator('.dt .up').innerText())) throw new Error('Servers: the upgrade line of the older server');
+    const old = await rects('.dt .tile');
+    if (old.length !== 7 || !old.every((t) => near(t.h, old[0].h))) throw new Error(`Servers ${w}: tiles of a Linux host ${JSON.stringify(old.map((t) => t.h))}`);
+    await page.click('.hc:has-text("web-01")');
+    await settle('.dt .tile:not(.blk) .tv');
+    await page.waitForTimeout(300);
+    if ((await page.locator('.dt .up').count()) !== 0) throw new Error('Servers: the upgrade line on web-01');
+    await page.click('.gfilter .gb:text-is("All Groups")');
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.click('.hc:has-text("docker-host-01")');
+  console.log('ok   Servers: Server Details and six charts at 1440 and 1280 (rows, heights, tiles, upgrade line)');
   await page.click('.rng button:text-is("7 d")');
   await page.waitForSelector('.charts canvas');
   for (const w of [390, 1280]) {
@@ -408,7 +537,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.click('[role=tab]:has-text("Rules (Advanced)")');
   await page.waitForSelector('.rule.last');
   const ruleNames = await page.$$eval('.rule .who .mono', (es) => es.map((e) => e.textContent));
-  if (!ruleNames.includes('VM-23-71-ubuntu/monishield-app-1') || ruleNames[ruleNames.length - 1] !== '*') throw new Error(`Log Formats: rules ${ruleNames}`);
+  if (!ruleNames.includes('docker-host-01/monishield-app-1') || ruleNames[ruleNames.length - 1] !== '*') throw new Error(`Log Formats: rules ${ruleNames}`);
   if (await page.locator('.rule.last [aria-label="Delete rule"]').count()) throw new Error('Log Formats: the catch-all rule can be deleted');
   await page.locator('.rule').first().locator('button:has-text("Edit")').click();
   await page.waitForSelector('dialog[open] #lf-match');
@@ -419,7 +548,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   // no text glyph as an icon, 44 px targets on a phone, one height per table row, no coloured dash
   const CHECKS = [
     { path: '/collectors', toolbars: ['.tools'], rows: ['.list tbody'], open: '.rowbtn' },
-    { path: '/servers', toolbars: ['.gfilter'], rows: [], open: null },
+    { path: '/servers', toolbars: ['.gfilter'], rows: [], rowsWide: ['.ct tbody'], open: null },
     { path: '/admin/log-formats', toolbars: ['.bar', '.tools'], rows: ['.tbl'], open: null },
     { path: '/command-center', toolbars: ['.ccbar'], rows: [], open: null },
   ];
@@ -444,7 +573,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
       const r = e.getBoundingClientRect();
       if (r.width < 43.5 || r.height < 43.5) out.push(`target ${name(e)} ${Math.round(r.width)}x${Math.round(r.height)}`);
     }
-    for (const sel of arg.rows) for (const tb of document.querySelectorAll(sel)) {
+    for (const sel of arg.rows.concat(arg.phone ? [] : arg.rowsWide || [])) for (const tb of document.querySelectorAll(sel)) {
       const hs = [...tb.querySelectorAll(':scope > tr, :scope > .r:not(.h)')].filter(vis).map((r) => r.getBoundingClientRect().height);
       if (hs.length > 1 && Math.max(...hs) - Math.min(...hs) > 1.01) out.push(`table rows ${sel}: ${hs.map(Math.round)}`);
     }
@@ -453,7 +582,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     for (const e of document.querySelectorAll('main *')) if (!e.children.length && /^[–-]$/.test((e.textContent || '').trim()) && vis(e) && getComputedStyle(e).color !== muted) out.push(`coloured dash ${name(e.parentElement)} ${getComputedStyle(e).color}`);
     return out;
   }, arg);
-  for (const [width, phone] of [[1440, false], [390, true]]) {
+  for (const [width, phone] of [[1440, false], [1280, false], [390, true]]) {
     await page.setViewportSize({ width, height: 1000 });
     for (const c of CHECKS) {
       await page.goto(BASE + c.path);
@@ -480,6 +609,8 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
       await page.waitForTimeout(800);
       const r = await page.evaluate((wide) => {
         const out = [], t = document.querySelector('header.top h1').getBoundingClientRect(), c = document.querySelector('header.top .tools').getBoundingClientRect();
+        document.querySelector('header.top h1').focus();   // focused by code on a page change: no ring (it is not a control)
+        if (getComputedStyle(document.querySelector('header.top h1')).outlineStyle !== 'none') out.push('the page title shows a focus ring');
         if (wide && (c.top > t.bottom || c.bottom < t.top)) out.push(`header controls (${Math.round(c.top)}-${Math.round(c.bottom)}) are not on the title's row (${Math.round(t.top)}-${Math.round(t.bottom)})`);
         for (const box of document.querySelectorAll('.kpis')) {
           const cards = [...box.querySelectorAll(':scope > .kpi')].filter((k) => k.getBoundingClientRect().height > 0);
@@ -502,7 +633,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.goto(BASE + '/servers');
   await page.waitForSelector('.hc');
   const hostNames = await page.$$eval('.hc .hn, .hc h3, .hc h2', (es) => es.map((e) => e.textContent.trim()).filter(Boolean));
-  const leaks = apiUrls.filter((u) => /[?&](host|cid|service|namespace)=/.test(u) || ['VM-23-71-ubuntu', ...hostNames].some((h) => h.length > 3 && u.includes(encodeURIComponent(h))));
+  const leaks = apiUrls.filter((u) => /[?&](host|cid|service|namespace)=/.test(u) || ['docker-host-01', ...hostNames].some((h) => h.length > 3 && u.includes(encodeURIComponent(h))));
   if (leaks.length) throw new Error(`site data in a URL: ${[...new Set(leaks)].slice(0, 3).join(' ')}`);
   console.log(`ok   no host, service or namespace in any /api URL (${apiUrls.length} requests, ${hostNames.length} host names checked)`);
 

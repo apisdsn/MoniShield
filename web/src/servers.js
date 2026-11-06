@@ -154,3 +154,75 @@ export function hostSections(hosts, pick = 'all') {
   const all = groupItems((hosts || []).map((h) => ({ ...h, group: h.group || '' }))).map((g) => ({ name: g.name, hosts: g.items }));
   return pick === 'all' || !all.some((g) => g.name === pick) ? all : all.filter((g) => g.name === pick);
 }
+
+// Server Details (stage 61)
+/** "12 d 4 h", "4 h 12 min", "35 min": the two largest units of an uptime (the texts come from the dictionary through `tr`). */
+export function uptimeText(seconds, tr) {
+  if (seconds === null || seconds === undefined) return '–';
+  const m = Math.floor(seconds / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
+  if (d) return tr('sv.dt.up_dh', { d, h: h % 24 });
+  return h ? tr('sv.dt.up_hm', { h, m: m % 60 }) : tr('sv.dt.up_m', { m });
+}
+
+/** "1.3 / 1.9 GB" when both sizes have the same unit, else "800 MB / 1.9 GB"; '–' without a value. */
+export function pairBytes(used, total, lang) {
+  if (used === null || used === undefined || total === null || total === undefined) return '–';
+  const a = bytes(used, lang), b = bytes(total, lang), ua = a.slice(a.lastIndexOf(' ') + 1);
+  return ua === b.slice(b.lastIndexOf(' ') + 1) ? `${a.slice(0, a.lastIndexOf(' '))} / ${b}` : `${a} / ${b}`;
+}
+
+/** The text that tells an admin how to get the new numbers from a collector configuration of before stage 61. */
+export const upgradeKey = (platform) => (platform === 'windows' ? 'sv.dt.upgrade_win_text' : platform === 'kubernetes' ? 'sv.dt.upgrade_k8s_text' : 'sv.dt.upgrade_text');
+
+/**
+ * The tiles of the Server Details card: [{key, label, value, sub}]. `d` = the `details` of POST /api/v1/servers/host, `tr` = translate(key, params),
+ * `tzMin` = the site's offset in minutes. A missing value is '–' and an empty `sub` is ''. The Containers tile exists only on a Docker host
+ * (`d.containers` is null elsewhere).
+ */
+export function detailTiles(d, tr, lang, tzMin) {
+  const dash = '–', one = (n, k, k1) => (n === 1 ? tr(k1) : tr(k, { n: num(n, lang) }));
+  const cores = d.cores, load = d.load || {}, mem = d.memory, disk = d.disk, os = d.os || {}, col = d.collector || {};
+  const free = (x) => (x ? tr('sv.dt.free_cap', { size: bytes(Math.max(0, x.total - x.used), lang) }) : '');
+  const tiles = [
+    { key: 'uptime', label: tr('sv.dt.uptime'), value: uptimeText(d.uptime_s, tr), sub: d.booted_at ? tr('sv.dt.since_cap', { time: axisLabel(d.booted_at, '7d', tzMin, lang) }) : '' },
+    { key: 'load', label: tr('sv.dt.load'), value: [load.m1, load.m5, load.m15].every((v) => v === null || v === undefined) ? dash : [load.m1, load.m5, load.m15].map((v) => num(v, lang, 2)).join(' · '),
+      sub: cores ? one(cores, 'sv.dt.of_cores_cap', 'sv.dt.of_cores_one_cap') : '' },
+    { key: 'cpu', label: tr('sv.dt.cpu'), value: cores ? one(cores, 'sv.dt.cores_count', 'sv.dt.cores_one_count') : dash, sub: os.arch || '' },
+    { key: 'memory', label: tr('sv.dt.memory'), value: mem ? pairBytes(mem.used, mem.total, lang) : dash, sub: free(mem) },
+    { key: 'disk', label: tr('sv.dt.disk', { mount: disk ? disk.mount : '/' }), value: disk ? pairBytes(disk.used, disk.total, lang) : dash, sub: free(disk) },
+  ];
+  const c = d.containers;
+  if (c) {
+    const r = c.restarts_24h || 0;
+    tiles.push({ key: 'containers', label: tr('sv.dt.containers'), value: tr('sv.dt.running_cap', { n: num(c.running, lang) }),
+      sub: `${tr('sv.dt.stopped_cap', { n: num(c.stopped, lang) })} · ${r === 1 ? tr('sv.dt.restart_one_cap') : tr('sv.dt.restarts_cap', { n: num(r, lang) })}` });
+  }
+  tiles.push({ key: 'collector', label: tr('sv.dt.collector'), value: col.version || dash, sub: [col.name, col.group].filter(Boolean).join(' · ') },
+    { key: 'os', label: tr('sv.dt.os'), value: os.name || dash, sub: os.kernel || '' });
+  return tiles;
+}
+
+/** The Load Average chart: three lines and the dashed core count (only once the server sends the number of cores). `on` puts a series on the chart's time axis. */
+export function loadSets(series, tr, on = (rows) => points(rows).v) {
+  const l = series.load || {};
+  const m1 = on(l.m1);
+  const sets = [{ label: tr('sv.l.m1'), data: m1, color: '--c1' }, { label: tr('sv.l.m5'), data: on(l.m5), color: '--c2' }, { label: tr('sv.l.m15'), data: on(l.m15), color: '--c3' }];
+  if (l.cores) sets.push({ label: tr('sv.l.cores'), data: m1.map(() => l.cores), color: '--muted', dashed: true });
+  return sets;
+}
+
+/** The Disk I/O chart: bytes read and written per second. */
+export function diskIoSets(series, tr, on = (rows) => points(rows).v) {
+  const io = series.disk_io || {};
+  return [{ label: tr('sv.l.read'), data: on(io.read), color: '--c1' }, { label: tr('sv.l.written'), data: on(io.write), color: '--c2' }];
+}
+
+/** The time axis shared by the charts of one server: every time any series has a point, oldest first. The charts then have the same labels, so
+ *  the time ticks of the six charts fall at the same places. */
+export const sharedAxis = (...lists) => [...new Set(lists.flatMap((rows) => (rows || []).filter(([, v]) => v !== null && v !== undefined).map(([at]) => at)))].sort();
+
+/** `rows` on the shared axis: [value or null] per time. */
+export const onAxis = (axis, rows) => { const by = new Map((rows || []).map(([at, v]) => [at, v])); return axis.map((at) => by.get(at) ?? null); };
+
+/** A tick of the Load Average axis: 6, 4, 2, 0 and 1.5, 1, 0.5 (one decimal only when needed). */
+export const loadTick = (v, lang) => num(+Number(v).toFixed(2), lang);

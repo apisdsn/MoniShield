@@ -218,6 +218,23 @@ def test_seven_days_reads_hours_and_adds_the_hour_in_progress(world):
     assert len(pts) >= 2
 
 
+def test_containers_say_whether_they_have_log_lines_today(world):
+    """`logs_today`: the container's name is a service with log lines in today's folder of the collector source (what the sidebar lists)."""
+    from monishield.domain import timezone
+    tc, cid, store = world
+    seed_basic(store, cid)
+    store.add(cid, series('web-01', 'api', 'mem_used', HOUR - datetime.timedelta(hours=3), 120 * 3, 400.0 * MB), {('web-01', 'api'): dict(os=None, image='repo/api:1')}, NOW)
+    flags = lambda: {c['name']: c['logs_today'] for c in post_host(tc, cid, 'web-01', '24h').json()['containers']}   # noqa: E731
+    assert flags() == {'api': False, 'old': False}                                  # nothing ingested for today yet
+    con = tc.app.state.sources['collector'].con
+    today = timezone.current().today(datetime.datetime.now(UTC))
+    con.execute('INSERT INTO agg_service (folder, service, lines) VALUES (?, ?, ?), (?, ?, ?)', [today, 'api', 12, today, 'old', 0])
+    assert flags() == {'api': True, 'old': False}                                   # a service with no lines does not count
+    con.execute('DELETE FROM agg_service')
+    con.execute('INSERT INTO agg_service (folder, service, lines) VALUES (?, ?, ?)', [today - datetime.timedelta(days=1), 'api', 12])
+    assert flags() == {'api': False, 'old': False}                                  # yesterday's lines are not today's
+
+
 def test_host_detail_containers(world):
     tc, cid, store = world
     seed_basic(store, cid)
@@ -242,3 +259,80 @@ def test_disk_chart_falls_back_to_the_first_mount_point(world):
     s = post_host(tc, cid, 'win-01', '1h').json()['series']
     assert s['disk_mount'] == 'C:\\' and s['disk_used'][0][1] == 30.0
     assert post_host(tc, cid, 'win-01').json()['series']['cpu'] == []
+
+
+# Server details, load and disk traffic (stage 61)
+OS_TEXT = 'Ubuntu 24.04.5 LTS (Noble Numbat) (Linux web-01 6.8.0-138-generic #1 SMP x86_64)'
+
+
+def seed_details(store, cid, host='web-01', os_text=OS_TEXT):
+    pts = (series(host, '', 'cpu', ago(minutes=30), 60, 12.0) + series(host, '', 'mem_used', ago(minutes=30), 60, 2000.0 * MB)
+           + series(host, '', 'mem_total', ago(minutes=30), 60, 8000.0 * MB)
+           + series(host, '', 'load1', ago(minutes=30), 60, 1.0) + series(host, '', 'load5', ago(minutes=30), 60, 2.0) + series(host, '', 'load15', ago(minutes=30), 60, 3.0)
+           + series(host, '', 'cores', ago(minutes=30), 60, 4.0) + series(host, '', 'uptime', ago(minutes=30), 60, lambda i: 3600.0 + 30 * i)
+           + series(host, '', 'disk_read', ago(minutes=30), 60, 100.0) + series(host, '', 'disk_write', ago(minutes=30), 60, 200.0)
+           + series(host, '', 'disk_used', ago(minutes=30), 60, 50.0, dim='/') + series(host, '', 'disk_total', ago(minutes=30), 60, 100.0, dim='/'))
+    store.add(cid, pts, {(host, ''): dict(os=os_text, image=None)}, NOW)
+
+
+def test_host_details_and_chart_series(world):
+    tc, cid, store = world
+    seed_details(store, cid)
+    out = post_host(tc, cid, 'web-01', '1h').json()
+    d = out['details']
+    assert out['needs_upgrade'] is False and d['cores'] == 4.0 and d['load'] == dict(m1=1.0, m5=2.0, m15=3.0)
+    assert d['uptime_s'] == 3600.0 + 30 * 59 and d['booted_at'].endswith('Z')
+    assert d['memory'] == dict(used=2000.0 * MB, total=8000.0 * MB) and d['disk'] == dict(mount='/', used=50.0, total=100.0)
+    assert d['os'] == dict(name='Ubuntu 24.04.5 LTS', kernel='Linux 6.8.0-138-generic', arch='x86_64') and out['os'] == 'Ubuntu 24.04.5 LTS'
+    assert d['collector']['name'] == 'web-01' and d['collector']['group'] == '' and d['collector']['last_seen'].endswith('Z') and 'version' in d['collector']
+    assert d['containers'] is None                                          # a Linux collector: no container tile
+    s = out['series']
+    assert [len(s['load'][k]) for k in ('m1', 'm5', 'm15')] == [60, 60, 60] and s['load']['m5'][0][1] == 2.0 and s['load']['cores'] == 4.0
+    assert len(s['disk_io']['read']) == 60 and s['disk_io']['write'][0][1] == 200.0
+
+
+def test_load_and_disk_series_follow_the_range_step(world):
+    tc, cid, store = world
+    seed_details(store, cid)
+    s = post_host(tc, cid, 'web-01', '24h').json()['series']
+    assert 1 <= len(s['load']['m1']) <= 2 and s['disk_io']['read'][0][1] == 100.0
+
+
+def test_an_older_collector_configuration_needs_the_upgrade(world):
+    tc, cid, store = world
+    seed_basic(store, cid)
+    out = post_host(tc, cid, 'web-01', '1h').json()
+    d = out['details']
+    assert out['needs_upgrade'] is True and d['cores'] is None and d['uptime_s'] is None and d['booted_at'] is None and d['load']['m5'] is None
+    assert d['load']['m1'] == 0.5 and d['memory'] is not None and out['series']['load']['m5'] == [] and out['series']['disk_io'] == dict(read=[], write=[])
+    assert d['os']['name'] == 'Ubuntu 24.04' and d['os']['kernel'] is None
+
+
+def test_one_new_metric_is_enough_to_not_need_the_upgrade(world):
+    tc, cid, store = world
+    store.add(cid, series('web-01', '', 'cpu', ago(minutes=5), 5, 10.0) + series('web-01', '', 'uptime', ago(minutes=5), 5, 100.0), {('web-01', ''): dict(os=None, image=None)}, NOW)
+    assert post_host(tc, cid, 'web-01', '1h').json()['needs_upgrade'] is False
+
+
+def test_a_host_without_current_values_does_not_need_the_upgrade(world):
+    tc, cid, store = world
+    store.add(cid, series('web-01', 'api', 'restarts', ago(minutes=5), 5, 1.0), {('web-01', ''): dict(os=None, image=None), ('web-01', 'api'): dict(os=None, image='i:1')}, NOW)
+    out = post_host(tc, cid, 'web-01', '1h').json()
+    assert out['needs_upgrade'] is False and out['details']['os'] == dict(name=None, kernel=None, arch=None) and out['details']['memory'] is None
+
+
+def test_container_counts_and_restarts_of_a_docker_host(world):
+    from monishield.infrastructure.queries import servers as q
+    tc, cid, store = world
+    seed_details(store, cid)
+    store.add(cid, series('web-01', 'api', 'restarts', ago(hours=20), 40, lambda i: 1.0 + (i >= 20) * 2 + (i >= 30)) + series('web-01', 'api', 'cpu', ago(minutes=2), 4, 1.0)
+              + series('web-01', 'db', 'restarts', ago(hours=20), 40, lambda i: 5.0 if i < 20 else 0.0)          # counter reset: not a negative count
+              + series('web-01', 'old', 'cpu', ago(hours=5), 4, 1.0),
+              {('web-01', 'api'): dict(os=None, image='i:1'), ('web-01', 'db'): dict(os=None, image='i:2'), ('web-01', 'old'): dict(os=None, image='i:3')}, NOW)
+    store.rows("UPDATE metric_target SET last_seen = ? WHERE ctr IN ('old', 'db') RETURNING 1", [(ago(hours=5)).replace(tzinfo=None)])
+    cur = tc.app.state.metrics.cursor()
+    try: out = q.host(cur, dict(id=cid, name='dock-01', platform='docker', status='online', version='0.163.2', last_seen='2026-01-01 00:00:00', group='prod'), 'web-01', datetime.datetime.now(UTC), '1h')
+    finally: cur.close()
+    d = out['details']
+    assert d['containers'] == dict(running=1, stopped=2, restarts_24h=3)
+    assert d['collector'] == dict(version='0.163.2', name='dock-01', group='prod', last_seen='2026-01-01T00:00:00Z')
