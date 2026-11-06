@@ -1523,3 +1523,10 @@ volume band, Overview, Trends) read the folder's access log when it has no ingre
 owner's request: no date picker on pages that do not depend on a date, a consistent Collectors list (one-line chips, status tiles as the filter),
 and the Servers reads as POST with the parameters in the body (a host name never stands in a URL).
 
+## Stage 60 — Home page and README up to date (done, 2026-11-06)
+
+Owner approval 2026-11-06, mockups "Home page, full" and "Home page update on a phone" on the design canvas. `web/src/lib/AppPreview.svelte` (four tabs, the app's
+sidebar and header drawn with the app's icons and tokens, sample data only), `web/src/pages/Landing.svelte` (navigation with *Collector*, six feature cards, the
+*Connect a Server in Two Commands* section with real platform tabs and commands from `installSteps`, updated architecture and six privacy cards), new `prev`, `next`
+and `menu` icons, `home_meta.py` and the link preview images mention servers, `README.md` rewritten. The browser smoke test checks the new tabs, the commands per platform, one height per row of
+controls, 44 px targets and no sideways scroll on the home page.
