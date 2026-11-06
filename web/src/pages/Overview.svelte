@@ -36,9 +36,10 @@
     const my = ++seq;
     busy = true; error = null; onready?.(false);
     const f = encodeURIComponent(sum.folder);
-    const hasNg = sum.services.some((s) => s.service === NG && s.lines);
+    const http = sum.http_service;   // the ingress, else the busiest access log of the folder
+    const hasNg = !!http && sum.services.some((s) => s.service === http && s.lines);
     try {
-      const [o, n] = await Promise.all([api.get(`/api/v1/folders/${f}/overview`), hasNg ? api.get(`/api/v1/folders/${f}/services/${NG}`) : null]);
+      const [o, n] = await Promise.all([api.get(`/api/v1/folders/${f}/overview`), hasNg ? api.get(`/api/v1/folders/${f}/services/${encodeURIComponent(http)}`) : null]);
       if (my === seq) view = { folder: sum.folder, summary: sum, page: o, nginx: n };
     } catch (e) {
       if (my === seq) error = e;
@@ -56,7 +57,7 @@
 
   const page = $derived(view?.page), nginx = $derived(view?.nginx), summ = $derived(view?.summary);
   const svc = $derived(summ?.services || []);
-  const ngRow = $derived(svc.find((s) => s.service === NG && s.lines) || null);
+  const ngRow = $derived(svc.find((s) => s.service === summ?.http_service && s.lines) || null);
 
   // change vs the previous folder only over comparable services (old: comparable/dlt, inv. §2.0)
   const cmp = $derived(svc.filter((s) => s.lines && s.prev && s.prev.lines >= 0.5 * s.lines));
