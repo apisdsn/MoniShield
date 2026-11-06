@@ -285,6 +285,28 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.keyboard.press('Escape');
   console.log('ok   Collectors: sections per group, fold (remembered), search, status filter, change group, metric options and the upgrade command');
 
+  // pages that do not depend on a date have no date picker; the data pages keep it, and the header controls stay at the right edge
+  for (const path of ['/servers', '/collectors']) {
+    await page.goto(BASE + path);
+    await page.waitForSelector('header.top');
+    if (await page.locator('#folder-select').count()) throw new Error(`the date picker is shown on ${path}`);
+  }
+  await page.goto(BASE + '/overview');
+  await page.waitForSelector('#folder-select');
+  for (const w of [1440, 390]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.goto(BASE + '/servers');
+    await page.waitForSelector('header.top .bar');
+    const gap = await page.evaluate(() => {
+      const bar = document.querySelector('header.top .bar').getBoundingClientRect();
+      const last = [...document.querySelectorAll('header.top .bar > *, header.top .bar .tools > *')].map((e) => e.getBoundingClientRect()).filter((r) => r.width).reduce((m, r) => Math.max(m, r.right), 0);
+      return bar.right - last;
+    });
+    if (gap > 24) throw new Error(`header controls are not at the right edge at ${w} px (gap ${gap})`);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  console.log('ok   no date picker on Servers and Collectors, still on the Overview; header controls right-aligned at 1440 and 390 px');
+
   await page.goto(BASE + '/servers');
   await page.waitForSelector('.hc');
   await page.waitForSelector('.charts canvas');

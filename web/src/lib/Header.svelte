@@ -13,7 +13,7 @@
   import GlobalSearch from './GlobalSearch.svelte';
   import SyncButton from './SyncButton.svelte';
   import { APP_NAME } from '../brand.js';
-  let { me, route, folders, folder, folderDisabled = false, sources = [], source = 's3', onsource = null, onfolder, folderInfo = '', onreload, onlogout, onmenu, drawerOpen = false,
+  let { me, route, folders, folder, folderDisabled = false, showDate = true, sources = [], source = 's3', onsource = null, onfolder, folderInfo = '', onreload, onlogout, onmenu, drawerOpen = false,
         menuBtn = $bindable(), onsynced = null, title, sysTitle = false, status = [], titleEl = $bindable() } = $props();
 
   function segKey(e, values, current, set) {
@@ -30,6 +30,7 @@
     <button bind:this={menuBtn} class="icon-btn burger" onclick={onmenu} aria-expanded={drawerOpen} aria-controls="side" aria-label={$t('nav.open')}>☰</button>
     <span class="brand" aria-hidden="true"><Logo size={24} />{APP_NAME}</span>
     <div class="tools">
+      {#if sources.length > 1 || (showDate && folders?.length)}
       <div class="where">
         {#if sources.length > 1}
           <div class="seg" role="radiogroup" aria-label={$t('src.label')} tabindex="-1" onkeydown={(e) => segKey(e, sources, source, (v) => onsource?.(v))}>
@@ -39,7 +40,7 @@
             {/each}
           </div>
         {/if}
-        {#if folders?.length}<FolderPicker {folders} value={folder} info={folderInfo} disabled={folderDisabled} onchange={onfolder} />{/if}
+        {#if showDate && folders?.length}<FolderPicker {folders} value={folder} info={folderInfo} disabled={folderDisabled} onchange={onfolder} />{/if}
       </div>
       {#if folders?.length}<GlobalSearch {folder} />{/if}
       {#if me?.role === 'admin'}<SyncButton {onsynced} />{/if}

@@ -5,7 +5,7 @@
   import { get } from 'svelte/store';
   import { lang, t } from './i18n.js';
   import { api, session, offline, lastActivity, retryNow, onReconnect } from './api.js';
-  import { route, go, build, parse, ADMIN } from './state.js';
+  import { route, go, build, parse, ADMIN, NO_DATE } from './state.js';
   import { setSite } from './site.js';
   import { fLabel, isFilling, logRange, num, sysName, tLocal, SPARSE_LINES } from './format.js';
   import { localToday } from './tz.js';
@@ -307,7 +307,7 @@
   {#if drawer}<button class="backdrop" aria-label={$t('nav.close')} onclick={closeDrawer}></button>{/if}
 
   <div class="wrap" class:collapsed inert={drawer || undefined}>
-    <Header {me} route={{ ...$route, folder }} {folders} {folder} folderDisabled={$route.tab === 'trends' || !isDataTab}
+    <Header {me} route={{ ...$route, folder }} {folders} {folder} showDate={!NO_DATE.includes($route.tab)} folderDisabled={$route.tab === 'trends' || !isDataTab}
       sources={noSource ? [] : meta?.sources || []} source={$route.source} onsource={setSource} onfolder={setFolder} folderInfo={pickerInfo} onreload={reload} {onsynced} onlogout={logout} onmenu={openDrawer} drawerOpen={drawer} bind:menuBtn
       {title} sysTitle={$route.tab === 'service'} {status} bind:titleEl={h1} />
     {#if subtitle}<p class="sub"><span class="dot ok" aria-hidden="true"></span>{subtitle}</p>{/if}

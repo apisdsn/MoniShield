@@ -22,6 +22,9 @@ import { setSource } from './api.js';
 
 export const TABS = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs', 'servers'];
 export const ADMIN = ['admin/users', 'admin/ingest', 'collectors'];
+/** Pages that do not depend on the chosen date: the header hides the date picker there (the source switch is hidden on the same
+ *  pages and on the Servers page by App.svelte). Servers has its own range; Collectors and Log Formats are not per date. */
+export const NO_DATE = ['servers', 'collectors', 'admin/log-formats'];
 export const SOURCES = ['s3', 'kafka', 'collector'];   // data sources (the API's ?source=); S3 is the default and is not written to the address
 const DIALOGS = ['password', 'email', 'admin/configuration', 'admin/notifications'];
 const SERVER = /^\/(api|map|swagger|assets|fonts)(\/|$)/;   // paths the server answers itself (never app pages)
