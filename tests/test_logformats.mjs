@@ -23,9 +23,9 @@ test('override refuses what a rule cannot say', () => {
 });
 
 test('matching: globs, namespace, first rule wins, case sensitive', () => {
-  const r = rules([['VM-23/*', 'plain'], ['web-*', 'nginx-combined'], ['*', 'spring-boot']]);
-  assert.equal(r[matchIndex(r, 'VM-23', 'anything')].format, 'plain');
-  assert.equal(r[matchIndex(r, 'vm-23', 'anything')].format, 'spring-boot');
+  const r = rules([['APP-01/*', 'plain'], ['web-*', 'nginx-combined'], ['*', 'spring-boot']]);
+  assert.equal(r[matchIndex(r, 'APP-01', 'anything')].format, 'plain');
+  assert.equal(r[matchIndex(r, 'app-01', 'anything')].format, 'spring-boot');
   assert.equal(r[matchIndex(r, 'x', 'web-shop')].format, 'nginx-combined');
   assert.ok(ruleMatches({ match: 'a?c' }, null, 'abc') && !ruleMatches({ match: 'a?c' }, null, 'abbc'));
   assert.equal(overrideKey('host.1', 'svc'), 'host.1/svc');

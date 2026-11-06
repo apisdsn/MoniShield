@@ -394,7 +394,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.click('.gfilter .gb:text-is("Client B")');
   if ((await page.locator('.hc').count()) !== 3 || (await page.locator('.gfilter .gb[aria-pressed=true]').count()) !== 1) throw new Error('Servers: group filter Client B');
   await page.click('.gfilter .gb:text-is("All Groups")');
-  await page.click('.hc:has-text("VM-23-71-ubuntu")');
+  await page.click('.hc:has-text("docker-host-01")');
   await page.waitForSelector('.ct tbody tr');
   if ((await page.locator('.ct tbody tr').count()) !== 4 || !(await page.locator('.ct tr.off').count())) throw new Error('Servers: containers table');
   await page.click('.rng button:text-is("7 d")');
@@ -448,7 +448,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.click('[role=tab]:has-text("Rules (Advanced)")');
   await page.waitForSelector('.rule.last');
   const ruleNames = await page.$$eval('.rule .who .mono', (es) => es.map((e) => e.textContent));
-  if (!ruleNames.includes('VM-23-71-ubuntu/monishield-app-1') || ruleNames[ruleNames.length - 1] !== '*') throw new Error(`Log Formats: rules ${ruleNames}`);
+  if (!ruleNames.includes('docker-host-01/monishield-app-1') || ruleNames[ruleNames.length - 1] !== '*') throw new Error(`Log Formats: rules ${ruleNames}`);
   if (await page.locator('.rule.last [aria-label="Delete rule"]').count()) throw new Error('Log Formats: the catch-all rule can be deleted');
   await page.locator('.rule').first().locator('button:has-text("Edit")').click();
   await page.waitForSelector('dialog[open] #lf-match');
@@ -544,7 +544,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.goto(BASE + '/servers');
   await page.waitForSelector('.hc');
   const hostNames = await page.$$eval('.hc .hn, .hc h3, .hc h2', (es) => es.map((e) => e.textContent.trim()).filter(Boolean));
-  const leaks = apiUrls.filter((u) => /[?&](host|cid|service|namespace)=/.test(u) || ['VM-23-71-ubuntu', ...hostNames].some((h) => h.length > 3 && u.includes(encodeURIComponent(h))));
+  const leaks = apiUrls.filter((u) => /[?&](host|cid|service|namespace)=/.test(u) || ['docker-host-01', ...hostNames].some((h) => h.length > 3 && u.includes(encodeURIComponent(h))));
   if (leaks.length) throw new Error(`site data in a URL: ${[...new Set(leaks)].slice(0, 3).join(' ')}`);
   console.log(`ok   no host, service or namespace in any /api URL (${apiUrls.length} requests, ${hostNames.length} host names checked)`);
 
