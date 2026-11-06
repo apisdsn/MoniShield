@@ -2,7 +2,7 @@
      and almost-full disks, one card per server (CPU, memory and disk bars), four charts for the chosen server and a table of its
      containers (a list of cards on phones). GET /api/v1/servers and /api/v1/servers/host, refreshed every 30 seconds. Numbers and names only. -->
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { route, build } from '../state.js';
@@ -48,9 +48,14 @@
   }
 
   // the server list: again when the range changes, on the reload button and every 30 seconds
-  $effect(() => { void [range, reloadKey]; loadOverview(); });
-  // the chosen server: again when another one is picked or the list changed it
-  $effect(() => { void [current && hostKey(current), range, reloadKey]; if (current && detail && hostKey(detail) !== hostKey(current)) detail = null; loadDetail(); });
+  // (untrack: the loads read and write state, which must not make the effect run again; it once asked for the host without end)
+  $effect(() => { void [range, reloadKey]; untrack(loadOverview); });
+  // the chosen server: again when another one is picked, the range changes or the reload button is used
+  $effect(() => {
+    const key = current && hostKey(current);
+    void [range, reloadKey];
+    untrack(() => { if (key && detail && hostKey(detail) !== key) detail = null; loadDetail(); });
+  });
   onMount(() => {
     const id = setInterval(() => { now = Date.now(); loadOverview(); loadDetail(); }, REFRESH_MS);
     return () => clearInterval(id);

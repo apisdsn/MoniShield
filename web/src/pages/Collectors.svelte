@@ -9,7 +9,7 @@
   import { api } from '../api.js';
   import { route, build } from '../state.js';
   import { locale, num, tLocal, utcToLocal } from '../format.js';
-  import { NONE_KEY, PLATFORMS, ago, checkGroup, checkName, checkOptions, counts, defaults, editable, filterRows, foldAll, groupNames, keySteps, payload, sections, sends, statusTally, updateSteps, upgradeSteps } from '../collectors.js';
+  import { NONE_KEY, PLATFORMS, ago, checkGroup, checkName, checkOptions, counts, defaults, editable, filterRows, foldAll, groupNames, keySteps, payload, sections, sends, statusTally, updateSteps, upgradeSteps, shortVersion } from '../collectors.js';
   import { load as stored, save } from '../store.js';
   import { toast } from '../lib/Toast.svelte';
   import Dialog from '../lib/Dialog.svelte';
@@ -237,7 +237,7 @@
                     <td class="snd" data-label={$t('cl.col.sends')}>
                       <span class="chips">{#each chips(r) as c}<span class="chip">{chipText(c)}</span>{:else}<span class="muted">{$t('cl.sends.nothing')}</span>{/each}</span>
                     </td>
-                    <td data-label={$t('cl.col.version')} class="ver">{r.version || $t('cl.none')}</td>
+                    <td data-label={$t('cl.col.version')} class="ver" title={r.version || null}>{shortVersion(r.version) || $t('cl.none')}</td>
                     <td data-label={$t('cl.col.seen')} class="seen" title={exact(r.last_seen)}>{seen(r)}</td>
                     <td data-label={$t('col.status')}><SeverityTag level={TONE[r.status]} text={$t(`cl.st.${r.status}`)} /></td>
                   </tr>
@@ -263,7 +263,7 @@
           <dl>
             <dt>{$t('cl.p.platform')}</dt><dd>{$t(`cl.platform.${r.platform}`)}</dd>
             <dt>{$t('cl.p.group')}</dt><dd>{r.group || $t('cl.no_group')}</dd>
-            <dt>{$t('cl.p.version')}</dt><dd>{r.version || $t('cl.none')}</dd>
+            <dt>{$t('cl.p.version')}</dt><dd>{shortVersion(r.version) || $t('cl.none')}</dd>
             <dt>{$t('cl.p.seen')}</dt><dd title={exact(r.last_seen)}>{r.last_seen && r.enrolled_at ? `${rel(r.last_seen)} · ${exact(r.last_seen)}` : $t('cl.never')}</dd>
             <dt>{$t('cl.p.ip')}</dt><dd class="mono">{r.last_ip || $t('cl.none')}</dd>
             <dt>{$t('cl.p.sends')}</dt>
@@ -418,7 +418,8 @@
   .find:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
   .flt button { min-height: var(--touch); padding: 0 12px; font-size: 0.8125rem; }
   .fn { font-family: var(--mono); font-weight: 500; }
-  .all { min-height: var(--touch); }
+  /* the search box and the button are as tall as the status filter, whose 44 px buttons sit inside a 3 px padding and a border */
+  .find, .all { min-height: calc(var(--touch) + 8px); box-sizing: border-box; }
   .list { padding: 6px 8px; }
   .list table { table-layout: fixed; min-width: 720px; }
   .list th:nth-child(3), .list td:nth-child(3) { width: 110px; }
@@ -451,7 +452,7 @@
   .plat { font-size: 0.75rem; color: var(--muted); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .ver, .seen { white-space: nowrap; font-size: 0.8125rem; color: var(--fg); }
-  .ver { font-family: var(--mono); font-size: 0.75rem; }
+  .ver { font-family: var(--mono); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
   .skel { padding: 8px 20px; }
   .sk-row { display: flex; gap: 16px; align-items: center; height: 56px; border-bottom: 1px solid var(--row-line); }
   .sk { height: 12px; border-radius: 6px; background: var(--line); }
