@@ -5,7 +5,9 @@
      hidden from screen readers as a whole (one figure label describes it); the four tabs above it are real tabs. -->
 <script>
   import { lang, t } from '../i18n.js';
-  import { num, dLabel } from '../format.js';
+  import { num, dLabel, bytes, locale } from '../format.js';
+  import { TZ } from '../tz.js';
+  import { detailTiles, loadTick, pctText, rate } from '../servers.js';
   import Logo from './Logo.svelte';
   import Icon from './Icon.svelte';
   import { theme } from '../theme.js';
@@ -42,12 +44,37 @@
   const REQ_H = [3, 2, 1, 1, 2, 5, 12, 26, 38, 44, 41, 39, 36, 42, 48, 52, 44, 31, 20, 14, 10, 8, 6, 4];
   const MODS = [['orders-service', 41230], ['auth-service', 33904], ['payments-service', 21117], ['catalog-service', 18442]];
   const country = (cc) => { try { return new Intl.DisplayNames([$lang], { type: 'region' }).of(cc) || cc; } catch { return cc; } };
-  // Servers: groups, hosts (name, system, status, CPU %, memory %, disk %) and the two charts (a smooth sample curve)
-  const GROUPS = [['Client A', [['api-01', 'Ubuntu 24.04', 6, 'memory_high', 44, 82, 40], ['web-01', 'Ubuntu 24.04', 0, 'ok', 31, 52, 63], ['db-01', 'Debian 12', 0, 'ok', 12, 66, 71]]],
-                  ['Client B', [['win-erp', 'Windows Server 2022', 0, 'ok', 9, 61, 55]]]];
+  // Servers (the page of the same name, sample data): two groups; the group with one host is chosen, so the picture shows the layout of one server on
+  // show: its card beside the Server Details card, then the six charts. Name, system, containers, status, CPU %, memory %, disk %.
+  const GROUPS = [['Client A', [['web-01', 'Ubuntu 24.04.5 LTS', 0, 'ok', 31, 52, 63], ['db-01', 'Debian 12', 0, 'ok', 12, 66, 71]]],
+                  ['Client B', [['api-01', 'Ubuntu 24.04.5 LTS', 8, 'memory_high', 44, 82, 42]]]];
+  const CHOSEN = 'Client B';
+  const GB = 1024 ** 3, MB = 1024 ** 2;
+  const DETAILS = { uptime_s: 12 * 86400 + 4 * 3600, booted_at: '2026-10-15T03:02:00Z', cores: 4, load: { m1: 1.04, m5: 0.89, m15: 0.76 }, disk_io: { read: 1.2 * MB, write: 0.4 * MB },
+    memory: { used: 6.6 * GB, total: 8 * GB }, disk: { mount: '/', used: 50 * GB, total: 120 * GB }, containers: { running: 8, stopped: 1, restarts_24h: 0 },
+    collector: { version: '0.163.2', name: 'api-01', group: 'Client B' }, os: { name: 'Ubuntu 24.04.5 LTS', kernel: 'Linux 6.8.0-45-generic', arch: 'x86_64' } };
+  const tiles = $derived(detailTiles(DETAILS, $t, $lang, TZ.minutes));
   const tone = (v) => (v >= 85 ? 'err' : v >= 70 ? 'warn' : '');
-  const wave = (s, base, amp) => Array.from({ length: 49 }, (_, k) => `${(34 + k * 6.1).toFixed(1)},${(130 - (base + amp * Math.sin((k + s) / 3.2)) * 1.15).toFixed(1)}`).join(' ');
-  const SPARK = [['cpu', wave(1, 44, 8), '', ['100%', '50%', '0%'], '44%'], ['memory', wave(4, 72, 4), '34,30 330,30', ['9.3 GB', '4.7 GB', '0 B'], '6.6 GB / 8 GB']];
+  const lastData = $derived($t('sv.last_data_cap', { time: new Intl.RelativeTimeFormat(locale($lang), { numeric: 'auto' }).format(-12, 'second') }));
+  // the charts: the same titles, legends, captions and number formats as the page; a smooth sample curve (49 points) per line
+  const GUT = 46, XR = 330, Y0 = 128, Y1 = 15;
+  const sample = (seed, base, amp) => Array.from({ length: 49 }, (_, k) => base + amp * Math.sin((k + seed) / 3.2) + amp * 0.35 * Math.cos((k * (seed + 2)) / 5.1));
+  const line = (vals, max) => vals.map((v, k) => `${(GUT + (k * (XR - GUT)) / 48).toFixed(1)},${(Y0 - (Math.min(v, max) / max) * (Y0 - Y1)).toFixed(1)}`).join(' ');
+  const ticksOf = (max, fmt) => [fmt(max), fmt(max / 2), fmt(0)];
+  const L = (key, color, vals, max, dashed = false) => ({ label: key, color, pts: line(vals, max), dashed });
+  const flat = (v) => Array(49).fill(v);
+  const CHARTS = $derived([
+    { k: 'cpu', now: `${pctText(44, $lang)}%`, ticks: ticksOf(100, (v) => `${num(v, $lang)}%`), lines: [L('sv.l.cpu', '--accent', sample(1, 44, 8), 100)] },
+    { k: 'memory', now: `${bytes(6.6 * GB, $lang)} / ${bytes(8 * GB, $lang)}`, ticks: ticksOf(8 * GB, (v) => bytes(v, $lang)),
+      lines: [L('sv.l.used', '--accent', sample(4, 6.6 * GB, 0.15 * GB), 8 * GB), L('sv.l.total', '--muted', flat(8 * GB), 8 * GB, true)] },
+    { k: 'disk', now: $t('sv.disk_of', { pct: pctText(42, $lang), mount: '/' }), ticks: ticksOf(100, (v) => `${num(v, $lang)}%`), lines: [L('sv.l.disk', '--accent', sample(2, 42, 0.4), 100)] },
+    { k: 'network', now: `${rate(640 * 1024, $lang)} / ${rate(1.1 * MB, $lang)}`, ticks: ticksOf(2 * MB, (v) => rate(v, $lang)),
+      lines: [L('sv.l.rx', '--c1', sample(3, 0.65 * MB, 0.3 * MB), 2 * MB), L('sv.l.tx', '--c2', sample(7, 1.1 * MB, 0.4 * MB), 2 * MB)] },
+    { k: 'load', now: [1.04, 0.89, 0.76].map((v) => num(v, $lang, 2)).join(' · '), ticks: ticksOf(6, (v) => loadTick(v, $lang)),
+      lines: [L('sv.l.m1', '--c1', sample(1, 1.04, 0.25), 6), L('sv.l.m5', '--c2', sample(3, 0.89, 0.12), 6), L('sv.l.m15', '--c3', sample(5, 0.76, 0.05), 6), L('sv.l.cores', '--muted', flat(4), 6, true)] },
+    { k: 'disk_io', now: `${rate(1.2 * MB, $lang)} / ${rate(0.4 * MB, $lang)}`, ticks: ticksOf(1.5 * MB, (v) => rate(v, $lang)),
+      lines: [L('sv.l.read', '--c1', sample(2, 1.2 * MB, 0.25 * MB), 1.5 * MB), L('sv.l.written', '--c2', sample(6, 0.4 * MB, 0.15 * MB), 1.5 * MB)] },
+  ]);
   const XS = ['04:00', '07:30', '11:00', '14:30', '18:00', '21:30', '01:00'];
   const mapImg = $derived($theme === 'light' ? '/preview/map-light.jpg' : '/preview/map-dark.jpg');
   const title = $derived(tab === 'overview' ? $t('title.overview') : $t(`tab.${tab}`));
@@ -56,6 +83,30 @@
 </script>
 
 {#snippet tri(up, cls = '')}<svg class="tri {cls}" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d={up ? 'M5 1.5l4 7H1z' : 'M5 8.5l4-7H1z'} fill="currentColor"></path></svg>{/snippet}
+{#snippet hostcard(h, os, ct, st, cpu, mem, disk, sel)}
+  <div class="hc" class:sel>
+    <span class="top"><span class="nm"><b>{h}</b><small>{[os, ct ? $t('sv.ct.count', { n: ct }) : ''].filter(Boolean).join(' · ')}</small></span>
+      <em class="pill {st === 'ok' ? 'ok' : 'warn'}"><i class="dot {st === 'ok' ? 'ok' : 'warnc'}"></i>{$t(`sv.st.${st}`)}</em></span>
+    {#each [['sv.bar.cpu', cpu], ['sv.bar.memory', mem], ['sv.bar.disk', disk]] as [k, v]}
+      <span class="b3"><span class="lb">{$t(k)}</span><span class="tr"><i class={tone(v)} style="width:{v}%"></i></span><span class="v">{num(v, $lang)}%</span></span>
+    {/each}
+    <span class="ft">{lastData}</span>
+  </div>
+{/snippet}
+{#snippet detailcard()}
+  <div class="dtc"><b>{$t('sv.dt.title')}</b>
+    <div class="tiles">{#each tiles as x}<span class="tile"><span class="tl">{x.label}</span><span class="tv">{x.value}</span><span class="ts">{x.sub}</span></span>{/each}</div></div>
+{/snippet}
+{#snippet pchart(c)}
+  <div class="chart"><span class="sp"><b>{$t(`sv.chart.${c.k}`)}</b><code>{c.now}</code></span>
+    <ul class="lgd">{#if c.lines.length > 1}{#each c.lines as l}<li><i class="sw" class:dashed={l.dashed} style="--sw:var({l.color})"></i>{$t(l.label)}</li>{/each}{/if}</ul>
+    <svg width="100%" height="150" viewBox="0 0 {XR} 150" preserveAspectRatio="none" aria-hidden="true">
+      {#each c.ticks as l, i}<line x1={GUT} x2={XR} y1={Y1 + i * ((Y0 - Y1) / 2)} y2={Y1 + i * ((Y0 - Y1) / 2)} class="gl"></line><text x="0" y={Y1 + 3 + i * ((Y0 - Y1) / 2)} class="gt">{l}</text>{/each}
+      {#each c.lines as l}<polyline points={l.pts} fill="none" stroke="var({l.color})" stroke-width="2" stroke-dasharray={l.dashed ? '5 4' : undefined} vector-effect="non-scaling-stroke"></polyline>{/each}
+      {#each XS as x, i}<text x={GUT - 14 + i * ((XR - GUT) / 6.2)} y="148" class="gt">{x}</text>{/each}
+    </svg>
+    <small class="capt">{$t(`sv.chart.${c.k}_cap`, { mount: '/' })}</small></div>
+{/snippet}
 {#snippet sev(k)}<em class="pill {k === 'crit' ? 'err' : 'warn'}">{$t(`home.pv.sev.${k}`)}</em>{/snippet}
 
 <figure class="pv" aria-label={label}>
@@ -148,33 +199,15 @@
             <span class="segs sm"><span>{$t('sv.r.1h')}</span><span class="on">{$t('sv.r.24h')}</span><span>{$t('sv.r.7d')}</span><span>{$t('sv.r.30d')}</span></span></div>
           <div class="banner"><span><b>api-01</b> {$t('sv.u.memory', { current: '1.7 GB', band: '0.8–1.0 GB', z: num(4.2, $lang, 1) })} {$t('sv.u.started', { time: '10:05' })}</span>
             <span class="btn ghost">{$t('sv.u.logs')}</span></div>
-          <div class="gf"><span class="on">{$t('sv.group.all')}</span><span>Client A</span><span>Client B</span><span>{$t('sv.group.none')}</span></div>
-          {#each GROUPS as [g, hosts]}
+          <div class="gf"><span>{$t('sv.group.all')}</span>{#each GROUPS as [g]}<span class:on={g === CHOSEN}>{g}</span>{/each}<span>{$t('sv.group.none')}</span></div>
+          {#each GROUPS.filter(([g]) => g === CHOSEN) as [g, hosts]}
             <b class="gh">{g} <span class="mu">{serverCount(hosts.length)}</span></b>
-            <div class="hosts">
-              {#each hosts as [h, os, ct, st, cpu, mem, disk], i}
-                <div class="hc" class:sel={g === 'Client A' && i === 0}>
-                  <span class="top"><span class="nm"><b>{h}</b><small>{os}{ct ? ` · ${$t('sv.ct.count', { n: ct })}` : ''}</small></span>
-                    <em class="pill {st === 'ok' ? 'ok' : 'warn'}"><i class="dot {st === 'ok' ? 'ok' : 'warnc'}"></i>{$t(`sv.st.${st}`)}</em></span>
-                  {#each [['sv.bar.cpu', cpu], ['sv.bar.memory', mem], ['sv.bar.disk', disk]] as [k, v]}
-                    <span class="b3"><span class="lb">{$t(k)}</span><span class="tr"><i class={tone(v)} style="width:{v}%"></i></span><span class="v">{num(v, $lang)}%</span></span>
-                  {/each}
-                </div>
-              {/each}
+            <div class="first">
+              {#each hosts as [h, os, ct, st, cpu, mem, disk]}{@render hostcard(h, os, ct, st, cpu, mem, disk, true)}{/each}
+              {@render detailcard()}
             </div>
           {/each}
-          <div class="charts">
-            {#each SPARK as [k, p, p2, grid, now]}
-              <div class="chart"><span class="sp"><b>{$t(`sv.chart.${k}`)}</b><code>{now}</code></span>
-                <svg width="100%" height="150" viewBox="0 0 330 150" preserveAspectRatio="none" aria-hidden="true">
-                  {#each grid as l, i}<line x1="34" x2="330" y1={15 + i * 57.5} y2={15 + i * 57.5} class="gl"></line><text x="0" y={18 + i * 57.5} class="gt">{l}</text>{/each}
-                  <polyline points={p} fill="none" class="ln" stroke-width="2" vector-effect="non-scaling-stroke"></polyline>
-                  {#if p2}<polyline points={p2} fill="none" class="ln2" stroke-width="1.5" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"></polyline>{/if}
-                  {#each XS as x, i}<text x={30 + i * 46} y="148" class="gt">{x}</text>{/each}
-                </svg>
-                <small>{$t(`sv.chart.${k}_cap`)}</small></div>
-            {/each}
-          </div>
+          <div class="charts">{#each CHARTS as c}{@render pchart(c)}{/each}</div>
         {/if}
       </div>
     </div>
@@ -213,14 +246,9 @@
       </div>
     {:else}
       <div class="banner"><span><b>api-01</b> {$t('sv.u.memory', { current: '1.7 GB', band: '0.8–1.0 GB', z: num(4.2, $lang, 1) })}</span></div>
-      {#each GROUPS[0][1].slice(0, 2) as [h, os, ct, st, cpu, mem, disk]}
-        <div class="hc">
-          <span class="top"><span class="nm"><b>{h}</b><small>{os}</small></span><em class="pill {st === 'ok' ? 'ok' : 'warn'}"><i class="dot {st === 'ok' ? 'ok' : 'warnc'}"></i>{$t(`sv.st.${st}`)}</em></span>
-          {#each [['sv.bar.cpu', cpu], ['sv.bar.memory', mem], ['sv.bar.disk', disk]] as [k, v]}
-            <span class="b3"><span class="lb">{$t(k)}</span><span class="tr"><i class={tone(v)} style="width:{v}%"></i></span><span class="v">{num(v, $lang)}%</span></span>
-          {/each}
-        </div>
-      {/each}
+      {#each GROUPS[1][1] as [h, os, ct, st, cpu, mem, disk]}{@render hostcard(h, os, ct, st, cpu, mem, disk, false)}{/each}
+      {@render detailcard()}
+      {#each [CHARTS[0], CHARTS[4]] as c}{@render pchart(c)}{/each}
     {/if}
   </div>
   <figcaption>{$t('home.pv.caption')}</figcaption>
@@ -319,7 +347,6 @@
   .gf span { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: var(--r-ctl); font-size: 0.8125rem; border: 1px solid var(--line-strong); background: var(--card); box-sizing: border-box; }
   .gf span.on { border: 1.5px solid var(--accent); background: var(--seg-on); color: var(--accent-text); font-weight: 600; }
   .gh { font-size: 0.9375rem; color: var(--heading); } .gh .mu { font-weight: 400; font-size: 0.8125rem; }
-  .hosts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .hc { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .hc.sel { border: 1.5px solid var(--accent); background: var(--seg-on); }
   .hc .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; min-height: 40px; }
@@ -328,8 +355,22 @@
   .b3 { display: grid; grid-template-columns: 60px 1fr 40px; gap: 8px; align-items: center; font-size: 0.75rem; }
   .b3 .lb { color: var(--kpi-label); } .b3 .v { text-align: right; font-family: var(--mono); }
   .b3 .tr { height: 6px; } .b3 .tr i { background: var(--c1); }
-  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .gl { stroke: var(--line); } .gt { font-size: 9px; fill: var(--kpi-label); } .ln { stroke: var(--c1); } .ln2 { stroke: var(--kpi-label); }
+  .hc .ft { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); font-size: 0.75rem; color: var(--kpi-label); }
+  .first { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; }
+  .dtc { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .dtc > b { font-size: 0.9375rem; color: var(--heading); }
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .tile { display: flex; flex-direction: column; justify-content: center; gap: 2px; height: 78px; box-sizing: border-box; padding: 0 8px; min-width: 0; background: var(--card2); border: 1px solid var(--line); border-radius: var(--r-ctl); }
+  .tile > span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; line-height: 1rem; color: var(--kpi-label); }
+  .tile > .tv { font-size: 1rem; line-height: 1.375rem; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+  .lgd { display: flex; justify-content: flex-end; gap: 4px 14px; list-style: none; margin: 0; padding: 0; height: 20px; overflow: hidden; font-size: 0.75rem; color: var(--kpi-label); }
+  .lgd li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .sw { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--sw); } .sw.dashed { border-top-style: dashed; }
+  .chart .capt { font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .phone .chart .capt { white-space: normal; min-height: 2.4em; }
+  .phone .lgd { justify-content: flex-start; gap: 4px 10px; }
+  .charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .gl { stroke: var(--line); } .gt { font-size: 9px; fill: var(--kpi-label); }
 
   .phone { display: none; width: 300px; margin: 0 auto; border: 8px solid var(--line); border-radius: 36px; overflow: hidden; background: var(--bg); padding: 10px;
     flex-direction: column; gap: 8px; box-shadow: 0 30px 80px color-mix(in srgb, var(--accent) 14%, transparent); font-size: 0.8125rem; box-sizing: border-box; }
@@ -346,6 +387,7 @@
   .list span + span { border-top: 1px solid var(--line); }
   .list b { font-size: 1rem; color: var(--fg); font-variant-numeric: tabular-nums; } .list b.err { color: var(--err); } .list b.warn { color: var(--warn); }
   .phone .hb3 { grid-template-columns: 110px 1fr 36px; }
+  .phone .tiles { grid-template-columns: minmax(0, 1fr); }
   .phone .banner { padding: 8px 12px; font-size: 0.75rem; }
   .pmap { display: block; width: 100%; aspect-ratio: 16 / 11; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); }
 
@@ -356,7 +398,9 @@
   .tabs button[aria-selected='true'] { background: var(--seg-on); color: var(--accent-text); }
   .tabs button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
-  @media (max-width: 1100px) { .side { display: none; } .hosts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1101px) { .first { grid-template-columns: 232px minmax(0, 1fr); } }
+  @media (max-width: 1100px) { .side { display: none; } .charts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .first > .hc { max-width: 360px; } }
+  @media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 760px) {
     .win { display: none; }
     .phone { display: flex; }

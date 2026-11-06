@@ -94,7 +94,7 @@ def test_container_scrape_from_the_docker_stats_receiver():
 # What is ignored, what is rejected
 def test_other_metrics_are_ignored_not_rejected():
     hist = {'name': 'system.cpu.utilization', 'histogram': {'dataPoints': []}}
-    p = request([gauge('process.cpu.time', 1), gauge('system.disk.io', 3), hist, gauge('container.cpu.utilization', 1.0)])      # a container metric on a server
+    p = request([gauge('process.cpu.time', 1), gauge('system.disk.operations', 3), hist, gauge('container.cpu.utilization', 1.0)])      # a container metric on a server
     points, counters, targets, rejected, ignored = parse(p)
     assert (points, counters, rejected, ignored) == ([], [], {}, 4)
 
@@ -297,3 +297,42 @@ def test_at_most_64_devices_are_rated_per_server_and_per_container():
     assert len({c['dim'] for c in counters}) == 64
     assert rejected == {'too many devices': 12}
     assert 'too many devices' in om.partial_success(rejected)['partialSuccess']['errorMessage']
+
+
+# Load, cores, uptime and disk traffic (stage 61)
+def test_load_cores_and_uptime_are_single_values_per_server():
+    pts = parse(request([gauge('system.cpu.load_average.1m', 0.5), gauge('system.cpu.load_average.5m', 0.75), gauge('system.cpu.load_average.15m', 1.25),
+                         {'name': 'system.cpu.logical.count', 'sum': {'aggregationTemporality': 2, 'dataPoints': [{'timeUnixNano': '1793880383000000000', 'asInt': '4'}]}},
+                         gauge('system.uptime', 86400, key='asInt')]))[0]
+    got = {name: v for _, _, name, _, _, v in pts}
+    assert got == {'load1': 0.5, 'load5': 0.75, 'load15': 1.25, 'cores': 4.0, 'uptime': 86400.0}
+
+
+def test_a_negative_load_or_uptime_is_dropped():
+    assert parse(request([gauge('system.uptime', -5), gauge('system.cpu.load_average.5m', -1)]))[0] == []
+
+
+def disk_request(v, t_ns, devices=('sda',), start='1793877559000000000'):
+    pts = [(v, t_ns, [('device', d), ('direction', dr)]) for d in devices for dr in ('read', 'write')]
+    return request([total('system.disk.io', pts, 2, start)])
+
+
+def test_disk_io_is_a_rate_per_second_summed_over_disks_and_survives_a_reset():
+    r, ns, base = om.Rates(), 10 ** 9, 1793880000
+    assert rate(r, disk_request(1000, f'{base * ns}', ('sda', 'nvme0n1'))) == {}                                       # first scrape
+    assert rate(r, disk_request(4000, f'{(base + 30) * ns}', ('sda', 'nvme0n1'))) == {'disk_read': 200.0, 'disk_write': 200.0}   # 2 x 3000 / 30 s
+    assert rate(r, disk_request(100, f'{(base + 60) * ns}', ('sda', 'nvme0n1'))) == {}                                 # reset: no negative rate
+    assert rate(r, disk_request(400, f'{(base + 90) * ns}', ('sda', 'nvme0n1'))) == {'disk_read': 20.0, 'disk_write': 20.0}
+
+
+def test_disk_io_with_an_unknown_direction_is_rejected():
+    rejected = parse(request([total('system.disk.io', [(1, '1793880383000000000', [('device', 'sda'), ('direction', 'sideways')])])]))[3]
+    assert rejected == {'malformed point': 1}
+
+
+def test_disk_and_network_rates_of_the_same_device_name_do_not_mix():
+    r, ns, base = om.Rates(), 10 ** 9, 1793880000
+    both = lambda v, t: request([total('system.disk.io', [(v, t, [('device', 'x0'), ('direction', 'read')])]),      # noqa: E731
+                                 total('system.network.io', [(v * 2, t, [('device', 'x0'), ('direction', 'receive')])])])
+    rate(r, both(1000, f'{base * ns}'))
+    assert rate(r, both(1300, f'{(base + 30) * ns}')) == {'disk_read': 10.0, 'net_rx': 20.0}

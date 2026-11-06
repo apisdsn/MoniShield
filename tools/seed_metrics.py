@@ -25,8 +25,15 @@ SERVERS = [
       ('monishield-postgres-1', 'postgres:17', 2, 210, 1024, 0, True), ('otel-test', 'busybox:1.37', 0, 2, 0, 3, False)], 23, 78, 41, 'online'),
     ('test-vm', 'linux', '', 'test-vm', 'Ubuntu 24.04', [], 4, 30, 20, 'offline'),
 ]
+OLDER = {'web-02'}         # a collector configuration from before stage 61: no load 5/15, cores, uptime or disk traffic, so the page asks for the upgrade
 SPIKE = 'monishield-app-1'     # its memory jumped in the last 15 minutes
 HOURS = 26
+
+
+def describe(os_text, host, platform):
+    """The text the collector's resource detection sends as `os.description`."""
+    if platform == 'windows': return f'Microsoft {os_text} Datacenter 10.0.20348 Build 20348'
+    return f'{os_text} LTS (Noble Numbat) (Linux {host} 6.8.0-138-generic #1 SMP PREEMPT_DYNAMIC x86_64)'
 
 
 def _wave(i, base, amp, seed):
@@ -37,7 +44,7 @@ def _series(host, ctr, name, dim, start, count, step, fn):
     return [(host, ctr, name, dim, start + datetime.timedelta(seconds=step * i), fn(i)) for i in range(count)]
 
 
-def _points(host, os_text, containers, cpu, mem, disk, start, count, now):
+def _points(host, os_text, containers, cpu, mem, disk, start, count, now, older=False):
     seed = sum(map(ord, host)) % 17
     total_mem, total_disk = 8 * GB, 120 * GB
     pts = []
@@ -46,6 +53,14 @@ def _points(host, os_text, containers, cpu, mem, disk, start, count, now):
     add('', 'mem_used', '', start, count, 60, lambda i: total_mem * _wave(i, mem, 2, seed) / 100)
     add('', 'mem_total', '', start, count, 60, lambda i: total_mem)
     add('', 'load1', '', start, count, 60, lambda i: _wave(i, cpu / 25, 0.3, seed))
+    if not older:
+        cores = 2 + 2 * (seed % 3)
+        add('', 'load5', '', start, count, 60, lambda i: _wave(i, cpu / 25 * 0.9, 0.15, seed))
+        add('', 'load15', '', start, count, 60, lambda i: _wave(i, cpu / 25 * 0.8, 0.06, seed))
+        add('', 'cores', '', start, count, 60, lambda i: float(cores))
+        add('', 'uptime', '', start, count, 60, lambda i: (12 * 86400 + 4 * 3600) + 60.0 * i)
+        add('', 'disk_read', '', start, count, 60, lambda i: 1.2e6 * max(0.05, 1 + math.sin((i + seed) / 5) * 0.8))
+        add('', 'disk_write', '', start, count, 60, lambda i: 0.4e6 * max(0.05, 1 + math.cos((i + seed) / 6) * 0.7))
     add('', 'net_rx', '', start, count, 60, lambda i: 1.5e6 * (1 + math.sin((i + seed) / 9) * 0.6))
     add('', 'net_tx', '', start, count, 60, lambda i: 0.9e6 * (1 + math.cos((i + seed) / 8) * 0.5))
     add('', 'disk_used', '/', start, count, 60, lambda i: total_disk * (disk + i * 0.0004) / 100)
@@ -73,13 +88,15 @@ def seed(app, now=None):
     for name, platform, group, host, os_text, containers, cpu, mem, disk, status in SERVERS:
         info, token, _exp = svc.add(name, platform, {'username': 'admin'}, None, None, group)
         ids[name] = cid = info['id']
-        svc.enroll(token, '203.0.113.7', '0.163.2')
+        svc.enroll(token, '203.0.113.7', 'OpenTelemetry Collector Contrib/0.163.2 (linux/amd64)')
+        older = name in OLDER
+        os_text = describe(os_text, host, platform)
         targets = {(host, ''): dict(os=os_text, image=None), **{(host, c[0]): dict(os=None, image=c[1]) for c in containers}}
         if status == 'offline':       # it reported for the last time six days ago
             gone = now - datetime.timedelta(days=6)
-            store.add(cid, _points(host, os_text, containers, cpu, mem, disk, gone - datetime.timedelta(hours=1), 60, gone), targets, gone)
+            store.add(cid, _points(host, os_text, containers, cpu, mem, disk, gone - datetime.timedelta(hours=1), 60, gone, older), targets, gone)
         else:
-            store.add(cid, _points(host, os_text, containers, cpu, mem, disk, start, count, now), targets, now)
+            store.add(cid, _points(host, os_text, containers, cpu, mem, disk, start, count, now, older), targets, now)
             for c in containers:
                 if not c[6]: store.rows('UPDATE metric_target SET last_seen = ? WHERE cid = ? AND ctr = ? RETURNING 1', [(now - datetime.timedelta(hours=5)).replace(tzinfo=None), cid, c[0]])
         # hourly rows for the 30 days before (the 26 hours above are rolled up by the background job later)
@@ -88,6 +105,7 @@ def seed(app, now=None):
             t = (now - datetime.timedelta(hours=h)).replace(minute=0).replace(tzinfo=None)
             seed_ = (h * 7 + len(host)) % 13
             base = [('', 'cpu', '', cpu), ('', 'mem_used', '', 8 * GB * mem / 100), ('', 'net_rx', '', 1.5e6), ('', 'net_tx', '', 0.9e6)]
+            if not older: base += [('', 'load1', '', cpu / 25), ('', 'load5', '', cpu / 25 * 0.9), ('', 'load15', '', cpu / 25 * 0.8), ('', 'disk_read', '', 1.2e6), ('', 'disk_write', '', 0.4e6)]
             base += [(c[0], 'cpu', '', c[2]) for c in containers] + [(c[0], 'mem_used', '', c[3] * MB * (0.5 if c[0] == SPIKE else 1)) for c in containers]
             for ctr, metric, dim, v in base:
                 v = v * (1 + 0.12 * math.sin(seed_))   # about 8 % spread between days, so only the real jump stands out

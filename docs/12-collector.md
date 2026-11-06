@@ -128,10 +128,10 @@ inputs the admin chose (`options`, stored with the collector, changed with `PUT 
 | `windows` | `channels` (application, system, security), `files` | `windows_event_log/<channel>`, `file_log/<n>` |
 | `kubernetes` | none (pod logs are always on) | Helm values; the chart's `logsCollection` preset adds the receiver |
 
-Every platform also has the option `host_metrics` (CPU, memory, load, file systems, network traffic of the server or node) and Docker
+Every platform also has the option `host_metrics` (CPU and core count, memory, load 1, 5 and 15 minutes, file systems, disk and network traffic, uptime of the server or node) and Docker
 hosts have `container_metrics` (CPU, memory, network traffic and restarts of each container). Both are described in
 [`13-metrics.md`](13-metrics.md); they add a `metrics` pipeline and the exporter's `metrics_endpoint`. A collector registered before they
-existed has both off until an admin turns them on and runs `install.sh --upgrade`. Endpoint checks come later. Choices:
+existed has both off until an admin turns them on and runs `install.sh --upgrade`; a collector from before stage 61 also needs `install.sh --upgrade` (Windows `install.ps1 -Upgrade`, Kubernetes `helm upgrade`) for load, uptime and disk traffic. Endpoint checks come later. Choices:
 
 - **The body is the original line.** The only operator is `container` (format `docker`, unwraps Docker's JSON-file format).
 - **Docker container names.** Docker's log files are named by container id (`/var/lib/docker/containers/<id>/<id>-json.log`) and hold

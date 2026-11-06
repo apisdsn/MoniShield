@@ -103,7 +103,7 @@ def test_rejected_points_are_reported_but_the_rest_is_kept(make):
     d = json.loads(sample('hostmetrics'))
     load = next(m for rm in d['resourceMetrics'] for m in rm['scopeMetrics'][0]['metrics'] if m['name'] == 'system.cpu.load_average.1m')
     load['gauge']['dataPoints'][0]['timeUnixNano'] = 'abc'
-    d['resourceMetrics'].append({'scopeMetrics': [{'metrics': [{'name': 'system.disk.io', 'sum': {'dataPoints': []}}]}]})                # not used: not rejected
+    d['resourceMetrics'].append({'scopeMetrics': [{'metrics': [{'name': 'system.disk.operations', 'sum': {'dataPoints': []}}]}]})                # not used: not rejected
     r = post(tc, key, json.dumps(d).encode())
     assert r.status_code == 200 and r.json()['partialSuccess']['rejectedDataPoints'] == '1' and 'invalid time (1)' in r.json()['partialSuccess']['errorMessage']
     assert values(store, 'load1') == [] and values(store, 'mem_total') == [16867418112.0]

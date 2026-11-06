@@ -89,6 +89,8 @@ Questions answered along the way, recorded so they are not asked again:
 
 ## Next steps (in order)
 
+000000. **Server details (stage 61, done, 2026-11-06)**: the Servers page has a details card and Load Average and Disk I/O charts ([`13-metrics.md`](13-metrics.md) sections 1, 2, 10). Existing collectors send the new numbers only after `install.sh --upgrade` (Windows `install.ps1 -Upgrade`, Kubernetes `helm upgrade`); until then the page shows the upgrade line. Not done: architecture of the server (only read from the OS text when it names one), network values on Kubernetes nodes.
+
 00000. **Home page and README (stage 60, done, 2026-11-06)**: the home page follows the approved mockups; the preview labels "Errors" and "Warnings / App 4xx" are the mockup's wording, while the app's own Overview still says "Error" and "Warning / App 4xx" (align one of them when the owner decides).
 
 0000. **Log Formats page (stage 59, done, 2026-11-06)**: Configuration → *Log Formats* ([`11-log-formats.md`](11-log-formats.md) section 6a). Open: step 1d (`auto` detection, a per-file re-parse when a rule changes, CLI `formats list/test`); until then *Read Today Again* is the way to apply a new rule to files already read. The HTTP cards fall back to the busiest access log when a folder has no ingress.

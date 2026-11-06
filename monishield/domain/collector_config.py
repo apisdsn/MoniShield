@@ -38,6 +38,9 @@ SKIP_FS_TYPES = ['autofs', 'binfmt_misc', 'bpf', 'cgroup', 'cgroup2', 'configfs'
                  'sysfs', 'tracefs', 'tmpfs']
 SKIP_MOUNTS = ['^/var/lib/docker/.*', '^/run/.*', '^/snap/.*', '^/boot/efi$']
 SKIP_MOUNTS_NODE = SKIP_MOUNTS + ['^/var/lib/kubelet/.*', '^/var/lib/containerd/.*', '^/dev($|/)', '^/proc($|/)', '^/sys($|/)']
+# Disks counted once: virtual devices and partitions are left out, so a read of a partition is not added to the read of its disk.
+SKIP_DISKS = ['^loop\\d+$', '^ram\\d+$', '^sr\\d+$', '^fd\\d+$', '^zram\\d+$', '^dm-\\d+$', '^sd[a-z]+\\d+$', '^nvme\\d+n\\d+p\\d+$',
+              '^vd[a-z]+\\d+$', '^xvd[a-z]+\\d+$']
 SKIP_DEVICES = ['^lo$', '^veth.*', '^br-.*', '^docker\\d*$', '^cali.*', '^flannel.*', '^cni.*', '^vxlan.*']
 DOCKER_SOCKET = 'unix:///var/run/docker.sock'
 HOSTFS = '/hostfs'    # where the Helm values mount the node's root file system
@@ -242,17 +245,23 @@ def _off(*names): return {n: {'enabled': False} for n in names}
 
 
 def host_metrics(platform):
-    """The host_metrics receiver: CPU, memory, load, file systems and network traffic. Never the process scrapers (command lines
+    """The host_metrics receiver: CPU and its core count, memory, load, file systems, disk traffic, network traffic and uptime. Never the process scrapers (command lines
     are personal data). Only the metrics MoniShield uses are on, so a scrape is a few dozen points."""
     node = platform == 'kubernetes'
     fs = dict(metrics=_off('system.filesystem.inodes.usage'))
     if platform != 'windows':
         fs.update(exclude_fs_types=dict(match_type='strict', fs_types=list(SKIP_FS_TYPES)),
                   exclude_mount_points=dict(match_type='regexp', mount_points=list(SKIP_MOUNTS_NODE if node else SKIP_MOUNTS)))
+    # Only the bytes read and written. On a node the scraper reads /hostfs/proc/diskstats (root_path). Windows names its disks "0 C:".
+    disk = dict(metrics=_off('system.disk.io_time', 'system.disk.merged', 'system.disk.operation_time', 'system.disk.operations',
+                             'system.disk.pending_operations', 'system.disk.weighted_io_time'))
+    if platform != 'windows': disk['exclude'] = dict(match_type='regexp', devices=list(SKIP_DISKS))
     scrapers = dict(
-        cpu=dict(metrics={'system.cpu.utilization': {'enabled': True}, **_off('system.cpu.time', 'system.cpu.logical.count')}),
+        cpu=dict(metrics={'system.cpu.utilization': {'enabled': True}, 'system.cpu.logical.count': {'enabled': True}, **_off('system.cpu.time')}),
         memory=dict(metrics={'system.memory.limit': {'enabled': True}}),
-        load=dict(metrics=_off('system.cpu.load_average.5m', 'system.cpu.load_average.15m')),
+        load=dict(metrics={'system.cpu.load_average.5m': {'enabled': True}, 'system.cpu.load_average.15m': {'enabled': True}}),
+        disk=disk,
+        system=dict(metrics={'system.uptime': {'enabled': True}}),
         filesystem=fs)
     # A Kubernetes node's collector runs in a pod: the network scraper would read the pod's own interface, not the node's.
     if not node:
@@ -294,8 +303,8 @@ def helm_values(base, version, o=None):
     and container names, the exporter and queue are ours. The chart's own traces/metrics pipelines and their receivers are removed.
     With server metrics on, the node's root file system is mounted read-only at /hostfs for the host_metrics receiver and the node's
     name (from the downward API) becomes `k8s.node.name`: inside the pod the detected host name is the pod's. The chart's
-    `hostMetrics` preset is not used because it also switches on the disk and network scrapers (the network one would read the
-    pod's interface, not the node's)."""
+    `hostMetrics` preset is not used because it also switches on the network scraper (it would read the pod's interface, not the
+    node's) and its own metric choices; the disk scraper reads the node's /hostfs/proc/diskstats through `root_path`."""
     o = o or {}
     metrics = bool(o.get('host_metrics'))
     off = {'enabled': False}
