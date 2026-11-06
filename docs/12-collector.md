@@ -310,7 +310,7 @@ starting with a letter or digit; empty = no group). `domain/collectors.check_gro
 matches an existing group without regard to case takes that group's spelling; the list of groups is the distinct non-empty values (no table).
 `POST /api/v1/admin/collectors` and `PUT /api/v1/admin/collectors/{id}/options` accept `group` (the second one `options`, `group` or both); the list
 answer carries `group` per collector and `groups`; a change is audited as `collector.group` (`name: old -> new`); admins only. An older
-database gets the column at start. The Collectors page shows sections per group; `GET /api/v1/servers` returns the group of each server.
+database gets the column at start. The Collectors page shows sections per group; `POST /api/v1/servers` returns the group of each server.
 
 ## 5. Safety
 

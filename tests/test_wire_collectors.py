@@ -62,15 +62,15 @@ def test_the_servers_endpoints_are_encrypted(tc):
     TestClient(tc.app).post('/api/v1/collector/enroll', json=dict(token=made['enroll_token']), headers={'X-Requested-With': 'monishield-collector'})
     pts = [('web-01', '', n, '', NOW - datetime.timedelta(minutes=m), v) for m in (3, 2, 1) for n, v in (('cpu', 12.0), ('mem_used', 2.0e9), ('mem_total', 8.0e9))]
     tc.app.state.metrics.add(cid, pts, {('web-01', ''): dict(os='Ubuntu 24.04', image=None)}, NOW)
-    over = ok(b, 'GET', '/api/v1/servers?range=24h')
+    over = ok(b, 'POST', '/api/v1/servers', dict(range='24h'))
     assert [(h['host'], h['group'], h['cpu']) for h in over['hosts']] == [('web-01', 'Client A', 12.0)]
-    one = ok(b, 'GET', f'/api/v1/servers/host?cid={cid}&host=web-01&range=1h')
+    one = ok(b, 'POST', '/api/v1/servers/host', dict(cid=cid, host='web-01', range='1h'))
     assert one['host'] == 'web-01' and one['group'] == 'Client A' and len(one['series']['cpu']) == 3
-    r = b.call('GET', '/api/v1/servers/host?cid=9999&host=web-01')
-    assert r.status_code == 404 and b.json(r, 'GET', '/api/v1/servers/host?cid=9999&host=web-01')['error']['code'] == 'not_found'
+    r = b.call('POST', '/api/v1/servers/host', dict(cid=9999, host='web-01'))
+    assert r.status_code == 404 and b.json(r, 'POST', '/api/v1/servers/host')['error']['code'] == 'not_found'
 
 
 def test_a_wrong_key_is_a_plain_error_and_the_page_agrees_on_a_new_one(tc):
     b = signed_in(tc)
-    r = b.call('GET', '/api/v1/servers', kid='ffffffffffffffff')
+    r = b.call('POST', '/api/v1/servers', dict(range='24h'), kid='ffffffffffffffff')
     assert r.status_code == 400 and r.headers['content-type'].startswith('application/json') and r.json()['error']['code'] == 'enc_key_unknown'

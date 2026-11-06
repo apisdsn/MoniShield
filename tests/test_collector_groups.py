@@ -118,5 +118,5 @@ def test_servers_carry_the_group_of_their_collector(client):
     import datetime
     now = datetime.datetime.now(datetime.timezone.utc)
     client.app.state.metrics.add(cid, [('h1', '', 'cpu', '', now, 5.0)], {('h1', ''): dict(os=None, image=None)}, now)
-    assert client.get('/api/v1/servers').json()['hosts'][0]['group'] == 'Client A'
-    assert client.get(f'/api/v1/servers/host?cid={cid}&host=h1').json()['group'] == 'Client A'
+    assert client.post('/api/v1/servers', json={}, headers=X).json()['hosts'][0]['group'] == 'Client A'
+    assert client.post('/api/v1/servers/host', json=dict(cid=cid, host='h1'), headers=X).json()['group'] == 'Client A'
