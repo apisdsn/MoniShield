@@ -470,6 +470,33 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.setViewportSize({ width: 1440, height: 900 });
   console.log('ok   consistency: toolbar heights and centres, no glyph icons, 44 px targets at 390 px, one row height, no coloured dash');
 
+  // The header keeps the title and the controls on one row at 1440 px; the numbers of one row of KPI cards share a top at 1440 and 1280 px
+  for (const width of [1440, 1280]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const path of ['/overview', '/command-center', '/security', '/servers']) {
+      await page.goto(BASE + path);
+      await page.waitForSelector('main#main[aria-busy="false"]');
+      await page.waitForTimeout(800);
+      const r = await page.evaluate((wide) => {
+        const out = [], t = document.querySelector('header.top h1').getBoundingClientRect(), c = document.querySelector('header.top .tools').getBoundingClientRect();
+        if (wide && (c.top > t.bottom || c.bottom < t.top)) out.push(`header controls (${Math.round(c.top)}-${Math.round(c.bottom)}) are not on the title's row (${Math.round(t.top)}-${Math.round(t.bottom)})`);
+        for (const box of document.querySelectorAll('.kpis')) {
+          const cards = [...box.querySelectorAll(':scope > .kpi')].filter((k) => k.getBoundingClientRect().height > 0);
+          const rows = new Map();
+          for (const k of cards) { const top = Math.round(k.getBoundingClientRect().top / 4); (rows.get(top) || rows.set(top, []).get(top)).push(k); }
+          for (const row of rows.values()) {
+            const off = row.map((k) => k.querySelector('.vrow').getBoundingClientRect().top - k.getBoundingClientRect().top);
+            if (row.length > 1 && Math.max(...off) - Math.min(...off) > 2) out.push(`KPI numbers in one row start at different heights: ${off.map(Math.round)}`);
+          }
+        }
+        return out;
+      }, width === 1440);
+      if (r.length) throw new Error(`${path} at ${width} px: ${r.join(' | ')}`);
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  console.log('ok   header controls on the title row (1440 px) and KPI numbers on one line (1440 and 1280 px)');
+
   // nothing site-specific stands in a URL: no host, cid, service or namespace parameter and no host name, on any request so far
   await page.goto(BASE + '/servers');
   await page.waitForSelector('.hc');

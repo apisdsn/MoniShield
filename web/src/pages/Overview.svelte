@@ -80,7 +80,7 @@
   const reasons = $derived.by(() => {
     const out = [];
     if (r5 !== null && enough && r5 >= 0.05) out.push($t('ov.st.r5xx', { p: rate(ngRow.n5xx, 1) }));
-    if (errTotal) out.push($t('ov.st.err', { n: num(errTotal, $lang), m: num(errSvcs.length, $lang), list: errSvcs.slice(0, 3).map((s) => sysName(s.service)).join(', ') + (errSvcs.length > 3 ? ', …' : '') }));
+    if (errTotal) out.push($t(errTotal === 1 ? 'ov.st.one_err_one' : errSvcs.length === 1 ? 'ov.st.err_one' : 'ov.st.err', { n: num(errTotal, $lang), m: num(errSvcs.length, $lang), list: errSvcs.slice(0, 3).map((s) => sysName(s.service)).join(', ') + (errSvcs.length > 3 ? ', …' : '') }));
     if (attack) out.push($t('ov.st.attack', { n: num(attack, $lang) }));
     if (r4 !== null && enough && r4 >= 0.1) out.push($t('ov.st.r4xx', { p: rate(ngRow.n4xx, 1) }));
     if (nCorrupt) out.push($t('ov.st.corrupt', { n: num(nCorrupt, $lang) }));
@@ -133,7 +133,7 @@
 
     <div class="kpis four">
       <Kpi size="lg" icon="alert" label={$t('kpi.error')} value={errTotal} tone="err" delta={d('err')}
-        sub={errSvcs.length ? [{ text: $t('ov.n_services', { n: num(errSvcs.length, $lang) }) }] : null}
+        sub={errSvcs.length ? [{ text: $t(errSvcs.length === 1 ? 'ov.one_services_count' : 'ov.n_services', { n: num(errSvcs.length, $lang) }) }] : null}
         info={$t('kpi.error_info', { http: num(sum(svc, 'err_http'), $lang), log: num(sum(svc, 'err_log'), $lang) })} />
       <Kpi size="lg" icon="shield" label={$t('ov.attack_ips')} value={attack} tone="err" />
       <Kpi size="lg" icon="alert" label={$t('ov.warn_4xx')} value={sum(svc, 'warn')} tone="warn" delta={d('warn')} info={$t('ov.warn_4xx_info')} />
@@ -152,7 +152,7 @@
           <ul>
             {#each toCheck.slice(0, 8) as s}
               <li><a href={svcHref(s.service)}><span class="sys">{sysName(s.service)}</span>
-                {#if s.err}<span class="tag err">{$t('ov.badge_err', { n: num(s.err, $lang) })}</span>{:else}<span class="tag warn">{$t('ov.badge_corrupt')}</span>{/if}</a></li>
+                {#if s.err}<span class="tag err">{$t(s.err === 1 ? 'ov.one_badge_err' : 'ov.badge_err', { n: num(s.err, $lang) })}</span>{:else}<span class="tag warn">{$t('ov.badge_corrupt')}</span>{/if}</a></li>
             {/each}
           </ul>
           {#if svc.length - toCheck.length}<p class="muted small">{$t('ov.check_rest', { n: num(svc.length - toCheck.length, $lang) })}</p>{/if}

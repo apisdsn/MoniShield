@@ -11,7 +11,7 @@
   import InfoTip from './InfoTip.svelte';
   import Icon from './Icon.svelte';
   import { holdNote } from './compare.js';
-  let { label, value, tone = null, delta = null, info = null, missing = null, format = null, icon = null, suffix = null, sub = null, size = null, caption = null } = $props();
+  let { label, value, tone = null, delta = null, info = null, missing = null, format = null, icon = null, suffix = null, sub = null, size = null, caption = null, full = null } = $props();
   const shown = $derived(value === null || value === undefined ? '–' : format ? format(value, $lang) : typeof value === 'number' ? num(value, $lang) : value);
   const zero = $derived(value === 0 || /^[0.,]+\s*%?$/.test(String(shown)));
   const pct = $derived(delta && (delta.kind === 'up' || delta.kind === 'down'));
@@ -22,7 +22,7 @@
 <div class="kpi" class:lg={size === 'lg'}>
   <div class="hd">
     {#if icon}<span class="ic"><Icon name={icon} size={17} /></span>{/if}
-    <span class="l">{label}</span>
+    <span class="l" title={full ?? label}>{label}</span>
     {#if info}<InfoTip text={info} />{/if}
   </div>
   <div class="vrow">
@@ -43,12 +43,14 @@
 
 <style>
   .kpi { padding: 16px 18px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-  .hd { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  /* the title block is two lines high in every card (a longer title is cut with an ellipsis, its full text is in the title attribute), so the
+     numbers of one row share a baseline */
+  .hd { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 40px; }
   .ic {
     width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none;
     background: var(--icon-bg); border: 1px solid var(--icon-border); color: var(--kpi-label);
   }
-  .l { color: var(--kpi-label); font-size: 0.84375rem; font-weight: 500; min-width: 0; }
+  .l { color: var(--kpi-label); font-size: 0.84375rem; font-weight: 500; min-width: 0; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
   .vrow { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
   .v { font-size: 1.875rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; line-height: 1.15; color: var(--fg); overflow-wrap: anywhere; }
   .v.err { color: var(--err); } .v.warn { color: var(--warn); } .v.ok { color: var(--ok); } .v.muted, .v.none { color: var(--muted); }

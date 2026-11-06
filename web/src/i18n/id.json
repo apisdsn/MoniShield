@@ -341,7 +341,8 @@
  "cc.kpi.login_ips": "IP dengan Login Gagal",
  "cc.kpi.n5xx": "Respons 5xx",
  "cc.kpi.requests": "Request HTTP",
- "cc.kpi.upstream": "Error Koneksi Upstream",
+ "cc.kpi.upstream": "Error Upstream",
+ "cc.kpi.upstream_full": "Error Koneksi Upstream",
  "cc.map_stats": "Ringkasan Peta",
  "cc.no_nginx": "Tidak Ada Log Akses",
  "cc.none": "Tidak ada yang perlu perhatian di folder ini: tidak ada serangan, 5xx, error koneksi upstream, login gagal, atau file rusak.",
@@ -1741,5 +1742,16 @@
  "cl.none_text.offline": "Tidak ada collector yang offline.",
  "cl.filter_text.waiting": "Hanya menampilkan collector yang menunggu. Klik kartu itu lagi atau Tampilkan Semua untuk melihat semua collector.",
  "cl.none_text.waiting": "Tidak ada collector yang menunggu.",
- "cc.from_svc_sub": "dari {svc}"
+ "cc.from_svc_sub": "dari {svc}",
+ "status.services_one": "layanan",
+ "status.errors_one": "error",
+ "status.warnings_one": "peringatan",
+ "status.lines_one": "baris log",
+ "status.attack_ips_one": "IP sumber serangan",
+ "nav.one_badge_err": "1 error",
+ "ov.one_services_count": "1 layanan",
+ "ov.one_badge_err": "1 error",
+ "ing.one_warnings_count": "1 peringatan",
+ "ov.st.one_err_one": "1 error di 1 layanan: {list}",
+ "ov.st.err_one": "{n} error di 1 layanan: {list}"
 }

@@ -68,10 +68,10 @@
     background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(10px); box-shadow: var(--glow);
   }
   .bar { display: contents; }
-  /* the title keeps at least ~22rem; when the tools do not fit next to it they move to their own line (right-aligned)
+  /* the title keeps at least ~15rem (the status line wraps inside it); when the tools do not fit next to it they move to their own line (right-aligned)
      instead of squeezing the title into one word per line (owner report 2026-10-08, 1280 px in English) */
   .tools { order: 1; flex: 0 1 auto; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px; min-width: 0; }
-  .ttl { order: 0; flex: 1 1 22rem; min-width: 0; }
+  .ttl { order: 0; flex: 1 1 15rem; min-width: 0; }
   h1 { font-size: 1.375rem; font-weight: 600; line-height: 1.25; color: var(--heading); overflow-wrap: break-word; text-wrap: balance; }
   h1:focus { outline: none; }
   h1:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

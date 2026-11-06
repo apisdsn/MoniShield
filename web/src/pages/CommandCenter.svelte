@@ -129,7 +129,7 @@
       <Kpi icon="pulse" label={$t('cc.kpi.requests')} caption={httpCaption} value={k.requests} missing={$t('cc.no_nginx')} delta={d('requests', true)} />
       <Kpi icon="alert" label={$t('cc.kpi.n5xx')} caption={httpCaption} value={k.n5xx} tone={k.n5xx ? 'err' : null} missing={$t('cc.no_nginx')} delta={d('n5xx')} />
       <Kpi icon="alert" label={$t('cc.kpi.errors')} value={k.errors} tone={k.errors ? 'err' : null} delta={d('errors')} />
-      <Kpi icon="server" label={$t('cc.kpi.upstream')} value={k.upstream_errors} tone={k.upstream_errors ? 'err' : null} delta={d('upstream_errors')} />
+      <Kpi icon="server" label={$t('cc.kpi.upstream')} full={$t('cc.kpi.upstream_full')} value={k.upstream_errors} tone={k.upstream_errors ? 'err' : null} delta={d('upstream_errors')} />
       <Kpi icon="shield" label={$t('cc.kpi.attack_ips')} value={k.attack_ips} tone={k.attack_ips ? 'warn' : null} delta={d('attack_ips')} />
       <Kpi icon="key" label={$t('cc.kpi.login_ips')} value={k.login_fail_ips} tone={k.login_fail_ips ? 'warn' : null} delta={d('login_fail_ips')} />
     </div>

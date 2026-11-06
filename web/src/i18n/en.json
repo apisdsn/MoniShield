@@ -341,7 +341,8 @@
  "cc.kpi.login_ips": "IPs with Failed Logins",
  "cc.kpi.n5xx": "5xx Responses",
  "cc.kpi.requests": "HTTP Requests",
- "cc.kpi.upstream": "Upstream Connection Errors",
+ "cc.kpi.upstream": "Upstream Errors",
+ "cc.kpi.upstream_full": "Upstream Connection Errors",
  "cc.map_stats": "Map Summary",
  "cc.no_nginx": "No Access Log",
  "cc.none": "Nothing needs attention in this folder: no attacks, 5xx, upstream connection errors, failed logins or corrupt files.",
@@ -1741,5 +1742,16 @@
  "cl.none_text.offline": "No collector is offline.",
  "cl.filter_text.waiting": "Showing waiting collectors only. Click the tile again or Show All to see every collector.",
  "cl.none_text.waiting": "No collector is waiting.",
- "cc.from_svc_sub": "from {svc}"
+ "cc.from_svc_sub": "from {svc}",
+ "status.services_one": "service",
+ "status.errors_one": "error",
+ "status.warnings_one": "warning",
+ "status.lines_one": "log line",
+ "status.attack_ips_one": "attack source IP",
+ "nav.one_badge_err": "1 error",
+ "ov.one_services_count": "1 service",
+ "ov.one_badge_err": "1 error",
+ "ing.one_warnings_count": "1 warning",
+ "ov.st.one_err_one": "1 error in 1 service: {list}",
+ "ov.st.err_one": "{n} errors in 1 service: {list}"
 }

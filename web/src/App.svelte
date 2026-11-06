@@ -243,11 +243,12 @@
     const sv = $route.tab === 'service' ? summary.services.filter((x) => x.service === $route.service) : summary.services;
     const sum = (k) => sv.reduce((a, x) => a + (x[k] || 0), 0);
     const out = [];
-    if ($route.tab !== 'service') out.push({ tone: 'accent', n: num(summary.services.length, $lang), text: $t('status.services') });
-    else out.push({ tone: 'accent', n: num(sum('lines'), $lang), text: $t('status.lines') });
-    out.push({ tone: sum('err') ? 'err' : 'ok', n: num(sum('err'), $lang), text: $t('status.errors') });
-    out.push({ tone: sum('warn') ? 'warn' : 'ok', n: num(sum('warn'), $lang), text: $t('status.warnings') });
-    if ($route.tab !== 'service' && summary.attack_ip_count) out.push({ tone: 'err', n: num(summary.attack_ip_count, $lang), text: $t('status.attack_ips') });
+    const word = (key, n) => $t(n === 1 ? `status.${key}_one` : `status.${key}`);   // "1 error", "2 errors"
+    if ($route.tab !== 'service') out.push({ tone: 'accent', n: num(summary.services.length, $lang), text: word('services', summary.services.length) });
+    else out.push({ tone: 'accent', n: num(sum('lines'), $lang), text: word('lines', sum('lines')) });
+    out.push({ tone: sum('err') ? 'err' : 'ok', n: num(sum('err'), $lang), text: word('errors', sum('err')) });
+    out.push({ tone: sum('warn') ? 'warn' : 'ok', n: num(sum('warn'), $lang), text: word('warnings', sum('warn')) });
+    if ($route.tab !== 'service' && summary.attack_ip_count) out.push({ tone: 'err', n: num(summary.attack_ip_count, $lang), text: word('attack_ips', summary.attack_ip_count) });
     return out;
   });
   $effect(() => { document.title = screen === 'app' ? `${title} · ${APP_NAME}` : APP_NAME; });

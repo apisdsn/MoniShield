@@ -78,7 +78,7 @@
             <Icon name="server" /><span class="lbl sys">{sysName(s.service)}</span>
             {#if s.err}
               <span class="b" aria-hidden="true">{num(s.err, $lang)}</span><span class="pip" aria-hidden="true"></span>
-              <span class="sr-only">{$t('nav.badge_err', { n: num(s.err, $lang) })}</span>
+              <span class="sr-only">{$t(s.err === 1 ? 'nav.one_badge_err' : 'nav.badge_err', { n: num(s.err, $lang) })}</span>
             {:else if s.files_corrupt}
               <span class="b warn" aria-hidden="true">!</span><span class="sr-only">{$t('ov.badge_corrupt')}</span>
             {/if}
