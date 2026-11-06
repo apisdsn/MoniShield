@@ -15,7 +15,7 @@
     const i = folders.findIndex((f) => f.folder === folder);
     return i < 0 ? [] : folders.slice(i, i + 7).reverse();
   });
-  const ng = $derived(summary?.folder === folder ? summary.services.find((s) => s.service === NG && s.lines) : null);
+  const ng = $derived(summary?.folder === folder ? summary.services.find((s) => s.service === (summary.http_service || NG) && s.lines) : null);
   const req = $derived(info?.requests ?? ng?.requests ?? null);
   const rate = (n, digits) => `${num((n / req) * 100, $lang, digits)}%`;
   function bars(key) {
@@ -42,7 +42,7 @@
     </div>
     <div class="cell">
       <div class="txt">
-        <span class="l">{$t('kpi.http')} <span class="scope">· {$t('vb.scope_http')}</span></span>
+        <span class="l">{$t('kpi.http')} <span class="scope">· {info.http_service && info.http_service !== NG ? info.http_service : $t('vb.scope_http')}</span></span>
         <span class="v" class:none={req == null}>{req == null ? '–' : num(req, $lang)}</span>
         <span class="s">{req == null ? $t('ov.no_nginx') : ng ? $t('vb.rates', { r4: rate(ng.n4xx, 1), r5: rate(ng.n5xx, 2) }) : ''}</span>
       </div>

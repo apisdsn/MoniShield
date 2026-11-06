@@ -1514,3 +1514,12 @@ crypto handshake, public map, upload, Swagger and its schema, live map, Kafka, c
 pages, static files, `/map/labels.json`. A small ASGI alias (`interfaces/api/versioning.py`) keeps the old browser paths for one release;
 old collector paths answer 404. Rules and the next-release removal: `docs/08-architecture.md` ("API versions"), `docs/09-status.md`.
 
+## Stage 59 — Log Formats page and HTTP cards from any access log (done, 2026-11-06)
+
+Owner approval 2026-11-06; step 1e of stage 52. `domain/format_check.py` (suggestion and test of a format on sample lines), TOML writer and
+`override` in `domain/log_formats.py`, `application/log_format_service.py`, adapters `infrastructure/log_format_file.py` and `log_lines.py`,
+`interfaces/api/log_formats.py`; page `web/src/pages/LogFormats.svelte` with helpers in `web/src/logformats.js`. The HTTP cards (Command Center,
+volume band, Overview, Trends) read the folder's access log when it has no ingress (`queries/tables.http_rows`). Also in this stage, by the
+owner's request: no date picker on pages that do not depend on a date, a consistent Collectors list (one-line chips, status tiles as the filter),
+and the Servers reads as POST with the parameters in the body (a host name never stands in a URL).
+

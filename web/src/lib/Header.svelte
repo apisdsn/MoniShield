@@ -13,7 +13,7 @@
   import GlobalSearch from './GlobalSearch.svelte';
   import SyncButton from './SyncButton.svelte';
   import { APP_NAME } from '../brand.js';
-  let { me, route, folders, folder, folderDisabled = false, sources = [], source = 's3', onsource = null, onfolder, folderInfo = '', onreload, onlogout, onmenu, drawerOpen = false,
+  let { me, route, folders, folder, folderDisabled = false, showDate = true, sources = [], source = 's3', onsource = null, onfolder, folderInfo = '', onreload, onlogout, onmenu, drawerOpen = false,
         menuBtn = $bindable(), onsynced = null, title, sysTitle = false, status = [], titleEl = $bindable() } = $props();
 
   function segKey(e, values, current, set) {
@@ -30,6 +30,7 @@
     <button bind:this={menuBtn} class="icon-btn burger" onclick={onmenu} aria-expanded={drawerOpen} aria-controls="side" aria-label={$t('nav.open')}>☰</button>
     <span class="brand" aria-hidden="true"><Logo size={24} />{APP_NAME}</span>
     <div class="tools">
+      {#if sources.length > 1 || (showDate && folders?.length)}
       <div class="where">
         {#if sources.length > 1}
           <div class="seg" role="radiogroup" aria-label={$t('src.label')} tabindex="-1" onkeydown={(e) => segKey(e, sources, source, (v) => onsource?.(v))}>
@@ -39,8 +40,9 @@
             {/each}
           </div>
         {/if}
-        {#if folders?.length}<FolderPicker {folders} value={folder} info={folderInfo} disabled={folderDisabled} onchange={onfolder} />{/if}
+        {#if showDate && folders?.length}<FolderPicker {folders} value={folder} info={folderInfo} disabled={folderDisabled} onchange={onfolder} />{/if}
       </div>
+      {/if}
       {#if folders?.length}<GlobalSearch {folder} />{/if}
       {#if me?.role === 'admin'}<SyncButton {onsynced} />{/if}
       <LangMenu />
@@ -66,10 +68,10 @@
     background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(10px); box-shadow: var(--glow);
   }
   .bar { display: contents; }
-  /* the title keeps at least ~22rem; when the tools do not fit next to it they move to their own line (right-aligned)
+  /* the title keeps at least ~15rem (the status line wraps inside it); when the tools do not fit next to it they move to their own line (right-aligned)
      instead of squeezing the title into one word per line (owner report 2026-10-08, 1280 px in English) */
   .tools { order: 1; flex: 0 1 auto; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px; min-width: 0; }
-  .ttl { order: 0; flex: 1 1 22rem; min-width: 0; }
+  .ttl { order: 0; flex: 1 1 15rem; min-width: 0; }
   h1 { font-size: 1.375rem; font-weight: 600; line-height: 1.25; color: var(--heading); overflow-wrap: break-word; text-wrap: balance; }
   h1:focus { outline: none; }
   h1:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

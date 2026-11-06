@@ -67,6 +67,12 @@ class DuckWarehouse:
         """Service names seen in any folder (for the per-service notification thresholds)."""
         with self._cur() as cur: return [r[0] for r in cur.execute('SELECT DISTINCT service FROM agg_service ORDER BY 1').fetchall()]
 
+    def format_usage(self, since):
+        """-> [(ns, service, folder 'YYYY-MM-DD', lines, lines not read by the service's format)] for the folders from `since` on."""
+        with self._cur() as cur:
+            return [(ns, svc, str(f), int(n or 0), int(u or 0)) for ns, svc, f, n, u in cur.execute(
+                'SELECT ns, service, folder, sum(lines), sum(lines_unmatched) FROM ingest_file WHERE folder >= ? GROUP BY ns, service, folder', [since]).fetchall()]
+
     def newest_folder(self):
         with self._cur() as cur: r = cur.execute('SELECT max(folder) FROM folder_state').fetchone()[0]
         return None if r is None else str(r)

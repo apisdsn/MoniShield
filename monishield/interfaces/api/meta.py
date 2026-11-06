@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request
 from monishield import __version__
 from monishield.infrastructure import refdata
 from monishield.infrastructure.queries.sql import local_time
+from monishield.infrastructure.queries.tables import http_rows, http_service
 from monishield.application import sources
 from monishield.domain import services as profile, timezone
 from monishield.domain.kafka_message import configured as kafka_configured
@@ -24,14 +25,17 @@ def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)
     # source: where the folder's logs come from (log / s3 / kafka / collector / upload) — the folders of each source are labelled in the UI
     ctx = source_ctx(request)   # the source being viewed: its folders, its database
     src = ctx.logfolders.source
-    # requests: HTTP requests of nginx-ingress (the volume band's 7-day history on every page; None without ingress logs)
+    # requests: HTTP requests of the folder's access log (nginx-ingress, else the busiest access log; the volume band's 7-day history on every page;
+    # None without an access log), http_service: its name
     folders = [dict(folder=str(f), range_start=local_time(a), range_end=local_time(b), lines=lines, services=svc, files=files, files_empty=empty, files_corrupt=corrupt,
                     requests=req, derived_at=local_time(d), source=src(str(f)))
                for f, a, b, lines, files, empty, corrupt, d, svc, req in cur.execute(
                    """SELECT s.folder, s.range_start_utc, s.range_end_utc, s.lines, s.files, s.files_empty, s.files_corrupt, s.derived_at,
                              (SELECT count(*) FROM agg_service a WHERE a.folder = s.folder),
-                             (SELECT a.requests FROM agg_service a WHERE a.folder = s.folder AND a.service = 'nginx-ingress-controller' AND a.lines > 0)
+                             NULL
                       FROM folder_state s ORDER BY s.folder DESC""").fetchall()]
+    http = http_rows(cur)   # the service the HTTP cards show in each folder
+    for f in folders: f['requests'], f['http_service'] = (http[f['folder']]['requests'], http[f['folder']]['service']) if f['folder'] in http else (None, None)
     city, region, cc, lat, lon = cfg.server_fallback
     g = cur.execute('SELECT city, region, country, lat, lon FROM ip_info WHERE ip = ?', [cfg.server_ip]).fetchone()
     if g and g[3] is not None:   # GeoLite2 often gives coordinates without a city name for the server IP: name from server_fallback
@@ -73,4 +77,4 @@ def folder_summary(request: Request, folder: str = Depends(folder_param), user=D
     return dict(folder=folder, prev_folder=str(prev) if prev else None, range_start=local_time(r[0]), range_end=local_time(r[1]),
                 attack_ip_count=cur.execute(f"SELECT count(*) FROM {'agg_crs_ip' if request.app.state.cfg.attack_rules == 'crs' else 'agg_attack_ip'} WHERE folder = ?",
                                             [folder]).fetchone()[0],
-                services=services, files=files)
+                http_service=(http_service(cur, folder) or {}).get('service'), services=services, files=files)

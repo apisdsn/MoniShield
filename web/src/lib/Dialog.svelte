@@ -5,6 +5,7 @@
 <script>
   import { tick } from 'svelte';
   import { t } from '../i18n.js';
+  import Icon from './Icon.svelte';
   import { restoreFocus } from './focus.js';
   let { open = $bindable(false), title, onclose = null, returnFocus = null, children, footer = null, wide = false } = $props();   // returnFocus: fallback when the trigger is already gone from the page
   let el = $state(), trigger = null;
@@ -29,7 +30,7 @@
 <dialog bind:this={el} class="dlg card" class:wide aria-labelledby={id} onclose={closed}>
   <header>
     <h2 {id}>{title}</h2>
-    <button type="button" class="icon-btn x" aria-label={$t('action.close')} title={$t('action.close')} onclick={() => (open = false)}>×</button>
+    <button type="button" class="icon-btn x" aria-label={$t('action.close')} title={$t('action.close')} onclick={() => (open = false)}><Icon name="close" size={18} /></button>
   </header>
   <div class="body">{@render children?.()}</div>
   {#if footer}<footer>{@render footer()}</footer>{/if}
@@ -51,7 +52,6 @@
   .dlg::backdrop { background: rgba(3, 7, 10, 0.62); }
   header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 6px; }
   .dlg h2 { font-size: 1.0625rem; font-weight: 600; color: var(--heading); text-transform: none; }   /* title contains the user name: as is */
-  .x { width: 36px; height: 36px; font-size: 1.25rem; }
   .body {
     flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     padding: 6px 14px 14px 20px; margin: 0 6px 6px 0;   /* 14 + 6 = the 20 px edge of the header; the bar ends above the corner */

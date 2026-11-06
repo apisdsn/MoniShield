@@ -8,10 +8,10 @@ Stage 24: previous-folder KPIs (▲/▼ change), hourly charts (requests, 5xx, a
 2026-10-07: average of comparable folders as the comparison (`baseline`), also used by notifications (monishield/alerts.py).
 """
 
-from monishield.domain import alerts
+from monishield.domain import alerts, services as profile
 from monishield.infrastructure.queries.sql import H, _all, _one, local
 from .map import ipmap
-from .tables import NG, SEV_SQL
+from .tables import NG, SEV_SQL, http_service
 
 
 # ASSUMPTION (Stage 24): "spike" threshold vs the previous folder = at least 2× AND an increase of at least N.
@@ -19,11 +19,14 @@ from .tables import NG, SEV_SQL
 JUMP_FACTOR, JUMP_MIN_JWT = 2, 20
 
 
-def _kpi(cur, folder, crs):
-    """One folder's numbers: main KPIs + inputs for attention items. All from the aggregates of their source pages."""
+def _kpi(cur, folder, crs, svc=None):
+    """One folder's numbers: main KPIs + inputs for attention items. All from the aggregates of their source pages.
+    `svc` = the service of the HTTP cards (requests, 5xx): by default the folder's own (nginx-ingress-controller, else its busiest
+    access log, tables.http_service); every folder of a comparison uses its own."""
+    if svc is None: svc = (http_service(cur, folder) or {}).get('service')
     U, I = ('agg_crs_url', 'agg_crs_ip') if crs else ('agg_attack_url', 'agg_attack_ip')
     sev = 'severity' if crs else SEV_SQL
-    ng = cur.execute('SELECT requests, n5xx, lines FROM agg_service WHERE folder = ? AND service = ? AND lines > 0', [folder, NG]).fetchone()
+    ng = cur.execute('SELECT requests, n5xx, lines FROM agg_service WHERE folder = ? AND service = ? AND lines > 0', [folder, svc]).fetchone() if svc else None
     err, lines, corrupt = cur.execute('SELECT coalesce(sum(err), 0), coalesce(sum(lines), 0), coalesce(sum(files_corrupt), 0) FROM agg_service WHERE folder = ?',
                                       [folder]).fetchone()
     atk_req, crit_req = cur.execute(f'SELECT coalesce(sum(hits), 0), coalesce(sum(hits) FILTER (WHERE {sev} = 3), 0) FROM {U} WHERE folder = ?', [folder]).fetchone()
@@ -34,7 +37,7 @@ def _kpi(cur, folder, crs):
     return dict(
         kpi=dict(requests=ng[0] if ng else None, n5xx=ng[1] if ng else None, errors=err, upstream_errors=sum(n for _, n in up),
                  attack_ips=_one(cur, f'SELECT count(*) FROM {I} WHERE folder = ?', folder), login_fail_ips=login_ips),
-        ng_lines=ng[2] if ng else 0, lines=lines, corrupt=corrupt, atk_req=atk_req, crit_req=crit_req, resets=resets, up=up,
+        http_service=svc if ng else None, ng_lines=ng[2] if ng else 0, lines=lines, corrupt=corrupt, atk_req=atk_req, crit_req=crit_req, resets=resets, up=up,
         top5=cur.execute('SELECT upstream, n5xx FROM agg_upstream WHERE folder = ? AND n5xx > 0 ORDER BY n5xx DESC, upstream LIMIT 1', [folder]).fetchone(),
         restarts=_one(cur, 'SELECT count(*) FROM v_restart WHERE folder = ?', folder), pdf_fail=pdf_fail, pdf_tpl=pdf_tpl, uk_n=uk_n, uk_fail=uk_fail,
         jwt=_one(cur, "SELECT coalesce(sum(n), 0) FROM agg_jwt WHERE folder = ? AND bucket <> 'Refresh Token Kedaluwarsa'", folder),
@@ -62,6 +65,11 @@ def baseline(cur, folder, crs, a):
     svc = {s: avg([k['svc'].get(s, (0, 0))[0] for k in ok_all]) for s in a['svc']}
     return dict(window=WINDOW, folders=prev, n_all=len(ok_all), n_nginx=len(ok_ngx), kpi=kpi,
                 atk_req=avg([k['atk_req'] for k in ok_ngx]), jwt=avg([k['jwt'] for k in ok_all]), svc=svc)
+
+
+def _access_table(svc):
+    """Raw table of the service's requests: the ingress, the frontend, or any access log of log-formats.toml."""
+    return 'nginx_access' if svc == NG else 'fe_access' if svc == profile.current().frontend else 'http_access'
 
 
 def _jump(cur_n, prev_n, min_add):
@@ -108,9 +116,11 @@ def command(cur, folder, cfg, module=None):
 
     # per hour (WIB): ingress requests, 5xx (from the raw table like the Availability page), attack requests
     hr = 'agg_crs_hour' if crs else 'agg_attack_hour'
-    req = dict(_all(cur, f"SELECT {H.format('hour_wib')}, total FROM agg_hour WHERE folder = ? AND service = ? AND total > 0", folder, NG))
-    n5 = dict(_all(cur, f"""SELECT {H.format(f"date_trunc('hour', {local('ts_utc')})")} AS h, count(*) FROM nginx_access
-                           WHERE folder = ? AND status BETWEEN 500 AND 599 GROUP BY h""", folder)) if req else {}
+    svc = a['http_service']
+    req = dict(_all(cur, f"SELECT {H.format('hour_wib')}, total FROM agg_hour WHERE folder = ? AND service = ? AND total > 0", folder, svc)) if svc else {}
+    n5 = dict(_all(cur, f"""SELECT {H.format(f"date_trunc('hour', {local('ts_utc')})")} AS h, count(*) FROM {_access_table(svc)}
+                           WHERE folder = ? AND status BETWEEN 500 AND 599{'' if svc == NG or svc == profile.current().frontend else ' AND service = ?'} GROUP BY h""",
+                    folder, *([] if svc == NG or svc == profile.current().frontend else [svc]))) if req else {}
     atk = dict(_all(cur, f"SELECT {H.format('hour_wib')}, n FROM {hr} WHERE folder = ?", folder))
     hours = sorted(set(req) | set(n5) | set(atk))
 
@@ -119,4 +129,4 @@ def command(cur, folder, cfg, module=None):
                           comparable=dict(nginx=bool(a['ng_lines']) and p['ng_lines'] >= 0.5 * a['ng_lines'], all=p['lines'] >= 0.5 * a['lines'])) if p else None,
                 baseline=dict(window=base['window'], n_all=base['n_all'], n_nginx=base['n_nginx'], kpi=base['kpi'], folders=base['folders']),
                 by_hour=dict(hours=hours, requests=[req.get(h, 0) for h in hours], n5xx=[n5.get(h, 0) for h in hours], attacks=[atk.get(h, 0) for h in hours]),
-                attention=att, map=ipmap(cur, folder, module))
+                http_service=svc, attention=att, map=ipmap(cur, folder, module))

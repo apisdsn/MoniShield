@@ -88,7 +88,7 @@
       {#if st.error}<p class="err" role="alert">{$t('ing.error')} {$srv(st.error)}</p>{/if}
       {#if last?.warnings?.length}
         <details class="warns">
-          <summary>{$t('ing.warnings', { n: num(last.warnings.length, $lang) })}</summary>
+          <summary>{$t(last.warnings.length === 1 ? 'ing.one_warnings_count' : 'ing.warnings', { n: num(last.warnings.length, $lang) })}</summary>
           <ul>{#each last.warnings as w}<li><code>{$srv(w)}</code></li>{/each}</ul>
         </details>
       {/if}

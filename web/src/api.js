@@ -24,7 +24,7 @@ let source = 's3';
 export function setSource(s) { source = s === 'kafka' || s === 'collector' ? s : 's3'; }
 /** The major version of the server API (docs/08-architecture.md, "API versions"). Only /api/health, /collector/install.* and the page routes have none. */
 export const API = '/api/v1';
-const OWN = /^\/api\/v1\/(auth|me|crypto|servers)(\/|\?|$)/;   // not about the data of a source (the metrics of the Servers page have none)
+const OWN = /^\/api\/v1\/(auth|me|crypto|servers|admin\/log-formats)(\/|\?|$)/;   // not about the data of a source (the metrics of the Servers page have none)
 /** An /api path with the current data source (S3 is the default and is not written). Use it for links the browser follows itself. */
 export function withSource(path) {
   if (source === 's3' || !path.startsWith(API + '/') || OWN.test(path)) return path;

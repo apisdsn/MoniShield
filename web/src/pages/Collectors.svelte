@@ -9,11 +9,12 @@
   import { api } from '../api.js';
   import { route, build } from '../state.js';
   import { locale, num, tLocal, utcToLocal } from '../format.js';
-  import { NONE_KEY, PLATFORMS, ago, checkGroup, checkName, checkOptions, counts, defaults, editable, filterRows, foldAll, groupNames, keySteps, payload, sections, sends, statusTally, updateSteps, upgradeSteps, shortVersion } from '../collectors.js';
+  import { NONE_KEY, PLATFORMS, ago, checkGroup, checkName, checkOptions, TILE_STATUSES, toggleStatus, counts, defaults, editable, filterRows, foldAll, groupNames, keySteps, payload, sections, sends, updateSteps, upgradeSteps, shortVersion } from '../collectors.js';
   import { load as stored, save } from '../store.js';
   import { toast } from '../lib/Toast.svelte';
   import Dialog from '../lib/Dialog.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
+  import SendChips from '../lib/SendChips.svelte';
   import CollectorForm from '../lib/CollectorForm.svelte';
   import GroupField from '../lib/GroupField.svelte';
   import CollectorInstall from '../lib/CollectorInstall.svelte';
@@ -49,7 +50,8 @@
   function readClosed() { try { const o = JSON.parse(stored('cl-closed', '{}')); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; } }
   function setClosed(c) { folded = c; save('cl-closed', JSON.stringify(c)); }
   const secs = $derived(sections(rows, q, status, folded));
-  const byStatus = $derived(statusTally(rows));
+  const filtered = $derived(status !== 'all');
+  const toneVar = { online: '--ok', late: '--warn', offline: '--err', waiting: '--muted' };
   const headed = $derived(groups.length > 0);          // with no group at all the list is one plain table
   const names = $derived(sections(rows, '', 'all', {}).map((s) => s.name));
   const anyOpen = $derived(secs.some((s) => s.open));
@@ -70,6 +72,9 @@
   const seen = (r) => (r.last_seen && r.status !== 'waiting' ? rel(r.last_seen) : r.status === 'waiting' ? $t('cl.not_installed') : $t('cl.never'));
   const chipText = (c) => $t(`cl.sends.${c.key}`, { n: num(c.n ?? 0, $lang) });
   const chips = (r) => sends(r.platform, r.options);
+
+  /** How many of the panel's plain actions (not revoke / delete) show for a collector; an odd one leaves the last one alone on its row. */
+  const plainActions = (r) => [!!r.enrolled_at, r.status === 'waiting', !!r.enrolled_at && r.status !== 'revoked', true, r.status !== 'revoked', r.status !== 'revoked'].filter(Boolean).length;
 
   function pick(id) {
     selId = selId === id ? null : id;
@@ -170,15 +175,17 @@
   <span class="sr-only" role="status">{$t('state.loading')}</span>
 {:else}
   {#if error}<ErrorState compact {error} onretry={load} />{/if}
-  <ul class="tiles" aria-label={$t('cl.counts')}>
-    {#each ['online', 'late', 'offline', 'waiting'] as s}
-      <li class="tile" title={$t(`cl.hint.${s}`)}>
+  <div class="tiles" role="group" aria-label={$t('cl.counts')}>
+    {#each TILE_STATUSES as s}
+      <button type="button" class="tile" class:on={status === s} style="--tone: var({toneVar[s]})" aria-pressed={status === s}
+        title={$t(status === s ? 'cl.tile_all_tip' : `cl.tile_only.${s}_sub`)} onclick={() => (status = toggleStatus(status, s))}>
         <span class="dot {DOT[s]}" aria-hidden="true"></span>
         <b class="num">{num(tally[s], $lang)}</b>
         <span class="tl">{$t(`cl.st.${s}`)}</span>
-      </li>
+        {#if status === s}<span class="ftag">{$t('cl.tag_filtered')}</span>{/if}
+      </button>
     {/each}
-  </ul>
+  </div>
 
   {#if !rows.length}
     <div class="card empty">
@@ -196,13 +203,11 @@
             <span class="sr-only">{$t('cl.search')}</span>
             <input type="search" bind:value={q} placeholder={$t('cl.search_ph')} autocomplete="off" spellcheck="false" maxlength="100" />
           </label>
-          <div class="seg flt" role="group" aria-label={$t('cl.filter')}>
-            {#each ['all', 'online', 'late', 'offline'] as s}
-              <button type="button" aria-pressed={status === s} onclick={() => (status = s)}>{$t(`cl.flt.${s}`)} <span class="fn">{num(byStatus[s], $lang)}</span></button>
-            {/each}
-          </div>
+          {#if filtered}<button type="button" class="btn all" onclick={() => (status = 'all')}>{$t('cl.show_all')}</button>{/if}
           {#if headed}<button type="button" class="btn all" onclick={() => setClosed(foldAll(names, anyOpen))}>{$t(anyOpen ? 'cl.collapse_all' : 'cl.expand_all')}</button>{/if}
         </div>
+
+        {#if filtered}<p class="fnote muted">{$t(`cl.filter_text.${status}`)}</p>{/if}
 
         {#each secs as g (g.name)}
           <section class="card list" aria-label={g.name || $t('cl.no_group')}>
@@ -235,9 +240,9 @@
                       </button>
                     </td>
                     <td class="snd" data-label={$t('cl.col.sends')}>
-                      <span class="chips">{#each chips(r) as c}<span class="chip">{chipText(c)}</span>{:else}<span class="muted">{$t('cl.sends.nothing')}</span>{/each}</span>
+                      <SendChips texts={chips(r).map(chipText)} empty={$t('cl.sends.nothing')} />
                     </td>
-                    <td data-label={$t('cl.col.version')} class="ver" title={r.version || null}>{shortVersion(r.version) || $t('cl.none')}</td>
+                    <td data-label={$t('cl.col.version')} class="ver" class:none={!shortVersion(r.version)} title={r.version || null}>{shortVersion(r.version) || $t('cl.none')}</td>
                     <td data-label={$t('cl.col.seen')} class="seen" title={exact(r.last_seen)}>{seen(r)}</td>
                     <td data-label={$t('col.status')}><SeverityTag level={TONE[r.status]} text={$t(`cl.st.${r.status}`)} /></td>
                   </tr>
@@ -248,7 +253,7 @@
             {/if}
           </section>
         {:else}
-          <div class="card nomatch" role="status">{$t('cl.nomatch')}</div>
+          <div class="card nomatch" role="status">{$t(filtered && !q.trim() ? `cl.none_text.${status}` : 'cl.nomatch')}</div>
         {/each}
       </div>
 
@@ -257,15 +262,15 @@
         <section class="card panel" id="cl-panel" bind:this={panelEl} aria-labelledby="cl-ph">
           <header>
             <h2 id="cl-ph" class="sys">{r.name}</h2>
-            <button type="button" class="icon-btn" onclick={() => (selId = null)} aria-label={$t('cl.panel.close')} title={$t('cl.panel.close')}>×</button>
+            <button type="button" class="icon-btn" onclick={() => (selId = null)} aria-label={$t('cl.panel.close')} title={$t('cl.panel.close')}><Icon name="close" size={18} /></button>
           </header>
           <p class="pst"><SeverityTag level={TONE[r.status]} text={$t(`cl.st.${r.status}`)} /> <span class="muted">{$t(`cl.hint.${r.status}`)}</span></p>
           <dl>
             <dt>{$t('cl.p.platform')}</dt><dd>{$t(`cl.platform.${r.platform}`)}</dd>
             <dt>{$t('cl.p.group')}</dt><dd>{r.group || $t('cl.no_group')}</dd>
-            <dt>{$t('cl.p.version')}</dt><dd>{shortVersion(r.version) || $t('cl.none')}</dd>
+            <dt>{$t('cl.p.version')}</dt><dd class:none={!shortVersion(r.version)}>{shortVersion(r.version) || $t('cl.none')}</dd>
             <dt>{$t('cl.p.seen')}</dt><dd title={exact(r.last_seen)}>{r.last_seen && r.enrolled_at ? `${rel(r.last_seen)} · ${exact(r.last_seen)}` : $t('cl.never')}</dd>
-            <dt>{$t('cl.p.ip')}</dt><dd class="mono">{r.last_ip || $t('cl.none')}</dd>
+            <dt>{$t('cl.p.ip')}</dt><dd class="mono" class:none={!r.last_ip}>{r.last_ip || $t('cl.none')}</dd>
             <dt>{$t('cl.p.sends')}</dt>
             <dd><span class="chips">{#each chips(r) as c}<span class="chip">{chipText(c)}</span>{:else}{$t('cl.sends.nothing')}{/each}</span></dd>
             <dt>{$t('cl.p.created')}</dt><dd>{exact(r.created_at)}{r.created_by ? ` · ${r.created_by}` : ''}</dd>
@@ -298,7 +303,7 @@
             {#if r.enrolled_at && r.status !== 'revoked'}<button class="btn" disabled={busy} onclick={() => show('key-ask', { r })}><Icon name="key" size={16} />{$t('cl.a.key')}</button>{/if}
             <button class="btn" onclick={() => openGroup(r)}><Icon name="users" size={16} />{$t('cl.a.group')}</button>
             {#if r.status !== 'revoked'}<button class="btn" onclick={() => openInputs(r)}><Icon name="settings" size={16} />{$t('cl.a.inputs')}</button>{/if}
-            {#if r.status !== 'revoked'}<a class="btn" href="/api/v1/admin/collectors/{r.id}/config" download={r.platform === 'kubernetes' ? 'values.yaml' : 'config.yaml'}><Icon name="download" size={16} />{$t('cl.a.config')}</a>{/if}
+            {#if r.status !== 'revoked'}<a class="btn" class:wide={plainActions(r) % 2 === 1} href="/api/v1/admin/collectors/{r.id}/config" download={r.platform === 'kubernetes' ? 'values.yaml' : 'config.yaml'}><Icon name="download" size={16} />{$t('cl.a.config')}</a>{/if}
             {#if r.status !== 'revoked'}<button class="btn danger" onclick={() => show('revoke', { r })}><Icon name="ban" size={16} />{$t('cl.a.revoke')}</button>{/if}
             {#if canDelete(r)}<button class="btn danger" onclick={() => show('delete', { r })}><Icon name="archive" size={16} />{$t('cl.a.delete')}</button>{/if}
           </div>
@@ -401,11 +406,15 @@
   .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px 18px; margin-bottom: 14px; flex-wrap: wrap; }
   .intro { margin: 0; font-size: 0.875rem; max-width: 62ch; }
   .add { min-height: var(--touch); }
-  .tiles { list-style: none; margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .tiles { margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
   .tile {
     display: flex; align-items: center; gap: 8px; padding: 12px 16px; min-height: 52px; background: var(--card-bg); border: 1px solid var(--card-border);
-    border-radius: var(--r-card); box-shadow: var(--glow);
+    border-radius: var(--r-card); box-shadow: var(--glow); color: var(--fg); font: inherit; text-align: left; cursor: pointer;
   }
+  .tile:hover { background: var(--row-hover); }
+  .tile.on { border: 1.5px solid var(--tone); background: color-mix(in srgb, var(--tone) 10%, var(--card-bg)); }
+  .ftag { margin-left: auto; font-size: 0.75rem; font-weight: 600; color: var(--tone); }
+  .fnote { margin: 0; font-size: 0.875rem; }
   .tile .dot { margin: 0; }
   .tile b { font-size: 1.25rem; font-weight: 600; color: var(--fg); }
   .tl { color: var(--kpi-label); font-size: 0.875rem; }
@@ -413,11 +422,12 @@
   .layout.two { grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); }
   .secs { display: grid; gap: 14px; min-width: 0; align-content: start; }
   .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  .find { flex: 1 1 240px; display: flex; align-items: center; gap: 8px; min-height: var(--touch); padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); color: var(--muted); }
-  .find input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font-size: 1rem; outline: none; min-height: 40px; padding: 0; }
+  .find { margin: 0; flex: 1 1 240px; display: flex; align-items: center; gap: 8px; min-height: var(--touch); padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); color: var(--muted); }
+  .find input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font-size: 1rem; outline: none; min-height: var(--touch); padding: 0; }
   .find:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .flt button { min-height: var(--touch); padding: 0 12px; font-size: 0.8125rem; }
-  .fn { font-family: var(--mono); font-weight: 500; }
+  .fn { font-weight: 500; }
+  /* every count in the UI font with equal-width digits (a zero without a slash), like the status tiles */
+  .tile b, .fn, .gc, .gp, .seen, .chip { font-variant-numeric: tabular-nums; }
   /* the search box and the button are as tall as the status filter, whose 44 px buttons sit inside a 3 px padding and a border */
   .find, .all { min-height: calc(var(--touch) + 8px); box-sizing: border-box; }
   .list { padding: 6px 8px; }
@@ -448,10 +458,12 @@
     background: none; border: 0; border-radius: 10px; color: var(--fg); cursor: pointer; font: inherit;
   }
   .rowbtn b { font-weight: 600; overflow-wrap: anywhere; }
-  .rowbtn[aria-current='true'] b { color: var(--accent-text); }
+  /* the selected row: a background and a bar on its left edge, the text keeps its colour (like the other tables) */
+  tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   .plat { font-size: 0.75rem; color: var(--muted); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .ver, .seen { white-space: nowrap; font-size: 0.8125rem; color: var(--fg); }
+  .ver.none, dd.none { color: var(--muted); }
   .ver { font-family: var(--mono); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
   .skel { padding: 8px 20px; }
   .sk-row { display: flex; gap: 16px; align-items: center; height: 56px; border-bottom: 1px solid var(--row-line); }
@@ -469,8 +481,10 @@
   dt { color: var(--muted); }
   dd { margin: 0; overflow-wrap: anywhere; color: var(--fg); }
   .small { font-size: 0.8125rem; margin: 6px 0 0; }
-  .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-  .acts .btn { min-height: var(--touch); }
+  /* the actions: two equal columns, the dangerous ones (revoke, delete) full width at the bottom, every button 44 px tall */
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+  .acts .btn { min-height: var(--touch); justify-content: center; text-align: center; }
+  .acts .btn.danger, .acts .btn.wide { grid-column: 1 / -1; }
   .btn.danger { border-color: var(--err); color: var(--err); }
   .err { color: var(--err); font-size: 0.8125rem; margin: 6px 0 0; }
   form { display: flex; flex-direction: column; gap: 4px; }
@@ -510,7 +524,7 @@
     td.snd { grid-column: 1 / -1; }
     td.ver, td.seen { grid-column: 1 / -1; display: flex; gap: 8px; font-size: 0.8125rem; white-space: normal; overflow-wrap: anywhere; min-width: 0; }
     td[data-label].ver::before, td[data-label].seen::before { content: attr(data-label); color: var(--muted); min-width: 7.5rem; font-family: var(--font); }
-    .acts .btn, .acts a.btn { flex: 1 1 100%; justify-content: flex-start; }
+    .acts { grid-template-columns: 1fr; }
     .krow { flex-direction: column; align-items: stretch; }
   }
 </style>
