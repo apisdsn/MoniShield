@@ -45,10 +45,39 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
       if (early && width >= 800) errs.push('the map loaded before it came near the screen');
     }
     // the dashboard preview tabs switch the page shown (Security, Command Center, back to Overview)
-    for (const id of ['security', 'command-center', 'overview']) {
+    for (const id of ['security', 'command-center', 'servers', 'overview']) {
       await hp.locator(`#pv-tab-${id}`).click();
       if ((await hp.locator(`#pv-tab-${id}`).getAttribute('aria-selected')) !== 'true') errs.push(`preview tab ${id} not selected`);
     }
+    await hp.locator('#pv-tab-overview').press('ArrowRight');
+    if ((await hp.locator('#pv-tab-security').getAttribute('aria-selected')) !== 'true') errs.push('preview tabs: the arrow key does not move to the next tab');
+    // "Connect a server": the platform tabs switch the commands (from collectors.js), arrow keys move, and only the command box scrolls
+    await hp.locator('#home-collector').scrollIntoViewIfNeeded();
+    for (const [id, want] of [['windows', 'install.ps1'], ['kubernetes', 'helm upgrade --install'], ['docker', 'install.sh'], ['linux', 'install.sh']]) {
+      await hp.locator(`#col-tab-${id}`).click();
+      const txt = await hp.locator('#col-panel').innerText();
+      if ((await hp.locator(`#col-tab-${id}`).getAttribute('aria-selected')) !== 'true' || !txt.includes(want) || (id !== 'kubernetes' && !txt.includes('ingest.example.com'))) errs.push(`collector tab ${id}: selected or commands wrong`);
+    }
+    await hp.locator('#col-tab-linux').press('ArrowRight');
+    if ((await hp.locator('#col-tab-docker').getAttribute('aria-selected')) !== 'true') errs.push('collector tabs: the arrow key does not move to the next tab');
+    await hp.locator('#col-tab-windows').click();
+    // one height and centre line per row of controls: preview tabs, platform tabs and the preview header (wide); 44 px targets on a phone
+    const rows = await hp.evaluate((phone) => {
+      const out = [], vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+      for (const sel of ['.pv .tabs', '.plats', '.pv .hd .tools']) for (const bar of document.querySelectorAll(sel)) {
+        const kids = [...bar.children].filter(vis).map((e) => e.getBoundingClientRect());
+        const top = Math.min(...kids.map((r) => r.top)), line = kids.filter((r) => Math.abs(r.top - top) < 8);
+        const hs = line.map((r) => r.height), cs = line.map((r) => r.top + r.height / 2);
+        if (Math.max(...hs) - Math.min(...hs) > 1.01 || Math.max(...cs) - Math.min(...cs) > 1.01) out.push(`${sel}: heights ${hs.map(Math.round)}`);
+      }
+      if (phone) for (const e of document.querySelectorAll('.pv .tabs button, .plats button, .top a.btn, .menubtn, .top .icon-btn')) { const r = e.getBoundingClientRect(); if (vis(e) && (r.width < 43.5 || r.height < 43.5)) out.push(`target ${e.className || e.textContent.trim()} ${Math.round(r.width)}x${Math.round(r.height)}`); }
+      const glyph = [...document.querySelectorAll('.pv .tabs button, .plats button, .menubtn, .top .icon-btn')].filter((e) => /^[×✕✖▲▼◀▶⌄☰]+$/u.test(e.innerText.trim()));
+      if (glyph.length) out.push('glyph used as an icon');
+      const box = document.querySelector('#col-panel');
+      if (box && box.scrollWidth <= box.clientWidth && phone) out.push('the command box does not scroll inside itself on a phone');
+      return out;
+    }, width < 800);
+    if (rows.length) errs.push(`home page consistency: ${rows.join(' | ')}`);
     if (errs.length || st !== 200 || wide > 0 || !drawn) throw new Error(`home page at ${width}px: errors ${errs.join('; ')} map ${st} overflow ${wide}px drawn ${drawn}`);
     await hp.context().close();
     console.log(`ok   home page at ${width}px`);
