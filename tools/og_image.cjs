@@ -13,9 +13,9 @@ const HOST = DASHBOARD ? new URL(DASHBOARD).host : '';
 // fonts inline: a page built with setContent may not load local files
 const FONT = (w) => 'data:font/woff2;base64,' + fs.readFileSync(path.join(ROOT, `web/node_modules/@fontsource/outfit/files/outfit-latin-${w}-normal.woff2`)).toString('base64');
 const TEXT = {
-  id: { a: 'Pantau log dan keamanan layanan', b: 'dari satu dashboard', sub: 'Deteksi serangan OWASP CRS, akar masalah error, peta asal request, dan laporan harian.',
+  id: { a: 'Pantau log layanan, keamanan, dan server', b: 'dari satu dashboard', sub: 'Deteksi serangan OWASP CRS, akar masalah error, beban server dan container, serta laporan harian.',
         lines: 'Total baris log', err: 'Error', n1: '284.910', n2: '1.284' },
-  en: { a: 'Watch your service logs and security', b: 'from one dashboard', sub: 'OWASP CRS attack detection, the cause of errors, a request origin map, and a daily report.',
+  en: { a: 'Watch your service logs, security and servers', b: 'from one dashboard', sub: 'OWASP CRS attack detection, the cause of errors, server and container load, and a daily report.',
         lines: 'Total log lines', err: 'Errors', n1: '284,910', n2: '1,284' },
 };
 const BARS = [10, 8, 18, 35, 60, 72, 66, 58, 70, 88, 76, 50, 30, 20];

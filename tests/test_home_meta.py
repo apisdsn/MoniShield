@@ -14,12 +14,12 @@ def test_language_follows_the_link_then_the_client():
 
 def test_tags_per_language():
     en = home_meta.render(PAGE, 'en', 'https://monishield.example.com')
-    assert '<html lang="en"' in en and '<title>MoniShield · Log &amp; security monitoring</title>' in en
+    assert '<html lang="en"' in en and '<title>MoniShield · Log, security &amp; server monitoring</title>' in en
     assert '<meta property="og:image" content="https://monishield.example.com/og-en.png" />' in en
     assert '<meta property="og:url" content="https://monishield.example.com/?lang=en" />' in en
     assert 'og:locale" content="en_US"' in en and 'og:locale:alternate" content="id_ID"' in en and 'summary_large_image' in en
     idn = home_meta.render(PAGE, 'id', 'https://monishield.example.com')
-    assert '<html lang="id"' in idn and 'og-id.png' in idn and 'Pantau log dan keamanan layanan' in idn and 'hreflang="en"' in idn
+    assert '<html lang="id"' in idn and 'og-id.png' in idn and 'Pantau log layanan, keamanan, dan server' in idn and 'hreflang="en"' in idn
     assert idn.count('</head>') == 1
 
 
