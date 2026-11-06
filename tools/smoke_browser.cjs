@@ -23,6 +23,31 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   page.on('response', (r) => { if (r.status() >= 500) problems.push(`${r.status()} ${r.request().method()} ${r.url().replace(BASE, '')}`); });
 
   // public home page (no sign-in), on a wide screen and on a phone: renders, reads the public map, no sideways scroll
+  // the Servers tab of the home page preview: one server on show (its card beside the Server Details card), eight tiles, six charts, nothing cut or sideways
+  for (const width of [1440, 1280, 390]) {
+    const pp = await (await browser.newContext({ viewport: { width, height: 900 }, isMobile: width < 800, hasTouch: width < 800 })).newPage();
+    await pp.goto(BASE + '/');
+    await pp.waitForSelector('#pv-tab-servers');
+    await pp.locator('#pv-tab-servers').click();
+    await pp.waitForTimeout(500);
+    const root = width < 760 ? '.phone' : '.win';
+    const r = await pp.evaluate((root) => {
+      const q = (s) => [...document.querySelectorAll(`${root} ${s}`)].filter((e) => e.getClientRects().length);
+      const h = (els) => els.map((e) => Math.round(e.getBoundingClientRect().height));
+      const cut = q('.tile > span').filter((e) => e.scrollWidth > e.clientWidth).map((e) => `${e.textContent} (${e.scrollWidth} > ${e.clientWidth})`);
+      const card = q('.hc')[0], dtc = q('.dtc')[0];
+      return { tiles: h(q('.tile')), charts: q('.chart').length, chartH: h(q('.chart')), cut, over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+               beside: card && dtc ? Math.abs(card.getBoundingClientRect().top - dtc.getBoundingClientRect().top) < 2 : null, cardH: card && Math.round(card.getBoundingClientRect().height), dtcH: dtc && Math.round(dtc.getBoundingClientRect().height) };
+    }, root);
+    const want = width < 760 ? 2 : 6;
+    if (r.tiles.length !== 8 || new Set(r.tiles).size !== 1) throw new Error(`home preview Servers at ${width}: tiles ${JSON.stringify(r.tiles)}`);
+    if (r.charts !== want || new Set(r.chartH).size !== 1) throw new Error(`home preview Servers at ${width}: charts ${r.charts} (want ${want}), heights ${JSON.stringify(r.chartH)}`);
+    if (r.cut.length) throw new Error(`home preview Servers at ${width}: tile text is cut: ${r.cut.join('; ')}`);
+    if (r.over > 0) throw new Error(`home preview Servers at ${width}: sideways scroll by ${r.over}px`);
+    if (width >= 1101 && (!r.beside || Math.abs(r.cardH - r.dtcH) > 1)) throw new Error(`home preview Servers at ${width}: the host card (${r.cardH}px) and the details card (${r.dtcH}px) are not side by side at one height`);
+    await pp.close();
+  }
+  console.log('ok   home page preview, Servers tab: host card beside the details card, 8 tiles, six charts (two on a phone), nothing cut, no sideways scroll at 1440, 1280 and 390 px');
   for (const width of [1280, 360]) {
     const hp = await (await browser.newContext({ viewport: { width, height: 800 }, isMobile: width < 800, hasTouch: width < 800 })).newPage();
     const errs = [];
@@ -402,7 +427,18 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   const rects = async (sel) => page.$$eval(sel, (els) => els.map((e) => { const r = e.getBoundingClientRect(); return { top: Math.round(r.top + scrollY), h: Math.round(r.height), w: Math.round(r.width), left: Math.round(r.left) }; }));
   const near = (a, b) => Math.abs(a - b) <= 1;
   const settle = async (sel) => { await page.waitForSelector(sel); await page.waitForTimeout(700); };
-  for (const w of [1440, 1280]) {
+  // the plot areas of the six charts share their left edge and width (the same y-axis width), and no tile text is cut
+  const areas = async () => page.$$eval('.charts canvas', (cs) => cs.map((c) => [c.dataset.left, c.dataset.width].join('/')));
+  const cut = async () => page.$$eval('.dt .tile > span', (els) => els.filter((e) => e.scrollWidth > e.clientWidth).map((e) => `${e.textContent} (${e.scrollWidth} > ${e.clientWidth})`));
+  for (const w of [1100, 700]) {      // two columns, one column
+    await page.setViewportSize({ width: w, height: 1000 });
+    await page.click('.gfilter .gb:text-is("All Groups")');
+    await page.click('.hc:has-text("docker-host-01")');
+    await settle('.charts canvas[data-left]');
+    const a = await areas();
+    if (a.length !== 6 || new Set(a).size !== 1) throw new Error(`Servers ${w}: the plot areas of the charts differ (left/width): ${a.join(' ')}`);
+  }
+  for (const w of [1440, 1366, 1280]) {
     await page.setViewportSize({ width: w, height: 1000 });
     await page.click('.gfilter .gb:text-is("All Groups")');
     await page.click('.hc:has-text("docker-host-01")');
@@ -417,11 +453,21 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     const tiles = await rects('.dt .tile');
     if (tiles.length !== 8 || !tiles.every((t) => near(t.h, tiles[0].h))) throw new Error(`Servers ${w}: tiles ${JSON.stringify(tiles.map((t) => t.h))}`);
     if ((await page.locator('.dt .up').count()) !== 0) throw new Error('Servers: the upgrade line is shown on a server that sends the new numbers');
+    const a = await areas();
+    if (a.length !== 6 || new Set(a).size !== 1 || a[0].startsWith('undefined')) throw new Error(`Servers ${w}: the plot areas of the charts differ (left/width): ${a.join(' ')}`);
+    const clipped = await page.$$eval('.charts canvas', (cs) => cs.filter((c) => c.dataset.width === undefined).length);
+    if (clipped) throw new Error(`Servers ${w}: chart areas not measured`);
+    if ((await cut()).length) throw new Error(`Servers ${w} (several servers): tile text is cut: ${(await cut()).join('; ')}`);
     // one server on show: its card and the details card side by side, one height
     await page.click('.gfilter .gb:text-is("Internal")');
     await settle('.first .dt .tile:not(.blk) .tv');
-    const [hc] = await rects('.first .hc'), [dt] = await rects('.first .dt');
-    if (!hc || !dt || !near(hc.h, dt.h) || !near(hc.top, dt.top) || dt.w < hc.w * 1.5) throw new Error(`Servers ${w}: the details card (${dt && dt.h}px) is not as high as the host card (${hc && hc.h}px)`);
+    const [hc] = await rects('.first .hc'), [dt] = await rects('.first .dt'), [row] = await rects('.first');
+    if (!hc || !dt) throw new Error(`Servers ${w}: no host card or details card`);
+    if (row.w >= 1200) {      // beside each other, one height
+      if (!near(hc.h, dt.h) || !near(hc.top, dt.top) || dt.w < hc.w * 1.5) throw new Error(`Servers ${w}: the details card (${dt.h}px) is not as high as the host card (${hc.h}px)`);
+    } else if (dt.top < hc.top + hc.h) throw new Error(`Servers ${w}: the row is ${row.w}px wide, so the details card should sit under the host card`);
+    if ((await cut()).length) throw new Error(`Servers ${w} (one server, row ${row.w}px): tile text is cut: ${(await cut()).join('; ')}`);
+    console.log(`     ${w}: one server on show, row ${row.w}px: ${row.w >= 1200 ? 'side by side' : 'stacked'}, no tile text cut; chart areas ${a[0]}`);
     if (!/Ubuntu 24\.04 LTS/.test(await page.locator('.first .hc .nm small').innerText()) || /Linux 6\./.test(await page.locator('.first .hc .nm small').innerText())) throw new Error('Servers: the host card should show the short OS name');
     if (!/Last data/.test(await page.locator('.first .hc .ft').innerText())) throw new Error('Servers: no "Last data" line on the host card');
     // a Linux host has no Containers tile; the older collector shows the upgrade line, the others do not

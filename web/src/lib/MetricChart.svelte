@@ -12,7 +12,8 @@
   Chart.register(...registerables);
 
   /** datasets: [{label, data, color: token ('--accent', '--c2'), dashed?}]; the legend row shows them when there is more than one; labels: axis texts; tips: tooltip titles (same length). */
-  let { title, now = '', labels = [], tips = [], datasets = [], fmt = (v) => String(v), max = null, caption = '' } = $props();
+  let { title, now = '', labels = [], tips = [], datasets = [], fmt = (v) => String(v), max = null, caption = '', tickFmt = null } = $props();
+  const Y_WIDTH = 76;      // every chart has the same y-axis width, so the plot areas of the six charts share their left and right edges and their time ticks
 
   let canvas = $state();
   let chart;
@@ -33,14 +34,15 @@
         datasets: datasets.map((d) => ({ label: d.label, data: [...d.data], borderColor: v(d.color), backgroundColor: v(d.color), borderWidth: 2, tension: 0.25, pointRadius: 0,
           pointHoverRadius: 4, spanGaps: false, borderDash: d.dashed ? [5, 4] : [], fill: false })),
       },
-      plugins: [chartZoomFix],
+      plugins: [chartZoomFix, { id: 'area', afterLayout: (c) => { c.canvas.dataset.left = Math.round(c.chartArea.left); c.canvas.dataset.width = Math.round(c.chartArea.right - c.chartArea.left); } }],
       options: {
         responsive: true, maintainAspectRatio: false, animation: reduce ? false : undefined, locale: $lang === 'en' ? 'en-US' : 'id-ID',
+        layout: { padding: { right: 14 } },      // room for the last time label
         interaction: { mode: 'index', intersect: false },
         color: v('--muted'), borderColor: v('--grid'), font: { family: 'Outfit, system-ui, sans-serif' },
         scales: {
           x: { grid: { color: v('--grid') }, ticks: { color: v('--muted'), maxRotation: 0, autoSkip: true, autoSkipPadding: 14, maxTicksLimit: 7 } },
-          y: { grid: { color: v('--grid') }, beginAtZero: true, ...(max ? { suggestedMax: max } : {}), ticks: { color: v('--muted'), maxTicksLimit: 5, callback: (x) => fmt(x) } },
+          y: { grid: { color: v('--grid') }, beginAtZero: true, afterFit: (scale) => { scale.width = Y_WIDTH; }, ...(max ? { suggestedMax: max } : {}), ticks: { color: v('--muted'), maxTicksLimit: 5, callback: (x) => (tickFmt || fmt)(x) } },
         },
         plugins: {
           legend: { display: false },

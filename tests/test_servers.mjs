@@ -99,7 +99,7 @@ test('host cards under group headings, with the group filter', () => {
 
 // Server Details (stage 61)
 import { readFileSync } from 'node:fs';
-import { detailTiles, diskIoSets, loadSets, pairBytes, upgradeKey, uptimeText } from '../web/src/servers.js';
+import { detailTiles, diskIoSets, loadSets, loadTick, onAxis, pairBytes, sharedAxis, upgradeKey, uptimeText } from '../web/src/servers.js';
 
 const EN = JSON.parse(readFileSync(new URL('../web/src/i18n/en.json', import.meta.url), 'utf8'));
 const tr = (key, p = {}) => EN[key].replace(/\{(\w+)\}/g, (_, k) => p[k]);
@@ -149,9 +149,18 @@ test('an old collector: load of 1 minute only, no cores line in the chart', () =
   const t = detailTiles({ ...DETAILS, cores: null, load: { m1: 0.5, m5: null, m15: null } }, tr, 'en', 0);
   assert.equal(t[1].value, '0.50 · – · –');
   const s = { load: { m1: [['a', 1], ['b', 2]], m5: [['a', 1.5]], m15: [], cores: null }, disk_io: { read: [['a', 10], ['b', 20]], write: [['b', 5]] } };
-  assert.deepEqual(loadSets(s, tr).sets.map((x) => x.label), ['1 min', '5 min', '15 min']);
-  assert.deepEqual(loadSets({ ...s, load: { ...s.load, cores: 4 } }, tr).sets.at(-1), { label: 'Cores', data: [4, 4], color: '--muted', dashed: true });
-  assert.deepEqual(diskIoSets(s, tr).sets.map((x) => x.data), [[10, 20], [null, 5]]);
+  const axis = sharedAxis(s.load.m1, s.load.m5, s.disk_io.write);
+  const on = (rows) => onAxis(axis, rows);
+  assert.deepEqual(axis, ['a', 'b']);
+  assert.deepEqual(loadSets(s, tr, on).map((x) => x.label), ['1 min', '5 min', '15 min']);
+  assert.deepEqual(loadSets(s, tr, on)[1].data, [1.5, null]);
+  assert.deepEqual(loadSets({ ...s, load: { ...s.load, cores: 4 } }, tr, on).at(-1), { label: 'Cores', data: [4, 4], color: '--muted', dashed: true });
+  assert.deepEqual(diskIoSets(s, tr, on).map((x) => x.data), [[10, 20], [null, 5]]);
+});
+
+test('Load Average ticks: whole numbers, one decimal only when needed', () => {
+  assert.deepEqual([6, 4, 2, 0, 1.5, 1, 0.5].map((v) => loadTick(v, 'en')), ['6', '4', '2', '0', '1.5', '1', '0.5']);
+  assert.equal(loadTick(0.25, 'id'), '0,25');
 });
 
 test('the upgrade hint names the command of the platform', () => {

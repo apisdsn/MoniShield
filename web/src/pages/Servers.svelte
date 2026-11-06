@@ -10,7 +10,7 @@
   import { TZ } from '../tz.js';
   import { load, save } from '../store.js';
   import { ago, groupNames } from '../collectors.js';
-  import { RANGES, alignTo, hostSections, axisLabel, bannerItems, bars, barTone, clockAt, detailTiles, diskIoSets, diskPercent, fullLabel, loadSets, hostKey, hostStatus, last, mainDisk, memoryShare, memoryText, pctText, points,
+  import { RANGES, hostSections, axisLabel, bannerItems, bars, barTone, clockAt, detailTiles, diskIoSets, diskPercent, fullLabel, loadSets, loadTick, onAxis, sharedAxis, hostKey, hostStatus, last, mainDisk, memoryShare, memoryText, pctText,
            rate, share, sparkPoints, unusualValue, upgradeKey, usualBand, zText } from '../servers.js';
   import MetricChart from '../lib/MetricChart.svelte';
   import EmptyState from '../lib/EmptyState.svelte';
@@ -85,27 +85,26 @@
   // Charts
   const d = $derived(detail && current && hostKey(detail) === hostKey(current) ? detail : null);
   const tzLabel = $derived(TZ.label);
-  const labelsOf = (rows) => points(rows).t.map((x) => axisLabel(x, range, TZ.minutes, $lang));
-  const tipsOf = (rows) => points(rows).t.map((x) => fullLabel(x, TZ.minutes, tzLabel, $lang));
-  const valuesOf = (rows) => points(rows).v;
   const charts = $derived.by(() => {
     if (!d) return null;
-    const s = d.series, c = d.current;
+    const s = d.series, c = d.current, l = s.load || {}, io = s.disk_io || {};
     const disk = diskPercent(s.disk_used, s.disk_total);
-    const memTotal = last(s.mem_total);
-    const memBase = (s.mem_used || []).filter(([, v]) => v !== null);
-    const ld = loadSets(s, $t), io = diskIoSets(s, $t), m = d.details?.load || {}, di = d.details?.disk_io || {};
+    // one time axis for the six charts: the same labels, so the time ticks sit at the same places in every chart
+    const axis = sharedAxis(s.cpu, s.mem_used, disk, s.net_rx, s.net_tx, l.m1, l.m5, l.m15, io.read, io.write);
+    const labels = axis.map((x) => axisLabel(x, range, TZ.minutes, $lang)), tips = axis.map((x) => fullLabel(x, TZ.minutes, tzLabel, $lang));
+    const on = (rows) => onAxis(axis, rows), m = d.details?.load || {}, di = d.details?.disk_io || {};
+    const ld = loadSets(s, $t, on), dio = diskIoSets(s, $t, on);
     return {
-      cpu: { now: c.cpu === null ? '' : `${pctText(c.cpu, $lang)}%`, labels: labelsOf(s.cpu), tips: tipsOf(s.cpu), sets: [{ label: $t('sv.l.cpu'), data: valuesOf(s.cpu), color: '--accent' }], max: 100 },
-      memory: { now: c.mem_used === null ? '' : `${bytes(c.mem_used, $lang)} / ${bytes(c.mem_total, $lang)}`, labels: labelsOf(memBase), tips: tipsOf(memBase), max: memTotal,
-                sets: [{ label: $t('sv.l.used'), data: valuesOf(memBase), color: '--accent' }, { label: $t('sv.l.total'), data: alignTo(memBase, s.mem_total), color: '--muted', dashed: true }] },
-      disk: { now: s.disk_mount && disk.length ? $t('sv.disk_of', { pct: pctText(last(disk), $lang), mount: s.disk_mount }) : '', labels: labelsOf(disk), tips: tipsOf(disk),
-              sets: [{ label: $t('sv.l.disk'), data: valuesOf(disk), color: '--accent' }], max: 100, mount: s.disk_mount || '/' },
-      network: { now: c.net_rx === null && c.net_tx === null ? '' : `${rate(c.net_rx, $lang)} / ${rate(c.net_tx, $lang)}`, labels: labelsOf(s.net_rx), tips: tipsOf(s.net_rx),
-                 sets: [{ label: $t('sv.l.rx'), data: valuesOf(s.net_rx), color: '--c1' }, { label: $t('sv.l.tx'), data: alignTo((s.net_rx || []).filter(([, v]) => v !== null), s.net_tx), color: '--c2' }] },
-      load: { now: m.m1 === null || m.m1 === undefined ? '' : [m.m1, m.m5, m.m15].map((v) => num(v, $lang, 2)).join(' · '), labels: labelsOf(ld.base), tips: tipsOf(ld.base), sets: ld.sets,
-              max: s.load?.cores ? s.load.cores * 1.5 : null },
-      diskIo: { now: di.read === null || di.read === undefined ? '' : `${rate(di.read, $lang)} / ${rate(di.write, $lang)}`, labels: labelsOf(io.base), tips: tipsOf(io.base), sets: io.sets },
+      cpu: { now: c.cpu === null ? '' : `${pctText(c.cpu, $lang)}%`, labels, tips, sets: [{ label: $t('sv.l.cpu'), data: on(s.cpu), color: '--accent' }], max: 100 },
+      memory: { now: c.mem_used === null ? '' : `${bytes(c.mem_used, $lang)} / ${bytes(c.mem_total, $lang)}`, labels, tips, max: last(s.mem_total),
+                sets: [{ label: $t('sv.l.used'), data: on(s.mem_used), color: '--accent' }, { label: $t('sv.l.total'), data: on(s.mem_total), color: '--muted', dashed: true }] },
+      disk: { now: s.disk_mount && disk.length ? $t('sv.disk_of', { pct: pctText(last(disk), $lang), mount: s.disk_mount }) : '', labels, tips,
+              sets: [{ label: $t('sv.l.disk'), data: on(disk), color: '--accent' }], max: 100, mount: s.disk_mount || '/' },
+      network: { now: c.net_rx === null && c.net_tx === null ? '' : `${rate(c.net_rx, $lang)} / ${rate(c.net_tx, $lang)}`, labels, tips,
+                 sets: [{ label: $t('sv.l.rx'), data: on(s.net_rx), color: '--c1' }, { label: $t('sv.l.tx'), data: on(s.net_tx), color: '--c2' }] },
+      load: { now: m.m1 === null || m.m1 === undefined ? '' : [m.m1, m.m5, m.m15].map((v) => num(v, $lang, 2)).join(' · '), labels, tips, sets: ld,
+              max: l.cores ? l.cores * 1.5 : null },
+      diskIo: { now: di.read === null || di.read === undefined ? '' : `${rate(di.read, $lang)} / ${rate(di.write, $lang)}`, labels, tips, sets: dio },
     };
   });
 
@@ -246,7 +245,7 @@
       <MetricChart title={$t('sv.chart.network')} now={charts.network.now} labels={charts.network.labels} tips={charts.network.tips} datasets={charts.network.sets}
         fmt={(v) => rate(v, $lang)} caption={$t('sv.chart.network_cap')} />
       <MetricChart title={$t('sv.chart.load')} now={charts.load.now} labels={charts.load.labels} tips={charts.load.tips} datasets={charts.load.sets} max={charts.load.max}
-        fmt={(v) => num(v, $lang, 2)} caption={$t('sv.chart.load_cap')} />
+        fmt={(v) => num(v, $lang, 2)} tickFmt={(v) => loadTick(v, $lang)} caption={$t('sv.chart.load_cap')} />
       <MetricChart title={$t('sv.chart.disk_io')} now={charts.diskIo.now} labels={charts.diskIo.labels} tips={charts.diskIo.tips} datasets={charts.diskIo.sets}
         fmt={(v) => rate(v, $lang)} caption={$t('sv.chart.disk_io_cap')} />
     </section>
@@ -324,7 +323,7 @@
   .gfilter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
   .gb { min-height: var(--touch); padding: 0 14px; border-radius: var(--r-ctl); font: inherit; font-size: 0.875rem; cursor: pointer; color: var(--fg); background: var(--bg2); border: 1px solid var(--line-strong); }
   .gb[aria-pressed='true'] { border: 1.5px solid var(--accent); background: var(--seg-on); color: var(--accent-text); font-weight: 600; }
-  .gsec { margin-bottom: 16px; }
+  .gsec { margin-bottom: 16px; container-type: inline-size; }
   .gh { margin: 6px 0 10px; font-size: 1rem; font-weight: 600; color: var(--heading); text-transform: none; }
   .gc { font-weight: 400; font-size: 0.8125rem; }
   .hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
@@ -349,7 +348,14 @@
 
   .hc .ft { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); font-size: 0.75rem; min-height: 1.25rem; box-sizing: content-box; }
   .hosts.one { grid-template-columns: minmax(0, 1fr); }
-  .first { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 14px; align-items: stretch; }
+  /* One server on show: its card beside the details card when the row is wide enough for four readable tiles (about 1200 px); narrower, the
+     details card sits under the card at full width (no smaller type, no cut text) */
+  .first { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: stretch; }
+  .hosts.one { max-width: 360px; }
+  @container (min-width: 1200px) {
+    .first { grid-template-columns: minmax(260px, 2fr) minmax(0, 5fr); }
+    .hosts.one { max-width: none; }
+  }
   .first > :global(*), .wide > :global(*) { min-width: 0; }
   .wide { margin-bottom: 16px; }
 
@@ -405,7 +411,6 @@
   @media (max-width: 1180px) { .charts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 1100px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 760px) {
-    .first { grid-template-columns: minmax(0, 1fr); }
     .charts { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 480px) {

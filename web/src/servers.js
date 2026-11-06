@@ -202,18 +202,27 @@ export function detailTiles(d, tr, lang, tzMin) {
   return tiles;
 }
 
-/** The Load Average chart: three lines and the dashed core count (null until the server sends the number of cores). */
-export function loadSets(series, tr) {
+/** The Load Average chart: three lines and the dashed core count (only once the server sends the number of cores). `on` puts a series on the chart's time axis. */
+export function loadSets(series, tr, on = (rows) => points(rows).v) {
   const l = series.load || {};
-  const base = (l.m1 || []).filter(([, v]) => v !== null);
-  const sets = [{ label: tr('sv.l.m1'), data: points(l.m1).v, color: '--c1' }, { label: tr('sv.l.m5'), data: alignTo(base, l.m5), color: '--c2' }, { label: tr('sv.l.m15'), data: alignTo(base, l.m15), color: '--c3' }];
-  if (l.cores) sets.push({ label: tr('sv.l.cores'), data: base.map(() => l.cores), color: '--muted', dashed: true });
-  return { base, sets };
+  const m1 = on(l.m1);
+  const sets = [{ label: tr('sv.l.m1'), data: m1, color: '--c1' }, { label: tr('sv.l.m5'), data: on(l.m5), color: '--c2' }, { label: tr('sv.l.m15'), data: on(l.m15), color: '--c3' }];
+  if (l.cores) sets.push({ label: tr('sv.l.cores'), data: m1.map(() => l.cores), color: '--muted', dashed: true });
+  return sets;
 }
 
 /** The Disk I/O chart: bytes read and written per second. */
-export function diskIoSets(series, tr) {
+export function diskIoSets(series, tr, on = (rows) => points(rows).v) {
   const io = series.disk_io || {};
-  const base = (io.read || []).filter(([, v]) => v !== null);
-  return { base, sets: [{ label: tr('sv.l.read'), data: points(io.read).v, color: '--c1' }, { label: tr('sv.l.written'), data: alignTo(base, io.write), color: '--c2' }] };
+  return [{ label: tr('sv.l.read'), data: on(io.read), color: '--c1' }, { label: tr('sv.l.written'), data: on(io.write), color: '--c2' }];
 }
+
+/** The time axis shared by the charts of one server: every time any series has a point, oldest first. The charts then have the same labels, so
+ *  the time ticks of the six charts fall at the same places. */
+export const sharedAxis = (...lists) => [...new Set(lists.flatMap((rows) => (rows || []).filter(([, v]) => v !== null && v !== undefined).map(([at]) => at)))].sort();
+
+/** `rows` on the shared axis: [value or null] per time. */
+export const onAxis = (axis, rows) => { const by = new Map((rows || []).map(([at, v]) => [at, v])); return axis.map((at) => by.get(at) ?? null); };
+
+/** A tick of the Load Average axis: 6, 4, 2, 0 and 1.5, 1, 0.5 (one decimal only when needed). */
+export const loadTick = (v, lang) => num(+Number(v).toFixed(2), lang);
