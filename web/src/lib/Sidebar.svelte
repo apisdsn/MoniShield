@@ -60,7 +60,7 @@
         <a href={href({ tab })} aria-current={active(tab)} onclick={onpick} title={tip($t(`tab.${tab}`))}>
           <Icon name={ICON[tab]} /><span class="lbl">{$t(`tab.${tab}`)}</span>
           {#if tab === 'security' && summary?.attack_ip_count}
-            <span class="b" aria-hidden="true">{num(summary.attack_ip_count, $lang)} IP</span><span class="pip" aria-hidden="true"></span>
+            <span class="b" aria-hidden="true">{summary.attack_ip_count === 1 ? $t('nav.badge_ips_one') : $t('nav.badge_ips', { n: num(summary.attack_ip_count, $lang) })}</span><span class="pip" aria-hidden="true"></span>
             <span class="sr-only">{$t('nav.badge_attack', { n: num(summary.attack_ip_count, $lang) })}</span>
           {/if}
         </a>

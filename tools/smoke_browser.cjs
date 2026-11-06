@@ -45,10 +45,50 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
       if (early && width >= 800) errs.push('the map loaded before it came near the screen');
     }
     // the dashboard preview tabs switch the page shown (Security, Command Center, back to Overview)
-    for (const id of ['security', 'command-center', 'overview']) {
+    for (const id of ['security', 'command-center', 'servers', 'overview']) {
       await hp.locator(`#pv-tab-${id}`).click();
       if ((await hp.locator(`#pv-tab-${id}`).getAttribute('aria-selected')) !== 'true') errs.push(`preview tab ${id} not selected`);
     }
+    await hp.locator('#pv-tab-overview').press('ArrowRight');
+    if ((await hp.locator('#pv-tab-security').getAttribute('aria-selected')) !== 'true') errs.push('preview tabs: the arrow key does not move to the next tab');
+    // "Connect a server": the platform tabs switch the commands (from collectors.js), arrow keys move, and only the command box scrolls
+    await hp.locator('#home-collector').scrollIntoViewIfNeeded();
+    for (const [id, want] of [['windows', 'install.ps1'], ['kubernetes', 'helm upgrade --install'], ['docker', 'install.sh'], ['linux', 'install.sh']]) {
+      await hp.locator(`#col-tab-${id}`).click();
+      const txt = await hp.locator('#col-panel').innerText();
+      if ((await hp.locator(`#col-tab-${id}`).getAttribute('aria-selected')) !== 'true' || !txt.includes(want) || (id !== 'kubernetes' && !txt.includes('ingest.example.com'))) errs.push(`collector tab ${id}: selected or commands wrong`);
+    }
+    await hp.locator('#col-tab-linux').press('ArrowRight');
+    if ((await hp.locator('#col-tab-docker').getAttribute('aria-selected')) !== 'true') errs.push('collector tabs: the arrow key does not move to the next tab');
+    await hp.locator('#col-tab-windows').click();
+    // "Getting Started": five tabs switch the step shown, arrow keys move, the buttons are disabled at the ends
+    await hp.locator('#home-start').scrollIntoViewIfNeeded();
+    for (const i of [3, 5, 1]) {
+      await hp.locator(`#gs-tab-${i}`).click();
+      if ((await hp.locator(`#gs-tab-${i}`).getAttribute('aria-selected')) !== 'true' || !(await hp.locator('#gs-panel h3').innerText()).trim()) errs.push(`getting started tab ${i} not selected`);
+    }
+    if (!(await hp.locator('#gs-panel .gact .btn').first().isDisabled())) errs.push('getting started: Previous Step is not disabled at the first step');
+    await hp.locator('#gs-tab-1').press('ArrowRight');
+    if ((await hp.locator('#gs-tab-2').getAttribute('aria-selected')) !== 'true') errs.push('getting started: the arrow key does not move to the next tab');
+    await hp.locator('#gs-panel .gact .btn.primary').click();
+    if ((await hp.locator('#gs-tab-3').getAttribute('aria-selected')) !== 'true') errs.push('getting started: Next Step does not move on');
+    // one height and centre line per row of controls: preview tabs, platform tabs and the preview header (wide); 44 px targets on a phone
+    const rows = await hp.evaluate((phone) => {
+      const out = [], vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+      for (const sel of ['.pv .tabs', '.plats', '.pv .hd .tools', '.gact']) for (const bar of document.querySelectorAll(sel)) {
+        const kids = [...bar.children].filter(vis).map((e) => e.getBoundingClientRect());
+        const top = Math.min(...kids.map((r) => r.top)), line = kids.filter((r) => Math.abs(r.top - top) < 8);
+        const hs = line.map((r) => r.height), cs = line.map((r) => r.top + r.height / 2);
+        if (Math.max(...hs) - Math.min(...hs) > 1.01 || Math.max(...cs) - Math.min(...cs) > 1.01) out.push(`${sel}: heights ${hs.map(Math.round)}`);
+      }
+      if (phone) for (const e of document.querySelectorAll('.pv .tabs button, .plats button, .gsteps button, .gact .btn, .guide, .top a.btn, .menubtn, .top .icon-btn')) { const r = e.getBoundingClientRect(); if (vis(e) && (r.width < 43.5 || r.height < 43.5)) out.push(`target ${e.className || e.textContent.trim()} ${Math.round(r.width)}x${Math.round(r.height)}`); }
+      const glyph = [...document.querySelectorAll('.pv .tabs button, .plats button, .menubtn, .top .icon-btn')].filter((e) => /^[×✕✖▲▼◀▶⌄☰]+$/u.test(e.innerText.trim()));
+      if (glyph.length) out.push('glyph used as an icon');
+      const box = document.querySelector('#col-panel');
+      if (box && box.scrollWidth <= box.clientWidth && phone) out.push('the command box does not scroll inside itself on a phone');
+      return out;
+    }, width < 800);
+    if (rows.length) errs.push(`home page consistency: ${rows.join(' | ')}`);
     if (errs.length || st !== 200 || wide > 0 || !drawn) throw new Error(`home page at ${width}px: errors ${errs.join('; ')} map ${st} overflow ${wide}px drawn ${drawn}`);
     await hp.context().close();
     console.log(`ok   home page at ${width}px`);
@@ -354,7 +394,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.click('.gfilter .gb:text-is("Client B")');
   if ((await page.locator('.hc').count()) !== 3 || (await page.locator('.gfilter .gb[aria-pressed=true]').count()) !== 1) throw new Error('Servers: group filter Client B');
   await page.click('.gfilter .gb:text-is("All Groups")');
-  await page.click('.hc:has-text("VM-23-71-ubuntu")');
+  await page.click('.hc:has-text("docker-host-01")');
   await page.waitForSelector('.ct tbody tr');
   if ((await page.locator('.ct tbody tr').count()) !== 4 || !(await page.locator('.ct tr.off').count())) throw new Error('Servers: containers table');
   await page.click('.rng button:text-is("7 d")');
@@ -408,7 +448,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.click('[role=tab]:has-text("Rules (Advanced)")');
   await page.waitForSelector('.rule.last');
   const ruleNames = await page.$$eval('.rule .who .mono', (es) => es.map((e) => e.textContent));
-  if (!ruleNames.includes('VM-23-71-ubuntu/monishield-app-1') || ruleNames[ruleNames.length - 1] !== '*') throw new Error(`Log Formats: rules ${ruleNames}`);
+  if (!ruleNames.includes('docker-host-01/monishield-app-1') || ruleNames[ruleNames.length - 1] !== '*') throw new Error(`Log Formats: rules ${ruleNames}`);
   if (await page.locator('.rule.last [aria-label="Delete rule"]').count()) throw new Error('Log Formats: the catch-all rule can be deleted');
   await page.locator('.rule').first().locator('button:has-text("Edit")').click();
   await page.waitForSelector('dialog[open] #lf-match');
@@ -419,7 +459,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   // no text glyph as an icon, 44 px targets on a phone, one height per table row, no coloured dash
   const CHECKS = [
     { path: '/collectors', toolbars: ['.tools'], rows: ['.list tbody'], open: '.rowbtn' },
-    { path: '/servers', toolbars: ['.gfilter'], rows: [], open: null },
+    { path: '/servers', toolbars: ['.gfilter'], rows: [], rowsWide: ['.ct tbody'], open: null },
     { path: '/admin/log-formats', toolbars: ['.bar', '.tools'], rows: ['.tbl'], open: null },
     { path: '/command-center', toolbars: ['.ccbar'], rows: [], open: null },
   ];
@@ -444,7 +484,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
       const r = e.getBoundingClientRect();
       if (r.width < 43.5 || r.height < 43.5) out.push(`target ${name(e)} ${Math.round(r.width)}x${Math.round(r.height)}`);
     }
-    for (const sel of arg.rows) for (const tb of document.querySelectorAll(sel)) {
+    for (const sel of arg.rows.concat(arg.phone ? [] : arg.rowsWide || [])) for (const tb of document.querySelectorAll(sel)) {
       const hs = [...tb.querySelectorAll(':scope > tr, :scope > .r:not(.h)')].filter(vis).map((r) => r.getBoundingClientRect().height);
       if (hs.length > 1 && Math.max(...hs) - Math.min(...hs) > 1.01) out.push(`table rows ${sel}: ${hs.map(Math.round)}`);
     }
@@ -453,7 +493,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     for (const e of document.querySelectorAll('main *')) if (!e.children.length && /^[–-]$/.test((e.textContent || '').trim()) && vis(e) && getComputedStyle(e).color !== muted) out.push(`coloured dash ${name(e.parentElement)} ${getComputedStyle(e).color}`);
     return out;
   }, arg);
-  for (const [width, phone] of [[1440, false], [390, true]]) {
+  for (const [width, phone] of [[1440, false], [1280, false], [390, true]]) {
     await page.setViewportSize({ width, height: 1000 });
     for (const c of CHECKS) {
       await page.goto(BASE + c.path);
@@ -480,6 +520,8 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
       await page.waitForTimeout(800);
       const r = await page.evaluate((wide) => {
         const out = [], t = document.querySelector('header.top h1').getBoundingClientRect(), c = document.querySelector('header.top .tools').getBoundingClientRect();
+        document.querySelector('header.top h1').focus();   // focused by code on a page change: no ring (it is not a control)
+        if (getComputedStyle(document.querySelector('header.top h1')).outlineStyle !== 'none') out.push('the page title shows a focus ring');
         if (wide && (c.top > t.bottom || c.bottom < t.top)) out.push(`header controls (${Math.round(c.top)}-${Math.round(c.bottom)}) are not on the title's row (${Math.round(t.top)}-${Math.round(t.bottom)})`);
         for (const box of document.querySelectorAll('.kpis')) {
           const cards = [...box.querySelectorAll(':scope > .kpi')].filter((k) => k.getBoundingClientRect().height > 0);
@@ -502,7 +544,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.goto(BASE + '/servers');
   await page.waitForSelector('.hc');
   const hostNames = await page.$$eval('.hc .hn, .hc h3, .hc h2', (es) => es.map((e) => e.textContent.trim()).filter(Boolean));
-  const leaks = apiUrls.filter((u) => /[?&](host|cid|service|namespace)=/.test(u) || ['VM-23-71-ubuntu', ...hostNames].some((h) => h.length > 3 && u.includes(encodeURIComponent(h))));
+  const leaks = apiUrls.filter((u) => /[?&](host|cid|service|namespace)=/.test(u) || ['docker-host-01', ...hostNames].some((h) => h.length > 3 && u.includes(encodeURIComponent(h))));
   if (leaks.length) throw new Error(`site data in a URL: ${[...new Set(leaks)].slice(0, 3).join(' ')}`);
   console.log(`ok   no host, service or namespace in any /api URL (${apiUrls.length} requests, ${hostNames.length} host names checked)`);
 

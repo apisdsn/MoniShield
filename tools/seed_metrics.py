@@ -20,7 +20,7 @@ SERVERS = [
     ('api-01', 'docker', 'Client B', 'api-01', 'Ubuntu 22.04', [('api', 'registry.example.com/api:4.2', 18, 420, 1024, 0, True), ('worker', 'registry.example.com/worker:4.2', 9, 260, 512, 1, True)],
      44, 58, 40, 'online'),
     ('win-erp', 'windows', 'Client B', 'WIN-ERP01', 'Windows Server 2022', [], 9, 71, 55, 'online'),
-    ('monishield-docker', 'docker', 'Internal', 'VM-23-71-ubuntu', 'Ubuntu 24.04',
+    ('monishield-docker', 'docker', 'Internal', 'docker-host-01', 'Ubuntu 24.04',
      [('monishield-app-1', 'monishield:2.0.0', 12, 1700, 2048, 0, True), ('monishield-https-1', 'caddy:2.10.2-alpine', 3, 48, 0, 0, True),
       ('monishield-postgres-1', 'postgres:17', 2, 210, 1024, 0, True), ('otel-test', 'busybox:1.37', 0, 2, 0, 3, False)], 23, 78, 41, 'online'),
     ('test-vm', 'linux', '', 'test-vm', 'Ubuntu 24.04', [], 4, 30, 20, 'offline'),

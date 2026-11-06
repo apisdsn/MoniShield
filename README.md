@@ -14,7 +14,7 @@
 <h3 align="center">MoniShield</h3>
 
   <p align="center">
-    A self-hosted dashboard that turns Kubernetes logs into service health, traffic and attack reports.
+    A self-hosted dashboard for service logs, security and servers: health, traffic, attacks, causes of errors, and the load of servers and containers.
     <br />
     <a href="docs/README.md"><strong>Explore the docs »</strong></a>
     <br />
@@ -42,6 +42,7 @@
         <li><a href="#prerequisites">Prerequisites</a></li>
         <li><a href="#installation">Installation</a></li>
         <li><a href="#running-with-docker">Running with Docker</a></li>
+        <li><a href="#connect-a-server-with-a-collector">Connect a server with a collector</a></li>
       </ul>
     </li>
     <li><a href="#usage">Usage</a></li>
@@ -57,17 +58,25 @@
 
 ## About The Project
 
-MoniShield reads the daily log folders of a Kubernetes application (ingress-nginx, CoreDNS, Spring services, the
-frontend) and keeps them in DuckDB. Admins and users sign in to see what happened on a given day:
+MoniShield reads the logs of your services and servers and keeps them in DuckDB. Admins and users sign in to see what
+happened on a given day:
 
-* which services were slow or failing, and why (upstream errors, DNS errors, restarts)
-* which requests looked like attacks, scored with the OWASP Core Rule Set and grouped by CAPEC category
-* where traffic came from, on a world map that can also show live requests from Kafka
-* how today compares with the average of the last seven days
+* which services were slow or failing, and why: errors grouped by service and pattern (root causes), with the original
+  lines in **Raw Logs** and one request followed across services by its request ID
+* which requests looked like attacks, scored with the OWASP Core Rule Set and grouped by CAPEC category, with a profile
+  page per attacking IP
+* the CPU, memory, disk and network of servers and Docker containers every 30 seconds, with values far above their usual
+  level for that hour flagged (**Servers** page)
+* where traffic came from, on a world map that also shows live requests, and how today compares with the last seven days
+* a daily report and alerts to Telegram, Discord or email, carrying numbers and links only
 
-Logs can come from a folder on the server, an S3 bucket (synced automatically), a browser upload, or Rancher cluster
-logging through Kafka. IP owners and locations are looked up offline from downloaded databases, so user IP addresses
-never leave the server.
+Logs come from three sources, switched in the page header: an **S3** bucket (or any S3-compatible or Azure Blob storage,
+synced automatically), **Kafka** (for example Rancher cluster logging), or a **collector** that runs on each server and
+sends logs and metrics over HTTPS (Linux, Windows, Docker and Kubernetes). A folder can also be uploaded from the browser.
+The **Log Formats** page shows how every service is read (nginx, Caddy JSON access log, Spring Boot, JSON, logfmt,
+syslog) and lets an admin fix a service that reads badly. The interface is in Indonesian and English with a dark and a
+light theme, and the web UI exchanges API bodies encrypted. IP owners and locations are looked up offline from downloaded
+databases, so user IP addresses never leave the server.
 
 MoniShield replaces an older static HTML report; that report's parsing rules are kept as they were
 (`monishield/domain/rules.py`).
@@ -88,6 +97,8 @@ MoniShield replaces an older static HTML report; that report's parsing rules are
 * [![Apache Kafka][Kafka-badge]][Kafka-url]
 * [![Docker][Docker-badge]][Docker-url]
 * [![Caddy][Caddy-badge]][Caddy-url]
+* [![OpenTelemetry][Otel-badge]][Otel-url] Collector (`otelcol-contrib` 0.163.2) on each monitored server
+* Caddy's JSON access log, read as an HTTP source next to ingress-nginx
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -148,18 +159,43 @@ docker compose up -d --build              # app + PostgreSQL on http://127.0.0.1
 Optional profiles: `https` (Caddy with Let's Encrypt), `kafka` (a broker for Rancher), `pgadmin`, `dbgate`. See
 [`docs/06-docker.md`](docs/06-docker.md).
 
+### Connect a server with a collector
+
+A collector sends the logs and the CPU, memory, disk and network numbers of a server to MoniShield over HTTPS. Nothing is
+opened on the server, and each server has its own key.
+
+1. Open **Collectors** → **Add Collector**, give the server a name and a group, choose its platform, logs and metrics.
+2. Copy the two commands shown to the server (the token works once, for 24 hours). On Linux and Docker:
+   ```sh
+   curl -fsSLo install.sh https://ingest.example.com/collector/install.sh
+   sudo sh install.sh --name web-01 --token mse_...
+   ```
+   Windows uses `install.ps1` the same way; Kubernetes uses the official Helm chart with the values file from the page.
+3. The collector shows **Online** within a minute, its logs appear under **Raw Logs** and the server on **Servers**.
+
+Upgrade an installed collector in place with `sudo sh install.sh --upgrade` (downloaded the same way; no token needed).
+Details: [`docs/12-collector.md`](docs/12-collector.md), [`docs/13-metrics.md`](docs/13-metrics.md).
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
 
 ## Usage
 
+A short tour of the sidebar:
+
+* **Analysis**: Overview (the status of the day), Command Center (traffic, map, destination modules), Trends, Security,
+  Root Causes, Availability, Pods, Business, Request Tracing, **Raw Logs** and **Servers** (CPU, memory, disk and network
+  per server and container, by group).
+* **Configuration**: Object Storage, Kafka Broker, Notifications, Block List, Data Retention and more as pop-ups;
+  **Log Formats** (how each service is read, with a test of its last lines) and **Collectors** (add, group, upgrade and
+  revoke collectors) are pages of their own.
 * **New logs**: put a date folder in the log folder and press **Sync data** in the page header. New or changed files are
   read; nothing else is processed again.
 * **S3**: Ingest & import → *Automatic sync from S3* → enter `s3://your-bucket/k8s-logs` → **Save & enable**.
 * **Kafka**: Configuration → Kafka. Folders filled from Kafka show up as `YYYY-MM-DD (Kafka)`.
 * **Search**: `Ctrl+K` finds an IP, account, request id or URL.
-* **API**: `/api/v1/docs` (Swagger), behind the same sign-in.
+* **API**: versioned under `/api/v1`; Swagger at `/api/v1/docs`, behind the same sign-in.
 
 Command line, Kafka and S3 details, notifications and the block list are in the
 [user guide](docs/10-user-guide.md).
@@ -174,16 +210,24 @@ Command line, Kafka and S3 details, notifications and the block list are in the
 - [x] OWASP CRS attack detection with CAPEC categories
 - [x] S3 import and automatic sync, browser upload
 - [x] Logs from Rancher through Kafka with a live map
-- [x] Telegram, Discord and email notifications
+- [x] Telegram, Discord and email notifications, daily report
 - [x] Docker Compose, automatic HTTPS, automatic deploy from `prd`
-- [x] Tested on a real phone
 - [x] Encrypted API traffic for the web UI, data retention, per-service notification thresholds
 - [x] Forgot password by email, branded email letters, verified email change
 - [x] Configuration in the sidebar; object storage on S3, R2, MinIO, Wasabi, GCS, Spaces or Azure Blob
-- [ ] First automatic deploy to the production server
-- [ ] ingress-nginx logs from Rancher cluster logging
+- [x] Raw Logs and request tracing
+- [x] Collectors for Linux, Windows, Docker and Kubernetes (OpenTelemetry), as a third log source
+- [x] Server and container metrics with unusual-value flags (the Servers page)
+- [x] Log Formats page: HTTP cards from any access log, including Caddy JSON
+- [x] Versioned API under `/api/v1`
+- [x] Public home page with a dashboard preview and a traffic map without IPs
+- [ ] Kubernetes per-container metrics
+- [ ] Notifications for unusual server values
+- [ ] Endpoint and SSL checks
+- [ ] Re-read only the files affected when a log format rule changes
+- [ ] An AI analyst for the causes of errors
 
-The current state and the reasons behind each item are in [`docs/09-status.md`](docs/09-status.md).
+The current state and the reasons behind each item are in [`docs/09-status.md`](docs/09-status.md). More guides: [`docs/07-deploy-vps.md`](docs/07-deploy-vps.md) (a server with a domain), [`docs/11-log-formats.md`](docs/11-log-formats.md), [`docs/12-collector.md`](docs/12-collector.md), [`docs/13-metrics.md`](docs/13-metrics.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -267,3 +311,5 @@ Project Link: [https://github.com/apisdsn/MoniShield](https://github.com/apisdsn
 [Docker-url]: https://www.docker.com/
 [Caddy-badge]: https://img.shields.io/badge/Caddy-1F88C0?style=for-the-badge&logo=caddy&logoColor=white
 [Caddy-url]: https://caddyserver.com/
+[Otel-badge]: https://img.shields.io/badge/OpenTelemetry-425CC7?style=for-the-badge&logo=opentelemetry&logoColor=white
+[Otel-url]: https://opentelemetry.io/

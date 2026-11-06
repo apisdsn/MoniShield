@@ -5,14 +5,14 @@ the client asks for, else Indonesian. The texts are UI copy, so they are kept in
 import html
 
 TEXT = {
-    'id': dict(title='MoniShield · Monitoring log & keamanan', locale='id_ID',
-               description='Pantau log dan keamanan layanan dari satu dashboard: deteksi serangan, akar masalah error, '
-                           'peta asal request, dan laporan harian.',
-               alt='MoniShield: pantau log dan keamanan layanan dari satu dashboard'),
-    'en': dict(title='MoniShield · Log & security monitoring', locale='en_US',
-               description="Watch your services' logs and security from one dashboard: attack detection, the cause of errors, "
-                           'a request origin map, and a daily report.',
-               alt='MoniShield: watch your service logs and security from one dashboard'),
+    'id': dict(title='MoniShield · Monitoring log, keamanan & server', locale='id_ID',
+               description='Pantau log layanan, keamanan, dan server dari satu dashboard: deteksi serangan, akar masalah error, '
+                           'CPU dan memori server serta container, peta asal request, dan laporan harian.',
+               alt='MoniShield: pantau log layanan, keamanan, dan server dari satu dashboard'),
+    'en': dict(title='MoniShield · Log, security & server monitoring', locale='en_US',
+               description="Watch your services' logs, security and servers from one dashboard: attack detection, the cause of errors, "
+                           'CPU and memory of servers and containers, a request origin map, and a daily report.',
+               alt='MoniShield: watch your service logs, security and servers from one dashboard'),
 }
 
 

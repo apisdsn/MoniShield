@@ -218,6 +218,23 @@ def test_seven_days_reads_hours_and_adds_the_hour_in_progress(world):
     assert len(pts) >= 2
 
 
+def test_containers_say_whether_they_have_log_lines_today(world):
+    """`logs_today`: the container's name is a service with log lines in today's folder of the collector source (what the sidebar lists)."""
+    from monishield.domain import timezone
+    tc, cid, store = world
+    seed_basic(store, cid)
+    store.add(cid, series('web-01', 'api', 'mem_used', HOUR - datetime.timedelta(hours=3), 120 * 3, 400.0 * MB), {('web-01', 'api'): dict(os=None, image='repo/api:1')}, NOW)
+    flags = lambda: {c['name']: c['logs_today'] for c in post_host(tc, cid, 'web-01', '24h').json()['containers']}   # noqa: E731
+    assert flags() == {'api': False, 'old': False}                                  # nothing ingested for today yet
+    con = tc.app.state.sources['collector'].con
+    today = timezone.current().today(datetime.datetime.now(UTC))
+    con.execute('INSERT INTO agg_service (folder, service, lines) VALUES (?, ?, ?), (?, ?, ?)', [today, 'api', 12, today, 'old', 0])
+    assert flags() == {'api': True, 'old': False}                                   # a service with no lines does not count
+    con.execute('DELETE FROM agg_service')
+    con.execute('INSERT INTO agg_service (folder, service, lines) VALUES (?, ?, ?)', [today - datetime.timedelta(days=1), 'api', 12])
+    assert flags() == {'api': False, 'old': False}                                  # yesterday's lines are not today's
+
+
 def test_host_detail_containers(world):
     tc, cid, store = world
     seed_basic(store, cid)
