@@ -1,8 +1,8 @@
 # Plan — configurable log formats (stage 1 of "any log")
 
 Status: approved by the owner 2026-10-29 (public sample formats; rules in a file **and** on the Configuration page).
-The `caddy-json` preset (stage 57) reads Caddy's JSON access log. Steps 1a (rules model, file, validation, built-in rules), 1b (common formats, `http_access` / `app_line`) and 1c (pages,
-attack detection and map read the new tables) are built; 1d–1e follow.
+The `caddy-json` preset (stage 57) reads Caddy's JSON access log. Steps 1a (rules model, file, validation, built-in rules), 1b (common formats, `http_access` / `app_line`), 1c (pages,
+attack detection and map read the new tables) and 1e (the Log Formats page) are built; 1d follows.
 
 ## 1. Goal
 
@@ -188,6 +188,24 @@ patterns longer than 2,000 characters or with nested quantifiers (`(a+)+`) are r
   share of unread lines per service, edit and reorder, **Test**: paste up to 50 lines or pick a file, see the columns
   found per line and the lines that did not match. Saving writes `log-formats.toml` and asks to re-read the affected
   services. Mockup first, as usual.
+### 6a. The Log Formats page (built, stage 59)
+
+Sidebar → Configuration → *Log Formats* (after GeoIP), route `/admin/log-formats`, admin only. The page reads and keeps the file the owner wrote
+by hand (comments are not kept when it saves; the page says so). All calls are POST/PUT with the parameters in the encrypted body.
+
+- **Services** tab: every service seen in the last 7 days of S3, Kafka and the collector, with namespace / host, lines today, the share of lines
+  read (from `ingest_file.lines_unmatched`; shown as "–" for today's parsers, which count none), and a real `<select>` with the formats that need
+  no settings. "Suggested: x" under it comes from `POST .../suggest`: the last 200 lines of the service tried with every such format
+  (`domain/format_check.py`; the one that reads the most wins, an access-log format wins over a generic one that reads a bit more, `plain` only when
+  nothing reads half). Choosing a format writes the rule `namespace/service` (or `service`) above the rule that reads the service today
+  (`log_formats.override`), so no other service changes; choosing it again edits that rule, choosing what the rule below gives removes it.
+- **Test Lines**: the last 5 entries read with the format shown (time, level, IP, method, path or message, status) and the lines that do not match.
+  Nothing is stored; the audit log records who looked at which service, never the lines.
+- **Rules (Advanced)**: the rules in order (move, edit with every key, delete, add); the last rule `*` stays last and cannot be deleted. Saving
+  (`PUT`) validates with the same checks as the file, refuses a file whose last rule is not `*`, writes `log-formats.toml` to a temporary file and
+  renames it, and calls `log_formats.use`, so the next ingest and the live map use the rules without a restart. Files already read keep their
+  old reading until *Read Today Again* (a forced ingest of today's folder of that source, the Ingest page's lock) or step 1d.
+
 - Service page: the format in use and the unread-line rate next to the file counts.
 - CLI: `monishield formats list` (rules and matched services), `monishield formats test <file> --service <name>`.
 
@@ -213,7 +231,7 @@ edit from there. No re-parse is needed after the upgrade.
 | 1b | **Done.** Presets `nginx-combined`, `apache-combined`, `json`, `logfmt`, `regex`, `plain`, `syslog`, multiline (`domain/formats.py`); `http_access` / `app_line`; `ingest_file.lines_unmatched`; `auto` reads as `plain` until 1d; tests with sample lines per preset |
 | 1c | **Done.** Derive SQL reads `http_access` / `app_line` (service, hour, status, endpoint, IP, map flow); CRS detection and `agg_crs_*` on `http_access`; IP profile and search; format and unread-line rate on the Service page; folders are derived once more after the upgrade (`derive_version`), no re-parse; tests |
 | 1d | `auto` detection; per-file `format_key` re-parse; CLI `formats list/test` |
-| 1e | Configuration → Log formats page (after the mockup), docs, `.env.example`, user guide |
+| 1e | **Done** (stage 59). Configuration → Log Formats page (section 6a), docs, user guide |
 
 ## 10. Questions for the owner
 
