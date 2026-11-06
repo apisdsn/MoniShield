@@ -3,14 +3,17 @@ user like the Pods page. The names of the servers and containers are site data, 
 the web UI encrypts (interfaces/api/wire.py), and no host name stands in a URL, a proxy log or the network panel.
 
   POST /api/v1/servers        {range: 1h|24h|7d|30d}          servers with their current values, unusual values, disks that are almost full
-  POST /api/v1/servers/host   {cid, host, range}              the charts of one server and its containers
+  POST /api/v1/servers/host   {cid, host, range}              the charts of one server and its containers (each container says whether it has log lines today: `logs_today`)
+                                                              and its details (uptime, cores, load, memory, disk, containers, collector, operating system; `null` for what the
+                                                              collector does not send) with `needs_upgrade` for a collector configuration from before stage 61
 """
 import datetime, re
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from monishield.domain import kafka_message
+from monishield.application import sources
+from monishield.domain import kafka_message, timezone
 from monishield.infrastructure.queries import servers as q_servers
 from .common import ApiError, require_user_ready
 
@@ -28,6 +31,16 @@ def _range(value):
 def _collectors(request):
     """The registered collectors that can have metrics (not one that is waiting for its first contact)."""
     return [c for c in request.app.state.collectors.list() if c['status'] != 'waiting']
+
+
+def _logs_today(request, now):
+    """Names of the services that have log lines in today's folder of the collector source: the ones the sidebar lists for that day.
+    A container is matched by its name (a collector names each log after its container)."""
+    con = request.app.state.sources[sources.COLLECTOR].con
+    if con is None: return set()
+    cur = con.cursor()
+    try: return {r[0] for r in cur.execute('SELECT service FROM agg_service WHERE folder = ? AND lines > 0', [timezone.current().today(now)]).fetchall()}
+    finally: cur.close()
 
 
 class RangeBody(BaseModel):
@@ -57,4 +70,6 @@ def server(request: Request, body: HostBody):
     try: out = q_servers.host(cur, collector, host, _now(), rng)
     finally: cur.close()
     if out is None: raise ApiError(404, 'not_found', 'Server not found.')
+    today = _logs_today(request, _now())
+    for c in out['containers']: c['logs_today'] = c['name'] in today
     return out

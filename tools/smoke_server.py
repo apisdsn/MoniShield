@@ -30,7 +30,7 @@ def today_logs(cfg, logs, inbox):
     """Today's folder for the Log Formats page (its services are the last 7 days): a Caddy access log and a service whose lines the built-in
     reading does not fit, on a collector host, plus an S3 service; the rules file reads the Caddy one with caddy-json."""
     today = retention.today_local(datetime.datetime.now(datetime.timezone.utc)).isoformat()
-    host = os.path.join(inbox, 'collector', today, 'VM-23-71-ubuntu')
+    host = os.path.join(inbox, 'collector', today, 'docker-host-01')
     for svc, text in (('monishield-https-1', CADDY), ('monishield-app-1', UVICORN)):
         logs_mini.write(os.path.join(host, svc, f'log_{svc}_p1_{today}-00-00.log'), text)
     logs_mini.write(logs_mini.log_path(logs, today, 'production', 'auth-service', 'pod-a'), logs_mini.lines('auth-service'))
@@ -38,7 +38,7 @@ def today_logs(cfg, logs, inbox):
     logs_mini.write(logs_mini.log_path(logs, today, 'tenant', 'event-api', 'pod-s'), logs_mini.lines('event-api'))
     logs_mini.write(logs_mini.log_path(os.path.join(inbox, 'collector'), today, 'tenant', 'event-api', 'pod-s'), logs_mini.lines('event-api'))
     os.makedirs(cfg.state_dir, exist_ok=True)
-    rules = (log_formats.Rule('VM-23-71-ubuntu/monishield-https-1', 'caddy-json', 'http'), *log_formats.default_rules(services.from_config(cfg)))
+    rules = (log_formats.Rule('docker-host-01/monishield-https-1', 'caddy-json', 'http'), *log_formats.default_rules(services.from_config(cfg)))
     with open(cfg.log_formats_file or os.path.join(cfg.state_dir, 'log-formats.toml'), 'w', encoding='utf-8') as fh: fh.write(log_formats.dumps(rules))
     log_formats.use(rules)
 
