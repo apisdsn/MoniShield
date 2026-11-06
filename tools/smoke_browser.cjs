@@ -9,7 +9,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8777';
 const SHOTS = process.argv[3] || '';
 const PW0 = 'smoke-test-first-password', PW1 = 'Smoke-Test-Second-Password-2026!';
 const PAGES = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
-  'services/event-api', 'servers', 'collectors', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
+  'services/event-api', 'servers', 'collectors', 'admin/log-formats', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
 const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'id', source: 'collector' }, { lang: 'en', source: '' }];
 
 (async () => {
@@ -17,6 +17,8 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
   let problems = [];
+  const apiUrls = [];   // every /api request of the signed-in page: no host, service or namespace may stand in one
+  page.on('request', (r) => { if (r.url().includes('/api/')) apiUrls.push(r.url()); });
   page.on('pageerror', (e) => problems.push(`script error: ${e.message}`));
   page.on('response', (r) => { if (r.status() >= 500) problems.push(`${r.status()} ${r.request().method()} ${r.url().replace(BASE, '')}`); });
 
@@ -361,6 +363,41 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   page.off('response', watch);
   if (plain.length) throw new Error(`these /api answers were plain JSON, not encrypted: ${[...new Set(plain)].join(', ')}`);
   console.log('ok   Collectors and Servers read only encrypted /api answers');
+
+  // Log Formats: services with a suggestion, change a format, test lines, save, the banner, the rules list
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(BASE + '/admin/log-formats');
+  await page.waitForSelector('.lf .tbl .r:not(.h)');
+  const lfNames = await page.$$eval('.tbl .svc b', (es) => es.map((e) => e.textContent));
+  if (!lfNames.includes('monishield-https-1') || !lfNames.includes('monishield-app-1')) throw new Error(`Log Formats: services ${lfNames}`);
+  const appRow = page.locator('.tbl .r:has-text("monishield-app-1")');
+  await appRow.locator('.sug').waitFor({ timeout: 15000 });
+  if (!(await appRow.locator('.sug').innerText()).includes('Suggested: plain')) throw new Error('Log Formats: no "Suggested: plain" for monishield-app-1');
+  if ((await page.locator('#folder-select').count()) || (await page.locator('.seg[role=radiogroup]').count())) throw new Error('Log Formats: date picker or source switch shown');
+  await appRow.locator('select').selectOption('plain');
+  await page.waitForSelector('.testp .tr.mono');
+  if (!(await page.locator('.warn').innerText()).includes('1 change not saved')) throw new Error('Log Formats: unsaved note missing');
+  await page.click('button:has-text("Save Rules")');
+  await page.waitForSelector('.ok');
+  if (!(await page.locator('.ok').innerText()).includes('Rules saved and in use')) throw new Error('Log Formats: banner text');
+  await page.click('.ok button:has-text("Read Today Again")');
+  await page.click('[role=tab]:has-text("Rules (Advanced)")');
+  await page.waitForSelector('.rule.last');
+  const ruleNames = await page.$$eval('.rule .who .mono', (es) => es.map((e) => e.textContent));
+  if (!ruleNames.includes('VM-23-71-ubuntu/monishield-app-1') || ruleNames[ruleNames.length - 1] !== '*') throw new Error(`Log Formats: rules ${ruleNames}`);
+  if (await page.locator('.rule.last [aria-label="Delete rule"]').count()) throw new Error('Log Formats: the catch-all rule can be deleted');
+  await page.locator('.rule').first().locator('button:has-text("Edit")').click();
+  await page.waitForSelector('dialog[open] #lf-match');
+  await page.keyboard.press('Escape');
+  console.log('ok   Log Formats: services, suggestion, change a format, test lines, save, banner, rules list, edit dialog');
+
+  // nothing site-specific stands in a URL: no host, cid, service or namespace parameter and no host name, on any request so far
+  await page.goto(BASE + '/servers');
+  await page.waitForSelector('.hc');
+  const hostNames = await page.$$eval('.hc .hn, .hc h3, .hc h2', (es) => es.map((e) => e.textContent.trim()).filter(Boolean));
+  const leaks = apiUrls.filter((u) => /[?&](host|cid|service|namespace)=/.test(u) || ['VM-23-71-ubuntu', ...hostNames].some((h) => h.length > 3 && u.includes(encodeURIComponent(h))));
+  if (leaks.length) throw new Error(`site data in a URL: ${[...new Set(leaks)].slice(0, 3).join(' ')}`);
+  console.log(`ok   no host, service or namespace in any /api URL (${apiUrls.length} requests, ${hostNames.length} host names checked)`);
 
   let failed = 0, checked = 0;
   for (const run of RUNS) {

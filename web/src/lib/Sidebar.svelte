@@ -99,6 +99,13 @@
             <Icon name={c.icon} /><span class="lbl">{$t(`nav.cfg.${c.id}`)}</span>
           </button>
         </li>
+        {#if c.id === 'maxmind'}
+          <li>
+            <a href={href({ tab: 'admin/log-formats' })} aria-current={active('admin/log-formats')} onclick={onpick} title={tip($t('nav.cfg.logformats'))}>
+              <Icon name="lines" /><span class="lbl">{$t('nav.cfg.logformats')}</span>
+            </a>
+          </li>
+        {/if}
       {/each}
       <li>
         <a href={href({ tab: 'collectors' })} aria-current={active('collectors')} onclick={onpick} title={tip($t('nav.collectors'))}>

@@ -136,7 +136,7 @@ def err(b, method, path, body, status=400):
 
 
 def test_only_admins_may_use_the_page(site):
-    assert site.get('/api/v1/admin/log-formats').status_code == 401
+    assert site.post('/api/v1/admin/log-formats/list', headers=WEB).status_code == 401 and site.get('/api/v1/admin/log-formats').status_code in (404, 405)
     b = signed_in(site)
     made = b.call('POST', '/api/v1/admin/users', dict(username='rina', display_name='Rina', role='user', password='rina-initial-password-123'))
     assert made.status_code in (200, 201)
@@ -144,7 +144,7 @@ def test_only_admins_may_use_the_page(site):
     login = other.post('/api/v1/auth/login', json=dict(username='rina', password='rina-initial-password-123'), headers=WEB)
     assert login.status_code == 200
     other.post('/api/v1/me/password', json=dict(old_password='rina-initial-password-123', new_password='rina-next-password-12345'), headers=WEB)
-    for method, path, body in (('GET', '', None), ('PUT', '', dict(rules=[])), ('POST', '/suggest', dict(service='x')), ('POST', '/test', dict(service='x', rule={})),
+    for method, path, body in (('POST', '/list', None), ('PUT', '', dict(rules=[])), ('POST', '/suggest', dict(service='x')), ('POST', '/test', dict(service='x', rule={})),
                                ('POST', '/read-today', dict(source='s3'))):
         r = other.request(method, '/api/v1/admin/log-formats' + path, json=body, headers=WEB)
         assert r.status_code == 403, (method, path, r.status_code)
@@ -152,7 +152,7 @@ def test_only_admins_may_use_the_page(site):
 
 def test_rules_and_services_are_listed_encrypted(site):
     b = signed_in(site)
-    d = ok(b, 'GET', '/api/v1/admin/log-formats')
+    d = ok(b, 'POST', '/api/v1/admin/log-formats/list')
     assert d['file']['exists'] is True and d['rules'][-1]['match'] == '*' and 'caddy-json' in d['formats']
     rows = {(r['source'], r['service']): r for r in d['services']}
     https = rows['s3', 'monishield-https-1']

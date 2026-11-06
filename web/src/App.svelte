@@ -16,6 +16,7 @@
   import Sidebar from './lib/Sidebar.svelte';
   import VolumeBand from './lib/VolumeBand.svelte';
   import Header from './lib/Header.svelte';
+  import LogFormats from './pages/LogFormats.svelte';
   import EmptyState from './lib/EmptyState.svelte';
   import ErrorState from './lib/ErrorState.svelte';
   import Toast, { toast } from './lib/Toast.svelte';
@@ -144,7 +145,7 @@
   // the Servers page is about the collectors' metrics: no folder, no data source (its sidebar entry sits in the Analysis group)
   const NO_FOLDER = ['servers'];
   const isDataTab = $derived(!isAdminTab && !NO_FOLDER.includes($route.tab));
-  const noSource = $derived(NO_FOLDER.includes($route.tab) || $route.tab === 'collectors');   // the source switch does not apply there
+  const noSource = $derived(NO_DATE.includes($route.tab));   // the source switch does not apply there
   // #/password and #/email (old Indonesian path): open the account pop-up over the Overview (lib/AccountDialogs.svelte)
   $effect(() => {
     if (screen !== 'app' || ($route.tab !== 'password' && $route.tab !== 'email')) return;
@@ -222,6 +223,7 @@
     if (r.tab === 'admin/users') return $t('menu.users');
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
     if (r.tab === 'collectors') return $t('nav.collectors');
+    if (r.tab === 'admin/log-formats') return $t('nav.cfg.logformats');
     return $t(`tab.${r.tab}`);
   });
   // Trends covers every folder: one line under the header says so
@@ -355,6 +357,8 @@
         <AdminIngest onfinished={reload} />
       {:else if $route.tab === 'collectors'}
         <Collectors {onready} />
+      {:else if $route.tab === 'admin/log-formats'}
+        <LogFormats {onready} />
       {:else if $route.tab === 'servers'}
         <Servers admin={me.role === 'admin'} {reloadKey} {onready} />
       {:else if !folders.length}

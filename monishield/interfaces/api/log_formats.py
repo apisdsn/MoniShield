@@ -1,11 +1,11 @@
 """Log Formats page (admin): how each service logs. The work is in monishield/application/log_format_service.py.
-  GET  /api/v1/admin/log-formats             the rules in use + the services of the last 7 days of every source
+  POST /api/v1/admin/log-formats/list        the rules in use + the services of the last 7 days of every source (host names: a POST, no GET form)
   POST /api/v1/admin/log-formats/suggest     {source, namespace, service}: the format that reads the most of the service's last 200 lines
   POST /api/v1/admin/log-formats/test        {source, namespace, service, rule}: the last 5 entries read with that rule (nothing is saved)
   PUT  /api/v1/admin/log-formats             {rules: [...]}: validate, write log-formats.toml, use the rules at once
   POST /api/v1/admin/log-formats/read-today  {source}: read today's folder of the source again with the rules
-Lines can hold personal data, so suggest and test are POST (the web UI sends an encrypted body); the audit log records who looked at
-which service, never the lines."""
+Lines can hold personal data and services carry host names, so every read is a POST (the web UI sends an encrypted body): nothing
+site-specific stands in a URL. The audit log records who looked at which service, never the lines."""
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
@@ -16,8 +16,8 @@ from .common import client_ip, require_admin
 router = APIRouter(prefix='/api/v1/admin/log-formats')
 
 
-@router.get('')
-def get_rules(request: Request, admin=Depends(require_admin)): return svc.view(request.app.state)
+@router.post('/list')
+def list_rules(request: Request, admin=Depends(require_admin)): return svc.view(request.app.state)
 
 
 class ServiceBody(BaseModel):

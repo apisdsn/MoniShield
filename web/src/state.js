@@ -21,7 +21,7 @@ import { writable, get } from 'svelte/store';
 import { setSource } from './api.js';
 
 export const TABS = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs', 'servers'];
-export const ADMIN = ['admin/users', 'admin/ingest', 'collectors'];
+export const ADMIN = ['admin/users', 'admin/ingest', 'collectors', 'admin/log-formats'];
 /** Pages that do not depend on the chosen date: the header hides the date picker there (the source switch is hidden on the same
  *  pages and on the Servers page by App.svelte). Servers has its own range; Collectors and Log Formats are not per date. */
 export const NO_DATE = ['servers', 'collectors', 'admin/log-formats'];
