@@ -423,8 +423,9 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   const lfNames = await page.$$eval('.tbl .svc b', (es) => es.map((e) => e.textContent));
   if (!lfNames.includes('monishield-https-1') || !lfNames.includes('monishield-app-1')) throw new Error(`Log Formats: services ${lfNames}`);
   const appRow = page.locator('.tbl .r:has-text("monishield-app-1")');
-  await appRow.locator('.sug').waitFor({ timeout: 15000 });
-  if (!(await appRow.locator('.sug').innerText()).includes('Suggested: plain')) throw new Error('Log Formats: no "Suggested: plain" for monishield-app-1');
+  // the suggestion box is always there (its height is kept); wait for the text the suggestion request fills in
+  try { await appRow.locator('.sug', { hasText: 'Suggested: plain' }).waitFor({ timeout: 15000 }); }
+  catch { throw new Error(`Log Formats: no "Suggested: plain" for monishield-app-1 (shows "${await appRow.locator('.sug').innerText()}")`); }
   if ((await page.locator('#folder-select').count()) || (await page.locator('.seg[role=radiogroup]').count())) throw new Error('Log Formats: date picker or source switch shown');
   await appRow.locator('select').selectOption('plain');
   await page.waitForSelector('.testp .tr.mono');
