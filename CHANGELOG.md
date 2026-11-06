@@ -7,6 +7,7 @@ Starting with this repo, every commit uses [Conventional Commits](https://www.co
 ## [Unreleased]
 
 ### Changed
+- **Servers containers table**: every row has one height (names and images stay on one line with an ellipsis and the full text in the title; Memory and Network never wrap), and a container with no log lines in today's collector folder shows "No log lines today" instead of the Raw Logs link (`logs_today` in the `POST /api/v1/servers/host` answer). The page title no longer shows a focus ring after a page change.
 - The date picker is hidden (not greyed out) on the Servers, Collectors and Log Formats pages, which do not depend on a date; the source switch is hidden there too.
 - Collectors list: counts in the UI font with equal-width digits, the selected row is marked by a background and a bar on its left edge.
 - **Servers reads carry their parameters in the encrypted body**: `POST /api/v1/servers` with `{range}` and `POST /api/v1/servers/host` with `{cid, host, range}` replace the GET forms, so a host name never stands in a URL, a proxy log or the browser's network panel (`docs/13-metrics.md`).

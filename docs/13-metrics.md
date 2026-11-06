@@ -97,7 +97,8 @@ For every signed-in user (like the Pods page). Host and container names are site
   `disk_full`. "Current" is the newest point of the last hour, else null.
 - `POST /api/v1/servers/host` with `{cid, host, range}` -> the series for the charts (`cpu`, `mem_used` and `mem_total`, `disk_used` and `disk_total`
   of `/` or else the first mount point, `net_rx` and `net_tx`, `load1`) and the `containers` (name, image, running = seen in the last 2
-  minutes, last seen, current values, restarts, and a memory sparkline of 24 hourly averages). Containers last seen before the range
+  minutes, last seen, current values, restarts, a memory sparkline of 24 hourly averages, and `logs_today`: the container's name is a service
+  with log lines in today's folder of the collector source, as the sidebar lists it; when false the page shows "No log lines today" instead of the link to Raw Logs). Containers last seen before the range
   (at least 24 hours) are left out.
 - Buckets: 1h = the points (every 30 s); 24h = 30-minute averages of the points; 7d = 3-hour and 30d = 12-hour averages of the hourly
   rows, weighted by their number of points, with the hour in progress added from the points. Times are ISO 8601 UTC with a Z.

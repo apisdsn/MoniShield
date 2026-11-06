@@ -1583,6 +1583,7 @@
  "sv.col.restarts": "Restart",
  "sv.col.spark": "24 Jam Terakhir",
  "sv.logs": "Buka di Log Mentah",
+ "sv.no_logs_today": "Tidak ada baris log hari ini",
  "sv.seen": "Terakhir terlihat {time}",
  "sv.stopped": "Tidak Berjalan",
  "sv.no_limit": "tanpa batas",

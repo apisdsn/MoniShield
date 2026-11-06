@@ -459,7 +459,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   // no text glyph as an icon, 44 px targets on a phone, one height per table row, no coloured dash
   const CHECKS = [
     { path: '/collectors', toolbars: ['.tools'], rows: ['.list tbody'], open: '.rowbtn' },
-    { path: '/servers', toolbars: ['.gfilter'], rows: [], open: null },
+    { path: '/servers', toolbars: ['.gfilter'], rows: [], rowsWide: ['.ct tbody'], open: null },
     { path: '/admin/log-formats', toolbars: ['.bar', '.tools'], rows: ['.tbl'], open: null },
     { path: '/command-center', toolbars: ['.ccbar'], rows: [], open: null },
   ];
@@ -484,7 +484,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
       const r = e.getBoundingClientRect();
       if (r.width < 43.5 || r.height < 43.5) out.push(`target ${name(e)} ${Math.round(r.width)}x${Math.round(r.height)}`);
     }
-    for (const sel of arg.rows) for (const tb of document.querySelectorAll(sel)) {
+    for (const sel of arg.rows.concat(arg.phone ? [] : arg.rowsWide || [])) for (const tb of document.querySelectorAll(sel)) {
       const hs = [...tb.querySelectorAll(':scope > tr, :scope > .r:not(.h)')].filter(vis).map((r) => r.getBoundingClientRect().height);
       if (hs.length > 1 && Math.max(...hs) - Math.min(...hs) > 1.01) out.push(`table rows ${sel}: ${hs.map(Math.round)}`);
     }
@@ -493,7 +493,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     for (const e of document.querySelectorAll('main *')) if (!e.children.length && /^[–-]$/.test((e.textContent || '').trim()) && vis(e) && getComputedStyle(e).color !== muted) out.push(`coloured dash ${name(e.parentElement)} ${getComputedStyle(e).color}`);
     return out;
   }, arg);
-  for (const [width, phone] of [[1440, false], [390, true]]) {
+  for (const [width, phone] of [[1440, false], [1280, false], [390, true]]) {
     await page.setViewportSize({ width, height: 1000 });
     for (const c of CHECKS) {
       await page.goto(BASE + c.path);
@@ -520,6 +520,8 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
       await page.waitForTimeout(800);
       const r = await page.evaluate((wide) => {
         const out = [], t = document.querySelector('header.top h1').getBoundingClientRect(), c = document.querySelector('header.top .tools').getBoundingClientRect();
+        document.querySelector('header.top h1').focus();   // focused by code on a page change: no ring (it is not a control)
+        if (getComputedStyle(document.querySelector('header.top h1')).outlineStyle !== 'none') out.push('the page title shows a focus ring');
         if (wide && (c.top > t.bottom || c.bottom < t.top)) out.push(`header controls (${Math.round(c.top)}-${Math.round(c.bottom)}) are not on the title's row (${Math.round(t.top)}-${Math.round(t.bottom)})`);
         for (const box of document.querySelectorAll('.kpis')) {
           const cards = [...box.querySelectorAll(':scope > .kpi')].filter((k) => k.getBoundingClientRect().height > 0);

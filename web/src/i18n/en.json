@@ -1583,6 +1583,7 @@
  "sv.col.restarts": "Restarts",
  "sv.col.spark": "Last 24 h",
  "sv.logs": "Open in Raw Logs",
+ "sv.no_logs_today": "No log lines today",
  "sv.seen": "Last seen {time}",
  "sv.stopped": "Not Running",
  "sv.no_limit": "no limit",

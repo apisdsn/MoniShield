@@ -40,6 +40,7 @@
   "sec.f.rancher.b",
   "sec.host_rejected",
   "sv.col.network",
+  "sv.no_logs_today",
   "sv.seen",
   "sv.spark",
   "sv.spark_none",

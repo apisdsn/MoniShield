@@ -219,11 +219,13 @@
                 {@const pts = sparkPoints(c.spark)}
                 <tr class:off={!c.running}>
                   <td class="nm">
-                    <b>{c.name}</b>
-                    {#if !c.running}<small class="muted">{$t('sv.stopped')} · {$t('sv.seen', { time: seenText(c.last_seen) })}</small>{/if}
-                    <a class="lg" href={logsHref(d.host, c.name)}>{$t('sv.logs')}</a>
+                    <b title={c.name}>{c.name}</b>
+                    <span class="sub">
+                      {#if c.logs_today}<a class="lg" href={logsHref(d.host, c.name)}>{$t('sv.logs')}</a>{:else}<span class="lg muted">{$t('sv.no_logs_today')}</span>{/if}
+                      {#if !c.running}<small class="muted" title="{$t('sv.stopped')} · {$t('sv.seen', { time: seenText(c.last_seen) })}">{$t('sv.stopped')} · {$t('sv.seen', { time: seenText(c.last_seen) })}</small>{/if}
+                    </span>
                   </td>
-                  <td class="img" class:none={!c.image} data-label={$t('sv.col.image')}>{c.image || '–'}</td>
+                  <td class="img" class:none={!c.image} title={c.image || undefined} data-label={$t('sv.col.image')}>{c.image || '–'}</td>
                   <td class="cpu" data-label={$t('sv.col.cpu')}>
                     <span class="n" class:none={c.cpu === null}>{c.cpu === null ? '–' : `${pctText(c.cpu, $lang)}%`}</span>
                     <span class="trk" aria-hidden="true">{#if c.cpu !== null}<span class="fill {barTone(c.cpu)}" style:width="{Math.max(2, Math.min(100, c.cpu))}%"></span>{/if}</span>
@@ -301,19 +303,23 @@
   .cnt { font-size: 0.8125rem; }
   .none { margin: 0; padding: 18px 16px; }
   .scroll { overflow-x: auto; }
-  table { width: 100%; min-width: 860px; border-collapse: collapse; }
-  th { text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--th-fg); padding: 12px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  td { padding: 12px 16px; border-bottom: 1px solid var(--row-line); vertical-align: middle; font-size: 0.8125rem; }
-  tbody tr:last-child td { border-bottom: 0; }
+  table { width: 100%; min-width: 940px; border-collapse: collapse; }
+  th { text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--th-fg); padding: 12px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 12px 12px; border-bottom: 1px solid var(--row-line); vertical-align: middle; font-size: 0.8125rem; }
+  tbody td { height: 72px; box-sizing: border-box; }   /* every row the same height, also one that has no numbers */
+  tbody tr:last-child td { border-bottom-color: transparent; }   /* the same height as the other rows */
   tr.off { opacity: 0.6; }
-  td.nm { display: table-cell; }
-  td.nm b { display: block; font-size: 0.8125rem; font-weight: 600; overflow-wrap: anywhere; }
-  td.nm small { display: block; font-size: 0.75rem; }
-  .lg { display: inline-flex; align-items: center; min-height: 28px; font-size: 0.75rem; }
-  .img { font-family: var(--mono); font-size: 0.75rem; overflow-wrap: anywhere; }
-  .cpu, .mem { min-width: 130px; }
-  .cpu .n, .mem .n { display: block; font-family: var(--mono); margin-bottom: 4px; }
-  .net { font-family: var(--mono); font-size: 0.75rem; white-space: nowrap; }
+  /* one height for every row: names and images stay on one line (an ellipsis, the whole text in the title), the numbers never wrap */
+  td.nm, td.img { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.nm { display: table-cell; width: 26%; min-width: 190px; }
+  td.nm b { display: block; font-size: 0.8125rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  td.nm .sub { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  td.nm small { display: block; min-width: 0; font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
+  .lg { display: inline-flex; align-items: center; min-height: 28px; font-size: 0.75rem; flex: none; }
+  .img { width: 20%; min-width: 120px; font-family: var(--mono); font-size: 0.75rem; }
+  .cpu { min-width: 92px; } .mem { min-width: 160px; white-space: nowrap; }
+  .cpu .n, .mem .n { display: block; font-family: var(--mono); margin-bottom: 4px; white-space: nowrap; height: 1.25rem; line-height: 1.25rem; }
+  .net { min-width: 195px; font-family: var(--mono); font-size: 0.75rem; white-space: nowrap; }
   .rs { font-family: var(--mono); }
   .rs.hot { color: var(--warn); font-weight: 600; }
   .line { stroke: var(--accent); }
@@ -331,9 +337,13 @@
     table, tbody { display: block; min-width: 0; }
     thead { display: none; }
     tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 14px; padding: 12px 14px; margin-bottom: 10px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--r-card); box-shadow: var(--glow); }
-    td { display: block; padding: 0; border: 0; min-width: 0; }
+    td { display: block; padding: 0; border: 0; min-width: 0; height: auto; }
     td.nm { grid-column: 1 / -1; }
     td.nm b { font-size: 0.9375rem; }
+    td.nm, td.img { max-width: none; width: auto; min-width: 0; white-space: normal; overflow: visible; }   /* cards: no fixed row height, so text wraps */
+    td.nm b, td.nm small { overflow: visible; text-overflow: clip; overflow-wrap: anywhere; white-space: normal; }
+    td.nm .sub { flex-wrap: wrap; }
+    td.img { overflow-wrap: anywhere; }
     td.img, td.net, td.rs, td.sp { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
     td[data-label].img::before, td[data-label].net::before, td[data-label].rs::before, td[data-label].sp::before { content: attr(data-label); color: var(--muted); font-family: var(--font); font-size: 0.8125rem; flex: none; }
     td.cpu::before, td.mem::before { content: attr(data-label); display: block; color: var(--muted); font-size: 0.8125rem; font-family: var(--font); }
