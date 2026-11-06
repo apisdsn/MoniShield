@@ -14,6 +14,8 @@
   import ThemeSwitch from '../lib/ThemeSwitch.svelte';
   import MapView from '../lib/MapView.svelte';
   import AppPreview from '../lib/AppPreview.svelte';
+  import Icon from '../lib/Icon.svelte';
+  import { installSteps } from '../collectors.js';
 
   // "Source code" link: S4_SOURCE_URL, written into the page by the server (home_meta.py); none = no link
   const REPO = document.querySelector('meta[name="monishield:source"]')?.content || '';
@@ -23,13 +25,36 @@
     2: '<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"></path><circle cx="12" cy="10" r="2.5"></circle>',
     3: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>',
     4: '<circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path>',
+    5: '<path d="M12 11a1 1 0 1 0 0 2a1 1 0 1 0 0-2M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.7 5.7a9 9 0 0 0 0 12.6M18.3 5.7a9 9 0 0 1 0 12.6"></path>',
+    6: '<path d="M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01"></path>',
   };
+  const ARCH_ITEMS = [['a', 'b', 'c', 'd'], ['a', 'b', 'c'], ['a', 'b', 'c', 'd'], ['a', 'b', 'c']];   // the items of each stage
   const ARCH_ICON = {
     1: '<path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"></path><path d="M4 7v5c0 1.7 3.6 3 8 3s8-1.3 8-3V7"></path><path d="M4 12v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5"></path>',
     2: '<path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"></path><path d="M9 12l2 2 4-4"></path>',
     3: '<rect x="3" y="4" width="18" height="6" rx="1.5"></rect><rect x="3" y="14" width="18" height="6" rx="1.5"></rect><path d="M7 7h.01M7 17h.01"></path>',
     4: '<rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8M12 17v4"></path>',
   };
+  // the six feature cards use the app's own icons (Icon.svelte)
+  const FEATURE_ICON = ['overview', 'shield', 'search', 'server', 'terminal', 'bell'];
+  // "Connect a Server": the commands come from the Collectors page helpers (collectors.js), so the home page cannot drift from them.
+  // Example values only; the token is shown as mse_… because a real one is made on the Collectors page and works once.
+  const INGEST = 'https://ingest.example.com', TOKEN = 'mse_…';
+  const PLATFORM = [['linux', 'Linux', 'web-01'], ['docker', 'Docker', 'docker-01'], ['windows', 'Windows', 'win-01'], ['kubernetes', 'Kubernetes', 'k8s-01']];
+  function commandsOf(platform, name) {
+    const steps = installSteps(platform, INGEST, name, TOKEN);
+    if (platform === 'kubernetes') return [steps.find((x) => x.id === 'repo').lines[0], steps.find((x) => x.id === 'helm').lines[0]];   // the key step is done on the Collectors page
+    return steps.flatMap((x) => x.lines);
+  }
+  let platform = $state('linux');
+  const commands = $derived(commandsOf(platform, PLATFORM.find(([id]) => id === platform)[2]));
+  function platformKey(e) {
+    const n = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); platform = PLATFORM[e.key === 'Home' ? 0 : PLATFORM.length - 1][0]; }
+    else if (n) { e.preventDefault(); const i = PLATFORM.findIndex(([id]) => id === platform); platform = PLATFORM[(i + n + PLATFORM.length) % PLATFORM.length][0]; }
+    else return;
+    document.getElementById(`col-tab-${platform}`)?.focus();
+  }
   let signedIn = $state(false), map = $state(null), mapRef = $state(), preset = $state(matchMedia('(max-width: 560px)').matches ? 'id' : 'world');   // world first (owner request); a phone is too narrow for the whole world
   // no traffic to show at all (new install, data not arrived yet): sample dots, clearly marked as such (owner request 2026-10-28)
   const SAMPLE = [[-6.0, 107.0, 4200, 'Jakarta'], [-7.0, 107.5, 1380, 'Bandung'], [-7.5, 112.5, 1120, 'Surabaya'], [-7.0, 110.5, 640, 'Semarang'],
@@ -82,6 +107,7 @@
     {#snippet links()}
       {#if map?.enabled}<a href="#home-map" onclick={() => closeMenu()}>{$t('home.nav.map')}</a>{/if}
       <a href="#home-features" onclick={() => closeMenu()}>{$t('home.nav.features')}</a>
+      <a href="#home-collector" onclick={() => closeMenu()}>{$t('home.nav.collector')}</a>
       <a href="#home-how" onclick={() => closeMenu()}>{$t('home.nav.how')}</a>
       <a href="#home-privacy" onclick={() => closeMenu()}>{$t('home.nav.privacy')}</a>
       {#if REPO}<a href={REPO} target="_blank" rel="noreferrer">{$t('home.foot.code')}</a>{/if}
@@ -154,19 +180,41 @@
         <h2 id="home-f-h">{$t('home.f.title')}</h2>
         <p class="sub">{$t('home.f.intro')}</p>
         <div class="cards">
-          {#each [1, 2, 3, 4] as i}
+          {#each [1, 2, 3, 4, 5, 6] as i}
             <article class="card">
-              <span class="ico" aria-hidden="true">
-                {#if i === 1}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>
-                {:else if i === 2}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
-                {:else if i === 3}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
-                {:else}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>{/if}
-              </span>
+              <span class="ico" aria-hidden="true"><Icon name={FEATURE_ICON[i - 1]} size={22} stroke={2} /></span>
               <h3>{$t(`home.f.${i}.t`)}</h3>
               <p>{$t(`home.f.${i}.d`)}</p>
             </article>
           {/each}
         </div>
+      </div>
+    </section>
+
+    <section class="block" id="home-collector" aria-labelledby="home-col-h">
+      <div class="wrap">
+        <h2 id="home-col-h">{$t('home.col.title')}</h2>
+        <p class="sub">{$t('home.col.intro')}</p>
+        <div class="colgrid">
+          <div class="cbox">
+            <div class="plats" role="tablist" aria-label={$t('home.col.platform')}>
+              {#each PLATFORM as [id, name]}
+                <button type="button" role="tab" id="col-tab-{id}" aria-selected={platform === id} aria-controls="col-panel" tabindex={platform === id ? 0 : -1}
+                  onclick={() => (platform = id)} onkeydown={platformKey}>{name}</button>
+              {/each}
+            </div>
+            <div class="code" id="col-panel" role="tabpanel" aria-labelledby="col-tab-{platform}" aria-label={$t('home.col.commands')} tabindex="0">
+              {#each commands as line}<div><span class="pr" aria-hidden="true">$ </span>{line}</div>{/each}
+            </div>
+            <p class="note">{$t(`home.col.note.${platform}`)}</p>
+          </div>
+          <ol class="steps" aria-label={$t('home.col.steps')}>
+            {#each [1, 2, 3] as i}
+              <li><span class="num" aria-hidden="true">{i}</span><div><h3>{$t(`home.col.${i}.t`)}</h3><p>{$t(`home.col.${i}.d`)}</p></div></li>
+            {/each}
+          </ol>
+        </div>
+        <ul class="facts">{#each [1, 2, 3, 4] as i}<li>{$t(`home.col.fact.${i}`)}</li>{/each}</ul>
       </div>
     </section>
 
@@ -182,7 +230,7 @@
                 <span class="ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{@html ARCH_ICON[i]}</svg></span>
                 <h3>{$t(`home.arch.${i}.t`)}</h3>
               </div>
-              <ul>{#each ['a', 'b', 'c'] as k}<li>{$t(`home.arch.${i}.${k}`)}</li>{/each}</ul>
+              <ul>{#each ARCH_ITEMS[i - 1] as k}<li>{$t(`home.arch.${i}.${k}`)}</li>{/each}</ul>
             </li>
           {/each}
         </ol>
@@ -205,7 +253,7 @@
         <h2 id="home-priv-h">{$t('home.priv.title')}</h2>
         <p class="sub">{$t('home.priv.d')}</p>
         <ul class="privs">
-          {#each [1, 2, 3, 4] as i}
+          {#each [1, 2, 3, 4, 5, 6] as i}
             <li>
               <span class="ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{@html PRIV_ICON[i]}</svg></span>
               <div><h3>{$t(`home.priv.${i}.t`)}</h3><p>{$t(`home.priv.${i}.d`)}</p></div>
@@ -282,11 +330,29 @@
   .kpis dt { font-size: 0.8125rem; color: var(--kpi-label); }
   .kpis dd { margin: 2px 0 0; font-size: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg); }
 
-  .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 28px; }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 28px; }
   .card { background: var(--card); border: 1px solid var(--card-border); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
   .ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 12%, transparent); }
   h3 { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--heading); }
   .card p { margin: 0; font-size: 1rem; line-height: 1.55; color: var(--kpi-label); }
+  .colgrid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; margin-top: 28px; align-items: start; }
+  .cbox { background: var(--card); border: 1px solid var(--card-border); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .plats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .plats button { font: inherit; font-size: 0.9375rem; font-weight: 600; min-height: 44px; border-radius: var(--r-ctl); cursor: pointer; background: var(--card); color: var(--fg); border: 1px solid var(--line-strong); box-sizing: border-box; }
+  .plats button[aria-selected='true'] { background: var(--seg-on); color: var(--accent-text); border: 1.5px solid var(--accent); }
+  .plats button:focus-visible, .code:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  /* the command box scrolls inside itself, never the page */
+  .code { background: #0b0d11; color: #e8eaed; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; font-family: var(--mono); font-size: 0.8125rem; line-height: 1.8; overflow-x: auto; min-width: 0; }
+  .code div { white-space: pre; width: max-content; }
+  .code .pr { opacity: 0.55; user-select: none; }
+  .note { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--kpi-label); }
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .steps li { display: flex; gap: 14px; align-items: flex-start; background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 14px 16px; min-width: 0; }
+  .num { flex: none; width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; font-weight: 700; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .steps h3 { font-size: 1rem; }
+  .steps p { margin: 4px 0 0; font-size: 0.875rem; line-height: 1.55; color: var(--kpi-label); }
+  .facts { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .facts li { font-size: 0.8125rem; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--card); }
   .arch { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px; }
   .stage { position: relative; background: var(--card); border: 1px solid var(--card-border); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
   .stage + .stage::before {   /* arrow from the previous stage */
@@ -322,13 +388,18 @@
     .menubtn { display: grid; }
   }
   @media (max-width: 900px) {
-    .cards, .under, .privs { grid-template-columns: minmax(0, 1fr); }
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .under, .privs, .colgrid { grid-template-columns: minmax(0, 1fr); }
     .arch { grid-template-columns: minmax(0, 1fr); gap: 26px; }
     .stage + .stage::before { left: 50%; top: -22px; width: 2px; height: 18px; }
     .stage + .stage::after { left: calc(50% - 5px); top: -10px; border: 6px solid transparent; border-top-color: var(--accent); border-bottom: 0; }
     .lmap :global(.mapwrap) { aspect-ratio: 4 / 3; }
   }
+  @media (max-width: 640px) { .cards { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 560px) {
+    .plats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cbox { padding: 14px; }
+    .code { font-size: 0.75rem; }
     .top { gap: 6px; padding-top: 10px; padding-bottom: 10px; }
     .brand { font-size: 1.0625rem; gap: 8px; }
     .signin { padding: 0 14px; }
