@@ -42,6 +42,7 @@
         {/if}
         {#if showDate && folders?.length}<FolderPicker {folders} value={folder} info={folderInfo} disabled={folderDisabled} onchange={onfolder} />{/if}
       </div>
+      {/if}
       {#if folders?.length}<GlobalSearch {folder} />{/if}
       {#if me?.role === 'admin'}<SyncButton {onsynced} />{/if}
       <LangMenu />
