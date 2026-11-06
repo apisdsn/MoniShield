@@ -1,7 +1,7 @@
 // Collectors page helpers (web/src/collectors.js): the checks mirror the server's rules.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { containerMetricsOff, checkName, checkPath, checkService, parseUnits, checkOptions, payload, sends, installSteps, keySteps, upgradeSteps, ago, counts, defaults, editable } from '../web/src/collectors.js';
+import { containerMetricsOff, checkName, checkPath, checkService, parseUnits, checkOptions, payload, sends, installSteps, keySteps, upgradeSteps, ago, counts, defaults, editable, shortVersion } from '../web/src/collectors.js';
 
 test('names follow the server rule', () => {
   for (const ok of ['a', 'web-01', '0x', 'a'.repeat(63)]) assert.equal(checkName(ok), '', ok);
@@ -147,4 +147,10 @@ test('sections to show: filters, folded state, a search opens every section', ()
   assert.deepEqual(sections(ROWS, 'nothing', 'all', {}), []);
   assert.deepEqual(foldAll(['A', NO_GROUP], true), { A: true, [NONE_KEY]: true });
   assert.deepEqual(foldAll(['A'], false), {});
+});
+
+test('shortVersion keeps only the collector version', () => {
+  assert.equal(shortVersion('OpenTelemetry Collector Contrib/0.163.2 (linux/amd64)'), '0.163.2');
+  assert.equal(shortVersion('0.163.2'), '0.163.2');
+  assert.equal(shortVersion(null), '');
 });

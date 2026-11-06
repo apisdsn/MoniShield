@@ -241,3 +241,10 @@ export const NONE_KEY = '\u0000';
 
 /** Folded state -> every section folded, or every one open (Collapse All / Expand All). */
 export const foldAll = (names, fold) => (fold ? Object.fromEntries(names.map((n) => [n || NONE_KEY, true])) : {});
+
+/** "OpenTelemetry Collector Contrib/0.163.2 (linux/amd64)" -> "0.163.2"; a short value stays as it is (older rows hold the
+ *  whole User-Agent until the collector's next contact). */
+export function shortVersion(v) {
+  const m = /OpenTelemetry Collector[^/]*\/v?(\d+\.\d+\.\d+[\w.+-]*)/.exec(v || '');
+  return m ? m[1] : v || '';
+}

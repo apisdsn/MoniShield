@@ -81,7 +81,7 @@ def test_create_enroll_once(client):
     assert r.headers['cache-control'] == 'no-store' and body['collector']['status'] == 'waiting' and body['enroll_token'].startswith('mse_')
     assert body['expires'] == body['collector']['enroll_expires'] and not any('hash' in k for k in body['collector'])
     anon = TestClient(client.app)
-    e = enroll(anon, body['enroll_token'], headers={'User-Agent': 'otelcol-contrib/0.1 ' + 'x' * 100})
+    e = enroll(anon, body['enroll_token'], headers={'User-Agent': 'OpenTelemetry Collector Contrib/0.163.2 (linux/amd64) ' + 'x' * 100})
     assert e.status_code == 200 and e.headers['cache-control'] == 'no-store'
     got = e.json()
     assert got['key'].startswith('msk_') and got['collector'] == dict(id=body['collector']['id'], name='web-01', platform='linux')
@@ -89,7 +89,7 @@ def test_create_enroll_once(client):
     assert (second.status_code, error_code(second)) == (401, 'invalid_enrollment_token')
     assert second.json()['error']['message'] == 'Enrollment token is not valid.'
     row = client.get('/api/v1/admin/collectors').json()['rows'][0]
-    assert row['status'] == 'online' and row['enroll_expires'] is None and row['enrolled_at'] and len(row['version']) == 80
+    assert row['status'] == 'online' and row['enroll_expires'] is None and row['enrolled_at'] and row['version'] == '0.163.2'   # only the version, not the whole User-Agent
     assert client.app.state.auth.collector_check(got['key'])['name'] == 'web-01'
 
 
@@ -227,7 +227,7 @@ def test_audit_has_the_actions_and_never_a_secret(client):
     secrets_seen.append(c['enroll_token'])
     t2 = client.post(f'/api/v1/admin/collectors/{cid}/token', headers=X).json()['enroll_token']
     secrets_seen.append(t2)
-    e = enroll(TestClient(client.app), t2, headers={'User-Agent': 'otelcol/1.0'}).json()
+    e = enroll(TestClient(client.app), t2, headers={'User-Agent': 'OpenTelemetry Collector Contrib/1.0.0 (linux/amd64)'}).json()
     secrets_seen.append(e['key'])
     secrets_seen.append(client.post(f'/api/v1/admin/collectors/{cid}/rotate', headers=X).json()['key'])
     enroll(TestClient(client.app), c['enroll_token'])                                # a failed attempt with a real-looking token
@@ -240,7 +240,7 @@ def test_audit_has_the_actions_and_never_a_secret(client):
     for text in secrets_seen:
         assert text not in dump and text.split('_', 2)[2] not in dump
     enrolled = next(r for r in rows if r['action'] == 'collector.enroll')
-    assert enrolled['detail'] == 'web-01 otelcol/1.0'
+    assert enrolled['detail'] == 'web-01 1.0.0'
 
 
 def test_seen_is_written_at_most_once_a_minute(client, monkeypatch):
@@ -253,14 +253,23 @@ def test_seen_is_written_at_most_once_a_minute(client, monkeypatch):
     clock = {'t': base}
     monkeypatch.setattr(authmod, 'now', lambda: clock['t'])
     clock['t'] = base + datetime.timedelta(seconds=100)
-    assert svc.authenticate(key, '10.0.0.1', 'otelcol/2')['id'] == cid
+    assert svc.authenticate(key, '10.0.0.1', 'OpenTelemetry Collector Contrib/0.2.0 (linux/amd64)')['id'] == cid
     first = store.collector_get(cid)
-    assert first['last_ip'] == '10.0.0.1' and first['version'] == 'otelcol/2'
+    assert first['last_ip'] == '10.0.0.1' and first['version'] == '0.2.0'
     clock['t'] = base + datetime.timedelta(seconds=130)
-    svc.authenticate(key, '10.0.0.2', 'otelcol/3')
+    svc.authenticate(key, '10.0.0.2', 'OpenTelemetry Collector Contrib/0.3.0 (linux/amd64)')
     assert store.collector_get(cid)['last_ip'] == '10.0.0.1'                         # 30 s later: not written
     clock['t'] = base + datetime.timedelta(seconds=161)
-    svc.authenticate(key, '10.0.0.2', 'otelcol/3')
+    svc.authenticate(key, '10.0.0.2', 'OpenTelemetry Collector Contrib/0.3.0 (linux/amd64)')
     assert store.collector_get(cid)['last_ip'] == '10.0.0.2'                         # 61 s after the last write
     assert svc.authenticate('msk_1_' + SECRET, '10.0.0.3', None) is None             # a bad key records nothing
     assert store.collector_get(cid)['last_ip'] == '10.0.0.2'
+
+
+@pytest.mark.parametrize('ua,want', [
+    ('OpenTelemetry Collector Contrib/0.163.2 (linux/amd64)', '0.163.2'),
+    ('OpenTelemetry Collector/v0.140.1 (windows/amd64)', '0.140.1'),
+    ('curl/8.5.0', None), ('', None), (None, None),
+])
+def test_version_of_reads_the_collector_user_agent(ua, want):
+    assert dom.version_of(ua) == want

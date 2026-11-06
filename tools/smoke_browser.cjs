@@ -316,7 +316,14 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     }
     if (o > 0) throw new Error(`Servers page scrolls sideways by ${o}px at ${w}px (${wide.join(', ') || 'no element found'})`);
   }
-  console.log('ok   Servers: cards, banner, group filter, charts, containers, ranges, no sideways scroll');
+  // a quiet page asks for nothing: the next refresh is 30 s away (a loop once asked for the host without end)
+  let asked = 0;
+  const count = (r) => { if (r.url().includes('/servers')) asked++; };
+  page.on('request', count);
+  await page.waitForTimeout(4000);
+  page.off('request', count);
+  if (asked > 2) throw new Error(`Servers page sent ${asked} requests in 4 s while nothing changed`);
+  console.log('ok   Servers: cards, banner, group filter, charts, containers, ranges, no sideways scroll, no request loop');
   page.off('response', watch);
   if (plain.length) throw new Error(`these /api answers were plain JSON, not encrypted: ${[...new Set(plain)].join(', ')}`);
   console.log('ok   Collectors and Servers read only encrypted /api answers');

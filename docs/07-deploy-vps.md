@@ -384,11 +384,17 @@ must print the `deploy` user (with the `docker` group) and the container list wi
 |---|---|---|
 | push or merge into `dev` | yes | **no** |
 | merge `dev` → `stg` | yes | **no** |
-| merge `stg` → `prd` | yes | **yes**, automatically, once every check is green |
+| merge `stg` → `prd` | only when the files differ from a commit with a green run | **yes**, automatically, once every check is green or skipped |
 | open a pull request (any branch) | yes | **no** |
 | **Actions → CI → Run workflow → branch `prd`** | yes | **yes** (re-deploys the current `prd`) |
 
-Only `prd` deploys. `stg` is where you try a release before it reaches production. If *Required reviewers* is set on
+Only `prd` deploys. `stg` is where you try a release before it reaches production.
+
+A merge of `stg` into `prd` normally holds exactly the files that already passed every check on `stg` and in the pull
+request. The first job, **Earlier green run of the same code**, compares the file tree of the `prd` commit with the merged
+`stg` commit (and, for a manual re-deploy, with the `prd` commit itself); when they match and that commit has a green CI
+run, the checks are skipped and the deploy starts at once. When the files differ (a commit made on `prd` itself, a merge
+with a conflict resolution), every check runs before the deploy, as before. The job summary says which case applied. If *Required reviewers* is set on
 the `production` environment, the deploy job waits on the run page until a reviewer clicks **Approve and deploy**.
 
 ### Before the first deploy (checklist)
