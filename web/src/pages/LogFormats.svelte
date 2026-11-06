@@ -124,7 +124,7 @@
   <Skeleton />
 {:else}
   <div class="lf">
-    <section class="card head"><p class="muted intro">{$t('lf.intro')}</p></section>
+    <p class="muted intro">{$t('lf.intro')}</p>
 
     <div class="bar">
       <div class="seg" role="tablist" aria-label={$t('lf.aria_view')}>
@@ -165,22 +165,24 @@
           <div class="card tbl" role="table" aria-label={$t('nav.cfg.logformats')}>
             <div class="r h" role="row">
               <span role="columnheader">{$t('lf.col.service')}</span><span role="columnheader">{$t('lf.col.source')}</span><span role="columnheader">{$t('lf.col.host')}</span>
-              <span role="columnheader">{$t('lf.col.read')}</span><span role="columnheader">{$t('lf.col.format')}</span><span role="columnheader"></span>
+              <span role="columnheader">{$t('lf.col.read')}</span><span role="columnheader">{$t('lf.col.format')}</span>
             </div>
             {#each shown as s (keyOf(s))}
               <div class="r" class:chg={s.changed} role="row">
                 <span class="svc" role="cell"><b>{s.service}</b><small class="muted">{$t('lf.lines_today', { n: num(s.lines_today, $lang) })}</small></span>
                 <span class="muted" data-label={$t('lf.col.source')} role="cell">{$t(`src.${s.source}`)}</span>
                 <span class="mono muted" data-label={$t('lf.col.host')} role="cell">{s.namespace}</span>
-                <span class="read" class:bad={s.read !== null && s.read < data.read_bad_pct} data-label={$t('lf.col.read')} role="cell"
+                <span class="read" class:none={s.read === null && !s.changed} class:bad={s.read !== null && s.read < data.read_bad_pct} data-label={$t('lf.col.read')} role="cell"
                   title={s.read === null && !s.changed ? $t('lf.read_na_tip') : null}>{s.changed ? $t('lf.after_save') : s.read === null ? '–' : pctText(s.read, $lang)}</span>
                 <span class="fmt" data-label={$t('lf.col.format')} role="cell">
-                  <select class:chg={s.changed} aria-label={$t('lf.aria_format', { svc: s.service })} value={s.fmt} onchange={(e) => choose(s, e.currentTarget.value)}>
-                    {#each optionsFor(data.formats, s.fmt) as f}<option value={f}>{f}</option>{/each}
-                  </select>
-                  {#if s.hint}<small class="sug">{$t('lf.suggested', { f: s.hint })}</small>{/if}
+                  <span class="fl">
+                    <select class:chg={s.changed} aria-label={$t('lf.aria_format', { svc: s.service })} value={s.fmt} onchange={(e) => choose(s, e.currentTarget.value)}>
+                      {#each optionsFor(data.formats, s.fmt) as f}<option value={f}>{f}</option>{/each}
+                    </select>
+                    <button type="button" class="btn small" onclick={() => runTest(s, s.rule)}>{$t('lf.test_btn')}</button>
+                  </span>
+                  <small class="sug">{s.hint ? $t('lf.suggested', { f: s.hint }) : ''}</small>
                 </span>
-                <span role="cell"><button type="button" class="btn small" onclick={() => runTest(s, s.rule)}>{$t('lf.test_btn')}</button></span>
               </div>
             {/each}
           </div>
@@ -193,17 +195,17 @@
         {#each draft as r, i}
           <li class="card rule" class:last={isLast(i)}>
             <span class="mv">
-              <button type="button" class="arr" aria-label={$t('lf.up_aria')} disabled={i === 0 || isLast(i)} onclick={() => move(i, -1)}><Icon name="up" size={14} /></button>
-              <button type="button" class="arr" aria-label={$t('lf.down_aria')} disabled={isLast(i) || i === draft.length - 2} onclick={() => move(i, 1)}><Icon name="down" size={14} /></button>
+              <button type="button" class="btn small sq" aria-label={$t('lf.up')} title={$t('lf.up')} disabled={i === 0 || isLast(i)} onclick={() => move(i, -1)}><Icon name="up" size={16} /></button>
+              <button type="button" class="btn small sq" aria-label={$t('lf.down')} title={$t('lf.down')} disabled={isLast(i) || i === draft.length - 2} onclick={() => move(i, 1)}><Icon name="down" size={16} /></button>
             </span>
             <span class="who"><span class="mono">{r.match}</span>
-              <small class="muted">{isLast(i) ? $t('lf.last_text') : covers[i] === 0 ? $t('lf.covers_none') : $t(covers[i] === 1 ? 'lf.one_covers_sub' : 'lf.covers_n', { n: num(covers[i], $lang) })}</small></span>
+              <small class="muted">{isLast(i) ? $t('lf.last_text') : covers[i] === 0 ? $t('lf.none_covers_sub') : $t(covers[i] === 1 ? 'lf.one_covers_sub' : 'lf.covers_n', { n: num(covers[i], $lang) })}</small></span>
             <span><span class="chip mono">{r.format}</span></span>
             <span class="muted">{r.kind ? $t(`lf.kind.${r.kind}`) : $t('lf.kind.auto')}</span>
             <span class="muted small">{r.features.length ? r.features.map((f) => $t(`lf.feat.${f}`)).join(', ') : '–'}</span>
             <span class="rb">
               <button type="button" class="btn small" onclick={() => edit(i)}>{$t('lf.edit')}</button>
-              {#if !isLast(i)}<button type="button" class="btn small sq" aria-label={$t('lf.delete_aria')} title={$t('lf.delete_aria')} onclick={() => remove(i)}><Icon name="close" size={16} /></button>{/if}
+              {#if !isLast(i)}<button type="button" class="btn small sq" aria-label={$t('lf.delete')} title={$t('lf.delete')} onclick={() => remove(i)}><Icon name="close" size={16} /></button>{/if}
             </span>
           </li>
         {/each}
@@ -220,16 +222,21 @@
         {:else if test.err}<p class="alertline" role="alert">{$errText(test.err)}</p>
         {:else if !test.res.available}<p class="muted">{$t('lf.test_none_text')}</p>
         {:else}
+          {@const none = test.res.read === 0}
           <div class="tt" role="table" aria-label={testTitle}>
-            <div class="tr th2" role="row"><span role="columnheader">{$t('lf.t.time')}</span><span role="columnheader">{$t('lf.t.level')}</span><span role="columnheader">{$t('lf.t.ip')}</span>
-              <span role="columnheader">{$t('lf.t.method')}</span><span role="columnheader">{$t('lf.t.path')}</span><span role="columnheader">{$t('lf.t.status')}</span></div>
+            {#if none}
+              <div class="tr th2 one" role="row"><span role="columnheader">{$t('lf.t.line_unread')}</span></div>
+            {:else}
+              <div class="tr th2" role="row"><span role="columnheader">{$t('lf.t.time')}</span><span role="columnheader">{$t('lf.t.level')}</span><span role="columnheader">{$t('lf.t.ip')}</span>
+                <span role="columnheader">{$t('lf.t.method')}</span><span role="columnheader">{$t('lf.t.path')}</span><span role="columnheader">{$t('lf.t.status')}</span></div>
+            {/if}
             {#each test.res.rows as x}
-              <div class="tr mono" class:unread={!x.read} role="row">
+              <div class="tr mono" class:unread={!x.read} class:one={none} role="row">
                 {#if x.read}
                   <span data-label={$t('lf.t.time')} role="cell">{x.time || '–'}</span><span data-label={$t('lf.t.level')} role="cell">{x.level || '–'}</span><span data-label={$t('lf.t.ip')} role="cell">{x.ip || '–'}</span>
                   <span data-label={$t('lf.t.method')} role="cell">{x.method || '–'}</span><span class="pm" data-label={$t('lf.t.path')} role="cell" title={x.path || x.message}>{x.path || x.message || '–'}</span><span data-label={$t('lf.t.status')} role="cell">{x.status ?? '–'}</span>
                 {:else}
-                  <span class="raw" role="cell" title={x.text}>{x.text}</span>
+                  <span class="raw" role="cell" title={x.text}>{#if !none}<em class="nr">{$t('lf.t.not_read')}</em>{/if}{x.text}</span>
                 {/if}
               </div>
             {/each}
@@ -306,58 +313,67 @@
 
 <style>
   .lf { display: grid; gap: 14px; min-width: 0; }
-  .head { padding: 14px 18px; }
-  .intro { margin: 0; }
-  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+  .intro { margin: 8px 0 0; font-size: 0.875rem; max-width: 72ch; }
+  /* every control of a toolbar row is as tall as its search box and segments: 52 px (44 px buttons in a 3 px padding and a border) */
+  .bar, .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .bar { justify-content: space-between; }
   .acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .warn { color: var(--sev2-fg); font-size: 0.875rem; }
+  .bar .seg, .tools .seg { min-height: 52px; box-sizing: border-box; align-items: center; }
   .seg button { min-height: var(--touch); padding: 0 14px; }
   .seg button[aria-selected='true'] { background: var(--seg-on); color: var(--accent-text); }
+  .acts .btn, .tools > .btn { min-height: 52px; box-sizing: border-box; }
   .btn { min-height: var(--touch); }
-  .btn.small { min-height: 40px; padding: 0 12px; font-size: 0.8125rem; }
-  .btn.sq { width: 40px; padding: 0; }
+  .btn.small { min-height: var(--touch); padding: 0 12px; font-size: 0.8125rem; }
+  .btn.sq { width: var(--touch); padding: 0; }
   .btn.tog[aria-pressed='true'] { border: 1.5px solid var(--accent); background: var(--seg-on); color: var(--accent-text); font-weight: 600; }
   .alertline { margin: 0; color: var(--err); font-size: 0.875rem; }
   .ok { border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); background: color-mix(in srgb, var(--ok) 9%, transparent); border-radius: var(--r-card); padding: 12px 16px;
         display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; font-size: 0.875rem; }
   .okbtns { display: flex; flex-wrap: wrap; gap: 8px; }
-  .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  .find { flex: 1 1 260px; display: flex; align-items: center; gap: 8px; min-height: calc(var(--touch) + 8px); box-sizing: border-box; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); color: var(--muted); }
-  .find input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font-size: 1rem; outline: none; min-height: 40px; padding: 0; }
+  .find { margin: 0; flex: 1 1 260px; display: flex; align-items: center; gap: 8px; min-height: 52px; box-sizing: border-box; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); color: var(--muted); }
+  .find input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font-size: 1rem; outline: none; min-height: var(--touch); padding: 0; }
   .find:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
   .tbl { overflow: hidden; padding: 0; }
-  .r { display: grid; grid-template-columns: minmax(0, 1.4fr) 110px minmax(0, 1fr) 100px minmax(0, 1.2fr) 120px; gap: 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--row-line); font-size: 0.875rem; }
+  /* one row height: the suggestion line under the format has its place reserved in every row */
+  .r { display: grid; grid-template-columns: minmax(0, 1.4fr) 110px minmax(0, 1fr) 100px minmax(0, 1.8fr); gap: 12px; align-items: start; padding: 10px 16px; border-bottom: 1px solid var(--row-line); font-size: 0.875rem; }
+  .r > span { min-height: var(--touch); display: flex; align-items: center; min-width: 0; }
   .r:last-child { border-bottom: 0; }
   .r.h { font-size: 0.75rem; font-weight: 500; color: var(--th-fg); border-bottom: 1px solid var(--line); }
+  .r.h > span { min-height: 0; }
   .r.chg { background: var(--seg-on); }
-  .svc { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+  .svc { flex-direction: column; align-items: flex-start !important; justify-content: center; gap: 2px; overflow-wrap: anywhere; }
   .mono { font-family: var(--mono); font-size: 0.75rem; overflow-wrap: anywhere; }
   .read { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ok); }
   .read.bad { color: var(--err); }
-  .fmt { display: grid; gap: 4px; min-width: 0; }
-  .fmt select { min-height: 40px; font-family: var(--mono); font-size: 0.8125rem; max-width: 100%; }
-  .fmt select.chg { border-color: var(--accent); }
-  .sug { color: var(--accent-text); }
+  .read.none { color: var(--muted); font-weight: 400; }   /* a dash for "no count" is never coloured */
+  .r > .fmt { display: grid; gap: 4px; align-items: start; }
+  .fl { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .fl select { flex: 1; min-width: 0; min-height: var(--touch); font-family: var(--mono); font-size: 0.8125rem; }
+  .fl select.chg { border-color: var(--accent); }
+  .fl .btn { flex: none; }
+  .sug { color: var(--accent-text); display: block; height: 18px; line-height: 18px; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .note { margin: 0; font-size: 0.8125rem; }
   .rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  .rule { display: grid; grid-template-columns: 44px minmax(0, 1.3fr) minmax(0, 1fr) 90px minmax(0, 1fr) 150px; gap: 12px; align-items: center; padding: 10px 14px; font-size: 0.875rem; }
+  .rule { display: grid; grid-template-columns: 96px minmax(0, 1.3fr) 150px 100px minmax(0, 1fr) 150px; gap: 12px; align-items: center; padding: 10px 14px; font-size: 0.875rem; }
   .rule.last { border-style: dashed; }
-  .mv { display: grid; gap: 2px; }
-  .arr { width: 44px; height: 22px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--card-bg); color: var(--muted); cursor: pointer; padding: 0; }
-  .arr:disabled { opacity: 0.4; cursor: not-allowed; }
+  .mv, .rb { display: flex; gap: 8px; }
+  .mv { gap: 8px; }
   .who { display: grid; gap: 2px; min-width: 0; }
-  .rb { display: flex; gap: 6px; justify-content: flex-end; }
+  .rb { justify-content: flex-end; }
   .add { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
   .small { font-size: 0.75rem; }
   .testp { padding: 16px 18px; display: grid; gap: 10px; }
   .th { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
   .th h2 { margin: 0; font-size: 1rem; color: var(--heading); }
   .tt { display: grid; }
-  .tr { display: grid; grid-template-columns: 70px 70px 130px 70px minmax(0, 1fr) 60px; gap: 10px; padding: 8px 4px; border-top: 1px solid var(--row-line); font-size: 0.75rem; align-items: center; }
-  .tr.th2 { border-top: 0; font-weight: 600; color: var(--th-fg); font-family: inherit; }
+  .tr { display: grid; grid-template-columns: 70px 70px 130px 70px minmax(0, 1fr) 60px; gap: 10px; padding: 8px 4px; border-top: 1px solid var(--row-line); font-size: 0.75rem; align-items: center; min-height: 36px; box-sizing: border-box; }
+  .tr.th2 { border-top: 0; font-weight: 600; color: var(--th-fg); font-family: inherit; min-height: 0; }
+  .tr.one { grid-template-columns: minmax(0, 1fr); }
   .tr span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tr.unread { color: var(--err); }
   .raw { grid-column: 1 / -1; }
+  .nr { font-style: normal; font-family: var(--font); font-size: 0.6875rem; font-weight: 600; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 6px; padding: 1px 6px; margin-right: 8px; }
   .note2 { margin: 0; font-size: 0.8125rem; }
   .okc { color: var(--ok); } .errc { color: var(--err); }
   .ef { display: grid; gap: 6px; }
@@ -371,14 +387,25 @@
   @media (max-width: 900px) {
     .r.h, .tr.th2 { display: none; }
     .r { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 14px 16px; }
-    .r > [data-label]::before { content: attr(data-label) ': '; color: var(--muted); font-weight: 400; }
-    .fmt { grid-template-columns: minmax(0, 1fr); }
-    .rule { grid-template-columns: 44px minmax(0, 1fr); }
-    .rule > :nth-child(n + 3) { grid-column: 2; }
+    .r > span { min-height: 0; }
+    .r > .fmt { min-height: 0; }
+    .r > [data-label]::before { content: attr(data-label) ': '; color: var(--muted); font-weight: 400; font-family: var(--font); font-size: 0.875rem; margin-right: 0.3em; }
+    .r > .fmt::before { display: none; }
+    .rule { grid-template-columns: minmax(0, 1fr); }
     .rb { justify-content: flex-start; }
     .tr { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    .tr > [data-label]::before { content: attr(data-label) ': '; color: var(--muted); }
+    .tr > [data-label]::before { content: attr(data-label) ': '; color: var(--muted); font-family: var(--font); }
     .tr span { white-space: normal; overflow-wrap: anywhere; }
     .tr .pm { grid-column: 1 / -1; }
+  }
+  @media (max-width: 480px) {
+    /* every toolbar control takes the full width; Discard and Save Rules share a row */
+    .bar, .tools, .acts { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .acts { grid-template-columns: 1fr 1fr; }
+    .acts .warn { grid-column: 1 / -1; }
+    .bar .seg, .tools .seg { display: flex; }
+    .bar .seg button, .tools .seg button { flex: 1; padding: 0 6px; }
+    .find { flex: none; }
+    .okbtns .btn { flex: 1; }
   }
 </style>

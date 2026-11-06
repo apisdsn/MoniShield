@@ -419,6 +419,7 @@
     display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     padding: 10px 16px; border-radius: 14px; margin: 8px 0 14px; font-size: 0.875rem;
   }
+  .band a { display: inline-flex; align-items: center; min-height: var(--touch); }
   .band.err { background: color-mix(in srgb, var(--err) 16%, var(--card)); box-shadow: inset 3px 0 0 var(--err); }
   .band.info { background: color-mix(in srgb, var(--accent) 12%, var(--card)); box-shadow: inset 3px 0 0 var(--accent); }
   .band.warn { background: color-mix(in srgb, var(--warn) 14%, var(--card)); box-shadow: inset 3px 0 0 var(--warn); }

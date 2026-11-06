@@ -414,6 +414,62 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.keyboard.press('Escape');
   console.log('ok   Log Formats: services, suggestion, change a format, test lines, save, banner, rules list, edit dialog');
 
+  // Consistency of boxes, heights and icons on the pages with their own toolbars and tables: one height and centre line per toolbar row,
+  // no text glyph as an icon, 44 px targets on a phone, one height per table row, no coloured dash
+  const CHECKS = [
+    { path: '/collectors', toolbars: ['.tools'], rows: ['.list tbody'], open: '.rowbtn' },
+    { path: '/servers', toolbars: ['.gfilter'], rows: [], open: null },
+    { path: '/admin/log-formats', toolbars: ['.bar', '.tools'], rows: ['.tbl'], open: null },
+    { path: '/command-center', toolbars: ['.ccbar'], rows: [], open: null },
+  ];
+  const consistency = (arg) => page.evaluate((arg) => {
+    const out = [], vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; };
+    const name = (e) => `${e.tagName.toLowerCase()}.${[...e.classList].join('.')}"${(e.getAttribute('aria-label') || e.innerText || '').trim().slice(0, 24)}"`;
+    for (const sel of arg.toolbars) for (const bar of document.querySelectorAll(sel)) {
+      const ctl = [...bar.querySelectorAll(':scope > button, :scope > a, :scope > select, :scope > .seg, :scope > .find, :scope > .acts > .btn, :scope > .cmp .seg')].filter(vis);
+      if (ctl.length < 2) continue;
+      const rects = ctl.map((e) => e.getBoundingClientRect());
+      const top = Math.min(...rects.map((r) => r.top)), line = rects.filter((r) => Math.abs(r.top - top) < 8);   // the first line of a wrapping toolbar
+      const hs = line.map((r) => r.height), cs = line.map((r) => r.top + r.height / 2);
+      if (Math.max(...hs) - Math.min(...hs) > 1.01 || Math.max(...cs) - Math.min(...cs) > 1.01) out.push(`toolbar ${sel}: heights ${hs.map(Math.round)} centres ${cs.map(Math.round)}`);
+    }
+    for (const e of document.querySelectorAll('main button, main a.btn, main a.icon-btn, dialog button, dialog a')) {
+      if (!vis(e)) continue;
+      const t = (e.innerText || '').trim();
+      if (/^[×✕✖▲▼△▽⌕☼☀☾◀▶⌄⌃⟳]+$/u.test(t) || (!t && !e.querySelector('svg, img') && !e.hasAttribute('aria-hidden'))) out.push(`glyph or empty icon button ${name(e)}`);
+    }
+    if (arg.phone) for (const e of document.querySelectorAll('main button, main a[href], main input:not([type=hidden]), main select, main textarea, [role=tab]')) {
+      if (!vis(e) || e.closest('.sr-only, .skip, p, li > a, .tl') || e.classList.contains('sr-only')) continue;
+      const r = e.getBoundingClientRect();
+      if (r.width < 43.5 || r.height < 43.5) out.push(`target ${name(e)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+    }
+    for (const sel of arg.rows) for (const tb of document.querySelectorAll(sel)) {
+      const hs = [...tb.querySelectorAll(':scope > tr, :scope > .r:not(.h)')].filter(vis).map((r) => r.getBoundingClientRect().height);
+      if (hs.length > 1 && Math.max(...hs) - Math.min(...hs) > 1.01) out.push(`table rows ${sel}: ${hs.map(Math.round)}`);
+    }
+    const probe = document.createElement('span'); probe.className = 'muted'; document.body.appendChild(probe);
+    const muted = getComputedStyle(probe).color; probe.remove();
+    for (const e of document.querySelectorAll('main *')) if (!e.children.length && /^[–-]$/.test((e.textContent || '').trim()) && vis(e) && getComputedStyle(e).color !== muted) out.push(`coloured dash ${name(e.parentElement)} ${getComputedStyle(e).color}`);
+    return out;
+  }, arg);
+  for (const [width, phone] of [[1440, false], [390, true]]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const c of CHECKS) {
+      await page.goto(BASE + c.path);
+      await page.waitForSelector('main#main[aria-busy="false"]');
+      await page.waitForTimeout(1200);
+      let found = await consistency({ ...c, phone });
+      if (c.open && !phone) {
+        await page.locator(c.open).first().click();
+        await page.waitForSelector('#cl-panel');
+        found = found.concat(await consistency({ ...c, phone: false }));
+      }
+      if (found.length) throw new Error(`consistency at ${width} px on ${c.path}: ${[...new Set(found)].slice(0, 8).join(' | ')}`);
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  console.log('ok   consistency: toolbar heights and centres, no glyph icons, 44 px targets at 390 px, one row height, no coloured dash');
+
   // nothing site-specific stands in a URL: no host, cid, service or namespace parameter and no host name, on any request so far
   await page.goto(BASE + '/servers');
   await page.waitForSelector('.hc');

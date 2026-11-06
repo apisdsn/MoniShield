@@ -173,7 +173,7 @@
               <span class="b3">
                 <span class="lb">{barTitle(b)}</span>
                 <span class="trk" aria-hidden="true">{#if b.pct !== null}<span class="fill {barTone(b.pct)}" style:width="{Math.max(2, b.pct)}%"></span>{/if}</span>
-                <span class="v">{b.pct === null ? '–' : `${pctText(b.pct, $lang)}%`}</span>
+                <span class="v" class:none={b.pct === null}>{b.pct === null ? '–' : `${pctText(b.pct, $lang)}%`}</span>
               </span>
             {/each}
           </button>
@@ -223,17 +223,17 @@
                     {#if !c.running}<small class="muted">{$t('sv.stopped')} · {$t('sv.seen', { time: seenText(c.last_seen) })}</small>{/if}
                     <a class="lg" href={logsHref(d.host, c.name)}>{$t('sv.logs')}</a>
                   </td>
-                  <td class="img" data-label={$t('sv.col.image')}>{c.image || '–'}</td>
+                  <td class="img" class:none={!c.image} data-label={$t('sv.col.image')}>{c.image || '–'}</td>
                   <td class="cpu" data-label={$t('sv.col.cpu')}>
-                    <span class="n">{c.cpu === null ? '–' : `${pctText(c.cpu, $lang)}%`}</span>
+                    <span class="n" class:none={c.cpu === null}>{c.cpu === null ? '–' : `${pctText(c.cpu, $lang)}%`}</span>
                     <span class="trk" aria-hidden="true">{#if c.cpu !== null}<span class="fill {barTone(c.cpu)}" style:width="{Math.max(2, Math.min(100, c.cpu))}%"></span>{/if}</span>
                   </td>
                   <td class="mem" data-label={$t('sv.col.memory')}>
-                    <span class="n">{memoryText(c, $lang, $t('sv.no_limit'))}</span>
+                    <span class="n" class:none={memoryText(c, $lang, $t('sv.no_limit')) === '–'}>{memoryText(c, $lang, $t('sv.no_limit'))}</span>
                     <span class="trk" aria-hidden="true">{#if memoryShare(c) !== null}<span class="fill {barTone(memoryShare(c))}" style:width="{Math.max(2, memoryShare(c))}%"></span>{/if}</span>
                   </td>
-                  <td class="net" data-label={$t('sv.col.network')}>{net(c)}</td>
-                  <td class="rs" class:hot={c.restarts > 0} data-label={$t('sv.col.restarts')}>{c.restarts === null ? '–' : num(c.restarts, $lang)}</td>
+                  <td class="net" class:none={net(c) === '–'} data-label={$t('sv.col.network')}>{net(c)}</td>
+                  <td class="rs" class:none={c.restarts === null} class:hot={c.restarts > 0} data-label={$t('sv.col.restarts')}>{c.restarts === null ? '–' : num(c.restarts, $lang)}</td>
                   <td class="sp" data-label={$t('sv.col.spark')}>
                     {#if pts}
                       <svg width="100" height="28" viewBox="0 0 100 28" preserveAspectRatio="none" role="img" aria-label={$t('sv.spark', { name: c.name })}>
@@ -284,6 +284,7 @@
   .nm { display: flex; flex-direction: column; min-width: 0; }
   .nm b { font-size: 0.9375rem; font-weight: 600; overflow-wrap: anywhere; }
   .nm small { font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
+  .none { color: var(--muted); }   /* a dash for "no value" is never coloured */
   .b3 { display: grid; grid-template-columns: 64px minmax(0, 1fr) 48px; gap: 8px; align-items: center; font-size: 0.8125rem; }
   .lb { color: var(--muted); }
   .v { font-family: var(--mono); text-align: right; }

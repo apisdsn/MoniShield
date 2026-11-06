@@ -73,6 +73,9 @@
   const chipText = (c) => $t(`cl.sends.${c.key}`, { n: num(c.n ?? 0, $lang) });
   const chips = (r) => sends(r.platform, r.options);
 
+  /** How many of the panel's plain actions (not revoke / delete) show for a collector; an odd one leaves the last one alone on its row. */
+  const plainActions = (r) => [!!r.enrolled_at, r.status === 'waiting', !!r.enrolled_at && r.status !== 'revoked', true, r.status !== 'revoked', r.status !== 'revoked'].filter(Boolean).length;
+
   function pick(id) {
     selId = selId === id ? null : id;
     if (selId !== null && matchMedia('(max-width: 900px)').matches) tick().then(() => panelEl?.scrollIntoView({ block: 'nearest' }));
@@ -239,7 +242,7 @@
                     <td class="snd" data-label={$t('cl.col.sends')}>
                       <SendChips texts={chips(r).map(chipText)} empty={$t('cl.sends.nothing')} />
                     </td>
-                    <td data-label={$t('cl.col.version')} class="ver" title={r.version || null}>{shortVersion(r.version) || $t('cl.none')}</td>
+                    <td data-label={$t('cl.col.version')} class="ver" class:none={!shortVersion(r.version)} title={r.version || null}>{shortVersion(r.version) || $t('cl.none')}</td>
                     <td data-label={$t('cl.col.seen')} class="seen" title={exact(r.last_seen)}>{seen(r)}</td>
                     <td data-label={$t('col.status')}><SeverityTag level={TONE[r.status]} text={$t(`cl.st.${r.status}`)} /></td>
                   </tr>
@@ -259,15 +262,15 @@
         <section class="card panel" id="cl-panel" bind:this={panelEl} aria-labelledby="cl-ph">
           <header>
             <h2 id="cl-ph" class="sys">{r.name}</h2>
-            <button type="button" class="icon-btn" onclick={() => (selId = null)} aria-label={$t('cl.panel.close')} title={$t('cl.panel.close')}>×</button>
+            <button type="button" class="icon-btn" onclick={() => (selId = null)} aria-label={$t('cl.panel.close')} title={$t('cl.panel.close')}><Icon name="close" size={18} /></button>
           </header>
           <p class="pst"><SeverityTag level={TONE[r.status]} text={$t(`cl.st.${r.status}`)} /> <span class="muted">{$t(`cl.hint.${r.status}`)}</span></p>
           <dl>
             <dt>{$t('cl.p.platform')}</dt><dd>{$t(`cl.platform.${r.platform}`)}</dd>
             <dt>{$t('cl.p.group')}</dt><dd>{r.group || $t('cl.no_group')}</dd>
-            <dt>{$t('cl.p.version')}</dt><dd>{shortVersion(r.version) || $t('cl.none')}</dd>
+            <dt>{$t('cl.p.version')}</dt><dd class:none={!shortVersion(r.version)}>{shortVersion(r.version) || $t('cl.none')}</dd>
             <dt>{$t('cl.p.seen')}</dt><dd title={exact(r.last_seen)}>{r.last_seen && r.enrolled_at ? `${rel(r.last_seen)} · ${exact(r.last_seen)}` : $t('cl.never')}</dd>
-            <dt>{$t('cl.p.ip')}</dt><dd class="mono">{r.last_ip || $t('cl.none')}</dd>
+            <dt>{$t('cl.p.ip')}</dt><dd class="mono" class:none={!r.last_ip}>{r.last_ip || $t('cl.none')}</dd>
             <dt>{$t('cl.p.sends')}</dt>
             <dd><span class="chips">{#each chips(r) as c}<span class="chip">{chipText(c)}</span>{:else}{$t('cl.sends.nothing')}{/each}</span></dd>
             <dt>{$t('cl.p.created')}</dt><dd>{exact(r.created_at)}{r.created_by ? ` · ${r.created_by}` : ''}</dd>
@@ -300,7 +303,7 @@
             {#if r.enrolled_at && r.status !== 'revoked'}<button class="btn" disabled={busy} onclick={() => show('key-ask', { r })}><Icon name="key" size={16} />{$t('cl.a.key')}</button>{/if}
             <button class="btn" onclick={() => openGroup(r)}><Icon name="users" size={16} />{$t('cl.a.group')}</button>
             {#if r.status !== 'revoked'}<button class="btn" onclick={() => openInputs(r)}><Icon name="settings" size={16} />{$t('cl.a.inputs')}</button>{/if}
-            {#if r.status !== 'revoked'}<a class="btn" href="/api/v1/admin/collectors/{r.id}/config" download={r.platform === 'kubernetes' ? 'values.yaml' : 'config.yaml'}><Icon name="download" size={16} />{$t('cl.a.config')}</a>{/if}
+            {#if r.status !== 'revoked'}<a class="btn" class:wide={plainActions(r) % 2 === 1} href="/api/v1/admin/collectors/{r.id}/config" download={r.platform === 'kubernetes' ? 'values.yaml' : 'config.yaml'}><Icon name="download" size={16} />{$t('cl.a.config')}</a>{/if}
             {#if r.status !== 'revoked'}<button class="btn danger" onclick={() => show('revoke', { r })}><Icon name="ban" size={16} />{$t('cl.a.revoke')}</button>{/if}
             {#if canDelete(r)}<button class="btn danger" onclick={() => show('delete', { r })}><Icon name="archive" size={16} />{$t('cl.a.delete')}</button>{/if}
           </div>
@@ -419,8 +422,8 @@
   .layout.two { grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); }
   .secs { display: grid; gap: 14px; min-width: 0; align-content: start; }
   .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  .find { flex: 1 1 240px; display: flex; align-items: center; gap: 8px; min-height: var(--touch); padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); color: var(--muted); }
-  .find input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font-size: 1rem; outline: none; min-height: 40px; padding: 0; }
+  .find { margin: 0; flex: 1 1 240px; display: flex; align-items: center; gap: 8px; min-height: var(--touch); padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); color: var(--muted); }
+  .find input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font-size: 1rem; outline: none; min-height: var(--touch); padding: 0; }
   .find:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
   .fn { font-weight: 500; }
   /* every count in the UI font with equal-width digits (a zero without a slash), like the status tiles */
@@ -460,6 +463,7 @@
   .plat { font-size: 0.75rem; color: var(--muted); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .ver, .seen { white-space: nowrap; font-size: 0.8125rem; color: var(--fg); }
+  .ver.none, dd.none { color: var(--muted); }
   .ver { font-family: var(--mono); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
   .skel { padding: 8px 20px; }
   .sk-row { display: flex; gap: 16px; align-items: center; height: 56px; border-bottom: 1px solid var(--row-line); }
@@ -477,8 +481,10 @@
   dt { color: var(--muted); }
   dd { margin: 0; overflow-wrap: anywhere; color: var(--fg); }
   .small { font-size: 0.8125rem; margin: 6px 0 0; }
-  .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-  .acts .btn { min-height: var(--touch); }
+  /* the actions: two equal columns, the dangerous ones (revoke, delete) full width at the bottom, every button 44 px tall */
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+  .acts .btn { min-height: var(--touch); justify-content: center; text-align: center; }
+  .acts .btn.danger, .acts .btn.wide { grid-column: 1 / -1; }
   .btn.danger { border-color: var(--err); color: var(--err); }
   .err { color: var(--err); font-size: 0.8125rem; margin: 6px 0 0; }
   form { display: flex; flex-direction: column; gap: 4px; }
@@ -518,7 +524,7 @@
     td.snd { grid-column: 1 / -1; }
     td.ver, td.seen { grid-column: 1 / -1; display: flex; gap: 8px; font-size: 0.8125rem; white-space: normal; overflow-wrap: anywhere; min-width: 0; }
     td[data-label].ver::before, td[data-label].seen::before { content: attr(data-label); color: var(--muted); min-width: 7.5rem; font-family: var(--font); }
-    .acts .btn, .acts a.btn { flex: 1 1 100%; justify-content: flex-start; }
+    .acts { grid-template-columns: 1fr; }
     .krow { flex-direction: column; align-items: stretch; }
   }
 </style>
