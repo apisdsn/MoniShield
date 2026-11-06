@@ -185,7 +185,7 @@ Details: [`docs/12-collector.md`](docs/12-collector.md), [`docs/13-metrics.md`](
 A short tour of the sidebar:
 
 * **Analysis**: Overview (the status of the day), Command Center (traffic, map, destination modules), Trends, Security,
-  Root Causes, Availability, Pods, Business, Request Tracing, **Raw Logs** and **Servers** (CPU, memory, disk and network
+  Root Causes, Availability, Pods, Business, Request Tracing, **Raw Logs** and **Servers** (uptime, load average, CPU, memory, disk, disk I/O and network
   per server and container, by group).
 * **Configuration**: Object Storage, Kafka Broker, Notifications, Block List, Data Retention and more as pop-ups;
   **Log Formats** (how each service is read, with a test of its last lines) and **Collectors** (add, group, upgrade and

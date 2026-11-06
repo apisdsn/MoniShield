@@ -35,7 +35,6 @@
     onready?.(true);
   }
   const hosts = $derived(data?.hosts || []);
-  const current = $derived(hosts.find((h) => hostKey(h) === sel) || hosts[0] || null);
 
   async function loadDetail() {
     const h = current;
@@ -74,6 +73,9 @@
   const groupList = $derived(groupNames(hosts));
   const secs = $derived(hostSections(hosts, pick));
   const headed = $derived(groupList.length > 0);
+  // the servers on show (after the group filter): the chosen one is among them
+  const shown = $derived(secs.flatMap((g) => g.hosts));
+  const current = $derived(shown.find((h) => hostKey(h) === sel) || shown[0] || null);
   const serverCount = (n) => $t(n === 1 ? 'sv.group.count_one' : 'sv.group.count', { n: num(n, $lang) });
 
   // Cards
@@ -107,9 +109,9 @@
     };
   });
 
-  // Server Details
+  // Server Details: one server on show: its card and the details card side by side; several: the cards keep their grid and the details card is below them
   const tiles = $derived(d?.details ? detailTiles(d.details, $t, $lang, TZ.minutes) : []);
-  const single = $derived(hosts.length === 1 && !headed);
+  const single = $derived(shown.length === 1);
 
   // Containers
   const containers = $derived(d?.containers || []);
@@ -194,7 +196,7 @@
           {#each tiles as x (x.key)}
             <div class="tile">
               <span class="tl" title={x.label}>{x.label}</span>
-              <span class="tv" class:none={x.value === '–'} title={x.value}>{x.value}</span>
+              <span class="tv" class:dash={x.value === '–'} title={x.value}>{x.value}</span>
               <span class="ts" title={x.sub || undefined}>{x.sub}</span>
             </div>
           {/each}
@@ -209,10 +211,13 @@
   {/snippet}
 
   {#if single}
-    <div class="first">
-      <div class="hosts one">{@render hostCard(hosts[0])}</div>
-      {@render detailsCard()}
-    </div>
+    <section class="gsec" aria-label={headed ? secs[0].name || $t('sv.group.none') : $t('sv.hosts')}>
+      {#if headed}<h2 class="gh">{secs[0].name || $t('sv.group.none')} <span class="muted gc">{serverCount(1)}</span></h2>{/if}
+      <div class="first">
+        <div class="hosts one">{@render hostCard(shown[0])}</div>
+        {@render detailsCard()}
+      </div>
+    </section>
   {:else}
     {#each secs as g (g.name)}
       <section class="gsec" aria-label={headed ? g.name || $t('sv.group.none') : $t('sv.hosts')}>
@@ -344,7 +349,7 @@
 
   .hc .ft { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); font-size: 0.75rem; min-height: 1.25rem; box-sizing: content-box; }
   .hosts.one { grid-template-columns: minmax(0, 1fr); }
-  .first { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 14px; margin-bottom: 16px; align-items: stretch; }
+  .first { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 14px; align-items: stretch; }
   .first > :global(*), .wide > :global(*) { min-width: 0; }
   .wide { margin-bottom: 16px; }
 
@@ -358,7 +363,7 @@
   .tile.blk { height: 78px; }
   .tile > span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; line-height: 1rem; color: var(--muted); }
   .tile > .tv { font-size: 1rem; line-height: 1.375rem; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
-  .tile > .tv.none { color: var(--muted); font-weight: 400; }
+  .tile > .tv.dash { color: var(--muted); font-weight: 400; }
   .tiles.seven .tile:last-child { grid-column: span 2; }
   .up { margin: 0; font-size: 0.75rem; }
 

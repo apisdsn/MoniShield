@@ -397,6 +397,49 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.click('.hc:has-text("docker-host-01")');
   await page.waitForSelector('.ct tbody tr');
   if ((await page.locator('.ct tbody tr').count()) !== 4 || !(await page.locator('.ct tr.off').count())) throw new Error('Servers: containers table');
+  // Server Details, Load Average and Disk I/O at 1440 and 1280: six charts in two rows of three with one height, tiles of one height,
+  // the details card as high as the host card when one server is on show, the upgrade line on the older server only
+  const rects = async (sel) => page.$$eval(sel, (els) => els.map((e) => { const r = e.getBoundingClientRect(); return { top: Math.round(r.top + scrollY), h: Math.round(r.height), w: Math.round(r.width), left: Math.round(r.left) }; }));
+  const near = (a, b) => Math.abs(a - b) <= 1;
+  const settle = async (sel) => { await page.waitForSelector(sel); await page.waitForTimeout(700); };
+  for (const w of [1440, 1280]) {
+    await page.setViewportSize({ width: w, height: 1000 });
+    await page.click('.gfilter .gb:text-is("All Groups")');
+    await page.click('.hc:has-text("docker-host-01")');
+    await settle('.dt .tile:not(.blk) .tv');
+    const charts = await rects('.charts > section.card');
+    if (charts.length !== 6) throw new Error(`Servers ${w}: ${charts.length} charts, expected 6`);
+    if (!(near(charts[0].top, charts[1].top) && near(charts[1].top, charts[2].top) && near(charts[3].top, charts[4].top) && near(charts[4].top, charts[5].top) && charts[3].top > charts[0].top))
+      throw new Error(`Servers ${w}: the charts are not two rows of three`);
+    if (!charts.every((c) => near(c.h, charts[0].h) && near(c.w, charts[0].w))) throw new Error(`Servers ${w}: chart cards differ in size: ${JSON.stringify(charts.map((c) => [c.w, c.h]))}`);
+    const titles = await page.locator('.charts > section.card h2').allInnerTexts();
+    if (titles.join('|') !== 'CPU|Memory|Disk|Network|Load Average|Disk I/O') throw new Error(`Servers ${w}: chart order ${titles.join('|')}`);
+    const tiles = await rects('.dt .tile');
+    if (tiles.length !== 8 || !tiles.every((t) => near(t.h, tiles[0].h))) throw new Error(`Servers ${w}: tiles ${JSON.stringify(tiles.map((t) => t.h))}`);
+    if ((await page.locator('.dt .up').count()) !== 0) throw new Error('Servers: the upgrade line is shown on a server that sends the new numbers');
+    // one server on show: its card and the details card side by side, one height
+    await page.click('.gfilter .gb:text-is("Internal")');
+    await settle('.first .dt .tile:not(.blk) .tv');
+    const [hc] = await rects('.first .hc'), [dt] = await rects('.first .dt');
+    if (!hc || !dt || !near(hc.h, dt.h) || !near(hc.top, dt.top) || dt.w < hc.w * 1.5) throw new Error(`Servers ${w}: the details card (${dt && dt.h}px) is not as high as the host card (${hc && hc.h}px)`);
+    if (!/Ubuntu 24\.04 LTS/.test(await page.locator('.first .hc .nm small').innerText()) || /Linux 6\./.test(await page.locator('.first .hc .nm small').innerText())) throw new Error('Servers: the host card should show the short OS name');
+    if (!/Last data/.test(await page.locator('.first .hc .ft').innerText())) throw new Error('Servers: no "Last data" line on the host card');
+    // a Linux host has no Containers tile; the older collector shows the upgrade line, the others do not
+    await page.click('.gfilter .gb:text-is("All Groups")');
+    await page.click('.hc:has-text("web-02")');
+    await settle('.dt .up');
+    if (!/install\.sh --upgrade/.test(await page.locator('.dt .up').innerText())) throw new Error('Servers: the upgrade line of the older server');
+    const old = await rects('.dt .tile');
+    if (old.length !== 7 || !old.every((t) => near(t.h, old[0].h))) throw new Error(`Servers ${w}: tiles of a Linux host ${JSON.stringify(old.map((t) => t.h))}`);
+    await page.click('.hc:has-text("web-01")');
+    await settle('.dt .tile:not(.blk) .tv');
+    await page.waitForTimeout(300);
+    if ((await page.locator('.dt .up').count()) !== 0) throw new Error('Servers: the upgrade line on web-01');
+    await page.click('.gfilter .gb:text-is("All Groups")');
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.click('.hc:has-text("docker-host-01")');
+  console.log('ok   Servers: Server Details and six charts at 1440 and 1280 (rows, heights, tiles, upgrade line)');
   await page.click('.rng button:text-is("7 d")');
   await page.waitForSelector('.charts canvas');
   for (const w of [390, 1280]) {

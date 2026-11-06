@@ -1531,3 +1531,14 @@ sidebar and header drawn with the app's icons and tokens, sample data only), `we
 and `menu` icons, `home_meta.py` and the link preview images mention servers, `README.md` rewritten. The browser smoke test checks the new tabs, the commands per platform, one height per row of
 controls, 44 px targets and no sideways scroll on the home page.
 The section *Getting Started* (five steps as tabs, owner addition 2026-11-06) was added as the last commit of the stage so that its texts are easy to change.
+
+## Stage 61 — Server Details, Load Average and Disk I/O (done, 2026-11-06)
+
+Approved mockup "Servers: Server Details + Load Average + Disk I/O". The collector configuration (`domain/collector_config.py`) turns on the core count, load 5 and 15
+minutes, the `disk` scraper (only `system.disk.io`, loop, ram, optical, zram, device-mapper devices and partitions left out so a disk counts once) and the `system` scraper
+(only `system.uptime`); numbers only, never process names. `domain/otlp_metrics.py` reads them (`load5`, `load15`, `cores`, `uptime`, `disk_read`, `disk_write`; the disk values are
+counter rates like the network ones). `domain/host_info.py` splits the operating system text into name, kernel and architecture. `POST /api/v1/servers/host` adds `details`, the
+`load` and `disk_io` series and `needs_upgrade`. The Servers page gets the Server Details card (eight tiles of one height; beside the server card for one server on show, below
+the cards, full width, for several) and six charts of one structure (title, legend row, chart, caption). `tools/seed_metrics.py` has one server on an older configuration and the
+browser smoke test checks rows, heights, tiles and the upgrade line at 1440 and 1280 px. Existing collectors need `install.sh --upgrade` (Windows `install.ps1 -Upgrade`,
+Kubernetes `helm upgrade`).
