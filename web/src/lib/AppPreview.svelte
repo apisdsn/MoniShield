@@ -248,7 +248,7 @@
       <div class="banner"><span><b>api-01</b> {$t('sv.u.memory', { current: '1.7 GB', band: '0.8–1.0 GB', z: num(4.2, $lang, 1) })}</span></div>
       {#each GROUPS[1][1] as [h, os, ct, st, cpu, mem, disk]}{@render hostcard(h, os, ct, st, cpu, mem, disk, false)}{/each}
       {@render detailcard()}
-      {#each [CHARTS[0], CHARTS[4]] as c}{@render pchart(c)}{/each}
+      <div class="pcharts">{#each [CHARTS[0], CHARTS[4]] as c}{@render pchart(c)}{/each}</div>
     {/if}
   </div>
   <figcaption>{$t('home.pv.caption')}</figcaption>
@@ -369,6 +369,7 @@
   .chart .capt { font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .phone .chart .capt { white-space: normal; min-height: 2.4em; }
   .phone .lgd { justify-content: flex-start; gap: 4px 10px; }
+  .pcharts { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: 1fr; gap: 8px; }   /* the two phone charts share one height, whatever their caption length */
   .charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .gl { stroke: var(--line); } .gt { font-size: 9px; fill: var(--kpi-label); }
 
