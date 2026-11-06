@@ -237,7 +237,7 @@ def test_meta(client):
     assert (b['lines'], b['services'], b['files'], b['files_empty'], b['files_corrupt']) == (38, 7, 7, 1, 1)
     assert (b['range_start'], b['range_end']) == ('2026-09-25 23:04', '2026-09-28 23:15')   # WIB; from access and Spring lines (not error logs)
     assert len(b['derived_at']) == 16 and b['derived_at'][:2] == '20'                     # WIB 'YYYY-MM-DD HH:MM'
-    assert b['requests'] == 7 and m['folders'][1]['requests'] is None                     # nginx-ingress requests (volume band); A has no ingress logs
+    assert b['requests'] == 7 and m['folders'][1]['requests'] == 2 and m['folders'][1]['http_service'] == 'web-frontend' and b['http_service'] == 'nginx-ingress-controller'                  # the folder's access log (volume band): B the ingress, A (no ingress logs) its frontend
     assert m['server'] == dict(ip='', city='Jakarta', region='Jakarta', cc='ID', lat=-6.2, lon=106.82)   # no IP data: fallback value
     assert m['hosts'] == {} and m['dns_upstream'] == '' and m['own_org'] == ''   # defaults name no real site
     assert m['roles'] == dict(frontend='web-frontend', events='event-api', auth='auth-service', report='report-service', reference='reference-service')
