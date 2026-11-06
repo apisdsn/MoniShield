@@ -215,16 +215,21 @@ def test_linux_metrics_pipeline():
             '        - "batch/metrics"\n      exporters:\n        - "otlp_http/monishield"') in y
     assert 'logs:\n      receivers:\n        - "journald"' in y
     for part in ('system.cpu.utilization:\n            enabled: true', 'system.cpu.time:\n            enabled: false', 'system.memory.limit:\n            enabled: true',
-                 'system.cpu.load_average.5m:\n            enabled: false', 'system.filesystem.inodes.usage:\n            enabled: false',
+                 'system.cpu.load_average.5m:\n            enabled: true', 'system.cpu.load_average.15m:\n            enabled: true',
+                 'system.cpu.logical.count:\n            enabled: true', 'system.uptime:\n            enabled: true', 'system.disk.operations:\n            enabled: false',
+                 'system.disk.io_time:\n            enabled: false', 'system.disk.merged:\n            enabled: false', '- "^loop\\\\d+$"', '- "^dm-\\\\d+$"',
+                 '- "^nvme\\\\d+n\\\\d+p\\\\d+$"', 'system.filesystem.inodes.usage:\n            enabled: false',
                  'system.network.packets:\n            enabled: false', '- "^docker\\\\d*$"', '- "^/var/lib/docker/.*"', '- "^/boot/efi$"', '- "tmpfs"',
                  'aggregation_type: "mean"', 'label_set:\n              - "state"', 'os.description:\n          enabled: true'):
         assert part in y, part
     assert 'process' not in y.replace('processors', '')                                       # never the process scrapers
+    assert 'system.disk.io:' not in y                                                          # the one disk metric left on is not named
 
 
 def test_windows_has_no_mount_excludes_and_docker_stats_is_docker_only():
     y = build('windows', METRIC_OPTIONS['windows'])
     assert 'host_metrics' in y and 'exclude_mount_points' not in y and 'exclude_fs_types' not in y and '"^lo$"' in y and 'docker_stats' not in y
+    assert 'disk:' in y and 'system.disk.operations:\n            enabled: false' in y and '^loop' not in y and 'system.uptime' in y
     y = build('docker', METRIC_OPTIONS['docker'])
     assert '  docker_stats:\n    endpoint: "unix:///var/run/docker.sock"\n    collection_interval: "30s"' in y and 'container.restarts:\n        enabled: true' in y
     assert 'api_version' not in y and '        - "host_metrics"\n        - "docker_stats"' in y
@@ -245,6 +250,7 @@ def test_kubernetes_node_metrics_values():
         assert part in y, part
     assert ('metrics:\n        receivers:\n          - "host_metrics"\n        processors:\n          - "memory_limiter"\n          - "resource_detection"\n'
             '          - "resource/node"\n          - "metrics_transform/monishield"\n          - "batch/metrics"') in y
+    assert 'disk:' in y and 'system.disk.operations:\n              enabled: false' in y and 'system.uptime' in y and '"^loop' in y
     assert 'network:' not in y and 'hostMetrics' not in y and 'os.description' not in y and 'traces: null' in y
     off = build('kubernetes', dict(host_metrics=False))
     assert 'host_metrics' not in off and 'hostfs' not in off and 'K8S_NODE_NAME' not in off and 'metrics: null' in off and 'metrics_endpoint' not in off
