@@ -78,7 +78,7 @@
             <Icon name="server" /><span class="lbl sys">{sysName(s.service)}</span>
             {#if s.err}
               <span class="b" aria-hidden="true">{num(s.err, $lang)}</span><span class="pip" aria-hidden="true"></span>
-              <span class="sr-only">{$t('nav.badge_err', { n: num(s.err, $lang) })}</span>
+              <span class="sr-only">{$t(s.err === 1 ? 'nav.one_badge_err' : 'nav.badge_err', { n: num(s.err, $lang) })}</span>
             {:else if s.files_corrupt}
               <span class="b warn" aria-hidden="true">!</span><span class="sr-only">{$t('ov.badge_corrupt')}</span>
             {/if}
@@ -99,6 +99,13 @@
             <Icon name={c.icon} /><span class="lbl">{$t(`nav.cfg.${c.id}`)}</span>
           </button>
         </li>
+        {#if c.id === 'maxmind'}
+          <li>
+            <a href={href({ tab: 'admin/log-formats' })} aria-current={active('admin/log-formats')} onclick={onpick} title={tip($t('nav.cfg.logformats'))}>
+              <Icon name="lines" /><span class="lbl">{$t('nav.cfg.logformats')}</span>
+            </a>
+          </li>
+        {/if}
       {/each}
       <li>
         <a href={href({ tab: 'collectors' })} aria-current={active('collectors')} onclick={onpick} title={tip($t('nav.collectors'))}>

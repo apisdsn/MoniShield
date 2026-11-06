@@ -293,6 +293,16 @@ the role. Raw schema: `/api/v1/openapi.json`. Every endpoint is under `/api/v1`;
 or the contents of one date + fill in its date) → **Upload**. Only `.log`/`.log.gz` are sent (same size limits as
 S3 import); the files go to the inbox and are then ingested. Behind nginx, raise `client_max_body_size` (nginx default 1 MB).
 
+### Setting how a service is read (Log Formats)
+
+A service whose lines look wrong (no errors, levels or map) is read with the wrong format. Open **Configuration** → **Log Formats**
+(admin). On the **Services** tab find the service (search, or **Only Services That Read Badly**), look at **Lines Read** (red below 95 %) and
+the line "Suggested: …" under its **Format**, press **Test Lines** to see the last 5 lines read with that format, choose the format in
+the select and press **Save Rules**. The rules are in use at once; **Read Today Again** reads today's folder again with them (lines that
+came in earlier keep their old reading until then). A change applies to that service on that host only. The **Rules (Advanced)** tab
+shows the rules in order: the first one whose name fits wins, the last one (`*`) catches every other service. The page writes
+`log-formats.toml` in the state folder and rewrites it when you save, so comments written by hand in it are not kept.
+
 ### Raw Logs
 
 **Raw Logs** (Analysis group) shows the original lines of the services for the date in the header, exactly as they were

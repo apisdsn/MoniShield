@@ -74,7 +74,7 @@ Deleting a collector deletes its metrics too (the id may be given to a new colle
 
 ## 5. Unusual values
 
-`domain/metric_anomaly.py`, used by `GET /api/v1/servers`. For the CPU and the memory in use of every server and container:
+`domain/metric_anomaly.py`, used by `POST /api/v1/servers`. For the CPU and the memory in use of every server and container:
 
 - **current** = the mean of the last 10 minutes (at least 4 points);
 - **baseline** = the hourly averages of the same hour of the day on each of the previous 7 days (a day counts when that hour has at least
@@ -89,13 +89,13 @@ Disks have no z-score: a mount point that is 90 % full or more is listed under `
 
 ## 6. Read API
 
-For every signed-in user (like the Pods page); host and container names and numbers are not personal data, so these are plain GETs.
+For every signed-in user (like the Pods page). Host and container names are site data, so both reads are POST: the parameters travel in the JSON body, which the web UI encrypts, and no host name stands in a URL, a proxy log or the network panel (there is no GET form).
 
-- `GET /api/v1/servers?range=1h|24h|7d|30d` (default 24h) -> `hosts` (collector id and name, platform, collector status `online` / `late` /
+- `POST /api/v1/servers` with `{range: 1h|24h|7d|30d}` (default 24h) -> `hosts` (collector id and name, platform, collector status `online` / `late` /
   `offline` / `revoked`, host, OS, last seen, number of containers, current cpu, mem_used, mem_total, load1, net_rx, net_tx, and the
   `disks` with used, total and percent), `unusual` (worst first: kind, host, container, name, z, current, usual low and high, started) and
   `disk_full`. "Current" is the newest point of the last hour, else null.
-- `GET /api/v1/servers/host?cid=&host=&range=` -> the series for the charts (`cpu`, `mem_used` and `mem_total`, `disk_used` and `disk_total`
+- `POST /api/v1/servers/host` with `{cid, host, range}` -> the series for the charts (`cpu`, `mem_used` and `mem_total`, `disk_used` and `disk_total`
   of `/` or else the first mount point, `net_rx` and `net_tx`, `load1`) and the `containers` (name, image, running = seen in the last 2
   minutes, last seen, current values, restarts, and a memory sparkline of 24 hourly averages). Containers last seen before the range
   (at least 24 hours) are left out.
@@ -141,8 +141,8 @@ block of `/etc/otelcol-contrib/config.yaml` by hand (an upgrade overwrites the f
 ## 10. The Servers page
 
 `web/src/pages/Servers.svelte`, helpers in `web/src/servers.js` (tested by `tests/test_servers.mjs`), route `/servers`, sidebar entry in
-the Analysis group after Raw Logs. No folder and no data source: the header hides the source switch. Reads `GET /api/v1/servers?range=` and
-`GET /api/v1/servers/host` through `api.js` every 30 seconds (the answers are encrypted like every browser call).
+the Analysis group after Raw Logs. No folder and no data source: the header hides the source switch. Reads `POST /api/v1/servers` and
+`POST /api/v1/servers/host` through `api.js` every 30 seconds (the answers are encrypted like every browser call).
 
 - **Banner**: `unusual` items (a container gets "Open Its Logs", Raw Logs of the collector source at `#pod=<host>&svc=<container>`; a
   server has no link) then `disk_full`; at most 3, then "and N more".

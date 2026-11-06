@@ -7,7 +7,7 @@ input: all are matched against the lists below, the rest goes through bound para
 import dataclasses, re
 
 
-from monishield.domain import services as profile, timezone
+from monishield.domain import log_formats, services as profile, timezone
 from monishield.infrastructure.queries.sql import ip_cell, reject
 
 NG = 'nginx-ingress-controller'
@@ -167,6 +167,30 @@ def first(cur, name, folder, service=None, module=None, limit=None, scheme='crs'
     """First page for a page response: {total, rows} (TRD §5.1)."""
     p = page(cur, name, folder, service=service, module=module, limit=limit, scheme=scheme)
     return dict(total=p['total'], rows=p['rows'])
+
+
+def http_names(cur):
+    """Services whose rule is an access log (kind http), and the ingress: the ones the HTTP cards can show."""
+    rules = log_formats.current() or log_formats.default_rules(profile.current())
+    pairs = cur.execute('SELECT DISTINCT ns, service FROM ingest_file').fetchall()
+    return sorted({svc for ns, svc in pairs if (r := log_formats.match(rules, ns, svc)) and r.kind == 'http'} | {NG})
+
+
+def http_rows(cur, folder=None, since=None):
+    """The service whose numbers the HTTP cards show, per folder -> {folder 'YYYY-MM-DD': dict(service, lines, requests, n4xx, n5xx)}.
+    nginx-ingress-controller when the folder has its lines (the numbers are exactly the ingress', as before); else the access-log
+    service with the most requests. A folder without an access log is not in the result. One folder (`folder`) or every folder from `since`."""
+    where, args = ('a.folder = ?', [folder]) if folder else ('a.folder >= ?', [since]) if since else ('true', [])
+    rows = cur.execute(f"""SELECT folder::VARCHAR, service, lines, requests, n4xx, n5xx FROM (
+                             SELECT a.folder, a.service, a.lines, a.requests, a.n4xx, a.n5xx,
+                                    row_number() OVER (PARTITION BY a.folder ORDER BY (a.service = '{NG}') DESC, a.requests DESC, a.service) AS rn
+                             FROM agg_service a
+                             WHERE {where} AND ((a.service = '{NG}' AND a.lines > 0) OR (a.requests > 0 AND list_contains(?, a.service)))) WHERE rn = 1""",
+                       [*args, http_names(cur)]).fetchall()
+    return {f: dict(service=svc, lines=ln, requests=req, n4xx=n4, n5xx=n5) for f, svc, ln, req, n4, n5 in rows}
+
+
+def http_service(cur, folder): return http_rows(cur, folder=folder).get(str(folder))
 
 
 def services(cur, folder): return {r[0]: r[1] for r in cur.execute('SELECT service, lines FROM agg_service WHERE folder = ?', [folder]).fetchall()}

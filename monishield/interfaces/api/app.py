@@ -15,16 +15,16 @@ from starlette.routing import Match, Mount
 from monishield import __version__
 from monishield.application import account_service, alert_service, collector_feed, collector_service, metrics_feed, metrics_service, public_map_service, backup_service, import_service, ingest_service, kafka_service, password_service, retention_service, settings_service, sources
 from monishield.domain import config_model, detect, log_formats, services, timezone
-from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, geo_lookup, importer, inbox, kafka_client, letter, logfolders, mailer, metrics_store, notify_channels, refdata, uploads, warehouse, wirecrypto
+from monishield.infrastructure import auth as authmod, backup, collector_inbox, config, db, envfile, geo_lookup, importer, inbox, kafka_client, letter, log_format_file, log_lines, logfolders, mailer, metrics_store, notify_channels, refdata, uploads, warehouse, wirecrypto
 from monishield.domain.errors import Fail
-from monishield.interfaces.api import admin, collector_install, collector_logs, collectors, config_api, docs, home_meta, kafka, meta, notify, pages, servers, session, upload, users, versioning, wire as payload
+from monishield.interfaces.api import admin, collector_install, collector_logs, collectors, config_api, docs, home_meta, kafka, log_formats as log_formats_api, meta, notify, pages, servers, session, upload, users, versioning, wire as payload
 from .common import ROLE_DEPS, FailureLimiter, RateWindow, Slots
 
 WORKERS = 1  # a constant, not configuration (TRD §7.2)
 CSP = ("default-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 HEADERS = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'}
-ROUTERS = (meta.router, meta.operational, session.router, payload.router, users.router, collectors.router, collector_install.router, collector_logs.router, admin.router, upload.router, docs.router, notify.router, config_api.router, kafka.router, pages.router, servers.router)
+ROUTERS = (meta.router, meta.operational, session.router, payload.router, users.router, collectors.router, collector_install.router, collector_logs.router, admin.router, upload.router, docs.router, notify.router, config_api.router, log_formats_api.router, kafka.router, pages.router, servers.router)
 
 
 
@@ -72,6 +72,8 @@ def wire(state, cfg, env_path):
     state.env = envfile.EnvStore(env_path)
     state.warehouse = warehouse.DuckWarehouse(state)
     state.logfolders = logfolders.LogFolders(cfg)
+    state.logformats = log_format_file.LogFormatFile(cfg.log_formats_file or os.path.join(cfg.state_dir, 'log-formats.toml'))   # the Log Formats page writes it
+    state.loglines = log_lines.LogLines()
     state.s3 = importer.S3Gateway(cfg)
     state.channels = notify_channels.Channels()
     state.mailer = mailer.Mailer(cfg)

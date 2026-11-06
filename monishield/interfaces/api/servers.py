@@ -1,12 +1,14 @@
 """Servers page (docs/13-metrics.md): what the collectors report about servers and containers. Read only, for every signed-in
-user like the Pods page. Host and container names and numbers are not personal data, so these are plain GET reads.
+user like the Pods page. The names of the servers and containers are site data, so the reads are POST: their parameters travel in the JSON body, which
+the web UI encrypts (interfaces/api/wire.py), and no host name stands in a URL, a proxy log or the network panel.
 
-  GET /api/v1/servers?range=1h|24h|7d|30d            servers with their current values, unusual values, disks that are almost full
-  GET /api/v1/servers/host?cid=&host=&range=         the charts of one server and its containers
+  POST /api/v1/servers        {range: 1h|24h|7d|30d}          servers with their current values, unusual values, disks that are almost full
+  POST /api/v1/servers/host   {cid, host, range}              the charts of one server and its containers
 """
 import datetime, re
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel, Field
 
 from monishield.domain import kafka_message
 from monishield.infrastructure.queries import servers as q_servers
@@ -28,17 +30,26 @@ def _collectors(request):
     return [c for c in request.app.state.collectors.list() if c['status'] != 'waiting']
 
 
-@router.get('/servers')
-def servers(request: Request, range: str = Query('24h')):
-    rng = _range(range)
+class RangeBody(BaseModel):
+    range: str = '24h'
+
+
+class HostBody(RangeBody):
+    cid: int = Field(ge=1)
+    host: str = Field(max_length=253)
+
+
+@router.post('/servers')
+def servers(request: Request, body: RangeBody = RangeBody()):
+    rng = _range(body.range)
     cur = request.app.state.metrics.cursor()
     try: return q_servers.overview(cur, _collectors(request), _now(), rng)
     finally: cur.close()
 
 
-@router.get('/servers/host')
-def server(request: Request, cid: int = Query(..., ge=1), host: str = Query(..., max_length=253), range: str = Query('24h')):
-    rng = _range(range)
+@router.post('/servers/host')
+def server(request: Request, body: HostBody):
+    cid, host, rng = body.cid, body.host, _range(body.range)
     if not kafka_message.NAME.fullmatch(host): raise ApiError(404, 'not_found', 'Server not found.')
     collector = next((c for c in _collectors(request) if c['id'] == cid), None)
     if not collector: raise ApiError(404, 'not_found', 'Server not found.')

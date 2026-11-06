@@ -9,7 +9,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8777';
 const SHOTS = process.argv[3] || '';
 const PW0 = 'smoke-test-first-password', PW1 = 'Smoke-Test-Second-Password-2026!';
 const PAGES = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
-  'services/event-api', 'servers', 'collectors', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
+  'services/event-api', 'servers', 'collectors', 'admin/log-formats', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
 const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'id', source: 'collector' }, { lang: 'en', source: '' }];
 
 (async () => {
@@ -17,6 +17,8 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
   let problems = [];
+  const apiUrls = [];   // every /api request of the signed-in page: no host, service or namespace may stand in one
+  page.on('request', (r) => { if (r.url().includes('/api/')) apiUrls.push(r.url()); });
   page.on('pageerror', (e) => problems.push(`script error: ${e.message}`));
   page.on('response', (r) => { if (r.status() >= 500) problems.push(`${r.status()} ${r.request().method()} ${r.url().replace(BASE, '')}`); });
 
@@ -260,9 +262,9 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.fill('.find input', 'no-such-collector');
   if (!(await page.locator('.nomatch').count())) throw new Error('no "nothing matches" line');
   await page.fill('.find input', '');
-  await page.click('.flt button:has-text("Offline")');
-  if ((await page.locator('.flt button[aria-pressed=true]').count()) !== 1 || (await page.locator('h2.gh .gn').allInnerTexts()).join('|') !== 'No Group') throw new Error('status filter Offline');
-  await page.click('.flt button:has-text("All")');
+  await page.click('.tiles .tile:has(.tl:text-is("Offline"))');
+  if ((await page.locator('.tiles .tile[aria-pressed=true]').count()) !== 1 || (await page.locator('h2.gh .gn').allInnerTexts()).join('|') !== 'No Group') throw new Error('status filter Offline');
+  await page.click('.tiles .tile:has(.tl:text-is("Offline"))');
   await page.click('button.all');
   if ((await page.locator('h2.gh button[aria-expanded=true]').count()) !== 0) throw new Error('Collapse All');
   await page.click('button.all');
@@ -284,6 +286,63 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   if (!(await page.locator('dialog pre:has-text("install.sh --upgrade")').count())) throw new Error('upgrade command not shown after a metrics change');
   await page.keyboard.press('Escape');
   console.log('ok   Collectors: sections per group, fold (remembered), search, status filter, change group, metric options and the upgrade command');
+
+  // pages that do not depend on a date have no date picker; the data pages keep it, and the header controls stay at the right edge
+  for (const path of ['/servers', '/collectors']) {
+    await page.goto(BASE + path);
+    await page.waitForSelector('header.top');
+    if (await page.locator('#folder-select').count()) throw new Error(`the date picker is shown on ${path}`);
+  }
+  await page.goto(BASE + '/overview');
+  await page.waitForSelector('#folder-select');
+  for (const w of [1440, 390]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.goto(BASE + '/servers');
+    await page.waitForSelector('header.top .bar');
+    const gap = await page.evaluate(() => {
+      const bar = document.querySelector('header.top .bar').getBoundingClientRect();
+      const last = [...document.querySelectorAll('header.top .bar > *, header.top .bar .tools > *')].map((e) => e.getBoundingClientRect()).filter((r) => r.width).reduce((m, r) => Math.max(m, r.right), 0);
+      return bar.right - last;
+    });
+    if (gap > 24) throw new Error(`header controls are not at the right edge at ${w} px (gap ${gap})`);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  console.log('ok   no date picker on Servers and Collectors, still on the Overview; header controls right-aligned at 1440 and 390 px');
+
+  // Collectors: a row keeps its height when the detail panel opens and narrows the table (chips stay on one line)
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(BASE + '/collectors');
+  await page.waitForSelector('.list tbody tr');
+  const rowHeights = () => page.$$eval('.list tbody tr', (rs) => rs.map((r) => Math.round(r.getBoundingClientRect().height)));
+  const closedRows = await rowHeights();
+  await page.locator('.rowbtn').first().click();
+  await page.waitForSelector('#cl-panel');
+  const openRows = await rowHeights();
+  if (JSON.stringify(closedRows) !== JSON.stringify(openRows)) throw new Error(`Collectors: row heights change when the panel opens (${closedRows} -> ${openRows})`);
+  console.log('ok   Collectors: row heights are the same with the detail panel closed and open');
+
+  // Collectors: the status tiles are the filter (no segmented filter next to the search box)
+  await page.goto(BASE + '/collectors');
+  await page.waitForSelector('.tiles .tile');
+  if (await page.locator('.seg.flt, .tools .seg').count()) throw new Error('Collectors: a segmented status filter is left next to the search box');
+  if ((await page.locator('.tiles[role=group]').count()) !== 1) throw new Error('Collectors: the tiles are not a group');
+  if (await page.locator('button.all:has-text("Expand All")').count()) await page.click('button.all:has-text("Expand All")');
+  const tileInfo = await page.$$eval('.tiles .tile', (ts) => ts.map((t) => ({ name: t.querySelector('.tl').textContent, n: Number(t.querySelector('b').textContent.replace(/\D/g, '')), h: t.getBoundingClientRect().height, pressed: t.getAttribute('aria-pressed') })));
+  if (tileInfo.length !== 4 || tileInfo.some((t) => t.h < 44 || t.pressed !== 'false')) throw new Error(`Collectors: tiles ${JSON.stringify(tileInfo)}`);
+  const allRows = await page.locator('.list tbody tr').count();
+  const pick = tileInfo.find((t) => t.n > 0 && t.n < allRows);
+  if (!pick) throw new Error(`Collectors: no status with some but not all collectors (${JSON.stringify(tileInfo)})`);
+  const tile = page.locator(`.tiles .tile:has(.tl:text-is("${pick.name}"))`);
+  await tile.click();
+  if ((await tile.getAttribute('aria-pressed')) !== 'true' || (await page.locator('.list tbody tr').count()) !== pick.n) throw new Error(`Collectors: filter ${pick.name} shows ${await page.locator('.list tbody tr').count()} rows, expected ${pick.n}`);
+  if (!(await tile.innerText()).includes('Filtered') || !(await tile.getAttribute('title')).startsWith('Show all')) throw new Error('Collectors: the active tile has no tag or title');
+  if (!(await page.locator('.fnote').innerText()).includes(`only. Click the tile again or Show All`) || !(await page.locator('button.all:has-text("Show All")').count())) throw new Error('Collectors: filter note or Show All missing');
+  await tile.click();
+  if ((await page.locator('.list tbody tr').count()) !== allRows || (await page.locator('button.all:has-text("Show All")').count())) throw new Error('Collectors: the same tile again does not show all');
+  await tile.click();
+  await page.click('button.all:has-text("Show All")');
+  if ((await page.locator('.list tbody tr').count()) !== allRows || (await tile.getAttribute('aria-pressed')) !== 'false') throw new Error('Collectors: Show All does not show all');
+  console.log('ok   Collectors: status tiles filter the list, the same tile or Show All shows all, no segmented filter');
 
   await page.goto(BASE + '/servers');
   await page.waitForSelector('.hc');
@@ -327,6 +386,125 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   page.off('response', watch);
   if (plain.length) throw new Error(`these /api answers were plain JSON, not encrypted: ${[...new Set(plain)].join(', ')}`);
   console.log('ok   Collectors and Servers read only encrypted /api answers');
+
+  // Log Formats: services with a suggestion, change a format, test lines, save, the banner, the rules list
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(BASE + '/admin/log-formats');
+  await page.waitForSelector('.lf .tbl .r:not(.h)');
+  const lfNames = await page.$$eval('.tbl .svc b', (es) => es.map((e) => e.textContent));
+  if (!lfNames.includes('monishield-https-1') || !lfNames.includes('monishield-app-1')) throw new Error(`Log Formats: services ${lfNames}`);
+  const appRow = page.locator('.tbl .r:has-text("monishield-app-1")');
+  // the suggestion box is always there (its height is kept); wait for the text the suggestion request fills in
+  try { await appRow.locator('.sug', { hasText: 'Suggested: plain' }).waitFor({ timeout: 15000 }); }
+  catch { throw new Error(`Log Formats: no "Suggested: plain" for monishield-app-1 (shows "${await appRow.locator('.sug').innerText()}")`); }
+  if ((await page.locator('#folder-select').count()) || (await page.locator('.seg[role=radiogroup]').count())) throw new Error('Log Formats: date picker or source switch shown');
+  await appRow.locator('select').selectOption('plain');
+  await page.waitForSelector('.testp .tr.mono');
+  if (!(await page.locator('.warn').innerText()).includes('1 change not saved')) throw new Error('Log Formats: unsaved note missing');
+  await page.click('button:has-text("Save Rules")');
+  await page.waitForSelector('.ok');
+  if (!(await page.locator('.ok').innerText()).includes('Rules saved and in use')) throw new Error('Log Formats: banner text');
+  await page.click('.ok button:has-text("Read Today Again")');
+  await page.click('[role=tab]:has-text("Rules (Advanced)")');
+  await page.waitForSelector('.rule.last');
+  const ruleNames = await page.$$eval('.rule .who .mono', (es) => es.map((e) => e.textContent));
+  if (!ruleNames.includes('VM-23-71-ubuntu/monishield-app-1') || ruleNames[ruleNames.length - 1] !== '*') throw new Error(`Log Formats: rules ${ruleNames}`);
+  if (await page.locator('.rule.last [aria-label="Delete rule"]').count()) throw new Error('Log Formats: the catch-all rule can be deleted');
+  await page.locator('.rule').first().locator('button:has-text("Edit")').click();
+  await page.waitForSelector('dialog[open] #lf-match');
+  await page.keyboard.press('Escape');
+  console.log('ok   Log Formats: services, suggestion, change a format, test lines, save, banner, rules list, edit dialog');
+
+  // Consistency of boxes, heights and icons on the pages with their own toolbars and tables: one height and centre line per toolbar row,
+  // no text glyph as an icon, 44 px targets on a phone, one height per table row, no coloured dash
+  const CHECKS = [
+    { path: '/collectors', toolbars: ['.tools'], rows: ['.list tbody'], open: '.rowbtn' },
+    { path: '/servers', toolbars: ['.gfilter'], rows: [], open: null },
+    { path: '/admin/log-formats', toolbars: ['.bar', '.tools'], rows: ['.tbl'], open: null },
+    { path: '/command-center', toolbars: ['.ccbar'], rows: [], open: null },
+  ];
+  const consistency = (arg) => page.evaluate((arg) => {
+    const out = [], vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; };
+    const name = (e) => `${e.tagName.toLowerCase()}.${[...e.classList].join('.')}"${(e.getAttribute('aria-label') || e.innerText || '').trim().slice(0, 24)}"`;
+    for (const sel of arg.toolbars) for (const bar of document.querySelectorAll(sel)) {
+      const ctl = [...bar.querySelectorAll(':scope > button, :scope > a, :scope > select, :scope > .seg, :scope > .find, :scope > .acts > .btn, :scope > .cmp .seg')].filter(vis);
+      if (ctl.length < 2) continue;
+      const rects = ctl.map((e) => e.getBoundingClientRect());
+      const top = Math.min(...rects.map((r) => r.top)), line = rects.filter((r) => Math.abs(r.top - top) < 8);   // the first line of a wrapping toolbar
+      const hs = line.map((r) => r.height), cs = line.map((r) => r.top + r.height / 2);
+      if (Math.max(...hs) - Math.min(...hs) > 1.01 || Math.max(...cs) - Math.min(...cs) > 1.01) out.push(`toolbar ${sel}: heights ${hs.map(Math.round)} centres ${cs.map(Math.round)}`);
+    }
+    for (const e of document.querySelectorAll('main button, main a.btn, main a.icon-btn, dialog button, dialog a')) {
+      if (!vis(e)) continue;
+      const t = (e.innerText || '').trim();
+      if (/^[×✕✖▲▼△▽⌕☼☀☾◀▶⌄⌃⟳]+$/u.test(t) || (!t && !e.querySelector('svg, img') && !e.hasAttribute('aria-hidden'))) out.push(`glyph or empty icon button ${name(e)}`);
+    }
+    if (arg.phone) for (const e of document.querySelectorAll('main button, main a[href], main input:not([type=hidden]), main select, main textarea, [role=tab]')) {
+      if (!vis(e) || e.closest('.sr-only, .skip, p, li > a, .tl') || e.classList.contains('sr-only')) continue;
+      const r = e.getBoundingClientRect();
+      if (r.width < 43.5 || r.height < 43.5) out.push(`target ${name(e)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+    }
+    for (const sel of arg.rows) for (const tb of document.querySelectorAll(sel)) {
+      const hs = [...tb.querySelectorAll(':scope > tr, :scope > .r:not(.h)')].filter(vis).map((r) => r.getBoundingClientRect().height);
+      if (hs.length > 1 && Math.max(...hs) - Math.min(...hs) > 1.01) out.push(`table rows ${sel}: ${hs.map(Math.round)}`);
+    }
+    const probe = document.createElement('span'); probe.className = 'muted'; document.body.appendChild(probe);
+    const muted = getComputedStyle(probe).color; probe.remove();
+    for (const e of document.querySelectorAll('main *')) if (!e.children.length && /^[–-]$/.test((e.textContent || '').trim()) && vis(e) && getComputedStyle(e).color !== muted) out.push(`coloured dash ${name(e.parentElement)} ${getComputedStyle(e).color}`);
+    return out;
+  }, arg);
+  for (const [width, phone] of [[1440, false], [390, true]]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const c of CHECKS) {
+      await page.goto(BASE + c.path);
+      await page.waitForSelector('main#main[aria-busy="false"]');
+      await page.waitForTimeout(1200);
+      let found = await consistency({ ...c, phone });
+      if (c.open && !phone) {
+        await page.locator(c.open).first().click();
+        await page.waitForSelector('#cl-panel');
+        found = found.concat(await consistency({ ...c, phone: false }));
+      }
+      if (found.length) throw new Error(`consistency at ${width} px on ${c.path}: ${[...new Set(found)].slice(0, 8).join(' | ')}`);
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  console.log('ok   consistency: toolbar heights and centres, no glyph icons, 44 px targets at 390 px, one row height, no coloured dash');
+
+  // The header keeps the title and the controls on one row at 1440 px; the numbers of one row of KPI cards share a top at 1440 and 1280 px
+  for (const width of [1440, 1280]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const path of ['/overview', '/command-center', '/security', '/servers']) {
+      await page.goto(BASE + path);
+      await page.waitForSelector('main#main[aria-busy="false"]');
+      await page.waitForTimeout(800);
+      const r = await page.evaluate((wide) => {
+        const out = [], t = document.querySelector('header.top h1').getBoundingClientRect(), c = document.querySelector('header.top .tools').getBoundingClientRect();
+        if (wide && (c.top > t.bottom || c.bottom < t.top)) out.push(`header controls (${Math.round(c.top)}-${Math.round(c.bottom)}) are not on the title's row (${Math.round(t.top)}-${Math.round(t.bottom)})`);
+        for (const box of document.querySelectorAll('.kpis')) {
+          const cards = [...box.querySelectorAll(':scope > .kpi')].filter((k) => k.getBoundingClientRect().height > 0);
+          const rows = new Map();
+          for (const k of cards) { const top = Math.round(k.getBoundingClientRect().top / 4); (rows.get(top) || rows.set(top, []).get(top)).push(k); }
+          for (const row of rows.values()) {
+            const off = row.map((k) => k.querySelector('.vrow').getBoundingClientRect().top - k.getBoundingClientRect().top);
+            if (row.length > 1 && Math.max(...off) - Math.min(...off) > 2) out.push(`KPI numbers in one row start at different heights: ${off.map(Math.round)}`);
+          }
+        }
+        return out;
+      }, width === 1440);
+      if (r.length) throw new Error(`${path} at ${width} px: ${r.join(' | ')}`);
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  console.log('ok   header controls on the title row (1440 px) and KPI numbers on one line (1440 and 1280 px)');
+
+  // nothing site-specific stands in a URL: no host, cid, service or namespace parameter and no host name, on any request so far
+  await page.goto(BASE + '/servers');
+  await page.waitForSelector('.hc');
+  const hostNames = await page.$$eval('.hc .hn, .hc h3, .hc h2', (es) => es.map((e) => e.textContent.trim()).filter(Boolean));
+  const leaks = apiUrls.filter((u) => /[?&](host|cid|service|namespace)=/.test(u) || ['VM-23-71-ubuntu', ...hostNames].some((h) => h.length > 3 && u.includes(encodeURIComponent(h))));
+  if (leaks.length) throw new Error(`site data in a URL: ${[...new Set(leaks)].slice(0, 3).join(' ')}`);
+  console.log(`ok   no host, service or namespace in any /api URL (${apiUrls.length} requests, ${hostNames.length} host names checked)`);
 
   let failed = 0, checked = 0;
   for (const run of RUNS) {

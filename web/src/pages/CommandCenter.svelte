@@ -16,6 +16,7 @@
   import { APP_NAME } from '../brand.js';
   import { load as loadPref, save as savePref } from '../store.js';
   import { route, go, build } from '../state.js';
+  import { NGINX } from '../site.js';
   import Kpi from '../lib/Kpi.svelte';
   import Alert from '../lib/Alert.svelte';
   import ChartCard from '../lib/ChartCard.svelte';
@@ -46,6 +47,9 @@
     }
   }
   $effect(() => { void [folder, module, reloadKey]; if (folder) load(); });
+  // the HTTP cards read the ingress, else the busiest access log of the folder: the card label names the service when it is not the ingress
+  const httpSvc = $derived(data?.http_service || null);
+  const httpCaption = $derived(httpSvc && httpSvc !== NGINX ? $t('cc.from_svc_sub', { svc: sysName(httpSvc) }) : null);
 
   // change vs the previous folder; ingress-based KPIs are compared only when yesterday's ingress log is comparable (Overview rule)
   const NGX = new Set(['requests', 'n5xx', 'upstream_errors', 'attack_ips']);
@@ -122,10 +126,10 @@
     </div>
     {#if avgMissing}<p class="muted small cmpnote no-print">{$t('cc.cmp.not_enough', { n: data.baseline.n_all })}</p>{/if}
     <div class="kpis cc">
-      <Kpi icon="pulse" label={$t('cc.kpi.requests')} value={k.requests} missing={$t('cc.no_nginx')} delta={d('requests', true)} />
-      <Kpi icon="alert" label={$t('cc.kpi.n5xx')} value={k.n5xx} tone={k.n5xx ? 'err' : null} missing={$t('cc.no_nginx')} delta={d('n5xx')} />
+      <Kpi icon="pulse" label={$t('cc.kpi.requests')} caption={httpCaption} value={k.requests} missing={$t('cc.no_nginx')} delta={d('requests', true)} />
+      <Kpi icon="alert" label={$t('cc.kpi.n5xx')} caption={httpCaption} value={k.n5xx} tone={k.n5xx ? 'err' : null} missing={$t('cc.no_nginx')} delta={d('n5xx')} />
       <Kpi icon="alert" label={$t('cc.kpi.errors')} value={k.errors} tone={k.errors ? 'err' : null} delta={d('errors')} />
-      <Kpi icon="server" label={$t('cc.kpi.upstream')} value={k.upstream_errors} tone={k.upstream_errors ? 'err' : null} delta={d('upstream_errors')} />
+      <Kpi icon="server" label={$t('cc.kpi.upstream')} full={$t('cc.kpi.upstream_full')} value={k.upstream_errors} tone={k.upstream_errors ? 'err' : null} delta={d('upstream_errors')} />
       <Kpi icon="shield" label={$t('cc.kpi.attack_ips')} value={k.attack_ips} tone={k.attack_ips ? 'warn' : null} delta={d('attack_ips')} />
       <Kpi icon="key" label={$t('cc.kpi.login_ips')} value={k.login_fail_ips} tone={k.login_fail_ips ? 'warn' : null} delta={d('login_fail_ips')} />
     </div>
@@ -139,7 +143,7 @@
       {/if}
       {#if hours.length}
         <div class="grid hourly no-print">
-          <ChartCard title={$t('cc.hour.requests')} type="bar" timeAxis labels={hours} chip={$t('chip.hourly')}
+          <ChartCard title={httpSvc === NGINX ? $t('cc.hour.requests') : $t('cc.hour.requests_svc', { svc: sysName(httpSvc) })} type="bar" timeAxis labels={hours} chip={$t('chip.hourly')}
             datasets={[{ label: $t('cc.kpi.requests'), data: data.by_hour.requests, color: '--accent' }]} options={{ plugins: { legend: { display: false } } }} />
           <ChartCard title={$t('cc.hour.problems')} type="line" timeAxis labels={hours} chip={$t('chip.hourly')}
             datasets={[{ label: $t('cc.kpi.n5xx'), data: data.by_hour.n5xx, color: '--err' }, { label: $t('cc.hour.attacks'), data: data.by_hour.attacks, color: '--warn' }]} />
