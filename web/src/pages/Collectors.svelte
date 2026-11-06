@@ -9,7 +9,7 @@
   import { api } from '../api.js';
   import { route, build } from '../state.js';
   import { locale, num, tLocal, utcToLocal } from '../format.js';
-  import { NONE_KEY, PLATFORMS, ago, checkGroup, checkName, checkOptions, counts, defaults, editable, filterRows, foldAll, groupNames, keySteps, payload, sections, sends, statusTally, updateSteps, upgradeSteps, shortVersion } from '../collectors.js';
+  import { NONE_KEY, PLATFORMS, ago, checkGroup, checkName, checkOptions, TILE_STATUSES, toggleStatus, counts, defaults, editable, filterRows, foldAll, groupNames, keySteps, payload, sections, sends, updateSteps, upgradeSteps, shortVersion } from '../collectors.js';
   import { load as stored, save } from '../store.js';
   import { toast } from '../lib/Toast.svelte';
   import Dialog from '../lib/Dialog.svelte';
@@ -50,7 +50,8 @@
   function readClosed() { try { const o = JSON.parse(stored('cl-closed', '{}')); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; } }
   function setClosed(c) { folded = c; save('cl-closed', JSON.stringify(c)); }
   const secs = $derived(sections(rows, q, status, folded));
-  const byStatus = $derived(statusTally(rows));
+  const filtered = $derived(status !== 'all');
+  const toneVar = { online: '--ok', late: '--warn', offline: '--err', waiting: '--muted' };
   const headed = $derived(groups.length > 0);          // with no group at all the list is one plain table
   const names = $derived(sections(rows, '', 'all', {}).map((s) => s.name));
   const anyOpen = $derived(secs.some((s) => s.open));
@@ -171,15 +172,17 @@
   <span class="sr-only" role="status">{$t('state.loading')}</span>
 {:else}
   {#if error}<ErrorState compact {error} onretry={load} />{/if}
-  <ul class="tiles" aria-label={$t('cl.counts')}>
-    {#each ['online', 'late', 'offline', 'waiting'] as s}
-      <li class="tile" title={$t(`cl.hint.${s}`)}>
+  <div class="tiles" role="group" aria-label={$t('cl.counts')}>
+    {#each TILE_STATUSES as s}
+      <button type="button" class="tile" class:on={status === s} style="--tone: var({toneVar[s]})" aria-pressed={status === s}
+        title={$t(status === s ? 'cl.tile_all_tip' : `cl.tile_only.${s}_sub`)} onclick={() => (status = toggleStatus(status, s))}>
         <span class="dot {DOT[s]}" aria-hidden="true"></span>
         <b class="num">{num(tally[s], $lang)}</b>
         <span class="tl">{$t(`cl.st.${s}`)}</span>
-      </li>
+        {#if status === s}<span class="ftag">{$t('cl.tag_filtered')}</span>{/if}
+      </button>
     {/each}
-  </ul>
+  </div>
 
   {#if !rows.length}
     <div class="card empty">
@@ -197,13 +200,11 @@
             <span class="sr-only">{$t('cl.search')}</span>
             <input type="search" bind:value={q} placeholder={$t('cl.search_ph')} autocomplete="off" spellcheck="false" maxlength="100" />
           </label>
-          <div class="seg flt" role="group" aria-label={$t('cl.filter')}>
-            {#each ['all', 'online', 'late', 'offline'] as s}
-              <button type="button" aria-pressed={status === s} onclick={() => (status = s)}>{$t(`cl.flt.${s}`)} <span class="fn">{num(byStatus[s], $lang)}</span></button>
-            {/each}
-          </div>
+          {#if filtered}<button type="button" class="btn all" onclick={() => (status = 'all')}>{$t('cl.show_all')}</button>{/if}
           {#if headed}<button type="button" class="btn all" onclick={() => setClosed(foldAll(names, anyOpen))}>{$t(anyOpen ? 'cl.collapse_all' : 'cl.expand_all')}</button>{/if}
         </div>
+
+        {#if filtered}<p class="fnote muted">{$t(`cl.filter_text.${status}`)}</p>{/if}
 
         {#each secs as g (g.name)}
           <section class="card list" aria-label={g.name || $t('cl.no_group')}>
@@ -249,7 +250,7 @@
             {/if}
           </section>
         {:else}
-          <div class="card nomatch" role="status">{$t('cl.nomatch')}</div>
+          <div class="card nomatch" role="status">{$t(filtered && !q.trim() ? `cl.none_text.${status}` : 'cl.nomatch')}</div>
         {/each}
       </div>
 
@@ -402,11 +403,15 @@
   .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px 18px; margin-bottom: 14px; flex-wrap: wrap; }
   .intro { margin: 0; font-size: 0.875rem; max-width: 62ch; }
   .add { min-height: var(--touch); }
-  .tiles { list-style: none; margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .tiles { margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
   .tile {
     display: flex; align-items: center; gap: 8px; padding: 12px 16px; min-height: 52px; background: var(--card-bg); border: 1px solid var(--card-border);
-    border-radius: var(--r-card); box-shadow: var(--glow);
+    border-radius: var(--r-card); box-shadow: var(--glow); color: var(--fg); font: inherit; text-align: left; cursor: pointer;
   }
+  .tile:hover { background: var(--row-hover); }
+  .tile.on { border: 1.5px solid var(--tone); background: color-mix(in srgb, var(--tone) 10%, var(--card-bg)); }
+  .ftag { margin-left: auto; font-size: 0.75rem; font-weight: 600; color: var(--tone); }
+  .fnote { margin: 0; font-size: 0.875rem; }
   .tile .dot { margin: 0; }
   .tile b { font-size: 1.25rem; font-weight: 600; color: var(--fg); }
   .tl { color: var(--kpi-label); font-size: 0.875rem; }
@@ -417,7 +422,6 @@
   .find { flex: 1 1 240px; display: flex; align-items: center; gap: 8px; min-height: var(--touch); padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--bg2); color: var(--muted); }
   .find input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font-size: 1rem; outline: none; min-height: 40px; padding: 0; }
   .find:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .flt button { min-height: var(--touch); padding: 0 12px; font-size: 0.8125rem; }
   .fn { font-weight: 500; }
   /* every count in the UI font with equal-width digits (a zero without a slash), like the status tiles */
   .tile b, .fn, .gc, .gp, .seen, .chip { font-variant-numeric: tabular-nums; }

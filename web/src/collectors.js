@@ -222,6 +222,12 @@ export function statusTally(rows) {
   return c;
 }
 
+/** The statuses with a tile above the list; a tile filters the list by its status (the same tile again shows everything). */
+export const TILE_STATUSES = ['online', 'late', 'offline', 'waiting'];
+
+/** The filter after a click on tile `clicked`: that status, or 'all' when it already was the filter. */
+export const toggleStatus = (current, clicked) => (current === clicked ? 'all' : clicked);
+
 /** The text a search looks in: the name and the host(s) the collector reported logs for. */
 const haystack = (r) => `${r.name} ${(r.stats?.hosts || []).join(' ')}`.toLowerCase();
 

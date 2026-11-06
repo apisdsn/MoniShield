@@ -262,9 +262,9 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.fill('.find input', 'no-such-collector');
   if (!(await page.locator('.nomatch').count())) throw new Error('no "nothing matches" line');
   await page.fill('.find input', '');
-  await page.click('.flt button:has-text("Offline")');
-  if ((await page.locator('.flt button[aria-pressed=true]').count()) !== 1 || (await page.locator('h2.gh .gn').allInnerTexts()).join('|') !== 'No Group') throw new Error('status filter Offline');
-  await page.click('.flt button:has-text("All")');
+  await page.click('.tiles .tile:has(.tl:text-is("Offline"))');
+  if ((await page.locator('.tiles .tile[aria-pressed=true]').count()) !== 1 || (await page.locator('h2.gh .gn').allInnerTexts()).join('|') !== 'No Group') throw new Error('status filter Offline');
+  await page.click('.tiles .tile:has(.tl:text-is("Offline"))');
   await page.click('button.all');
   if ((await page.locator('h2.gh button[aria-expanded=true]').count()) !== 0) throw new Error('Collapse All');
   await page.click('button.all');
@@ -320,6 +320,29 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   const openRows = await rowHeights();
   if (JSON.stringify(closedRows) !== JSON.stringify(openRows)) throw new Error(`Collectors: row heights change when the panel opens (${closedRows} -> ${openRows})`);
   console.log('ok   Collectors: row heights are the same with the detail panel closed and open');
+
+  // Collectors: the status tiles are the filter (no segmented filter next to the search box)
+  await page.goto(BASE + '/collectors');
+  await page.waitForSelector('.tiles .tile');
+  if (await page.locator('.seg.flt, .tools .seg').count()) throw new Error('Collectors: a segmented status filter is left next to the search box');
+  if ((await page.locator('.tiles[role=group]').count()) !== 1) throw new Error('Collectors: the tiles are not a group');
+  if (await page.locator('button.all:has-text("Expand All")').count()) await page.click('button.all:has-text("Expand All")');
+  const tileInfo = await page.$$eval('.tiles .tile', (ts) => ts.map((t) => ({ name: t.querySelector('.tl').textContent, n: Number(t.querySelector('b').textContent.replace(/\D/g, '')), h: t.getBoundingClientRect().height, pressed: t.getAttribute('aria-pressed') })));
+  if (tileInfo.length !== 4 || tileInfo.some((t) => t.h < 44 || t.pressed !== 'false')) throw new Error(`Collectors: tiles ${JSON.stringify(tileInfo)}`);
+  const allRows = await page.locator('.list tbody tr').count();
+  const pick = tileInfo.find((t) => t.n > 0 && t.n < allRows);
+  if (!pick) throw new Error(`Collectors: no status with some but not all collectors (${JSON.stringify(tileInfo)})`);
+  const tile = page.locator(`.tiles .tile:has(.tl:text-is("${pick.name}"))`);
+  await tile.click();
+  if ((await tile.getAttribute('aria-pressed')) !== 'true' || (await page.locator('.list tbody tr').count()) !== pick.n) throw new Error(`Collectors: filter ${pick.name} shows ${await page.locator('.list tbody tr').count()} rows, expected ${pick.n}`);
+  if (!(await tile.innerText()).includes('Filtered') || !(await tile.getAttribute('title')).startsWith('Show all')) throw new Error('Collectors: the active tile has no tag or title');
+  if (!(await page.locator('.fnote').innerText()).includes(`only. Click the tile again or Show All`) || !(await page.locator('button.all:has-text("Show All")').count())) throw new Error('Collectors: filter note or Show All missing');
+  await tile.click();
+  if ((await page.locator('.list tbody tr').count()) !== allRows || (await page.locator('button.all:has-text("Show All")').count())) throw new Error('Collectors: the same tile again does not show all');
+  await tile.click();
+  await page.click('button.all:has-text("Show All")');
+  if ((await page.locator('.list tbody tr').count()) !== allRows || (await tile.getAttribute('aria-pressed')) !== 'false') throw new Error('Collectors: Show All does not show all');
+  console.log('ok   Collectors: status tiles filter the list, the same tile or Show All shows all, no segmented filter');
 
   await page.goto(BASE + '/servers');
   await page.waitForSelector('.hc');

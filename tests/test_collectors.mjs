@@ -1,7 +1,7 @@
 // Collectors page helpers (web/src/collectors.js): the checks mirror the server's rules.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { containerMetricsOff, checkName, checkPath, checkService, parseUnits, checkOptions, payload, sends, installSteps, keySteps, upgradeSteps, ago, counts, defaults, editable, shortVersion, fitCount } from '../web/src/collectors.js';
+import { containerMetricsOff, checkName, checkPath, checkService, parseUnits, checkOptions, payload, sends, installSteps, keySteps, upgradeSteps, ago, counts, defaults, editable, shortVersion, fitCount, toggleStatus, TILE_STATUSES } from '../web/src/collectors.js';
 
 test('names follow the server rule', () => {
   for (const ok of ['a', 'web-01', '0x', 'a'.repeat(63)]) assert.equal(checkName(ok), '', ok);
@@ -162,4 +162,24 @@ test('chips: all of them when they fit, else as many as leave room for the +N ch
   assert.equal(fitCount([80, 90, 70], 100, 6, 36), 0);      // only "+3"
   assert.equal(fitCount([], 0, 6, 36), 0);
   assert.equal(fitCount([120, 40], 150, 6, 36), 0);
+});
+
+test('status tiles: one click filters, the same tile again shows all, search combines with it', () => {
+  assert.equal(toggleStatus('all', 'late'), 'late');
+  assert.equal(toggleStatus('late', 'late'), 'all');
+  assert.equal(toggleStatus('late', 'offline'), 'offline');
+  assert.deepEqual(TILE_STATUSES, ['online', 'late', 'offline', 'waiting']);
+  const rows = [
+    { id: 1, name: 'web-01', group: 'A', status: 'online' }, { id: 2, name: 'db-01', group: 'A', status: 'late' },
+    { id: 3, name: 'test-vm', group: '', status: 'offline' }, { id: 4, name: 'new-1', group: 'B', status: 'waiting' },
+  ];
+  const names = (st, q = '', closed = {}) => sections(rows, q, st, closed).map((s) => `${s.name || '-'}:${s.rows.map((r) => r.name)}`);
+  assert.deepEqual(names('all'), ['A:web-01,db-01', 'B:new-1', '-:test-vm']);
+  assert.deepEqual(names('late'), ['A:db-01']);                      // groups without a match are left out
+  assert.deepEqual(names('waiting'), ['B:new-1']);
+  assert.deepEqual(names('late', 'web'), []);                        // search and status combine: nothing is both
+  assert.deepEqual(names('online', 'WEB'), ['A:web-01']);
+  assert.equal(sections(rows, '', 'late', { A: true })[0].open, false);   // a folded section stays folded
+  assert.equal(sections(rows, 'db', 'late', { A: true })[0].open, true);   // a search opens the sections it finds
+  assert.deepEqual(counts(rows), { online: 1, late: 1, offline: 1, waiting: 1, revoked: 0 });
 });
