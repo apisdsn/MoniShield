@@ -72,7 +72,7 @@
       <div class="side">
         <div class="brand"><span><Logo size={24} /><b>MoniShield</b></span><Icon name="side-close" size={16} /></div>
         <span class="grp">{$t('nav.analysis')}<Icon name="chevron" size={12} /></span>
-        {#each TABS as tb}<span class="nav" class:on={tb === tab}><Icon name={ICON[tb]} size={16} /><span class="l">{$t(`tab.${tb}`)}</span>{#if tb === 'security'}<em>4 IP</em>{/if}</span>{/each}
+        {#each TABS as tb}<span class="nav" class:on={tb === tab}><Icon name={ICON[tb]} size={16} /><span class="l">{$t(`tab.${tb}`)}</span>{#if tb === 'security'}<em>{$t('nav.badge_ips', { n: 4 })}</em>{/if}</span>{/each}
         <span class="grp">{$t('nav.services')}<Icon name="chevron" size={12} /></span>
         {#each SERVICES as [s, n]}<span class="nav"><Icon name="server" size={16} /><span class="l">{s}</span>{#if n}<em>{num(n, $lang)}</em>{/if}</span>{/each}
         <span class="grp">{$t('nav.config')}<Icon name="chevron" size={12} /></span>
@@ -104,9 +104,9 @@
           <span>{$t('ov.st.err', { n: num(1284, $lang), m: 3, list: 'auth-service, api-gateway, orders-service' })}</span><span>{$t('ov.st.attack', { n: 4 })}</span></div>
           <span class="btn">{$t('tab.root-causes')}</span></div>
         <div class="kpis">
-          <div><small>{$t('home.pv.errors')}</small><strong class="err">{num(1284, $lang)} <i>{@render tri(false)} 11%</i></strong><small>{dLabel(PREV, $lang)}</small></div>
+          <div><small>{$t('kpi.error')}</small><strong class="err">{num(1284, $lang)} <i>{@render tri(false)} 11%</i></strong><small>{dLabel(PREV, $lang)}</small></div>
           <div><small>{$t('ov.attack_ips')}</small><strong class="err">4</strong><small>{$t('home.pv.new_today', { n: 2 })}</small></div>
-          <div><small>{$t('home.pv.warn4')}</small><strong class="warn">93 <i>{@render tri(false)} 79%</i></strong><small>{dLabel(PREV, $lang)}</small></div>
+          <div><small>{$t('ov.warn_4xx')}</small><strong class="warn">93 <i>{@render tri(false)} 79%</i></strong><small>{dLabel(PREV, $lang)}</small></div>
           <div><small>{$t('kpi.rate5xx')}</small><strong>{pct(0.12, 2)}</strong><small><i class="dot ok"></i>{$t('ov.safe5')}</small></div>
         </div>
         <div class="row">
@@ -190,9 +190,9 @@
     </div>
     <div class="st"><div><span class="tag"><i class="dot"></i>{$t('ov.st.check')}</span><b>{$t('ov.st.title', { date: dLabel(DAY, $lang) })}</b></div></div>
     <div class="list">
-      <span>{$t('home.pv.errors')}<b class="err">{num(1284, $lang)}</b></span>
+      <span>{$t('kpi.error')}<b class="err">{num(1284, $lang)}</b></span>
       <span>{$t('ov.attack_ips')}<b class="err">4</b></span>
-      <span>{$t('home.pv.warn4')}<b class="warn">93</b></span>
+      <span>{$t('ov.warn_4xx')}<b class="warn">93</b></span>
       <span>{$t('kpi.rate5xx')}<b>{pct(0.12, 2)}</b></span>
     </div>
     {:else if tab === 'security'}

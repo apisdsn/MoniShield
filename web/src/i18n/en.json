@@ -785,7 +785,7 @@
  "bk.col.finished": "Finished",
  "bk.list": "Stored Backups ({n})",
  "bk.hint": "Holds the S3 database, the Kafka database and the account database (password hashes, IP addresses): keep it secret. Restore: stop the server, then run monishield restore <backup folder> (User guide, \"Backup and restore\").",
- "kpi.error": "Error",
+ "kpi.error": "Errors",
  "kpi.error_info": "{http} 5xx responses + {log} error log lines.",
  "kpi.files": "Log Files",
  "kpi.files_empty": "Empty Files",
@@ -873,7 +873,7 @@
  "ov.top_msgs": "Top Errors Across Services",
  "ov.traffic": "System-Wide HTTP Traffic",
  "ov.traffic_note": "Source: ingress nginx (entry point of all requests), so requests are not double-counted with per-service logs.",
- "ov.warn_4xx": "Warning / App 4xx",
+ "ov.warn_4xx": "Warnings / App 4xx",
  "ov.warn_4xx_info": "Warning lines of all services; for the events service this includes requests that failed with 4xx.",
  "ov.st.crit": "Critical",
  "ov.st.check": "Needs a Look",
@@ -1785,8 +1785,6 @@
  "home.priv.6.t": "No Process or Command Data",
  "home.priv.6.d": "Metrics hold numbers only: no command lines, environment values or IP addresses.",
  "home.pv.label_sv": "Example of the MoniShield Servers page with sample data: an unusual-value banner, servers by group with CPU, memory and disk, and CPU and memory charts.",
- "home.pv.errors": "Errors",
- "home.pv.warn4": "Warnings / App 4xx",
  "home.pv.new_today": "{n} new today",
  "home.pv.admin": "Administrator",
  "home.pv.cat.sqli": "SQL Injection",
@@ -1860,5 +1858,7 @@
  "home.gs.5.r2a": "Daily Summary",
  "home.gs.5.r2b_sub": "Every day at 07:00",
  "home.gs.5.r3a": "Critical Attack",
- "home.gs.5.r3b_sub": "Sent at once"
+ "home.gs.5.r3b_sub": "Sent at once",
+ "nav.badge_ips": "{n} IPs",
+ "nav.badge_ips_one": "1 IP"
 }

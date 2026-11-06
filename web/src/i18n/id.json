@@ -1785,8 +1785,6 @@
  "home.priv.6.t": "Tanpa Data Proses atau Perintah",
  "home.priv.6.d": "Metrik hanya berisi angka: tanpa command line, nilai environment, atau alamat IP.",
  "home.pv.label_sv": "Contoh halaman Server MoniShield dengan data contoh: banner nilai tidak biasa, server per grup dengan CPU, memori, dan disk, serta grafik CPU dan memori.",
- "home.pv.errors": "Error",
- "home.pv.warn4": "Peringatan / 4xx Aplikasi",
  "home.pv.new_today": "{n} baru hari ini",
  "home.pv.admin": "Administrator",
  "home.pv.cat.sqli": "SQL Injection",
@@ -1860,5 +1858,7 @@
  "home.gs.5.r2a": "Ringkasan Harian",
  "home.gs.5.r2b_sub": "Setiap hari pukul 07.00",
  "home.gs.5.r3a": "Serangan Kritis",
- "home.gs.5.r3b_sub": "Dikirim segera"
+ "home.gs.5.r3b_sub": "Dikirim segera",
+ "nav.badge_ips": "{n} IP",
+ "nav.badge_ips_one": "1 IP"
 }
