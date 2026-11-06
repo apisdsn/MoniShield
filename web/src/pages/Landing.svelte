@@ -46,6 +46,25 @@
     if (platform === 'kubernetes') return [steps.find((x) => x.id === 'repo').lines[0], steps.find((x) => x.id === 'helm').lines[0]];   // the key step is done on the Collectors page
     return steps.flatMap((x) => x.lines);
   }
+  // "Getting Started": five steps as tabs; every text is a key, the sample rows hold example values only ('@key' = translated)
+  const GS = [
+    { where: ['@home.gs.1.where'], rows: [['admin', '@home.gs.1.r1_sub', '@role.admin', 'ok'], ['analyst', '@home.gs.1.r2_sub', '@role.user', ''], ['@home.gs.1.r3a', '@home.gs.1.r3b_sub', '@home.gs.1.r3t', 'warn']] },
+    { where: ['@nav.config', '@nav.cfg.storage', '@nav.cfg.kafka', '@nav.collectors'], rows: [['S3', '@home.gs.2.r1_sub', '@home.gs.2.r1t', 'ok'], ['Kafka', '@home.gs.2.r2_sub', '@home.gs.2.r2t', 'ok'], ['@src.collector', 'web-01, docker-01', '@home.gs.2.r3t', 'ok']] },
+    { where: ['@nav.config', '@nav.cfg.logformats'], rows: [['web-proxy', 'caddy-json', '100%', 'ok'], ['billing-app', '@home.gs.3.r2_sub', '4%', 'err'], ['auth-service', 'spring-boot', '99%', 'ok']] },
+    { where: ['@nav.analysis', '@tab.overview', '@tab.security', '@tab.root-causes', '@tab.servers'], rows: [['@tab.overview', '@home.gs.4.r1_sub', '@home.gs.4.r1t', 'warn'], ['@tab.security', '@home.gs.4.r2_sub', '4', 'err'], ['@tab.servers', '@home.gs.4.r3_sub', '@home.gs.4.r3t', 'warn']] },
+    { where: ['@nav.config', '@nav.cfg.notif'], rows: [['Telegram', '@home.gs.5.r1_sub', '@home.gs.5.r1t', 'ok'], ['@home.gs.5.r2a', '@home.gs.5.r2b_sub', '@home.gs.5.r1t', 'ok'], ['@home.gs.5.r3a', '@home.gs.5.r3b_sub', '@home.gs.5.r1t', 'ok']] },
+  ];
+  const tx = (v) => (v.startsWith('@') ? $t(v.slice(1)) : v);
+  let step = $state(1);
+  const whereText = $derived(((w) => (w.length > 1 ? `${tx(w[0])} → ${w.slice(1).map(tx).join(' · ')}` : tx(w[0])))(GS[step - 1].where));
+  function stepKey(e) {
+    const n = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (e.key === 'Home') step = 1; else if (e.key === 'End') step = GS.length; else if (n) step = ((step - 1 + n + GS.length) % GS.length) + 1; else return;
+    e.preventDefault();
+    document.getElementById(`gs-tab-${step}`)?.focus();
+  }
+  // the guide lives in the public repository; the configured source link (S4_SOURCE_URL) wins when there is one
+  const GUIDE = `${(REPO || 'https://github.com/apisdsn/MoniShield').replace(/\/$/, '')}/blob/dev/docs/10-user-guide.md`;
   let platform = $state('linux');
   const commands = $derived(commandsOf(platform, PLATFORM.find(([id]) => id === platform)[2]));
   function platformKey(e) {
@@ -107,6 +126,7 @@
     {#snippet links()}
       {#if map?.enabled}<a href="#home-map" onclick={() => closeMenu()}>{$t('home.nav.map')}</a>{/if}
       <a href="#home-features" onclick={() => closeMenu()}>{$t('home.nav.features')}</a>
+      <a href="#home-start" onclick={() => closeMenu()}>{$t('home.nav.start')}</a>
       <a href="#home-collector" onclick={() => closeMenu()}>{$t('home.nav.collector')}</a>
       <a href="#home-how" onclick={() => closeMenu()}>{$t('home.nav.how')}</a>
       <a href="#home-privacy" onclick={() => closeMenu()}>{$t('home.nav.privacy')}</a>
@@ -187,6 +207,41 @@
               <p>{$t(`home.f.${i}.d`)}</p>
             </article>
           {/each}
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="home-start" aria-labelledby="home-gs-h">
+      <div class="wrap">
+        <h2 id="home-gs-h">{$t('home.gs.title')}</h2>
+        <p class="sub">{$t('home.gs.intro')}</p>
+        <div class="gsteps" role="tablist" aria-label={$t('home.gs.steps')}>
+          {#each GS as _, k}
+            {@const i = k + 1}
+            <button type="button" role="tab" id="gs-tab-{i}" aria-selected={step === i} aria-controls="gs-panel" tabindex={step === i ? 0 : -1}
+              onclick={() => (step = i)} onkeydown={stepKey}>
+              <span class="num" aria-hidden="true">{i}</span>
+              <span class="gt"><b>{$t(`home.gs.${i}.t`)}</b><span>{$t(`home.gs.${i}.short`)}</span></span>
+            </button>
+          {/each}
+        </div>
+        <div class="gpanel" id="gs-panel" role="tabpanel" aria-labelledby="gs-tab-{step}" aria-label={$t('home.gs.detail')} tabindex="0">
+          <div class="gl">
+            <div class="gh"><span class="num on" aria-hidden="true">{step}</span><h3>{$t(`home.gs.${step}.t`)}</h3></div>
+            <span class="where"><span>{$t('home.gs.where')}</span><b>{whereText}</b></span>
+            <ol>{#each [1, 2, 3, 4] as j}<li>{$t(`home.gs.${step}.i${j}`)}</li>{/each}</ol>
+            <div class="gact">
+              <button type="button" class="btn" disabled={step === 1} onclick={() => (step -= 1)}>{$t('home.gs.prev')}</button>
+              <button type="button" class="btn primary" disabled={step === GS.length} onclick={() => (step += 1)}>{$t('home.gs.next')}</button>
+              <a class="guide" href={GUIDE} target="_blank" rel="noreferrer">{$t('home.gs.guide')}</a>
+            </div>
+          </div>
+          <div class="gscreen" aria-hidden="true">
+            <span class="st">{$t(`home.gs.${step}.scr`)}</span>
+            {#each GS[step - 1].rows as [a, b, tag, kind]}
+              <div class="row" class:bad={kind === 'err'}><span><b>{tx(a)}</b><small>{tx(b)}</small></span><em class="pill {kind}">{tx(tag)}</em></div>
+            {/each}
+          </div>
         </div>
       </div>
     </section>
@@ -335,6 +390,37 @@
   .ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 12%, transparent); }
   h3 { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--heading); }
   .card p { margin: 0; font-size: 1rem; line-height: 1.55; color: var(--kpi-label); }
+  .gsteps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 28px; }
+  .gsteps button { font: inherit; text-align: left; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 150px; padding: 14px; border-radius: 16px; cursor: pointer;
+    background: var(--card); color: var(--fg); border: 1px solid var(--card-border); box-sizing: border-box; min-width: 0; }
+  .gsteps button { -webkit-tap-highlight-color: transparent; }
+  .gsteps button:hover { background: var(--card2); }
+  .gsteps button[aria-selected='true'] { border: 1.5px solid var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+  .gsteps button[aria-selected='true']:hover { background: var(--card); }
+  .gsteps button:focus-visible, .gpanel:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .gt { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .gt b { font-size: 0.9375rem; font-weight: 600; color: var(--heading); }
+  .gt span { font-size: 0.8125rem; line-height: 1.45; color: var(--kpi-label); }
+  .num.on { background: var(--accent); color: #04201c; }
+  .gsteps .num { width: 32px; height: 32px; font-size: 0.875rem; }
+  .gpanel { margin-top: 12px; background: var(--card); border: 1px solid var(--card-border); border-radius: 18px; padding: 20px 22px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .gl { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .gh { display: flex; align-items: center; gap: 10px; } .gh h3 { font-size: 1.25rem; }
+  .where { display: inline-flex; flex-wrap: wrap; align-self: flex-start; gap: 6px; align-items: center; font-size: 0.8125rem; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 6px 10px; }
+  .where span { color: var(--kpi-label); }
+  .gl ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 0.9375rem; line-height: 1.55; }
+  .gact { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+  .gact .btn { min-height: 44px; padding: 0 16px; border-radius: var(--r-ctl); font-weight: 600; }
+  .guide { margin-left: auto; min-height: 44px; display: inline-flex; align-items: center; font-size: 0.875rem; color: var(--accent-text); text-decoration: underline; }
+  .gscreen { border: 1px solid var(--line); border-radius: 14px; background: var(--bg); padding: 14px; display: flex; flex-direction: column; gap: 10px; min-height: 250px; box-sizing: border-box; }
+  .gscreen .st { font-size: 0.75rem; font-weight: 600; color: var(--kpi-label); }
+  .gscreen .row { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 10px 12px; min-height: 64px; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .gscreen .row.bad { border-color: var(--err); }
+  .gscreen .row span { display: flex; flex-direction: column; min-width: 0; font-size: 0.8125rem; } .gscreen .row small { font-size: 0.75rem; color: var(--kpi-label); overflow-wrap: anywhere; }
+  .pill { font-style: normal; font-size: 0.75rem; font-weight: 600; border-radius: 999px; padding: 3px 10px; white-space: nowrap; border: 1px solid var(--line); color: var(--kpi-label); flex: none; }
+  .pill.ok { color: var(--ok-text); background: color-mix(in srgb, var(--ok-text) 12%, transparent); border-color: color-mix(in srgb, var(--ok-text) 40%, transparent); }
+  .pill.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+  .pill.err { color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); border-color: transparent; }
   .colgrid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; margin-top: 28px; align-items: start; }
   .cbox { background: var(--card); border: 1px solid var(--card-border); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
   .plats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
@@ -389,7 +475,9 @@
   }
   @media (max-width: 900px) {
     .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .under, .privs, .colgrid { grid-template-columns: minmax(0, 1fr); }
+    .under, .privs, .colgrid, .gpanel { grid-template-columns: minmax(0, 1fr); }
+    .gsteps { grid-template-columns: minmax(0, 1fr); }   /* a vertical list of the five tabs on narrow screens */
+    .gsteps button { min-height: 44px; flex-direction: row; align-items: flex-start; gap: 12px; }
     .arch { grid-template-columns: minmax(0, 1fr); gap: 26px; }
     .stage + .stage::before { left: 50%; top: -22px; width: 2px; height: 18px; }
     .stage + .stage::after { left: calc(50% - 5px); top: -10px; border: 6px solid transparent; border-top-color: var(--accent); border-bottom: 0; }
@@ -399,6 +487,8 @@
   @media (max-width: 560px) {
     .plats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .cbox { padding: 14px; }
+    .gpanel { padding: 16px; }
+    .guide { margin-left: 0; }
     .code { font-size: 0.75rem; }
     .top { gap: 6px; padding-top: 10px; padding-bottom: 10px; }
     .brand { font-size: 1.0625rem; gap: 8px; }

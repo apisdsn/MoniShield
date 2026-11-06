@@ -61,16 +61,27 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
     await hp.locator('#col-tab-linux').press('ArrowRight');
     if ((await hp.locator('#col-tab-docker').getAttribute('aria-selected')) !== 'true') errs.push('collector tabs: the arrow key does not move to the next tab');
     await hp.locator('#col-tab-windows').click();
+    // "Getting Started": five tabs switch the step shown, arrow keys move, the buttons are disabled at the ends
+    await hp.locator('#home-start').scrollIntoViewIfNeeded();
+    for (const i of [3, 5, 1]) {
+      await hp.locator(`#gs-tab-${i}`).click();
+      if ((await hp.locator(`#gs-tab-${i}`).getAttribute('aria-selected')) !== 'true' || !(await hp.locator('#gs-panel h3').innerText()).trim()) errs.push(`getting started tab ${i} not selected`);
+    }
+    if (!(await hp.locator('#gs-panel .gact .btn').first().isDisabled())) errs.push('getting started: Previous Step is not disabled at the first step');
+    await hp.locator('#gs-tab-1').press('ArrowRight');
+    if ((await hp.locator('#gs-tab-2').getAttribute('aria-selected')) !== 'true') errs.push('getting started: the arrow key does not move to the next tab');
+    await hp.locator('#gs-panel .gact .btn.primary').click();
+    if ((await hp.locator('#gs-tab-3').getAttribute('aria-selected')) !== 'true') errs.push('getting started: Next Step does not move on');
     // one height and centre line per row of controls: preview tabs, platform tabs and the preview header (wide); 44 px targets on a phone
     const rows = await hp.evaluate((phone) => {
       const out = [], vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-      for (const sel of ['.pv .tabs', '.plats', '.pv .hd .tools']) for (const bar of document.querySelectorAll(sel)) {
+      for (const sel of ['.pv .tabs', '.plats', '.pv .hd .tools', '.gact']) for (const bar of document.querySelectorAll(sel)) {
         const kids = [...bar.children].filter(vis).map((e) => e.getBoundingClientRect());
         const top = Math.min(...kids.map((r) => r.top)), line = kids.filter((r) => Math.abs(r.top - top) < 8);
         const hs = line.map((r) => r.height), cs = line.map((r) => r.top + r.height / 2);
         if (Math.max(...hs) - Math.min(...hs) > 1.01 || Math.max(...cs) - Math.min(...cs) > 1.01) out.push(`${sel}: heights ${hs.map(Math.round)}`);
       }
-      if (phone) for (const e of document.querySelectorAll('.pv .tabs button, .plats button, .top a.btn, .menubtn, .top .icon-btn')) { const r = e.getBoundingClientRect(); if (vis(e) && (r.width < 43.5 || r.height < 43.5)) out.push(`target ${e.className || e.textContent.trim()} ${Math.round(r.width)}x${Math.round(r.height)}`); }
+      if (phone) for (const e of document.querySelectorAll('.pv .tabs button, .plats button, .gsteps button, .gact .btn, .guide, .top a.btn, .menubtn, .top .icon-btn')) { const r = e.getBoundingClientRect(); if (vis(e) && (r.width < 43.5 || r.height < 43.5)) out.push(`target ${e.className || e.textContent.trim()} ${Math.round(r.width)}x${Math.round(r.height)}`); }
       const glyph = [...document.querySelectorAll('.pv .tabs button, .plats button, .menubtn, .top .icon-btn')].filter((e) => /^[×✕✖▲▼◀▶⌄☰]+$/u.test(e.innerText.trim()));
       if (glyph.length) out.push('glyph used as an icon');
       const box = document.querySelector('#col-panel');

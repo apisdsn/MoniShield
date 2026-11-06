@@ -1530,3 +1530,4 @@ sidebar and header drawn with the app's icons and tokens, sample data only), `we
 *Connect a Server in Two Commands* section with real platform tabs and commands from `installSteps`, updated architecture and six privacy cards), new `prev`, `next`
 and `menu` icons, `home_meta.py` and the link preview images mention servers, `README.md` rewritten. The browser smoke test checks the new tabs, the commands per platform, one height per row of
 controls, 44 px targets and no sideways scroll on the home page.
+The section *Getting Started* (five steps as tabs, owner addition 2026-11-06) was added as the last commit of the stage so that its texts are easy to change.

@@ -24,7 +24,7 @@ export const KEEP = ['MoniShield', 'S3', 'Kafka', 'CPU', 'RAM', 'SMTP', 'IP', 'I
 const KEEP_BY_LOWER = new Map(KEEP.map((w) => [w.toLowerCase(), w]));
 // after a number these are units, not words ("Last 24 h", "5 min")
 const EMPTY = new Set();
-const PHRASAL = /^(sign|signed|log|logged|zoom)$/i;
+const PHRASAL = /^(sign|signed|log|logged|zoom|bring)$/i;
 const UNITS = new Set(['h', 'd', 'min', 's', 'ms', 'kb', 'mb', 'gb', 'x']);
 
 // A part of the key counts when it is one of these or ends with `_<one of these>` (`cpu_cap`, `delete_aria`, `upgrade_hint`).
