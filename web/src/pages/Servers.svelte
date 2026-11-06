@@ -1,6 +1,6 @@
 <!-- Servers (docs/13-metrics.md): the load of the servers and Docker containers that collectors report. A banner for unusual values
-     and almost-full disks, one card per server (CPU, memory and disk bars), four charts for the chosen server and a table of its
-     containers (a list of cards on phones). POST /api/v1/servers and /api/v1/servers/host (parameters in the encrypted body), refreshed every 30 seconds. Numbers and names only. -->
+     and almost-full disks, one card per server (CPU, memory and disk bars), the Server Details card and six charts for the chosen server
+     and a table of its containers (a list of cards on phones). POST /api/v1/servers and /api/v1/servers/host (parameters in the encrypted body), refreshed every 30 seconds. Numbers and names only. -->
 <script>
   import { onMount, untrack } from 'svelte';
   import { lang, t } from '../i18n.js';
@@ -10,8 +10,8 @@
   import { TZ } from '../tz.js';
   import { load, save } from '../store.js';
   import { ago, groupNames } from '../collectors.js';
-  import { RANGES, alignTo, hostSections, axisLabel, bannerItems, bars, barTone, clockAt, diskPercent, fullLabel, hostKey, hostStatus, last, mainDisk, memoryShare, memoryText, pctText, points,
-           rate, share, sparkPoints, unusualValue, usualBand, zText } from '../servers.js';
+  import { RANGES, alignTo, hostSections, axisLabel, bannerItems, bars, barTone, clockAt, detailTiles, diskIoSets, diskPercent, fullLabel, loadSets, hostKey, hostStatus, last, mainDisk, memoryShare, memoryText, pctText, points,
+           rate, share, sparkPoints, unusualValue, upgradeKey, usualBand, zText } from '../servers.js';
   import MetricChart from '../lib/MetricChart.svelte';
   import EmptyState from '../lib/EmptyState.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
@@ -92,6 +92,7 @@
     const disk = diskPercent(s.disk_used, s.disk_total);
     const memTotal = last(s.mem_total);
     const memBase = (s.mem_used || []).filter(([, v]) => v !== null);
+    const ld = loadSets(s, $t), io = diskIoSets(s, $t), m = d.details?.load || {}, di = d.details?.disk_io || {};
     return {
       cpu: { now: c.cpu === null ? '' : `${pctText(c.cpu, $lang)}%`, labels: labelsOf(s.cpu), tips: tipsOf(s.cpu), sets: [{ label: $t('sv.l.cpu'), data: valuesOf(s.cpu), color: '--accent' }], max: 100 },
       memory: { now: c.mem_used === null ? '' : `${bytes(c.mem_used, $lang)} / ${bytes(c.mem_total, $lang)}`, labels: labelsOf(memBase), tips: tipsOf(memBase), max: memTotal,
@@ -100,8 +101,15 @@
               sets: [{ label: $t('sv.l.disk'), data: valuesOf(disk), color: '--accent' }], max: 100, mount: s.disk_mount || '/' },
       network: { now: c.net_rx === null && c.net_tx === null ? '' : `${rate(c.net_rx, $lang)} / ${rate(c.net_tx, $lang)}`, labels: labelsOf(s.net_rx), tips: tipsOf(s.net_rx),
                  sets: [{ label: $t('sv.l.rx'), data: valuesOf(s.net_rx), color: '--c1' }, { label: $t('sv.l.tx'), data: alignTo((s.net_rx || []).filter(([, v]) => v !== null), s.net_tx), color: '--c2' }] },
+      load: { now: m.m1 === null || m.m1 === undefined ? '' : [m.m1, m.m5, m.m15].map((v) => num(v, $lang, 2)).join(' · '), labels: labelsOf(ld.base), tips: tipsOf(ld.base), sets: ld.sets,
+              max: s.load?.cores ? s.load.cores * 1.5 : null },
+      diskIo: { now: di.read === null || di.read === undefined ? '' : `${rate(di.read, $lang)} / ${rate(di.write, $lang)}`, labels: labelsOf(io.base), tips: tipsOf(io.base), sets: io.sets },
     };
   });
+
+  // Server Details
+  const tiles = $derived(d?.details ? detailTiles(d.details, $t, $lang, TZ.minutes) : []);
+  const single = $derived(hosts.length === 1 && !headed);
 
   // Containers
   const containers = $derived(d?.containers || []);
@@ -126,7 +134,7 @@
 {:else if !data}
   <div class="skel" aria-hidden="true">
     <div class="hosts">{#each Array(3) as _}<div class="card blk"></div>{/each}</div>
-    <div class="charts">{#each Array(4) as _}<div class="card blk tall"></div>{/each}</div>
+    <div class="charts">{#each Array(6) as _}<div class="card blk tall"></div>{/each}</div>
   </div>
   <span class="sr-only" role="status">{$t('state.loading')}</span>
 {:else if !hosts.length}
@@ -158,34 +166,69 @@
     </div>
   {/if}
 
-  {#each secs as g (g.name)}
-    <section class="gsec" aria-label={headed ? g.name || $t('sv.group.none') : $t('sv.hosts')}>
-      {#if headed}<h2 class="gh">{g.name || $t('sv.group.none')} <span class="muted gc">{serverCount(g.hosts.length)}</span></h2>{/if}
-      <div class="hosts">
-        {#each g.hosts as h (hostKey(h))}
-          {@const st = hostStatus(h)}
-          <button type="button" class="hc" aria-pressed={current && hostKey(current) === hostKey(h)} onclick={() => (sel = hostKey(h))}>
-            <span class="top">
-              <span class="nm"><b>{h.host}</b><small>{[h.os, cardCount(h)].filter(Boolean).join(' · ') || h.collector}</small></span>
-              <SeverityTag level={st.level} text={$t(`sv.st.${st.key}`)} />
-            </span>
-            {#each bars(h) as b}
-              <span class="b3">
-                <span class="lb">{barTitle(b)}</span>
-                <span class="trk" aria-hidden="true">{#if b.pct !== null}<span class="fill {barTone(b.pct)}" style:width="{Math.max(2, b.pct)}%"></span>{/if}</span>
-                <span class="v" class:none={b.pct === null}>{b.pct === null ? '–' : `${pctText(b.pct, $lang)}%`}</span>
-              </span>
-            {/each}
-          </button>
-        {/each}
-      </div>
+  {#snippet hostCard(h)}
+    {@const st = hostStatus(h)}
+    <button type="button" class="hc" aria-pressed={current && hostKey(current) === hostKey(h)} onclick={() => (sel = hostKey(h))}>
+      <span class="top">
+        <span class="nm"><b>{h.host}</b><small>{[h.os, cardCount(h)].filter(Boolean).join(' · ') || h.collector}</small></span>
+        <SeverityTag level={st.level} text={$t(`sv.st.${st.key}`)} />
+      </span>
+      {#each bars(h) as b}
+        <span class="b3">
+          <span class="lb">{barTitle(b)}</span>
+          <span class="trk" aria-hidden="true">{#if b.pct !== null}<span class="fill {barTone(b.pct)}" style:width="{Math.max(2, b.pct)}%"></span>{/if}</span>
+          <span class="v" class:none={b.pct === null}>{b.pct === null ? '–' : `${pctText(b.pct, $lang)}%`}</span>
+        </span>
+      {/each}
+      <span class="ft muted">{h.last_seen ? $t('sv.last_data_cap', { time: seenText(h.last_seen) }) : ''}</span>
+    </button>
+  {/snippet}
+
+  <!-- The details of the chosen server. One server: beside its card (one third, two thirds). Several servers (or groups): the cards keep their grid
+       and this card sits below them, full width, with the name of the chosen server. -->
+  {#snippet detailsCard()}
+    <section class="card dt" aria-labelledby="sv-dt">
+      <h2 id="sv-dt">{$t('sv.dt.title')}{#if !single && d}<span class="muted of"> · {d.host}</span>{/if}</h2>
+      {#if d?.details}
+        <div class="tiles" class:seven={tiles.length === 7}>
+          {#each tiles as x (x.key)}
+            <div class="tile">
+              <span class="tl" title={x.label}>{x.label}</span>
+              <span class="tv" class:none={x.value === '–'} title={x.value}>{x.value}</span>
+              <span class="ts" title={x.sub || undefined}>{x.sub}</span>
+            </div>
+          {/each}
+        </div>
+        {#if d.needs_upgrade}<p class="up muted">{$t(upgradeKey(d.platform))}</p>{/if}
+      {:else if detailError}
+        <p class="muted up">{$t('state.error_text')}</p>
+      {:else}
+        <div class="tiles" aria-hidden="true">{#each Array(8) as _}<div class="tile blk"></div>{/each}</div>
+      {/if}
     </section>
-  {/each}
+  {/snippet}
+
+  {#if single}
+    <div class="first">
+      <div class="hosts one">{@render hostCard(hosts[0])}</div>
+      {@render detailsCard()}
+    </div>
+  {:else}
+    {#each secs as g (g.name)}
+      <section class="gsec" aria-label={headed ? g.name || $t('sv.group.none') : $t('sv.hosts')}>
+        {#if headed}<h2 class="gh">{g.name || $t('sv.group.none')} <span class="muted gc">{serverCount(g.hosts.length)}</span></h2>{/if}
+        <div class="hosts">
+          {#each g.hosts as h (hostKey(h))}{@render hostCard(h)}{/each}
+        </div>
+      </section>
+    {/each}
+    <div class="wide">{@render detailsCard()}</div>
+  {/if}
 
   {#if detailError && !d}
     <ErrorState error={detailError} onretry={loadDetail} />
   {:else if !d || !charts}
-    <div class="skel" aria-hidden="true"><div class="charts">{#each Array(4) as _}<div class="card blk tall"></div>{/each}</div></div>
+    <div class="skel" aria-hidden="true"><div class="charts">{#each Array(6) as _}<div class="card blk tall"></div>{/each}</div></div>
     <span class="sr-only" role="status">{$t('state.loading')}</span>
   {:else}
     <section class="charts" aria-label={$t('sv.charts')}>
@@ -197,6 +240,10 @@
         fmt={(v) => `${pctText(v, $lang)}%`} caption={$t('sv.chart.disk_cap', { mount: charts.disk.mount })} />
       <MetricChart title={$t('sv.chart.network')} now={charts.network.now} labels={charts.network.labels} tips={charts.network.tips} datasets={charts.network.sets}
         fmt={(v) => rate(v, $lang)} caption={$t('sv.chart.network_cap')} />
+      <MetricChart title={$t('sv.chart.load')} now={charts.load.now} labels={charts.load.labels} tips={charts.load.tips} datasets={charts.load.sets} max={charts.load.max}
+        fmt={(v) => num(v, $lang, 2)} caption={$t('sv.chart.load_cap')} />
+      <MetricChart title={$t('sv.chart.disk_io')} now={charts.diskIo.now} labels={charts.diskIo.labels} tips={charts.diskIo.tips} datasets={charts.diskIo.sets}
+        fmt={(v) => rate(v, $lang)} caption={$t('sv.chart.disk_io_cap')} />
     </section>
 
     <section class="card ct" aria-labelledby="sv-ct">
@@ -295,7 +342,27 @@
   .fill.warn { background: var(--warn); }
   .fill.err { background: var(--err); }
 
-  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 14px; margin-bottom: 16px; }
+  .hc .ft { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); font-size: 0.75rem; min-height: 1.25rem; box-sizing: content-box; }
+  .hosts.one { grid-template-columns: minmax(0, 1fr); }
+  .first { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 14px; margin-bottom: 16px; align-items: stretch; }
+  .first > :global(*), .wide > :global(*) { min-width: 0; }
+  .wide { margin-bottom: 16px; }
+
+  /* Server Details: eight tiles of one height; label, value and one line below, each on one line */
+  .dt { display: flex; flex-direction: column; gap: 12px; }
+  .dt h2 { font-size: 1rem; text-transform: none; margin: 0; }
+  .dt .of { font-weight: 400; }
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .tile { display: flex; flex-direction: column; justify-content: center; gap: 2px; height: 78px; box-sizing: border-box; padding: 0 12px; min-width: 0;
+          background: var(--bg2); border: 1px solid var(--line); border-radius: var(--r-ctl); }
+  .tile.blk { height: 78px; }
+  .tile > span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; line-height: 1rem; color: var(--muted); }
+  .tile > .tv { font-size: 1rem; line-height: 1.375rem; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+  .tile > .tv.none { color: var(--muted); font-weight: 400; }
+  .tiles.seven .tile:last-child { grid-column: span 2; }
+  .up { margin: 0; font-size: 0.75rem; }
+
+  .charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
   .charts > :global(*) { min-width: 0; }
   .ct { padding: 0; overflow: hidden; }
   .ct > header { padding: 14px 16px; margin: 0; border-bottom: 1px solid var(--line); }
@@ -330,7 +397,15 @@
   .blk { background: var(--card-bg); height: 150px; position: relative; overflow: hidden; }
   .blk.tall { height: 250px; }
 
+  @media (max-width: 1180px) { .charts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 1100px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 760px) {
+    .first { grid-template-columns: minmax(0, 1fr); }
+    .charts { grid-template-columns: minmax(0, 1fr); }
+  }
   @media (max-width: 480px) {
+    .tiles { grid-template-columns: minmax(0, 1fr); }
+    .tiles.seven .tile:last-child { grid-column: auto; }
     .scroll { overflow: visible; }
     .ct { background: none; border: 0; box-shadow: none; }
     .ct > header { padding: 0 2px 10px; border: 0; }

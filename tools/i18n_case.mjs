@@ -25,7 +25,7 @@ const KEEP_BY_LOWER = new Map(KEEP.map((w) => [w.toLowerCase(), w]));
 // after a number these are units, not words ("Last 24 h", "5 min")
 const EMPTY = new Set();
 const PHRASAL = /^(sign|signed|log|logged|zoom|bring)$/i;
-const UNITS = new Set(['h', 'd', 'min', 's', 'ms', 'kb', 'mb', 'gb', 'x']);
+const UNITS = new Set(['h', 'd', 'min', 'mnt', 's', 'ms', 'kb', 'mb', 'gb', 'x']);
 
 // A part of the key counts when it is one of these or ends with `_<one of these>` (`cpu_cap`, `delete_aria`, `upgrade_hint`).
 export const SENTENCE_PARTS = new Set(['hint', 'hints', 'text', 'note', 'notes', 'intro', 'desc', 'ph', 'err', 'error', 'msg', 'sub', 'toast', 'done', 'saved', 'cleared', 'why',

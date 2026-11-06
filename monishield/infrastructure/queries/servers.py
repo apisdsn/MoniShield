@@ -85,7 +85,7 @@ def overview(cur, collectors, now, rng):
         if ctr: continue
         c = by_id[cid]
         disks = _disks(values, cid, host)
-        hosts.append(dict(cid=cid, collector=c['name'], group=c.get('group') or '', platform=c['platform'], status=c['status'], host=host, os=os_text, last_seen=iso(last),
+        hosts.append(dict(cid=cid, collector=c['name'], group=c.get('group') or '', platform=c['platform'], status=c['status'], host=host, os=host_info.parse_os(os_text)['name'], last_seen=iso(last),
                           containers=counts.get((cid, host), 0), disks=disks,
                           **{k: value(values, cid, host, '', k) for k in HOST_CURRENT}))
         disk_full += [dict(cid=cid, collector=c['name'], host=host, mount=d['mount'], pct=d['pct']) for d in disks if metric_anomaly.almost_full(d['used'], d['total'])]
@@ -174,7 +174,7 @@ def _details(values, cid, name, collector, platform, me, disks, mount, container
     running = sum(1 for c in containers if c['running'])
     return dict(
         uptime_s=_num(uptime[0]) if uptime else None, booted_at=iso(uptime[1] - datetime.timedelta(seconds=float(uptime[0]))) if uptime else None,
-        cores=one('cores'), load=dict(m1=one('load1'), m5=one('load5'), m15=one('load15')), memory=memory,
+        cores=one('cores'), load=dict(m1=one('load1'), m5=one('load5'), m15=one('load15')), disk_io=dict(read=one('disk_read'), write=one('disk_write')), memory=memory,
         disk=dict(mount=disk['mount'], used=disk['used'], total=disk['total']) if disk else None,
         containers=dict(running=running, stopped=len(containers) - running, restarts_24h=restarts) if platform == 'docker' else None,
         collector=dict(version=collector.get('version'), name=collector['name'], group=collector.get('group') or '', last_seen=_stamp(collector.get('last_seen'))),
@@ -205,7 +205,7 @@ def host(cur, collector, name, now, rng):
     sent = any(v is not None for v in current.values())
     needs_upgrade = sent and all(value(values, cid, name, '', k) is None for k in NEW_METRICS)
     return dict(
-        cid=cid, collector=collector['name'], group=collector.get('group') or '', platform=collector['platform'], status=collector['status'], host=name, os=me[3] if me else None,
+        cid=cid, collector=collector['name'], group=collector.get('group') or '', platform=collector['platform'], status=collector['status'], host=name, os=host_info.parse_os(me[3] if me else None)['name'],
         last_seen=iso(me[6] if me else max(r[6] for r in rows)), range=rng, bucket_seconds=BUCKET[rng] or None,
         current=current, disks=disks, needs_upgrade=needs_upgrade,
         details=_details(values, cid, name, collector, collector['platform'], me, disks, mount, containers, _restarts(cur, cid, name, n - RANGES['24h']), n),

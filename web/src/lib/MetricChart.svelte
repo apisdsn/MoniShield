@@ -1,4 +1,5 @@
-<!-- One line chart of the Servers page: a title, the current value on the right, up to two lines and a caption. The colours come from
+<!-- One line chart of the Servers page: a title, the current value on the right, a legend row (always there, so every card has the same
+     structure and height), up to four lines and a one-line caption. The colours come from
      the theme tokens at draw time; a theme or language change redraws without fetching. The pointer plugin of scale.js keeps the
      tooltips right under the page zoom. Text alternative: the aria-label (title, current value, highest value). -->
 <script>
@@ -10,7 +11,7 @@
 
   Chart.register(...registerables);
 
-  /** datasets: [{label, data, color: token ('--accent', '--c2'), dashed?}]; labels: axis texts; tips: tooltip titles (same length). */
+  /** datasets: [{label, data, color: token ('--accent', '--c2'), dashed?}]; the legend row shows them when there is more than one; labels: axis texts; tips: tooltip titles (same length). */
   let { title, now = '', labels = [], tips = [], datasets = [], fmt = (v) => String(v), max = null, caption = '' } = $props();
 
   let canvas = $state();
@@ -42,7 +43,7 @@
           y: { grid: { color: v('--grid') }, beginAtZero: true, ...(max ? { suggestedMax: max } : {}), ticks: { color: v('--muted'), maxTicksLimit: 5, callback: (x) => fmt(x) } },
         },
         plugins: {
-          legend: { display: datasets.length > 1, labels: { color: v('--muted'), usePointStyle: true, pointStyle: 'line', boxWidth: 24 } },
+          legend: { display: false },
           tooltip: {
             backgroundColor: v('--tooltip-bg'), borderColor: v('--tooltip-line'), borderWidth: 1, padding: 10, titleColor: '#e2ecf3', bodyColor: '#e2ecf3',
             callbacks: { title: (it) => tips[it[0].dataIndex] ?? '', label: (c) => `${c.dataset.label}: ${c.parsed.y === null ? '–' : fmt(c.parsed.y)}` },
@@ -65,12 +66,15 @@
     <h2>{title}</h2>
     {#if now}<span class="now">{now}</span>{/if}
   </header>
+  <ul class="legend">
+    {#if datasets.length > 1}{#each datasets as d}<li><i class="sw" class:dashed={d.dashed} style:--sw="var({d.color})"></i>{d.label}</li>{/each}{/if}
+  </ul>
   {#if points}
     <div class="chart" role="img" aria-label={summary}><canvas bind:this={canvas} aria-hidden="true"></canvas></div>
   {:else}
     <p class="none muted">{$t('sv.chart.none')}</p>
   {/if}
-  {#if caption}<p class="capt muted">{caption}</p>{/if}
+  <p class="capt muted" title={caption}>{caption}</p>
 </section>
 
 <style>
@@ -78,8 +82,13 @@
   h2 { font-size: 0.9375rem; font-weight: 600; color: var(--heading); text-transform: none; }
   .now { font-family: var(--mono); font-size: 0.875rem; color: var(--fg); white-space: nowrap; }
   /* min-width 0: the canvas has a fixed pixel width until Chart.js resizes it, and must not hold the grid track wider */
-  .card { min-width: 0; }
-  .chart { position: relative; height: 180px; margin-top: 8px; min-width: 0; overflow: hidden; }
-  .none { display: grid; place-items: center; height: 180px; margin: 8px 0 0; font-size: 0.875rem; }
-  .capt { margin: 8px 0 0; font-size: 0.75rem; }
+  .card { min-width: 0; display: flex; flex-direction: column; }
+  header { min-height: 24px; }
+  .legend { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: 4px 14px; list-style: none; margin: 4px 0 0; padding: 0; height: 20px; overflow: hidden; font-size: 0.75rem; color: var(--muted); }
+  .legend li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .sw { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--sw); }
+  .sw.dashed { border-top-style: dashed; }
+  .chart { position: relative; height: 180px; margin-top: 4px; min-width: 0; overflow: hidden; }
+  .none { display: grid; place-items: center; height: 180px; margin: 4px 0 0; font-size: 0.875rem; }
+  .capt { margin: 8px 0 0; font-size: 0.75rem; line-height: 1.25rem; height: 1.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>

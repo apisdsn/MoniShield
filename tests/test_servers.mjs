@@ -96,3 +96,69 @@ test('host cards under group headings, with the group filter', () => {
   assert.equal(hostSections(hosts, 'Gone').length, 3);                      // a group that no longer exists shows everything
   assert.deepEqual(hostSections([]), []);
 });
+
+// Server Details (stage 61)
+import { readFileSync } from 'node:fs';
+import { detailTiles, diskIoSets, loadSets, pairBytes, upgradeKey, uptimeText } from '../web/src/servers.js';
+
+const EN = JSON.parse(readFileSync(new URL('../web/src/i18n/en.json', import.meta.url), 'utf8'));
+const tr = (key, p = {}) => EN[key].replace(/\{(\w+)\}/g, (_, k) => p[k]);
+const DAY = 86400;
+
+test('an uptime shows its two largest units', () => {
+  assert.equal(uptimeText(12 * DAY + 4 * 3600 + 30, tr), '12 d 4 h');
+  assert.equal(uptimeText(4 * 3600 + 12 * 60, tr), '4 h 12 min');
+  assert.equal(uptimeText(35 * 60 + 5, tr), '35 min');
+  assert.equal(uptimeText(10, tr), '0 min');
+  assert.equal(uptimeText(null, tr), '–');
+});
+
+test('two sizes share their unit when they have the same one', () => {
+  const GB = 1024 ** 3;
+  assert.equal(pairBytes(1.3 * GB, 1.9 * GB, 'en'), '1.3 / 1.9 GB');
+  assert.equal(pairBytes(800 * 1024 ** 2, 1.9 * GB, 'en'), '800 MB / 1.9 GB');
+  assert.equal(pairBytes(null, 1, 'en'), '–');
+});
+
+const DETAILS = {
+  uptime_s: 12 * DAY + 4 * 3600, booted_at: '2026-10-25T03:02:00Z', cores: 2, load: { m1: 0.42, m5: 0.38, m15: 0.35 }, memory: { used: 1.3 * 1024 ** 3, total: 1.9 * 1024 ** 3 },
+  disk: { mount: '/', used: 21 * 1024 ** 3, total: 40 * 1024 ** 3 }, containers: { running: 8, stopped: 0, restarts_24h: 0 }, collector: { version: '0.163.2', name: 'docker-host-01', group: 'Internal', last_seen: null },
+  os: { name: 'Ubuntu 24.04.5 LTS', kernel: 'Linux 6.8.0-138-generic', arch: 'amd64' },
+};
+
+test('the eight tiles of a Docker host', () => {
+  const t = detailTiles(DETAILS, tr, 'en', 420);
+  assert.deepEqual(t.map((x) => x.key), ['uptime', 'load', 'cpu', 'memory', 'disk', 'containers', 'collector', 'os']);
+  assert.deepEqual(t.map((x) => [x.value, x.sub]), [
+    ['12 d 4 h', 'Since 25 Oct 10:02'], ['0.42 · 0.38 · 0.35', 'Of 2 cores'], ['2 cores', 'amd64'], ['1.3 / 1.9 GB', '614.4 MB free'], ['21 / 40 GB', '19 GB free'],
+    ['8 running', '0 stopped · 0 restarts in 24 h'], ['0.163.2', 'docker-host-01 · Internal'], ['Ubuntu 24.04.5 LTS', 'Linux 6.8.0-138-generic']]);
+  assert.equal(t[4].label, 'Disk /');
+});
+
+test('without containers the tile is left out, a missing value is a dash and one core is singular', () => {
+  const t = detailTiles({ ...DETAILS, containers: null, cores: 1, restarts: 0 }, tr, 'id', 420);
+  assert.equal(t.length, 7);
+  const none = detailTiles({ uptime_s: null, booted_at: null, cores: null, load: { m1: null, m5: null, m15: null }, memory: null, disk: null, containers: null, collector: {}, os: {} }, tr, 'en', 0);
+  assert.deepEqual(none.map((x) => x.value), ['–', '–', '–', '–', '–', '–', '–']);
+  assert.deepEqual(none.map((x) => x.sub), ['', '', '', '', '', '', '']);
+  assert.equal(detailTiles({ ...DETAILS, cores: 1 }, tr, 'en', 0)[2].value, '1 core');
+  assert.equal(detailTiles({ ...DETAILS, containers: { running: 1, stopped: 2, restarts_24h: 1 } }, tr, 'en', 0)[5].sub, '2 stopped · 1 restart in 24 h');
+});
+
+test('an old collector: load of 1 minute only, no cores line in the chart', () => {
+  const t = detailTiles({ ...DETAILS, cores: null, load: { m1: 0.5, m5: null, m15: null } }, tr, 'en', 0);
+  assert.equal(t[1].value, '0.50 · – · –');
+  const s = { load: { m1: [['a', 1], ['b', 2]], m5: [['a', 1.5]], m15: [], cores: null }, disk_io: { read: [['a', 10], ['b', 20]], write: [['b', 5]] } };
+  assert.deepEqual(loadSets(s, tr).sets.map((x) => x.label), ['1 min', '5 min', '15 min']);
+  assert.deepEqual(loadSets({ ...s, load: { ...s.load, cores: 4 } }, tr).sets.at(-1), { label: 'Cores', data: [4, 4], color: '--muted', dashed: true });
+  assert.deepEqual(diskIoSets(s, tr).sets.map((x) => x.data), [[10, 20], [null, 5]]);
+});
+
+test('the upgrade hint names the command of the platform', () => {
+  assert.equal(upgradeKey('linux'), 'sv.dt.upgrade_text');
+  assert.equal(upgradeKey('docker'), 'sv.dt.upgrade_text');
+  assert.equal(upgradeKey('windows'), 'sv.dt.upgrade_win_text');
+  assert.equal(upgradeKey('kubernetes'), 'sv.dt.upgrade_k8s_text');
+  assert.match(EN['sv.dt.upgrade_text'], /install\.sh --upgrade/);
+  assert.match(EN['sv.dt.upgrade_win_text'], /install\.ps1 -Upgrade/);
+});

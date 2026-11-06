@@ -283,7 +283,7 @@ def test_host_details_and_chart_series(world):
     assert out['needs_upgrade'] is False and d['cores'] == 4.0 and d['load'] == dict(m1=1.0, m5=2.0, m15=3.0)
     assert d['uptime_s'] == 3600.0 + 30 * 59 and d['booted_at'].endswith('Z')
     assert d['memory'] == dict(used=2000.0 * MB, total=8000.0 * MB) and d['disk'] == dict(mount='/', used=50.0, total=100.0)
-    assert d['os'] == dict(name='Ubuntu 24.04.5 LTS', kernel='Linux 6.8.0-138-generic', arch='x86_64') and out['os'] == OS_TEXT
+    assert d['os'] == dict(name='Ubuntu 24.04.5 LTS', kernel='Linux 6.8.0-138-generic', arch='x86_64') and out['os'] == 'Ubuntu 24.04.5 LTS'
     assert d['collector']['name'] == 'web-01' and d['collector']['group'] == '' and d['collector']['last_seen'].endswith('Z') and 'version' in d['collector']
     assert d['containers'] is None                                          # a Linux collector: no container tile
     s = out['series']
