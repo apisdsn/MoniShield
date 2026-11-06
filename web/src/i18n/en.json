@@ -1738,5 +1738,6 @@
  "cl.filter_text.offline": "Showing offline collectors only. Click the tile again or Show All to see every collector.",
  "cl.none_text.offline": "No collector is offline.",
  "cl.filter_text.waiting": "Showing waiting collectors only. Click the tile again or Show All to see every collector.",
- "cl.none_text.waiting": "No collector is waiting."
+ "cl.none_text.waiting": "No collector is waiting.",
+ "cc.from_svc_sub": "from {svc}"
 }

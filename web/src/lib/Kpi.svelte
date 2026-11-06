@@ -11,7 +11,7 @@
   import InfoTip from './InfoTip.svelte';
   import Icon from './Icon.svelte';
   import { holdNote } from './compare.js';
-  let { label, value, tone = null, delta = null, info = null, missing = null, format = null, icon = null, suffix = null, sub = null, size = null } = $props();
+  let { label, value, tone = null, delta = null, info = null, missing = null, format = null, icon = null, suffix = null, sub = null, size = null, caption = null } = $props();
   const shown = $derived(value === null || value === undefined ? '–' : format ? format(value, $lang) : typeof value === 'number' ? num(value, $lang) : value);
   const zero = $derived(value === 0 || /^[0.,]+\s*%?$/.test(String(shown)));
   const pct = $derived(delta && (delta.kind === 'up' || delta.kind === 'down'));
@@ -30,6 +30,7 @@
     {#if suffix && shown !== '–'}<span class="sfx">{suffix}</span>{/if}
     {#if pct}<span class="badge {delta.tone ?? ''}" aria-hidden="true">{delta.short}</span>{/if}
   </div>
+  {#if caption && shown !== '–'}<span class="dl capline" title={caption}>{caption}</span>{/if}
   {#if shown === '–'}
     <span class="dl">{missing ?? $t('kpi.no_log')}</span>
   {:else if sub?.length}
@@ -55,6 +56,7 @@
   .badge { font-size: 0.75rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
   .badge.bad { color: var(--err); } .badge.good { color: var(--ok-text); }
   .dl { display: block; font-size: 0.75rem; color: var(--muted); }
+  .capline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dots { display: flex; flex-wrap: wrap; gap: 4px 12px; }
   .lg .v { font-size: 2.5rem; }
   .lg .l { font-size: 0.875rem; }

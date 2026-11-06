@@ -1738,5 +1738,6 @@
  "cl.filter_text.offline": "Hanya menampilkan collector yang offline. Klik kartu itu lagi atau Tampilkan Semua untuk melihat semua collector.",
  "cl.none_text.offline": "Tidak ada collector yang offline.",
  "cl.filter_text.waiting": "Hanya menampilkan collector yang menunggu. Klik kartu itu lagi atau Tampilkan Semua untuk melihat semua collector.",
- "cl.none_text.waiting": "Tidak ada collector yang menunggu."
+ "cl.none_text.waiting": "Tidak ada collector yang menunggu.",
+ "cc.from_svc_sub": "dari {svc}"
 }
