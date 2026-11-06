@@ -14,6 +14,7 @@
   import { toast } from '../lib/Toast.svelte';
   import Dialog from '../lib/Dialog.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
+  import SendChips from '../lib/SendChips.svelte';
   import CollectorForm from '../lib/CollectorForm.svelte';
   import GroupField from '../lib/GroupField.svelte';
   import CollectorInstall from '../lib/CollectorInstall.svelte';
@@ -235,7 +236,7 @@
                       </button>
                     </td>
                     <td class="snd" data-label={$t('cl.col.sends')}>
-                      <span class="chips">{#each chips(r) as c}<span class="chip">{chipText(c)}</span>{:else}<span class="muted">{$t('cl.sends.nothing')}</span>{/each}</span>
+                      <SendChips texts={chips(r).map(chipText)} empty={$t('cl.sends.nothing')} />
                     </td>
                     <td data-label={$t('cl.col.version')} class="ver" title={r.version || null}>{shortVersion(r.version) || $t('cl.none')}</td>
                     <td data-label={$t('cl.col.seen')} class="seen" title={exact(r.last_seen)}>{seen(r)}</td>
@@ -417,7 +418,9 @@
   .find input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font-size: 1rem; outline: none; min-height: 40px; padding: 0; }
   .find:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
   .flt button { min-height: var(--touch); padding: 0 12px; font-size: 0.8125rem; }
-  .fn { font-family: var(--mono); font-weight: 500; }
+  .fn { font-weight: 500; }
+  /* every count in the UI font with equal-width digits (a zero without a slash), like the status tiles */
+  .tile b, .fn, .gc, .gp, .seen, .chip { font-variant-numeric: tabular-nums; }
   /* the search box and the button are as tall as the status filter, whose 44 px buttons sit inside a 3 px padding and a border */
   .find, .all { min-height: calc(var(--touch) + 8px); box-sizing: border-box; }
   .list { padding: 6px 8px; }
@@ -448,7 +451,8 @@
     background: none; border: 0; border-radius: 10px; color: var(--fg); cursor: pointer; font: inherit;
   }
   .rowbtn b { font-weight: 600; overflow-wrap: anywhere; }
-  .rowbtn[aria-current='true'] b { color: var(--accent-text); }
+  /* the selected row: a background and a bar on its left edge, the text keeps its colour (like the other tables) */
+  tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   .plat { font-size: 0.75rem; color: var(--muted); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .ver, .seen { white-space: nowrap; font-size: 0.8125rem; color: var(--fg); }

@@ -307,6 +307,18 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.setViewportSize({ width: 1440, height: 900 });
   console.log('ok   no date picker on Servers and Collectors, still on the Overview; header controls right-aligned at 1440 and 390 px');
 
+  // Collectors: a row keeps its height when the detail panel opens and narrows the table (chips stay on one line)
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(BASE + '/collectors');
+  await page.waitForSelector('.list tbody tr');
+  const rowHeights = () => page.$$eval('.list tbody tr', (rs) => rs.map((r) => Math.round(r.getBoundingClientRect().height)));
+  const closedRows = await rowHeights();
+  await page.locator('.rowbtn').first().click();
+  await page.waitForSelector('#cl-panel');
+  const openRows = await rowHeights();
+  if (JSON.stringify(closedRows) !== JSON.stringify(openRows)) throw new Error(`Collectors: row heights change when the panel opens (${closedRows} -> ${openRows})`);
+  console.log('ok   Collectors: row heights are the same with the detail panel closed and open');
+
   await page.goto(BASE + '/servers');
   await page.waitForSelector('.hc');
   await page.waitForSelector('.charts canvas');

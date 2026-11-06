@@ -84,6 +84,20 @@ export function payload(platform, o) {
 /** Why Container Metrics cannot be chosen on a platform: a text key, or '' when it can (Docker hosts only). */
 export const containerMetricsOff = (platform) => (platform === 'docker' ? '' : platform === 'kubernetes' ? 'kubernetes' : 'host');
 
+/** How many chips of the given widths (px) fit in `avail` px with `gap` between them. When they do not all fit, room is kept for a
+ *  "+N" chip of `plus` px, so the answer can be 0 (only "+N" is shown). */
+export function fitCount(widths, avail, gap, plus) {
+  const all = widths.reduce((a, w, i) => a + w + (i ? gap : 0), 0);
+  if (all <= avail) return widths.length;
+  let used = 0, k = 0;
+  for (let i = 0; i < widths.length; i++) {
+    const next = used + (i ? gap : 0) + widths[i];
+    if (next + gap + plus > avail) break;
+    used = next; k++;
+  }
+  return k;
+}
+
 /** Short labels of what a collector sends, as [{key, n?}] for the chips; the page turns each into text. */
 export function sends(platform, o) {
   const out = [];

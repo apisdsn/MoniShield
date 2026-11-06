@@ -1,7 +1,7 @@
 // Collectors page helpers (web/src/collectors.js): the checks mirror the server's rules.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { containerMetricsOff, checkName, checkPath, checkService, parseUnits, checkOptions, payload, sends, installSteps, keySteps, upgradeSteps, ago, counts, defaults, editable, shortVersion } from '../web/src/collectors.js';
+import { containerMetricsOff, checkName, checkPath, checkService, parseUnits, checkOptions, payload, sends, installSteps, keySteps, upgradeSteps, ago, counts, defaults, editable, shortVersion, fitCount } from '../web/src/collectors.js';
 
 test('names follow the server rule', () => {
   for (const ok of ['a', 'web-01', '0x', 'a'.repeat(63)]) assert.equal(checkName(ok), '', ok);
@@ -153,4 +153,13 @@ test('shortVersion keeps only the collector version', () => {
   assert.equal(shortVersion('OpenTelemetry Collector Contrib/0.163.2 (linux/amd64)'), '0.163.2');
   assert.equal(shortVersion('0.163.2'), '0.163.2');
   assert.equal(shortVersion(null), '');
+});
+
+test('chips: all of them when they fit, else as many as leave room for the +N chip', () => {
+  assert.equal(fitCount([80, 90], 200, 6, 36), 2);          // 176 fits
+  assert.equal(fitCount([80, 90], 176, 6, 36), 2);          // exactly
+  assert.equal(fitCount([80, 90, 70], 200, 6, 36), 1);      // 80 + 6 + 36 fits; 80 + 6 + 90 + 6 + 36 does not
+  assert.equal(fitCount([80, 90, 70], 100, 6, 36), 0);      // only "+3"
+  assert.equal(fitCount([], 0, 6, 36), 0);
+  assert.equal(fitCount([120, 40], 150, 6, 36), 0);
 });
