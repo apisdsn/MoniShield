@@ -174,6 +174,87 @@ def unreachable(rules):
     return []
 
 
+def is_catch_all(rule):
+    """The rule `match = "*"` (any namespace, any service)."""
+    return rule.match == '*'
+
+
+def check_saveable(rules):
+    """Rules the Log Formats page may write: valid ones (rules_from) whose LAST rule is the catch-all `*`, so no service is left
+    without a reader. FormatError otherwise."""
+    if not rules: raise FormatError('the file needs at least one rule')
+    if not is_catch_all(rules[-1]): raise FormatError('the last rule must be "*", so every other service has a format')
+    return tuple(rules)
+
+
+# TOML writer (the Log Formats page saves the file; no third-party package)
+_BARE = re.compile(r'[A-Za-z0-9_-]+')
+
+
+def _s(text):
+    """A TOML basic string."""
+    return json.dumps(text, ensure_ascii=False).replace('\x7f', '\\u007f')
+
+
+def _key(text): return text if _BARE.fullmatch(text) else _s(text)
+
+
+def _table(pairs): return '{ ' + ', '.join(f'{_key(k)} = {_s(v)}' for k, v in pairs) + ' }'
+
+
+HEADER = ('# How each service logs (docs/11-log-formats.md). Written by the Log Formats page of MoniShield.\n'
+          '# Rules are checked from top to bottom; the first rule that matches the service is used.\n'
+          '# The page rewrites this file when it saves, so comments written by hand are not kept.\n')
+
+
+def dumps(rules):
+    """Rules -> text of log-formats.toml. `rules_from(tomllib.loads(dumps(rules))) == rules`."""
+    out = [HEADER]
+    for r in rules:
+        lines = ['[[service]]', f'match = {_s(r.match)}', f'format = {_s(r.format)}']
+        if r.kind is not None: lines.append(f'kind = {_s(r.kind)}')
+        if r.features: lines.append('features = [' + ', '.join(_s(f) for f in r.features) + ']')
+        if r.fields: lines.append(f'fields = {_table(r.fields)}')
+        if r.pattern: lines.append(f'pattern = {_s(r.pattern)}')
+        if r.time_format != 'iso': lines.append(f'time_format = {_s(r.time_format)}')
+        if r.multiline: lines.append(f'multiline = {_s(r.multiline)}')
+        if r.levels: lines.append(f'levels = {_table(r.levels)}')
+        if r.tag: lines.append(f'tag = {_s(r.tag)}')
+        if r.ip_header: lines.append(f'ip_header = {_s(r.ip_header)}')
+        if r.duration_unit != 'ms': lines.append(f'duration_unit = {_s(r.duration_unit)}')
+        out.append('\n'.join(lines) + '\n')
+    return '\n'.join(out)
+
+
+# "Change the format of one service" on the Services tab: one rule for that service, above the rule that reads it today
+def override_key(namespace, service):
+    """`namespace/service`, or `service` when there is no namespace (or it cannot be written in a rule). None when neither can."""
+    for key in ((f'{namespace}/{service}' if namespace else None), service):
+        if key and MATCH.fullmatch(key) and '*' not in key and '?' not in key: return key
+    return None
+
+
+def override(rules, namespace, service, fmt):
+    """Rules after choosing preset `fmt` for one service. The rule is `namespace/service`, inserted above the first rule that
+    matches the service, so it wins without touching other services. Choosing a format again edits that same rule; choosing
+    the format that the rule below already gives removes it. FormatError when the service cannot be named in a rule."""
+    if fmt not in PRESETS or fmt in ('regex', 'auto'): raise FormatError(f'format {fmt!r} cannot be set for one service from the page')
+    key = override_key(namespace, service)
+    if key is None: raise FormatError('the service name cannot be written in a rule')
+    rules = list(rules)
+    own = next((i for i, r in enumerate(rules) if r.match == key), None)
+    below = match(rules[own + 1:] if own is not None else rules, namespace, service)
+    if below is not None and below.format == fmt:
+        if own is not None: del rules[own]
+        return tuple(rules)
+    new = Rule(key, fmt, PRESETS[fmt])
+    if own is not None: rules[own] = new
+    else:
+        first = next((i for i, r in enumerate(rules) if r.matches(namespace, service)), 0)
+        rules.insert(first, new)
+    return tuple(rules)
+
+
 _current = None
 
 
