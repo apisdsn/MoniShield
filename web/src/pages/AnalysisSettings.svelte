@@ -56,7 +56,7 @@
     if (cur.access_log !== 'auto') return $t('as.access.chosen', { svc: cur.access_log });
     return info.access ? $t('as.access.auto', { fmt: formatName(info.access.format) }) : $t('as.access.none');
   });
-  const appsNote = $derived(appsMode === 'auto' ? (info?.app_logs.join(', ') || $t('as.apps.none')) : $t('as.apps.chosen', { n: num(appsList.length, $lang) }));
+  const appsNote = $derived(appsMode === 'auto' ? (info?.app_logs.join(', ') || $t('as.apps.none')) : $t(appsList.length === 1 ? 'as.apps.chosen_one' : 'as.apps.chosen', { n: num(appsList.length, $lang) }));
   const k8s = $derived(info?.kubernetes);
   const k8sNames = $derived(k8s ? k8s.present.map((r) => (r === 'events' ? `${k8s.names.events} (${k8s.tag})` : k8s.names[r] || r)) : []);
 

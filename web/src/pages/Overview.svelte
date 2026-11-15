@@ -24,7 +24,7 @@
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
 
-  let { folder, summary, reloadKey = 0, onready = null } = $props();
+  let { folder, summary, reloadKey = 0, onready = null, containers = false } = $props();
   const NG = 'nginx-ingress-controller';
 
   // view = snapshot of the data being shown; on folder change the old content stays visible (dimmed) until the new one arrives
@@ -121,12 +121,12 @@
       <div class="st-acts">
         {#if attack}<a class="btn {level !== 'ok' ? 'primary' : ''}" href={href('security')}>{$t('ov.st.to_security')}</a>{/if}
         {#if errTotal || level === 'crit'}<a class="btn {!attack && level !== 'ok' ? 'primary' : ''}" href={href('root-causes')}>{$t('tab.root-causes')}</a>{/if}
-        {#if nCorrupt && !attack && !errTotal}<a class="btn" href={href('pods')}>{$t('tab.pods')}</a>{/if}
+        {#if nCorrupt && !attack && !errTotal}<a class="btn" href={href('pods')}>{$t(containers ? 'tab.containers' : 'tab.pods')}</a>{/if}
       </div>
       {#if sparse || note}
         <p class="st-note">
           {[sparse ? $t('band.sparse', { n: num(lines, $lang), m: num(nCorrupt, $lang) }) : '', note ? `${note}.` : ''].filter(Boolean).join(' ')}
-          {#if sparse}<a href={href('pods')}>{$t('band.to_pods')}</a>{/if}
+          {#if sparse}<a href={href('pods')}>{$t(containers ? 'band.to_containers' : 'band.to_pods')}</a>{/if}
         </p>
       {/if}
     </section>

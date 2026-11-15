@@ -345,7 +345,7 @@
       {#if sparse}
         <div class="band warn" role="note">
           <span>{$t('band.sparse', { n: num(folderInfo.lines, $lang), m: num(folderInfo.files_corrupt, $lang) })}</span>
-          <a href={build({ ...$route, tab: 'pods', service: null, folder, q: null })}>{$t('band.to_pods')}</a>
+          <a href={build({ ...$route, tab: 'pods', service: null, folder, q: null })}>{$t(meta?.containers && meta.source === 'collector' ? 'band.to_containers' : 'band.to_pods')}</a>
         </div>
       {/if}
 
@@ -375,7 +375,7 @@
       {:else}
         {#key $route.tab + '/' + ($route.service || '')}
           {#if $route.tab === 'overview'}
-            <Overview {folder} {summary} {reloadKey} {onready} />
+            <Overview {folder} {summary} {reloadKey} {onready} containers={!!meta?.containers && meta.source === 'collector'} />
           {:else if $route.tab === 'security'}
             <Security {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} />
           {:else if $route.tab === 'root-causes'}

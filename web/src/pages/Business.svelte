@@ -70,7 +70,7 @@
   {@const miss = (s) => $t('bz.no_log', { svc: s })}
   <div class="content" class:dim={busy}>
     {#if C.rules.length}
-      <AnalysisInfo {admin} text={$t('any.bz.info', { n: num(C.rules.length, $lang) })} />
+      <AnalysisInfo {admin} text={$t(C.rules.length === 1 ? 'any.bz.info_one' : 'any.bz.info', { n: num(C.rules.length, $lang) })} />
       <div class="kpis">
         {#each C.rules as r (r.name)}
           <Kpi icon="briefcase" label={r.name} value={r.has_logs ? r.n : null} delta={r.has_logs ? rd(r) : null} missing={miss(r.service)} caption={ruleText(r)} />

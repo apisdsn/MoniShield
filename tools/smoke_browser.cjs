@@ -659,7 +659,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.goto(BASE + '/business?source=collector');
   await page.waitForSelector('main#main[aria-busy="false"]');
   await page.waitForSelector('.kpis .kpi:has-text("Sign-ins")');
-  if (!(await page.locator('.strip').innerText()).includes('1 business metrics')) throw new Error('Business: the info strip does not count the rule');
+  if (!(await page.locator('.strip').innerText()).includes('1 business metric ')) throw new Error('Business: the info strip does not count the rule');
   const rf = await layout();
   if (rf.length) throw new Error(`Business with a metric: ${rf.join(' | ')}`);
   console.log('ok   Analysis pages (Collector): states, no sideways scroll, one card height per row, no glyph icons, 44 px targets, add a metric from a suggestion, test, save, Business card');

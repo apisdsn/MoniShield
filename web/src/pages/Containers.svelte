@@ -46,7 +46,7 @@
     <div class="kpis four">
       <Kpi icon="box" label={$t('any.ctr.kpi.with_logs')} value={k.with_logs} caption={$t('any.ctr.of_running', { n: num(k.running, $lang) })} />
       <Kpi icon="file" label={$t('any.ctr.kpi.without_logs')} value={k.without_logs.length} tone={k.without_logs.length ? 'warn' : null} caption={k.without_logs.slice(0, 2).join(', ') || ' '} />
-      <Kpi icon="alert" label={$t('kpi.error')} value={k.err} tone="err" caption={$t('any.ctr.in_containers', { n: num(k.err_containers, $lang) })} />
+      <Kpi icon="alert" label={$t('kpi.error')} value={k.err} tone="err" caption={$t(k.err_containers === 1 ? 'any.ctr.in_container' : 'any.ctr.in_containers', { n: num(k.err_containers, $lang) })} />
       <Kpi icon="refresh" label={$t('any.ctr.kpi.restarts')} value={k.restarts} tone={k.restarts ? 'warn' : null} caption={$t('any.ctr.from_metrics')} />
     </div>
     <div class="tables">
