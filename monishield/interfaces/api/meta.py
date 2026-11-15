@@ -49,7 +49,8 @@ def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)
     offered = [sources.S3] + ([sources.KAFKA] if kafka_configured(cfg) or kafka.warehouse.known_folders() else []) \
         + ([sources.COLLECTOR] if request.app.state.auth.collector_list() or collector.warehouse.known_folders() else [])
     # roles: service folder name of each role of the site profile (domain/services.py); own_org: regex of the site's own network
-    return dict(version=__version__, source=ctx.source, sources=offered, folders=folders, hosts=cfg.hosts,
+    docker = ctx.source == sources.COLLECTOR and any(c['platform'] == 'docker' for c in request.app.state.collectors.list())   # the Pods page is called Containers
+    return dict(version=__version__, source=ctx.source, sources=offered, containers=docker, folders=folders, hosts=cfg.hosts,
                 roles=profile.current().names(), own_org=cfg.blocklist_exclude_org,
                 timezone=dict(minutes=timezone.current().minutes, label=timezone.current().label, offset=timezone.current().text),
                 server=dict(ip=cfg.server_ip, city=city, region=region, cc=cc, lat=lat, lon=lon), dns_upstream=cfg.dns_upstream,

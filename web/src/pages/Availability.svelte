@@ -4,7 +4,11 @@
 <script>
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
-  import { num } from '../format.js';
+  import { num, durMs } from '../format.js';
+  import { formatName, share } from '../anyfmt.js';
+  import { build } from '../state.js';
+  import AnalysisInfo from '../lib/AnalysisInfo.svelte';
+  import StatusBars from '../lib/StatusBars.svelte';
   import Kpi from '../lib/Kpi.svelte';
   import ChartCard from '../lib/ChartCard.svelte';
   import HBar from '../lib/HBar.svelte';
@@ -13,7 +17,7 @@
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
 
-  let { folder, reloadKey = 0, onready = null } = $props();
+  let { folder, reloadKey = 0, onready = null, admin = false } = $props();
   let data = $state.raw(null), busy = $state(false), error = $state(null);
   let seq = 0;
   async function load() {
@@ -43,7 +47,33 @@
 {:else if !data}
   <Skeleton kpis={7} charts={3} />
 {:else if !data.available}
-  <Note>{$t('av.no_nginx')}</Note>
+  <Note>{$t('av.no_nginx')}{#if admin} <a href={build({ tab: 'admin/log-formats', service: null, q: null })}>{$t('nav.cfg.logformats')}</a> · <a href={build({ tab: 'admin/analysis', service: null, q: null })}>{$t('nav.cfg.analysis')}</a>{/if}</Note>
+{:else if data.mode === 'access'}
+  {@const k = data.kpi}
+  {@const a = data.access}
+  <div class="content" class:dim={busy}>
+    <AnalysisInfo {admin} text={$t(a.chosen ? 'any.av.info_chosen' : 'any.av.info', { svc: a.service, fmt: formatName(a.format) })} />
+    <div class="kpis four">
+      <Kpi icon="pulse" label={$t('any.av.requests')} value={k.requests} caption={a.service} />
+      <Kpi icon="alert" label={$t('any.av.n5xx')} value={k.n5xx} tone="err" caption={$t('any.av.n5xx_share', { pct: share(k.n5xx, k.requests, num, $lang) })} />
+      <Kpi icon="clock" label={$t('any.av.p95')} value={k.p95_ms === null ? null : durMs(k.p95_ms, $lang)} missing={$t('any.av.no_time')}
+        caption={k.p50_ms === null ? null : $t('any.av.median', { v: durMs(k.p50_ms, $lang) })} />
+      <Kpi icon="route" label={$t('any.av.slowest')} value={k.slowest_ms === null ? null : durMs(k.slowest_ms, $lang)} missing={$t('any.av.no_time')} caption={k.slowest_path} />
+    </div>
+    <div class="grid">
+      <ChartCard title={$t('any.av.hour')} type="bar" timeAxis labels={data.hours}
+        datasets={[{ label: '5xx', data: data.hours.map((h) => n5ByHour[h] || 0), color: '--err' }]} options={{ plugins: { legend: { display: false } } }} />
+      <StatusBars title={$t('any.av.status')} rows={data.status_classes} total={k.requests} note={$t('any.av.status_total', { n: num(k.requests, $lang) })} />
+      <DataTable title={$t('any.av.endpoints')} rows={data.endpoints} limit={25} columns={[
+        { key: 'path', label: $t('col.endpoint'), type: 'code', sort: true, minw: 220 },
+        { key: 'requests', label: $t('col.requests'), type: 'num', sort: true },
+        { key: 'n4xx', label: '4xx', type: 'num', sort: true },
+        { key: 'n5xx', label: '5xx', type: 'num', cls: (r) => (r.n5xx ? 'ERROR' : ''), sort: true },
+        { key: 'p95_ms', label: 'P95', type: 'dur', sort: true },
+        { key: 'slowest_ms', label: $t('any.av.col_slowest'), type: 'dur', sort: true },
+      ]} />
+    </div>
+  </div>
 {:else}
   {@const k = data.kpi}
   {@const T = data.tables}

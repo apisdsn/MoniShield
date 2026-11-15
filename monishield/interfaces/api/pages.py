@@ -5,10 +5,12 @@ Reads whose parameters can hold personal data (a search text, an IP, an email, a
 form with the parameters in the JSON body (owner request 2026-10-30): the web UI uses only that form, so its body is
 encrypted (interfaces/api/wire.py) and nothing of it lands in URLs, proxy/CDN logs or the network panel. The GET forms
 stay for Swagger, curl and scripts."""
+import datetime
+
 from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi.responses import Response
 
-from monishield.infrastructure.queries import (availability as q_availability, business as q_business, command as q_command, ips as q_ips,
+from monishield.infrastructure.queries import (availability as q_availability, business as q_business, containers as q_containers, command as q_command, ips as q_ips,
                                                map as q_map, overview as q_overview, pods as q_pods, rawlogs as q_rawlogs, rootcause as q_rootcause, search as q_search,
                                                security as q_security, service as q_service, tables as q_tables, tracing as q_tracing, trends as q_trends)
 from .common import ApiError, client_ip, cursor, folder_param, require_user_ready, source_ctx
@@ -90,23 +92,33 @@ def security(request: Request, folder: str = Depends(folder_param), cur=Depends(
 
 
 @router.get('/folders/{folder}/root-causes')
-def rootcause(folder: str = Depends(folder_param), cur=Depends(cursor)): return q_rootcause.rootcause(cur, folder)
+def rootcause(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)): return q_rootcause.rootcause(cur, folder, _cfg(request))
 
 
 @router.get('/folders/{folder}/availability')
-def availability(folder: str = Depends(folder_param), cur=Depends(cursor)): return q_availability.availability(cur, folder)
+def availability(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)): return q_availability.availability(cur, folder, _cfg(request))
 
 
 @router.get('/folders/{folder}/pods')
 def pods(folder: str = Depends(folder_param), cur=Depends(cursor)): return q_pods.pods(cur, folder)
 
 
+@router.get('/folders/{folder}/containers')
+def containers(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)):
+    """Docker containers of a collector folder next to the Servers metrics. Unavailable for the other sources and for sites without a Docker host."""
+    st = request.app.state
+    if source_ctx(request).source != 'collector': return dict(available=False, reason='no_docker_hosts')
+    mcur = st.metrics.cursor()
+    try: return q_containers.containers(cur, mcur, [c for c in st.collectors.list() if c['status'] != 'waiting'], folder, datetime.datetime.now(datetime.timezone.utc))
+    finally: mcur.close()
+
+
 @router.get('/folders/{folder}/business')
-def business(folder: str = Depends(folder_param), cur=Depends(cursor)): return q_business.business(cur, folder)
+def business(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)): return q_business.business(cur, folder, _cfg(request))
 
 
 @router.get('/folders/{folder}/tracing')
-def tracing(folder: str = Depends(folder_param), cur=Depends(cursor)): return q_tracing.tracing(cur, folder)
+def tracing(request: Request, folder: str = Depends(folder_param), cur=Depends(cursor)): return q_tracing.tracing(cur, folder, _cfg(request))
 
 
 @router.get('/folders/{folder}/services/{service}')

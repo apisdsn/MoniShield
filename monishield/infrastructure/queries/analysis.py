@@ -41,6 +41,12 @@ def access(cur, folder, settings):
     return dict(row, format=formats(cur, folder).get(row['service']), chosen=settings.access_log != analysis.AUTO)
 
 
+def generic_access(a):
+    """Does the access log `a` get the any-log pages (Availability, Request Tracing)? Not the ingress (its pages are older and unchanged), and
+    not the web frontend picked by Auto (its pages keep saying that nginx logs are missing); a service named in Analysis Settings always does."""
+    return bool(a) and a['service'] != NG and (a['chosen'] or a['service'] != profile.current().frontend)
+
+
 def app_services(cur, folder, settings, access_service=None):
     """The application-log services of the folder: the listed ones, or Auto = every other service that has lines."""
     lines = service_lines(cur, folder)
@@ -49,13 +55,16 @@ def app_services(cur, folder, settings, access_service=None):
 
 
 def requests_sql(service):
-    """-> (SELECT of method, path_key, status for the requests of one service of a folder, 1 when it needs the folder only, 2 when it also filters by service)."""
+    """-> (SELECT of method, path_key, status, ts_utc, duration_ms for the requests of one service of a folder, 1 when it needs the folder only,
+    2 when it also filters by service). The ingress, the frontend and the events service have their own tables; any other service is read
+    from http_access (an access log) and from the application-log lines that carry a status (JSON request logs)."""
     p = profile.current()
-    if service == NG: return 'SELECT method, path_key, status FROM nginx_access WHERE folder = ?', 1
-    if service == p.frontend: return 'SELECT method, path_key, status FROM fe_access WHERE folder = ?', 1
-    if service == p.events: return 'SELECT method, path_key, status FROM sl_event WHERE folder = ?', 1
-    return ('SELECT method, path_key, status FROM http_access WHERE folder = ? AND service = ? '
-            'UNION ALL SELECT method, path_key, status FROM app_line WHERE folder = ? AND service = ? AND status IS NOT NULL AND path_key IS NOT NULL'), 2
+    cols = 'method, path_key, status, ts_utc, duration_ms'
+    if service == NG: return 'SELECT method, path_key, status::INTEGER AS status, ts_utc, request_time * 1000 AS duration_ms FROM nginx_access WHERE folder = ?', 1
+    if service == p.frontend: return 'SELECT method, path_key, status::INTEGER AS status, ts_utc, NULL::DOUBLE AS duration_ms FROM fe_access WHERE folder = ?', 1
+    if service == p.events: return 'SELECT method, path_key, status::INTEGER AS status, NULL::TIMESTAMP AS ts_utc, duration_ms FROM sl_event WHERE folder = ?', 1
+    return (f'SELECT {cols} FROM http_access WHERE folder = ? AND service = ? '
+            f'UNION ALL SELECT {cols} FROM app_line WHERE folder = ? AND service = ? AND status IS NOT NULL AND path_key IS NOT NULL'), 2
 
 
 def _args(folder, service, pairs): return [folder] if pairs == 1 else [folder, service, folder, service]

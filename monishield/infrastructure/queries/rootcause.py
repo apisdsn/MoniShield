@@ -1,12 +1,13 @@
 """Root Cause page (TRD §5.3)."""
 
 from monishield.infrastructure.queries.sql import _all, _one
+from .rootcause_generic import generic
 from .tables import first, services
 
 JWT_OLD = ('1–24 Jam', '1–7 Hari', '> 7 Hari')
 
 
-def rootcause(cur, folder):
+def rootcause(cur, folder, cfg=None):
     jwt, refresh = {}, {}
     for s, b, n in _all(cur, 'SELECT service, bucket, n FROM agg_jwt WHERE folder = ? ORDER BY service', folder):
         if b == 'Refresh Token Kedaluwarsa': refresh[s] = n     # TRD §4.4 item 10: now shown
@@ -19,4 +20,5 @@ def rootcause(cur, folder):
         dns_total=_one(cur, 'SELECT coalesce(sum(n), 0) FROM v_dns WHERE folder = ?', folder),
         upstream_errors_total=_one(cur, 'SELECT count(*) FROM v_upstream_error WHERE folder = ?', folder),
         upstream_error_kinds=_all(cur, 'SELECT kind, count(*) FROM v_upstream_error WHERE folder = ? GROUP BY kind ORDER BY 2 DESC, 1', folder),
-        tables={t: first(cur, t, folder) for t in ('c401', 'pdf-templates', 'dns')})
+        tables={t: first(cur, t, folder) for t in ('c401', 'pdf-templates', 'dns')},
+        generic=generic(cur, folder, cfg))   # stage 62: error messages and upstream errors for any source
