@@ -22,12 +22,17 @@ Events:
   summary         daily report of each new folder (off by default): status, numbers vs the 7-day average, what needs a look,
                   ingest result, backup / S3 sync / Kafka health. Emoji and **bold** section titles for Telegram and Discord;
                   the email letter drops the emoji and turns the sections into headings (domain/letters.py)
+  metric_unusual  a server or container value far above its usual level for that hour (the Servers banner; off by default)
+  disk_full       a mount point at or above the almost-full threshold (metric_anomaly.DISK_FULL)
+  collector_offline  a collector that is Offline (Late does not count); one more message when it is back Online
+The three server events carry counts and a link to the Servers or Collectors page only: never a host, container, collector or mount name.
 An event is sent once per key (e.g. 'spike:2026-10-06'); recorded in the alert_log table (history on the page).
 """
-import datetime, json, re, urllib.parse
+import datetime, hashlib, json, re, urllib.parse
 
 from monishield.domain.config_model import ALERT_EVENTS
 from monishield.domain.errors import Fail
+from monishield.domain.metric_anomaly import DISK_FULL as DISK_FULL_PCT
 
 TELEGRAM_API = 'https://api.telegram.org'   # default; the address used = S4_TELEGRAM_API (cfg.telegram_api)
 DISCORD_HOSTS = ('discord.com', 'discordapp.com', 'ptb.discord.com', 'canary.discord.com')
@@ -247,6 +252,9 @@ def validate(cfg):
 T = dict(
     id=dict(spike='Lonjakan di log {d}', critical='Serangan kritis di log {d}', ingest_failed='Ingest gagal',
             sync_failed='Sinkron S3 bermasalah', backup_failed='Backup gagal', folder_missing='Log tanggal {d} belum datang', summary='Ringkasan log {d}',
+            unusual='Nilai server tidak biasa', disk_full='Disk hampir penuh', col_off='Collector offline', col_on='Collector kembali online',
+            m_unusual='Server: {n} nilai tidak biasa ({kinds})', m_disk='Server: {n} disk hampir penuh ({pct}% atau lebih terpakai)',
+            m_off='Collector: {n} offline', m_on='Collector: {n} kembali online', k_cpu='CPU {n}', k_mem='memori {n}',
             test='Pesan uji MoniShield', test_text='Saluran ini sudah tersambung. Notifikasi berikutnya akan dikirim ke sini.',
             avg='rata-rata {n} hari: {v}', open='Buka', n5xx='Respons 5xx', errors='Error (semua layanan)', upstream_errors='Error koneksi upstream',
             atk_req='Request serangan', attack_ips='IP sumber serangan', login_fail_ips='IP dengan login gagal', requests='Request HTTP',
@@ -270,6 +278,11 @@ T = dict(
             sync_bad='bermasalah ❌', none_word='belum ada', off_word='mati'),
     en=dict(spike='Spike in the logs of {d}', critical='Critical attacks in the logs of {d}', ingest_failed='Ingest failed',
             sync_failed='S3 sync problem', backup_failed='Backup failed', folder_missing='Logs of {d} have not arrived', summary='Summary of the logs of {d}',
+            unusual='Unusual server values', disk_full='Disk almost full', col_off='Collector offline', col_on='Collector back online',
+            m_unusual='Servers: {n} unusual values ({kinds})', m_disk='Servers: {n} disks almost full ({pct}% or more used)',
+            m_off='Collectors: {n} offline', m_on='Collectors: {n} back online', k_cpu='CPU {n}', k_mem='memory {n}',
+            m_unusual_1='Servers: 1 unusual value ({kinds})', m_disk_1='Servers: 1 disk almost full ({pct}% or more used)',
+            m_off_1='Collectors: 1 offline', m_on_1='Collectors: 1 back online',
             test='MoniShield test message', test_text='This channel is connected. Future notifications will be sent here.',
             avg='{n}-day average: {v}', open='Open', n5xx='5xx responses', errors='Errors (all services)', upstream_errors='Upstream connection errors',
             atk_req='Attack requests', attack_ips='Attack source IPs', login_fail_ips='IPs with failed logins', requests='HTTP requests',
@@ -496,6 +509,60 @@ def active(cfg): return bool(cfg) and any(c['enabled'] for c in cfg['channels'].
 
 
 TEST_NEEDS = dict(telegram=('bot_token', 'chat_id'), discord=('webhook_url',), email=('host', 'sender', 'to'))
+
+
+# Server metrics and collectors (stage 63)
+WATCH = ('metric_unusual', 'disk_full', 'collector_offline')
+KIND_ORDER = ('mem_used', 'cpu')   # memory first, like the example text
+
+
+def watch_id(*parts):
+    """An internal id of one watched item (host, container, mount point, collector): a hash that is stored and compared, never sent."""
+    return hashlib.sha256('\x1f'.join(str(p) for p in parts).encode()).hexdigest()[:16]
+
+
+def _page_link(cfg, tab): return f"\n{_t(cfg, 'open')}: {cfg['dashboard_url'].rstrip('/')}/{tab}" if cfg['dashboard_url'] else ''
+
+
+def _text(cfg, key, n, **p):
+    lang = cfg['lang'] if cfg['lang'] in T else 'id'
+    return (T[lang].get(f'{key}_1') if n == 1 and f'{key}_1' in T[lang] else T[lang][key]).format(n=_num(n, lang), **p)
+
+
+def server_events(cfg, state, found):
+    """What to send for the server and collector events -> (messages, new_state).
+    state = {event: [ids already notified and still open]} (the ids are hashes, see watch_id).
+    found = {event: {id: kind} | None}; None = this check could not run (the state of that event is kept). For collector_offline also
+    found['collector_online'] = ids that are Online now and found['collector_late'] = ids that are Late (still open, no new alert).
+    messages = [(event, title, text, add, drop)]: once the message was sent, `add` goes into the state of that event and `drop` leaves it; new_state
+    already holds what is certain without a message (cleared items gone). An item alerts once until it clears; a new item while others are open sends the
+    current counts; the offline collectors that are Online again get one \"back online\" message."""
+    out, new = [], {k: list(v) for k, v in (state or {}).items()}
+    for ev in WATCH:
+        if not cfg['events'].get(ev): new.pop(ev, None); continue   # off: nothing is kept, so turning it on alerts for what is open then
+        cur = found.get(ev)
+        if cur is None: continue
+        was = set(state.get(ev) or [])
+        late = was & set(found.get('collector_late') or ()) if ev == 'collector_offline' else set()
+        keep = (was & set(cur)) | late
+        back = sorted(was & set(found.get('collector_online') or ())) if ev == 'collector_offline' else []
+        new[ev] = sorted(keep | set(back))   # a recovered collector stays until its "back online" message went out
+        fresh = set(cur) - was
+        if fresh:
+            if ev == 'metric_unusual':
+                kinds = {}
+                for k in cur.values(): kinds[k] = kinds.get(k, 0) + 1
+                parts = ', '.join(_t(cfg, 'k_cpu' if k == 'cpu' else 'k_mem', n=kinds[k]) for k in KIND_ORDER if k in kinds)
+                msg = (ev, _t(cfg, 'unusual'), _text(cfg, 'm_unusual', len(cur), kinds=parts) + _page_link(cfg, 'servers'), set(cur), set())
+            elif ev == 'disk_full':
+                msg = (ev, _t(cfg, 'disk_full'), _text(cfg, 'm_disk', len(cur), pct=int(DISK_FULL_PCT)) + _page_link(cfg, 'servers'), set(cur), set())
+            else:
+                msg = (ev, _t(cfg, 'col_off'), _text(cfg, 'm_off', len(cur)) + _page_link(cfg, 'collectors'), set(cur), set())
+            out.append(msg)
+        if ev == 'collector_offline':
+            if back:
+                out.append(('collector_offline', _t(cfg, 'col_on'), _text(cfg, 'm_on', len(back)) + _page_link(cfg, 'collectors'), set(), set(back)))
+    return out, new
 
 
 def backup_failed(cfg, day, error):

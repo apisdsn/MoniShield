@@ -5,6 +5,9 @@
   import { lang, t } from '../i18n.js';
   import { api } from '../api.js';
   import { num, sysName, cut } from '../format.js';
+  import { build } from '../state.js';
+  import AnalysisInfo from '../lib/AnalysisInfo.svelte';
+  import Kpi from '../lib/Kpi.svelte';
   import ChartCard from '../lib/ChartCard.svelte';
   import DataTable from '../lib/DataTable.svelte';
   import Note from '../lib/Note.svelte';
@@ -12,7 +15,7 @@
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
 
-  let { folder, dnsUpstream = '', reloadKey = 0, onready = null } = $props();
+  let { folder, dnsUpstream = '', reloadKey = 0, onready = null, admin = false } = $props();
   let data = $state.raw(null), busy = $state(false), error = $state(null);
   let seq = 0;
   async function load() {
@@ -57,6 +60,18 @@
     return out;
   });
   const jwtSvcs = $derived(Object.keys(data?.jwt || {}));
+  // stage 62: error messages and upstream errors of any source
+  const g = $derived(data?.generic);
+  const hhmm = (v) => (v ? v.slice(11) : '–');
+  const rawHref = (m) => build({ tab: 'raw-logs', service: null, folder, module: null, q: m.search, svc: m.service, pod: null });
+  const legacyData = $derived(!!data && (data.tables.c401?.total || data.jwt_total || data.pdf.fail || data.dns_total || data.upstream_error_kinds.length));
+  const info = $derived.by(() => {
+    if (!g) return '';
+    const apps = g.app_logs.join(', ');
+    if (!g.access) return $t('any.rc.info_noaccess', { apps: apps || '–' });
+    return $t('any.rc.info', { apps: apps || '–', svc: g.access.service });
+  });
+  const upTotal = $derived(g ? (g.upstream.legacy ? data.upstream_errors_total : g.upstream.total) : 0);
   const refresh = $derived(Object.values(data?.refresh_expired || {}).reduce((a, b) => a + b, 0));
 </script>
 
@@ -67,9 +82,46 @@
 {:else}
   {@const T = data.tables}
   <div class="content" class:dim={busy}>
+    {#if g}
+      <AnalysisInfo {admin} text={info} />
+      <div class="kpis four">
+        <Kpi icon="alert" label={$t('any.rc.error_lines')} value={g.error_lines} tone="err" caption={$t(g.error_services === 1 ? 'any.rc.in_service' : 'any.rc.in_services', { n: num(g.error_services, $lang) })} />
+        <Kpi icon="lines" label={$t('any.rc.distinct')} value={g.distinct} caption={$t('any.rc.distinct_sub')} />
+        <Kpi icon="server" label={$t('any.rc.upstream')} value={g.access || g.upstream.legacy ? upTotal : null} tone="err" missing={$t('any.rc.no_access_sub')} caption={$t('any.rc.upstream_sub')} />
+        <Kpi icon="clock" label={$t('any.rc.busiest')} value={g.busiest ? g.busiest.hour.slice(11) + ':00' : null} missing={$t('any.rc.no_times_sub')}
+          caption={g.busiest ? $t(g.busiest.n === 1 ? 'any.rc.busiest_one_sub' : 'any.rc.busiest_sub', { n: num(g.busiest.n, $lang) }) : null} />
+      </div>
+      <div class="grid one">
+        {#if g.messages.length}
+          <p class="muted tnote">{$t('any.rc.freq_note')}</p>
+          <DataTable title={$t('any.rc.freq')} rows={g.messages} limit={25} columns={[
+            { key: 'key', label: $t('col.message'), type: 'code', fmt: (r) => r.key.split(' | ').slice(1).join(' | ') || r.key, sort: true, minw: 260 },
+            { key: 'service', label: $t('col.service'), sort: true },
+            { key: 'n', label: $t('col.lines'), type: 'num', sort: true },
+            { key: 'first', label: $t('any.rc.first'), fmt: (r) => hhmm(r.first), cls: () => 'nowrap', sort: true },
+            { key: 'last', label: $t('any.rc.last'), fmt: (r) => hhmm(r.last), cls: () => 'nowrap', sort: true },
+            { key: 'raw', label: '', custom: true },
+          ]}>
+            {#snippet cell(r)}<a class="open" href={rawHref(r)}>{$t('any.rc.open_raw')}</a>{/snippet}
+          </DataTable>
+        {:else}
+          <Note>{$t('any.rc.no_errors')}</Note>
+        {/if}
+        {#if !g.upstream.legacy && g.upstream.rows.length}
+          <p class="muted tnote">{$t('any.rc.up_note')}</p>
+          <DataTable title={$t('any.rc.up_title')} rows={g.upstream.rows} limit={25} columns={[
+            { key: 'backend', label: $t('any.rc.backend'), type: 'code', fmt: (r) => r.backend || $t('any.rc.unknown_backend'), sort: true },
+            { key: 'n502', label: '502', type: 'num', sort: true },
+            { key: 'n503', label: '503', type: 'num', sort: true },
+            { key: 'n504', label: '504', type: 'num', sort: true },
+            { key: 'last', label: $t('any.rc.last_seen'), fmt: (r) => hhmm(r.last), sort: true },
+          ]} />
+        {/if}
+      </div>
+    {/if}
     {#if summary.length}
       <Summary title={$t('rc.summary')} items={summary} />
-    {:else}
+    {:else if !g?.messages.length}
       <Note>{$t('rc.none')}</Note>
     {/if}
     <div class="grid">
@@ -127,10 +179,17 @@
         ]} />
       {/if}
     </div>
+    {#if g && !legacyData}
+      <div class="after"><Note>{$t('any.rc.k8s_note')}</Note></div>
+    {/if}
   </div>
 {/if}
 
 <style>
+  .after { margin-top: 18px; }
+  .tnote { margin: 0 4px 6px; font-size: 0.8125rem; }
+  .grid.one { grid-template-columns: minmax(0, 1fr); margin-bottom: 18px; }
+  .open { display: inline-block; padding: 12px 0; margin: -12px 0; line-height: 1.25rem; color: var(--accent-text); white-space: nowrap; }
   .content { transition: opacity 0.15s; }
   .content.dim { opacity: 0.6; }
   .refresh { font-weight: 500; }

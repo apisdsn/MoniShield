@@ -43,3 +43,5 @@ class MetricsService:
             try: self.run()
             except Exception as e:   # noqa: BLE001  the thread must not die; the next round tries again
                 self.last = dict(at=_now().isoformat(timespec='seconds'), error=type(e).__name__)
+            try: self.ctx.alerts.check_servers()   # unusual values, full disks, offline collectors (notifications; on this thread, never on the receiver's)
+            except Exception: pass   # noqa: BLE001  a notification problem must not stop the roll-up

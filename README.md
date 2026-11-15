@@ -185,10 +185,10 @@ Details: [`docs/12-collector.md`](docs/12-collector.md), [`docs/13-metrics.md`](
 A short tour of the sidebar:
 
 * **Analysis**: Overview (the status of the day), Command Center (traffic, map, destination modules), Trends, Security,
-  Root Causes, Availability, Pods, Business, Request Tracing, **Raw Logs** and **Servers** (uptime, load average, CPU, memory, disk, disk I/O and network
+  Root Causes, Availability, Pods (Containers on Docker hosts), Business, Request Tracing, **Raw Logs** and **Servers** (uptime, load average, CPU, memory, disk, disk I/O and network
   per server and container, by group).
 * **Configuration**: Object Storage, Kafka Broker, Notifications, Block List, Data Retention and more as pop-ups;
-  **Log Formats** (how each service is read, with a test of its last lines) and **Collectors** (add, group, upgrade and
+  **Log Formats** (how each service is read, with a test of its last lines), **Analysis Settings** (which log is the access log, which are the application logs, the request ID field and business metrics) and **Collectors** (add, group, upgrade and
   revoke collectors) are pages of their own.
 * **New logs**: put a date folder in the log folder and press **Sync data** in the page header. New or changed files are
   read; nothing else is processed again.
@@ -219,6 +219,7 @@ Command line, Kafka and S3 details, notifications and the block list are in the
 - [x] Collectors for Linux, Windows, Docker and Kubernetes (OpenTelemetry), as a third log source
 - [x] Server and container metrics with unusual-value flags (the Servers page)
 - [x] Log Formats page: HTTP cards from any access log, including Caddy JSON
+- [x] Analysis pages for any log (access log, error messages, request tracing, containers, business metrics) and Analysis Settings
 - [x] Versioned API under `/api/v1`
 - [x] Public home page with a dashboard preview and a traffic map without IPs
 - [ ] Kubernetes per-container metrics

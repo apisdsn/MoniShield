@@ -228,6 +228,40 @@ class Notifier:
         ev = alerts.folder_missing(cfg, local, self.ctx.warehouse.newest_folder())
         return ev and deliver(self.ctx, cfg, ev[0], 'folder_missing', ev[1], ev[2])
 
+    # Server metrics and collectors (stage 63)
+    STATE = 'alert_open'   # app_setting: {event: [hashed ids of the items that were notified and are still open]}
+
+    def check_servers(self, now_utc=None):
+        """Unusual values, almost-full disks and offline collectors. Called after every metrics roll-up (every 5 minutes) from the
+        metrics thread, so the receiver is never held up. An item alerts once until it clears; messages carry counts and a link only.
+        -> the messages sent as [(event, text)] (for tests)."""
+        cfg, ctx, sent = self._cfg(), self.ctx, []
+        with self._lock:
+            if not alerts.active(cfg) or not any(cfg['events'].get(e) for e in alerts.WATCH):
+                if (ctx.auth.setting_get(self.STATE) or {}).get('value'): ctx.auth.setting_set(self.STATE, {})   # all off: nothing stays open
+                return sent
+            now = now_utc or datetime.datetime.now(datetime.timezone.utc)
+            state = (ctx.auth.setting_get(self.STATE) or {}).get('value') or {}
+            found = {}
+            cols = [c for c in ctx.collectors.list() if c['status'] != 'waiting']
+            if cfg['events'].get('collector_offline'):
+                found['collector_offline'] = {alerts.watch_id('collector', c['id']): '' for c in cols if c['status'] == 'offline'}
+                found['collector_online'] = {alerts.watch_id('collector', c['id']) for c in cols if c['status'] == 'online'}
+                found['collector_late'] = {alerts.watch_id('collector', c['id']) for c in cols if c['status'] == 'late'}
+            if cfg['events'].get('metric_unusual') or cfg['events'].get('disk_full'):
+                try:
+                    w = ctx.metrics.watch([c for c in cols if c['status'] != 'revoked'], now)
+                    found['metric_unusual'] = {alerts.watch_id('unusual', *u): u[3] for u in w['unusual']}
+                    found['disk_full'] = {alerts.watch_id('disk', *d): '' for d in w['disk_full']}
+                except Exception: pass   # noqa: BLE001  metrics file not readable: those events keep their state until it is
+            messages, new = alerts.server_events(cfg, state, found)
+            for ev, title, text, add, drop in messages:
+                r = deliver(ctx, cfg, f'{ev}:{time.time_ns()}', ev, title, text)
+                if r and not all(r.values()):   # at least one channel got it
+                    new[ev] = sorted((set(new.get(ev) or ()) | add) - drop); sent.append((ev, alerts.scrub(text)))
+            if new != state: ctx.auth.setting_set(self.STATE, new)
+        return sent
+
     def start(self):
         self._stop = threading.Event()
         def loop():

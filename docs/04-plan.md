@@ -1542,3 +1542,21 @@ counter rates like the network ones). `domain/host_info.py` splits the operating
 the cards, full width, for several) and six charts of one structure (title, legend row, chart, caption). `tools/seed_metrics.py` has one server on an older configuration and the
 browser smoke test checks rows, heights, tiles and the upgrade line at 1440 and 1280 px. Existing collectors need `install.sh --upgrade` (Windows `install.ps1 -Upgrade`,
 Kubernetes `helm upgrade`).
+
+## Stage 63 — Notifications for server metrics and collectors (done, 2026-11-15)
+
+Events `metric_unusual`, `disk_full` and `collector_offline` (with a "back online" message) in the existing notification model: settings and toggles on the
+Notifications page, once per item until it clears (ids hashed, state in the app setting `alert_open`), checked after each metrics roll-up, messages with counts
+and a link only. `MetricsStore.watch` and `queries/servers.watch` give the items; the rules and texts are in `domain/alerts.py`. Tests: `tests/test_alerts_servers.py`,
+`tests/test_servers_api.py`. Details: [`13-metrics.md`](13-metrics.md) section 9a.
+
+## Stage 62 — Analysis pages for any log, and Analysis Settings (done, 2026-11-15)
+
+Approved mockup "Availability, Root Causes, Containers, Request Tracing, Business + Analysis Settings". `domain/analysis.py` (settings, validation, TOML writer, rule matching),
+`application/analysis_service.py`, `infrastructure/analysis_file.py`, `interfaces/api/analysis.py` (`/api/v1/admin/analysis`: view, save, test, suggest), reads in
+`infrastructure/queries/analysis.py`, `rootcause_generic.py`, `containers.py` and the Availability, Root Causes, Request Tracing and Business queries. The ingress and the events
+service keep their older pages (rule zero: the S3 numbers did not change); the new reads apply when those logs are absent or Analysis Settings name another access log.
+The readers take the request ID from the configured field first (`formats.use_id_fields`, for new lines), Caddy also from the `X-Request-ID` header, nginx combined from a trailing `$request_id`.
+Web: `AnalysisSettings.svelte`, `Containers.svelte`, the generic states of the four pages, `AnalysisInfo.svelte`, `StatusBars.svelte`. The browser smoke data has a Collector folder with a Caddy JSON
+access log and a JSON application log (yesterday's with request IDs, today's without) and the smoke test checks every page at 1440, 1280 and 390 px.
+
