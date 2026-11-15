@@ -55,6 +55,7 @@ class Config:
     upstream_prefix: str = ''       # namespace prefix of nginx upstream names, e.g. "example-example-" (stripped)
     service_names: dict = dataclasses.field(default_factory=dict)   # role -> service folder name, e.g. {"events": "orders-api"}
     event_tag: str = 'APP'          # tag of the events service lines: [APP-INFO] {...}
+    analysis_file: str = ''         # Analysis Settings (stage 62): access log, application logs, request ID field, business rules; default: <state_dir>/analysis.toml
     log_formats_file: str = ''      # rules of how each service logs (docs/11-log-formats.md); default: <state_dir>/log-formats.toml
     business_endpoints: dict = dataclasses.field(default_factory=dict)   # "POST /path" -> business metric; empty = the generic set
     maxmind_account_id: str = ''
@@ -225,9 +226,9 @@ class SourceConfig:
 
 def kafka_config(cfg):
     """Config for the Kafka source: own database and own inbox, no main log folder, no DbGate copy."""
-    return SourceConfig(cfg, log_dir='', inbox_dir=cfg.kafka_inbox, db_path=cfg.kafka_db_path, duckdb_snapshot=False)
+    return SourceConfig(cfg, source='kafka', log_dir='', inbox_dir=cfg.kafka_inbox, db_path=cfg.kafka_db_path, duckdb_snapshot=False)
 
 
 def collector_config(cfg):
     """Config for the collector source: own database and own inbox, no main log folder, no DbGate copy."""
-    return SourceConfig(cfg, log_dir='', inbox_dir=cfg.collector_inbox, db_path=cfg.collector_db_path, duckdb_snapshot=False)
+    return SourceConfig(cfg, source='collector', log_dir='', inbox_dir=cfg.collector_inbox, db_path=cfg.collector_db_path, duckdb_snapshot=False)

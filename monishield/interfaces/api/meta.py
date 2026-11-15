@@ -6,7 +6,7 @@ from monishield.infrastructure import refdata
 from monishield.infrastructure.queries.sql import local_time
 from monishield.infrastructure.queries.tables import http_rows, http_service
 from monishield.application import sources
-from monishield.domain import services as profile, timezone
+from monishield.domain import analysis, services as profile, timezone
 from monishield.domain.kafka_message import configured as kafka_configured
 from .common import cursor, folder_param, public, require_user_ready, source_ctx
 
@@ -34,7 +34,7 @@ def meta(request: Request, user=Depends(require_user_ready), cur=Depends(cursor)
                              (SELECT count(*) FROM agg_service a WHERE a.folder = s.folder),
                              NULL
                       FROM folder_state s ORDER BY s.folder DESC""").fetchall()]
-    http = http_rows(cur)   # the service the HTTP cards show in each folder
+    http = http_rows(cur, access=analysis.of(ctx.cfg).access_log)   # the service the HTTP cards show in each folder
     for f in folders: f['requests'], f['http_service'] = (http[f['folder']]['requests'], http[f['folder']]['service']) if f['folder'] in http else (None, None)
     city, region, cc, lat, lon = cfg.server_fallback
     g = cur.execute('SELECT city, region, country, lat, lon FROM ip_info WHERE ip = ?', [cfg.server_ip]).fetchone()
@@ -77,4 +77,4 @@ def folder_summary(request: Request, folder: str = Depends(folder_param), user=D
     return dict(folder=folder, prev_folder=str(prev) if prev else None, range_start=local_time(r[0]), range_end=local_time(r[1]),
                 attack_ip_count=cur.execute(f"SELECT count(*) FROM {'agg_crs_ip' if request.app.state.cfg.attack_rules == 'crs' else 'agg_attack_ip'} WHERE folder = ?",
                                             [folder]).fetchone()[0],
-                http_service=(http_service(cur, folder) or {}).get('service'), services=services, files=files)
+                http_service=(http_service(cur, folder, analysis.of(source_ctx(request).cfg).access_log) or {}).get('service'), services=services, files=files)

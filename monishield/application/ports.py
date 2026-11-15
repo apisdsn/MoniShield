@@ -16,6 +16,7 @@ Services receive `ctx` (on the server: `app.state`, assembled in monishield/inte
   maxmind        MaxMindProbe       MaxMind key test                                infrastructure/refdata.py (probe_maxmind)
   geo            GeoLocator         offline location of a client address (live map) infrastructure/geo_lookup.py
   logformats     LogFormatStore     log-formats.toml                                infrastructure/log_format_file.py
+  analysisfile   AnalysisStore      analysis.toml                                   infrastructure/analysis_file.py
   loglines       LogLines           newest lines of a service from the files        infrastructure/log_lines.py
   ingest, imports, alerts, kafka, retention, resets, emails, collectors    other application services (calling each other through ctx)
 
@@ -173,6 +174,13 @@ class Backups(Protocol):
 
 class LogFormatStore(Protocol):
     """log-formats.toml (monishield/infrastructure/log_format_file.py): written to a temporary file, then renamed."""
+    path: str
+    def exists(self) -> bool: ...
+    def write(self, text: str) -> None: ...
+
+
+class AnalysisStore(Protocol):
+    """analysis.toml (monishield/infrastructure/analysis_file.py): written to a temporary file, then renamed."""
     path: str
     def exists(self) -> bool: ...
     def write(self, text: str) -> None: ...

@@ -3,6 +3,7 @@ hour × day heatmap (ingress requests, errors of all services)."""
 import datetime
 
 
+from monishield.domain import analysis
 from monishield.infrastructure.queries.sql import local_time, _all, reject
 from .tables import http_rows
 
@@ -25,7 +26,7 @@ def trends(cur, cfg, params):
                                      GROUP BY f.service, f.f ORDER BY f.f, min(i.relpath)""", lo)]
     out = {k: {s: blank() for s in names} for k in ('lines', 'err', 'warn', 'file_status')}   # None = service absent in that folder
     http = {k: blank(0) for k in ('total', 'n4xx', 'n5xx')}
-    pick = http_rows(cur, since=lo)   # per folder: the ingress, else the busiest access log
+    pick = http_rows(cur, since=lo, access=analysis.of(cfg).access_log)   # per folder: the ingress, else the busiest access log
     for f, s, lines, err, warn, n_corrupt, req, n4, n5 in rows:
         i = pos[f]
         out['lines'][s][i], out['err'][s][i], out['warn'][s][i] = lines, err, warn

@@ -6,7 +6,7 @@ Aggregates are derived via derive_folder(), filled in by a later stage.
 import concurrent.futures, datetime, json, multiprocessing, os, shutil, threading, time
 
 from monishield.infrastructure import db, derive, logfiles, refdata
-from monishield.domain import detect, log_formats, parse, retention, rules, services, timezone
+from monishield.domain import analysis, detect, log_formats, parse, retention, rules, services, timezone
 
 RAW_TABLES = list(parse.TABLES)
 _lock = threading.Lock()  # one ingest at a time (TRD §3.1)
@@ -159,7 +159,7 @@ def _run(cfg, con, only_folder, force, workers, progress):
         n = min(4, os.cpu_count() or 1) if workers is None else workers
         profile = services.current()   # passed to each subprocess: it does not see this process's state
         fr = log_formats.current()   # log-formats.toml rules; None outside the server/CLI (tests): by role, as before
-        args = [(f['path'], f['service'], f['out'], profile, f['known_sha'], f['pair'], f['ns'], fr) for f in todo]
+        args = [(f['path'], f['service'], f['out'], profile, f['known_sha'], f['pair'], f['ns'], fr, (analysis.of(cfg).request_id,) if analysis.of(cfg).request_id != analysis.AUTO else ()) for f in todo]
         if n and len(todo) > 2:
             with concurrent.futures.ProcessPoolExecutor(n, mp_context=multiprocessing.get_context('spawn')) as pool:
                 futs = [pool.submit(logfiles.work, *a) for a in args]

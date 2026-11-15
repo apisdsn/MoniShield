@@ -8,7 +8,7 @@ import dataclasses, os, re, tomllib
 
 from monishield.domain.config_model import SECRETS, Config, env_name   # noqa: F401  (re-exported through this module)
 from monishield.domain.config_model import cast as _cast
-from monishield.domain import alerts, client_address, collector_config, log_formats, retention, services, timezone
+from monishield.domain import alerts, analysis, client_address, collector_config, log_formats, retention, services, timezone
 from monishield.domain.errors import Fail
 
 V2_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # project root (formerly the v2/ folder in the dashboard-logging repo)
@@ -58,6 +58,7 @@ def load(env=None, dotenv=None):
     cfg.cache_dir = os.path.abspath(cfg.cache_dir or os.path.join(cfg.log_dir, '.cache'))
     cfg.state_dir = os.path.abspath(cfg.state_dir or cfg.data_dir)
     cfg.inbox_dir = os.path.abspath(cfg.inbox_dir or os.path.join(cfg.data_dir, 'inbox'))
+    cfg.analysis_file = os.path.abspath(cfg.analysis_file or os.path.join(cfg.state_dir, 'analysis.toml'))
     cfg.log_formats_file = os.path.abspath(cfg.log_formats_file or os.path.join(cfg.state_dir, 'log-formats.toml'))
     if cfg.attack_rules == 'lama': cfg.attack_rules = 'legacy'   # the value's earlier (Indonesian) name
     if cfg.attack_rules not in ('crs', 'legacy'): raise SystemExit("S4_ATTACK_RULES must be 'crs' or 'legacy'")
@@ -91,6 +92,7 @@ def load(env=None, dotenv=None):
     except alerts.AlertFail as e: raise SystemExit(f'S4_ALERT_SPIKE / S4_ALERT_SERVICE_SPIKE: {e}') from None
     if msg := services.validate(cfg.service_names, cfg.event_tag, cfg.business_endpoints):
         raise SystemExit(f'S4_SERVICE_NAMES / S4_EVENT_TAG / S4_BUSINESS_ENDPOINTS: {msg}')
+    analysis_settings(cfg)
     log_format_rules(cfg)   # a rules file that cannot be used stops the start, like a bad setting
     if not 5 <= cfg.password_reset_minutes <= 1440: raise SystemExit('S4_PASSWORD_RESET_MINUTES must be 5..1440')
     if not 1 <= cfg.geo_max_age_days <= 30: raise SystemExit('S4_GEO_MAX_AGE_DAYS must be 1..30 (GeoLite2 license)')
@@ -114,3 +116,13 @@ def log_format_rules(cfg):
     except tomllib.TOMLDecodeError as e: raise SystemExit(f'{path}: not valid TOML ({e})') from None
     except log_formats.FormatError as e: raise SystemExit(f'{path}: {e}') from None
 
+
+
+def analysis_settings(cfg):
+    """{source: Settings} from cfg.analysis_file (Analysis Settings); Auto everywhere without the file. SystemExit when it cannot be used."""
+    path = cfg.analysis_file
+    if not path or not os.path.exists(path): return analysis.defaults()
+    try:
+        with open(path, 'rb') as fh: return analysis.parse(tomllib.load(fh))
+    except tomllib.TOMLDecodeError as e: raise SystemExit(f'{path}: not valid TOML ({e})') from None
+    except analysis.AnalysisError as e: raise SystemExit(f'{path}: {e}') from None

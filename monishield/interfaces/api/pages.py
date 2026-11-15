@@ -16,7 +16,7 @@ from .common import ApiError, client_ip, cursor, folder_param, require_user_read
 router = APIRouter(prefix='/api/v1', dependencies=[Depends(require_user_ready)])
 
 
-def _cfg(request): return request.app.state.cfg
+def _cfg(request): return source_ctx(request).cfg   # the cfg of the source being viewed (its Analysis Settings, its paths)
 
 
 def _params(body):
