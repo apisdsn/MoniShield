@@ -303,7 +303,7 @@
     .bar .path { margin-left: 0; }
   }
   @media (max-width: 480px) {
-    .seg { display: flex; } .seg button { flex: 1; padding: 0 6px; }
+    .seg { display: flex; flex: 1 1 100%; } .seg button { flex: 1; padding: 0 6px; }
     .acts { display: grid; grid-template-columns: 1fr 1fr; } .acts .warn { grid-column: 1 / -1; } .acts .primary { grid-column: 1 / -1; }
   }
 </style>
