@@ -121,5 +121,12 @@ class MetricsStore:
         """A cursor for the read side (queries run beside a write; the caller closes it)."""
         return self.open().cursor()
 
+    def watch(self, collectors, now):
+        """Unusual values and almost-full disks for the notifications (queries/servers.py `watch`)."""
+        from monishield.infrastructure.queries import servers
+        cur = self.cursor()
+        try: return servers.watch(cur, collectors, now)
+        finally: cur.close()
+
     def rows(self, sql, params=()):
         with self.lock: return self.open().execute(sql, list(params)).fetchall()
