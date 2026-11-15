@@ -133,9 +133,17 @@ image has it).
 User menu → **Configuration** → *Notifications* section → tick Telegram / Discord / Email, fill in the credentials (bot token + chat ID,
 webhook URL, or SMTP server), **Save**, then **Send test**. Sent on: spikes (≥ 2× the average of 7 comparable folders),
 critical attacks, failed ingest, S3 sync problems, today's log folder not arrived yet (the hour can be set), a failed backup,
-and — if ticked — the **daily summary** of every new S3 folder. Messages contain only numbers and links, **no IP addresses**;
+three server events (below), and — if ticked — the **daily summary** of every new S3 folder. Messages contain only numbers and links, **no IP addresses**;
 credentials are never shown again after saving. The message language (Bahasa Indonesia or English) is chosen in the same
 section and applies to every channel.
+
+**Server events** (checked every 5 minutes, after each metrics roll-up): *Disk Almost Full* (a mount point at 90% or more; on by default),
+*Collector Offline* (a collector that stopped sending, status Offline; Late does not count; on by default, with one more message when
+it is Online again) and *Unusual Server Values* (a server or container far above its usual level for the hour, the same items as the
+Servers banner; off by default because it needs 5 days of data). An item alerts once until it clears; a new item while others are open
+sends a new message with the current counts, for example "Servers: 2 unusual values (memory 1, CPU 1)". The messages carry counts and a
+link to the Servers or Collectors page only: never a host, container, collector or mount point name. A `.env` that lists
+`S4_ALERT_EVENTS` explicitly keeps its list: tick the new events on the page.
 
 The daily summary is a short report in four parts: the status on the first line (🟢 all clear, 🟡 needs a look, 🔴 critical: a
 5xx rate ≥ 5 % with at least 50 requests, or critical attacks), the main numbers against the 7-day average (▲ ▼ ≈), a numbered

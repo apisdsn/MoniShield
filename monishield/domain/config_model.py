@@ -18,7 +18,7 @@ SECRETS = {'admin_password': 'S4_ADMIN_PASSWORD', 'job_token': 'S4_JOB_TOKEN', '
            'kafka_password': 'KAFKA_PASSWORD'}
 
 
-ALERT_EVENTS = ('spike', 'critical', 'ingest_failed', 'sync_failed', 'folder_missing', 'backup_failed', 'summary')
+ALERT_EVENTS = ('spike', 'critical', 'ingest_failed', 'sync_failed', 'folder_missing', 'backup_failed', 'metric_unusual', 'disk_full', 'collector_offline', 'summary')
 
 
 @dataclasses.dataclass
@@ -99,7 +99,7 @@ class Config:
     smtp_password: str = ''
     smtp_from: str = ''
     smtp_to: str = ''                 # recipients, comma-separated
-    alert_events: str = 'spike,critical,ingest_failed,sync_failed,folder_missing,backup_failed,summary'   # from ALERT_EVENTS, comma-separated
+    alert_events: str = 'spike,critical,ingest_failed,sync_failed,folder_missing,backup_failed,disk_full,collector_offline,summary'   # from ALERT_EVENTS, comma-separated
     alert_lang: str = 'id'
     dashboard_url: str = ''           # dashboard address for links in messages, e.g. https://monishield.example.com
     alert_missing_hour: int = 10      # hour (local time) of the "today's log folder has not arrived" check

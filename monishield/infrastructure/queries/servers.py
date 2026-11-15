@@ -92,6 +92,18 @@ def overview(cur, collectors, now, rng):
     return dict(range=rng, hosts=hosts, unusual=unusual(cur, by_id, n), disk_full=disk_full)
 
 
+def watch(cur, collectors, now):
+    """What the notifications look at (application/alert_service.py): -> dict(unusual=[(cid, host, ctr, name)], disk_full=[(cid, host, mount)]).
+    Only the keys, no names for a message: the notifications never carry a host, container or mount point."""
+    n = _naive(now)
+    by_id = {c['id']: c for c in collectors}
+    cids = sorted(by_id)
+    values = latest(cur, cids, n - CURRENT)
+    hosts = sorted({(cid, host) for cid, host, ctr, *_ in targets(cur, cids) if not ctr})
+    full = [(cid, host, d['mount']) for cid, host in hosts for d in _disks(values, cid, host) if metric_anomaly.almost_full(d['used'], d['total'])]
+    return dict(unusual=[(u['cid'], u['host'], u['ctr'], u['name']) for u in unusual(cur, by_id, n)], disk_full=full)
+
+
 # Unusual values
 def unusual(cur, by_id, n):
     """CPU and memory in use that are far above the same hour of the earlier days (domain/metric_anomaly.py), worst first."""

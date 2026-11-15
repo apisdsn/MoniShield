@@ -336,3 +336,16 @@ def test_container_counts_and_restarts_of_a_docker_host(world):
     d = out['details']
     assert d['containers'] == dict(running=1, stopped=2, restarts_24h=3)
     assert d['collector'] == dict(version='0.163.2', name='dock-01', group='prod', last_seen='2026-01-01T00:00:00Z')
+
+
+def test_watch_and_the_notifications_of_the_server_events(world):
+    """The same items as the Servers banner reach the notifier as keys, and the sent text has no name (stage 63)."""
+    tc, cid, store = world
+    seed_basic(store, cid)
+    seed_hours(store, cid, 'web-01', '', 'cpu', [10, 12, 8, 11, 9, 10, 10])
+    store.add(cid, series('web-01', '', 'cpu', ago(minutes=20), 40, 85.0), {('web-01', ''): dict(os=None, image=None)}, NOW)
+    r = tc.put('/api/v1/admin/alerts', json=dict(events=dict(metric_unusual=True, disk_full=True, collector_offline=True)), headers=X)
+    assert r.status_code == 200 and all(r.json()['events'][e] for e in ('metric_unusual', 'disk_full', 'collector_offline'))
+    assert {'metric_unusual', 'disk_full', 'collector_offline'} <= set(r.json()['events_all'])
+    watch = store.watch([c for c in tc.app.state.collectors.list() if c['status'] != 'waiting'], NOW)
+    assert (cid, 'web-01', '', 'cpu') in watch['unusual'] and watch['disk_full'] == [(cid, 'web-01', '/data')]
