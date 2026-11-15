@@ -176,21 +176,23 @@ def http_names(cur):
     return sorted({svc for ns, svc in pairs if (r := log_formats.match(rules, ns, svc)) and r.kind == 'http'} | {NG})
 
 
-def http_rows(cur, folder=None, since=None):
+def http_rows(cur, folder=None, since=None, access=None):
     """The service whose numbers the HTTP cards show, per folder -> {folder 'YYYY-MM-DD': dict(service, lines, requests, n4xx, n5xx)}.
     nginx-ingress-controller when the folder has its lines (the numbers are exactly the ingress', as before); else the access-log
-    service with the most requests. A folder without an access log is not in the result. One folder (`folder`) or every folder from `since`."""
+    service with the most requests. A folder without an access log is not in the result. One folder (`folder`) or every folder from `since`.
+    `access` = the service chosen in Analysis Settings (None or 'auto' = the choice above): only that service is looked at."""
     where, args = ('a.folder = ?', [folder]) if folder else ('a.folder >= ?', [since]) if since else ('true', [])
+    names = [access] if access and access != 'auto' else http_names(cur)
     rows = cur.execute(f"""SELECT folder::VARCHAR, service, lines, requests, n4xx, n5xx FROM (
                              SELECT a.folder, a.service, a.lines, a.requests, a.n4xx, a.n5xx,
                                     row_number() OVER (PARTITION BY a.folder ORDER BY (a.service = '{NG}') DESC, a.requests DESC, a.service) AS rn
                              FROM agg_service a
-                             WHERE {where} AND ((a.service = '{NG}' AND a.lines > 0) OR (a.requests > 0 AND list_contains(?, a.service)))) WHERE rn = 1""",
-                       [*args, http_names(cur)]).fetchall()
+                             WHERE {where} AND ((a.service = '{NG}' AND a.lines > 0 AND list_contains(?, a.service)) OR (a.requests > 0 AND list_contains(?, a.service)))) WHERE rn = 1""",
+                       [*args, names, names]).fetchall()
     return {f: dict(service=svc, lines=ln, requests=req, n4xx=n4, n5xx=n5) for f, svc, ln, req, n4, n5 in rows}
 
 
-def http_service(cur, folder): return http_rows(cur, folder=folder).get(str(folder))
+def http_service(cur, folder, access=None): return http_rows(cur, folder=folder, access=access).get(str(folder))
 
 
 def services(cur, folder): return {r[0]: r[1] for r in cur.execute('SELECT service, lines FROM agg_service WHERE folder = ?', [folder]).fetchall()}

@@ -89,6 +89,8 @@ Questions answered along the way, recorded so they are not asked again:
 
 ## Next steps (in order)
 
+0000000. **Analysis pages for any log (stage 62, done, 2026-11-15)**: Availability, Root Causes, Request Tracing, Containers and Business for the Collector source, and Configuration → *Analysis Settings* ([`10-user-guide.md`](10-user-guide.md), *Analysis Settings*). The S3 and Kafka numbers are unchanged (tests/test_api.py, tests/test_http_cards.py). Open: a re-parse of lines already read when the request ID field changes (new lines only for now); log line rules for services read by the legacy Spring Boot format; the Containers page lists only containers the Servers metrics know.
+
 000000. **Server details (stage 61, done, 2026-11-06)**: the Servers page has a details card and Load Average and Disk I/O charts ([`13-metrics.md`](13-metrics.md) sections 1, 2, 10). Existing collectors send the new numbers only after `install.sh --upgrade` (Windows `install.ps1 -Upgrade`, Kubernetes `helm upgrade`); until then the page shows the upgrade line. Not done: architecture of the server (only read from the OS text when it names one), network values on Kubernetes nodes.
 
 00000. **Home page and README (stage 60, done, 2026-11-06)**: the home page follows the approved mockups; the preview labels "Errors" and "Warnings / App 4xx" are the mockup's wording, while the app's own Overview still says "Error" and "Warning / App 4xx" (align one of them when the owner decides).

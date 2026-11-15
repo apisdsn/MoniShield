@@ -303,6 +303,25 @@ came in earlier keep their old reading until then). A change applies to that ser
 shows the rules in order: the first one whose name fits wins, the last one (`*`) catches every other service. The page writes
 `log-formats.toml` in the state folder and rewrites it when you save, so comments written by hand in it are not kept.
 
+### Analysis Settings
+
+The analysis pages need to know which service is the access log and which are the application logs. **Auto** (the default) reads what MoniShield
+did before: `nginx-ingress-controller` when the folder has its lines, otherwise the access log with the most requests, and every other service as an
+application log. Open **Configuration** → **Analysis Settings** (admin) to change that for one source (S3, Kafka or Collector); the settings are saved in
+`analysis.toml` in the state folder (`S4_ANALYSIS_FILE`) and used at once, without a restart.
+
+- **Access Log** feeds Availability, the HTTP cards and Security. Choose a service when Auto picks the wrong one.
+- **Application Logs** feed Root Causes and Request Tracing: Auto is every other service with lines, or choose the services.
+- **Request ID Field**: Auto reads `request_id`, `requestId`, `X-Request-ID`, `trace_id`, `traceId`, `reqId` and `correlation_id`; another name (dotted for nested
+  JSON, `meta.corr`) is read first. A new name applies to **new lines only**: lines already read keep their values (read today's folder again on the Log Formats
+  page to apply it to today). Request Tracing follows a request when the same ID is in the access log and in an application log: add `request_header X-Request-ID
+  {http.request.uuid}` and `log_append request_id {http.request.uuid}` to Caddy, `$request_id` to the nginx log format, and write the header in each application log line.
+- **Kubernetes Services** is a read-only line: the services named in the server's `.env` (events, authentication, report) whose sections stay hidden when a source has no such logs.
+- **Business Metrics** are rules, each on one service: a *Request* rule counts requests of its access log by method, path (as in the endpoint tables, ids read `:n` or `:id`;
+  a trailing `*` matches everything below) and status (`2xx` to `5xx`, or a code); a *Log Line* rule counts the application log lines that contain a text (capital letters do not matter).
+  **Test on This Folder** counts every rule over the newest folder without saving. The Business page shows one card per rule with the change against the previous folder; without rules it
+  suggests the successful POST endpoints of the access log, and **Add** opens the dialog filled in. A service read by a legacy format (Spring Boot) has no log line rules: choose another format on the Log Formats page.
+
 ### Raw Logs
 
 **Raw Logs** (Analysis group) shows the original lines of the services for the date in the header, exactly as they were
