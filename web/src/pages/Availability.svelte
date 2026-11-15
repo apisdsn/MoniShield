@@ -56,13 +56,13 @@
     <div class="kpis four">
       <Kpi icon="pulse" label={$t('any.av.requests')} value={k.requests} caption={a.service} />
       <Kpi icon="alert" label={$t('any.av.n5xx')} value={k.n5xx} tone="err" caption={$t('any.av.n5xx_share', { pct: share(k.n5xx, k.requests, num, $lang) })} />
-      <Kpi icon="clock" label={$t('any.av.p95')} value={k.p95_ms === null ? null : durMs(k.p95_ms, $lang)} missing={$t('any.av.no_time')}
+      <Kpi icon="clock" label={$t('any.av.p95')} value={k.p95_ms === null ? null : durMs(k.p95_ms, $lang)} missing={$t('any.av.no_time_sub')}
         caption={k.p50_ms === null ? null : $t('any.av.median', { v: durMs(k.p50_ms, $lang) })} />
-      <Kpi icon="route" label={$t('any.av.slowest')} value={k.slowest_ms === null ? null : durMs(k.slowest_ms, $lang)} missing={$t('any.av.no_time')} caption={k.slowest_path} />
+      <Kpi icon="route" label={$t('any.av.slowest')} value={k.slowest_ms === null ? null : durMs(k.slowest_ms, $lang)} missing={$t('any.av.no_time_sub')} caption={k.slowest_path} />
     </div>
     <div class="grid">
       <ChartCard title={$t('any.av.hour')} type="bar" timeAxis labels={data.hours}
-        datasets={[{ label: '5xx', data: data.hours.map((h) => n5ByHour[h] || 0), color: '--err' }]} options={{ plugins: { legend: { display: false } } }} />
+        datasets={[{ label: '5xx', data: data.hours.map((h) => n5ByHour[h] || 0), color: '--err' }]} options={{ plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }} />
       <StatusBars title={$t('any.av.status')} rows={data.status_classes} total={k.requests} note={$t('any.av.status_total', { n: num(k.requests, $lang) })} />
       <DataTable title={$t('any.av.endpoints')} rows={data.endpoints} limit={25} columns={[
         { key: 'path', label: $t('col.endpoint'), type: 'code', sort: true, minw: 220 },

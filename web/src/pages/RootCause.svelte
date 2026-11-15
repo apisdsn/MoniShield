@@ -6,7 +6,6 @@
   import { api } from '../api.js';
   import { num, sysName, cut } from '../format.js';
   import { build } from '../state.js';
-  import { formatName } from '../anyfmt.js';
   import AnalysisInfo from '../lib/AnalysisInfo.svelte';
   import Kpi from '../lib/Kpi.svelte';
   import ChartCard from '../lib/ChartCard.svelte';
@@ -88,13 +87,14 @@
       <div class="kpis four">
         <Kpi icon="alert" label={$t('any.rc.error_lines')} value={g.error_lines} tone="err" caption={$t(g.error_services === 1 ? 'any.rc.in_service' : 'any.rc.in_services', { n: num(g.error_services, $lang) })} />
         <Kpi icon="lines" label={$t('any.rc.distinct')} value={g.distinct} caption={$t('any.rc.distinct_sub')} />
-        <Kpi icon="server" label={$t('any.rc.upstream')} value={g.access || g.upstream.legacy ? upTotal : null} tone="err" missing={$t('any.rc.no_access_short')} caption={$t('any.rc.upstream_sub')} />
-        <Kpi icon="clock" label={$t('any.rc.busiest')} value={g.busiest ? g.busiest.hour.slice(11) + ':00' : null} missing={$t('any.rc.no_times')}
-          caption={g.busiest ? $t('any.rc.busiest_sub', { n: num(g.busiest.n, $lang) }) : null} />
+        <Kpi icon="server" label={$t('any.rc.upstream')} value={g.access || g.upstream.legacy ? upTotal : null} tone="err" missing={$t('any.rc.no_access_sub')} caption={$t('any.rc.upstream_sub')} />
+        <Kpi icon="clock" label={$t('any.rc.busiest')} value={g.busiest ? g.busiest.hour.slice(11) + ':00' : null} missing={$t('any.rc.no_times_sub')}
+          caption={g.busiest ? $t(g.busiest.n === 1 ? 'any.rc.busiest_one_sub' : 'any.rc.busiest_sub', { n: num(g.busiest.n, $lang) }) : null} />
       </div>
       <div class="grid one">
         {#if g.messages.length}
-          <DataTable title={$t('any.rc.freq')} chip={$t('any.rc.freq_note')} rows={g.messages} limit={25} columns={[
+          <p class="muted tnote">{$t('any.rc.freq_note')}</p>
+          <DataTable title={$t('any.rc.freq')} rows={g.messages} limit={25} columns={[
             { key: 'key', label: $t('col.message'), type: 'code', fmt: (r) => r.key.split(' | ').slice(1).join(' | ') || r.key, sort: true, minw: 260 },
             { key: 'service', label: $t('col.service'), sort: true },
             { key: 'n', label: $t('col.lines'), type: 'num', sort: true },
@@ -108,7 +108,8 @@
           <Note>{$t('any.rc.no_errors')}</Note>
         {/if}
         {#if !g.upstream.legacy && g.upstream.rows.length}
-          <DataTable title={$t('any.rc.up_title')} chip={$t('any.rc.up_note')} rows={g.upstream.rows} limit={25} columns={[
+          <p class="muted tnote">{$t('any.rc.up_note')}</p>
+          <DataTable title={$t('any.rc.up_title')} rows={g.upstream.rows} limit={25} columns={[
             { key: 'backend', label: $t('any.rc.backend'), type: 'code', fmt: (r) => r.backend || $t('any.rc.unknown_backend'), sort: true },
             { key: 'n502', label: '502', type: 'num', sort: true },
             { key: 'n503', label: '503', type: 'num', sort: true },
@@ -186,8 +187,9 @@
 
 <style>
   .after { margin-top: 18px; }
+  .tnote { margin: 0 4px 6px; font-size: 0.8125rem; }
   .grid.one { grid-template-columns: minmax(0, 1fr); margin-bottom: 18px; }
-  .open { display: inline-flex; align-items: center; min-height: var(--touch); color: var(--accent-text); white-space: nowrap; }
+  .open { display: inline-block; padding: 12px 0; margin: -12px 0; line-height: 1.25rem; color: var(--accent-text); white-space: nowrap; }
   .content { transition: opacity 0.15s; }
   .content.dim { opacity: 0.6; }
   .refresh { font-weight: 500; }

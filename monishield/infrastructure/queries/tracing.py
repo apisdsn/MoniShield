@@ -14,7 +14,7 @@ def tracing(cur, folder, cfg=None):
         # no events service: follow a request by the ID that the access log and an application log both write (stage 62)
         st = analysis.of(cfg)
         a = q_analysis.access(cur, folder, st)
-        if q_analysis.generic_access(a) and profile.current().events not in services(cur, folder): return _generic(cur, folder, st, a)
+        if q_analysis.generic_access(a): return _generic(cur, folder, st, a)
         return _no('no_events_service' if profile.current().events not in services(cur, folder) else 'no_correlation')
     failed = 'folder = ? AND status BETWEEN 400 AND 599'
     by_ip = cells(cur, [dict(ip=ip, n=n) for ip, n in _all(cur, f'SELECT ip, sum(n)::BIGINT FROM agg_trace WHERE {failed} GROUP BY ip ORDER BY 2 DESC, 1 LIMIT 10', folder)], ('ip',))

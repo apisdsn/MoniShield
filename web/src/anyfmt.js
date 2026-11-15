@@ -12,5 +12,5 @@ export function share(a, b, num, lang) {
   return `${num(p, lang, p === 0 || p >= 10 ? (p === 100 || p === 0 ? 0 : 1) : p >= 1 ? 1 : 2)}%`;
 }
 
-/** The match of a business rule as one line: "POST /api/orders · 2xx" is built by the page with its own words; this gives the parts. */
+/** The method and path of a business rule as one text; the page adds the status in its own words. */
 export const ruleParts = (r) => [r.method, r.path].filter(Boolean).join(' ');

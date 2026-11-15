@@ -16,7 +16,7 @@
   import Logo from './Logo.svelte';
   import Icon from './Icon.svelte';
   import { CONFIG, configOpen, openConfig } from './ConfigDialogs.svelte';
-  let { route, summary = null, ingest = null, onpick = null, collapsed = false, ontoggle = null, admin = false } = $props();
+  let { route, summary = null, ingest = null, onpick = null, collapsed = false, ontoggle = null, admin = false, containers = false } = $props();
 
   // open/closed groups, per browser (wrapped: storage can be missing or blocked)
   const KEY = 'nav-groups';
@@ -38,6 +38,7 @@
                  availability: 'pulse', pods: 'box', business: 'briefcase', tracing: 'route', 'raw-logs': 'terminal', servers: 'server' };
   const ingestTone = $derived(ingest?.running ? 'accent' : ingest?.last_status === 'ok' ? 'ok' : ingest?.last_status ? 'err' : '');
 
+  const label = (tab) => (tab === 'pods' && containers ? 'tab.containers' : `tab.${tab}`);   // Docker hosts: the Pods page is the Containers page
   const href = (patch) => build({ ...route, ...patch, q: null, ...(patch.tab !== 'service' ? { service: null } : {}) });
   const active = (tab, service = null) => (route.tab === tab && (tab !== 'service' || route.service === service) ? 'page' : undefined);
 </script>
@@ -57,8 +58,8 @@
   <ul aria-labelledby="nav-analisis">
     {#each TABS as tab}
       <li>
-        <a href={href({ tab })} aria-current={active(tab)} onclick={onpick} title={tip($t(`tab.${tab}`))}>
-          <Icon name={ICON[tab]} /><span class="lbl">{$t(`tab.${tab}`)}</span>
+        <a href={href({ tab })} aria-current={active(tab)} onclick={onpick} title={tip($t(label(tab)))}>
+          <Icon name={ICON[tab]} /><span class="lbl">{$t(label(tab))}</span>
           {#if tab === 'security' && summary?.attack_ip_count}
             <span class="b" aria-hidden="true">{summary.attack_ip_count === 1 ? $t('nav.badge_ips_one') : $t('nav.badge_ips', { n: num(summary.attack_ip_count, $lang) })}</span><span class="pip" aria-hidden="true"></span>
             <span class="sr-only">{$t('nav.badge_attack', { n: num(summary.attack_ip_count, $lang) })}</span>
@@ -103,6 +104,11 @@
           <li>
             <a href={href({ tab: 'admin/log-formats' })} aria-current={active('admin/log-formats')} onclick={onpick} title={tip($t('nav.cfg.logformats'))}>
               <Icon name="lines" /><span class="lbl">{$t('nav.cfg.logformats')}</span>
+            </a>
+          </li>
+          <li>
+            <a href={href({ tab: 'admin/analysis' })} aria-current={active('admin/analysis')} onclick={onpick} title={tip($t('nav.cfg.analysis'))}>
+              <Icon name="settings" /><span class="lbl">{$t('nav.cfg.analysis')}</span>
             </a>
           </li>
         {/if}

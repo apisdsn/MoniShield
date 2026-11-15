@@ -13,9 +13,12 @@
   import Skeleton from '../lib/Skeleton.svelte';
   import ErrorState from '../lib/ErrorState.svelte';
   import { site } from '../site.js';
+  import { route, go, build } from '../state.js';
+  import AnalysisInfo from '../lib/AnalysisInfo.svelte';
+  import Icon from '../lib/Icon.svelte';
 
   const SL = $derived($site.roles.events), AM = $derived($site.roles.auth), RP = $derived($site.roles.report);
-  let { folder, summary, reloadKey = 0, onready = null } = $props();
+  let { folder, summary, reloadKey = 0, onready = null, admin = false } = $props();
   let data = $state.raw(null), busy = $state(false), error = $state(null);
   let seq = 0;
   async function load() {
@@ -41,6 +44,18 @@
   const B = (k) => (has(SL) ? data.biz[k] || 0 : null);
   const d = (k) => (has(SL) && data.biz_prev && data.prev_folder
     ? delta(data.biz[k] || 0, data.biz_prev[k] || 0, data.prev_folder, $lang, { good: true, comparable: cmp }) : null);
+  // stage 62: the rules of Analysis Settings (one card each); the events-service cards stay for sites that have those logs
+  const C = $derived(data?.custom);
+  const legacy = $derived(has(SL) || has(AM) || has(RP));
+  const ruleText = (r) => (r.match === 'log_line' ? $t('any.bz.rule_line', { text: r.text })
+    : [[r.method, r.path].filter(Boolean).join(' '), r.status ? $t('any.bz.rule_status', { s: r.status }) : ''].filter(Boolean).join(' · '));
+  const rd = (r) => (r.prev === null || !C.prev_folder ? null : delta(r.n, r.prev, C.prev_folder, $lang, { good: true, comparable: r.comparable }));
+  const srcName = $derived($t(`src.${$route.source}`));
+  const sugText = (r) => ruleText(r);
+  function add(rule) {
+    try { sessionStorage.setItem('analysis-prefill', JSON.stringify({ source: $route.source, rule })); } catch { /* the dialog opens empty */ }
+    go({ tab: 'admin/analysis', service: null, q: null });
+  }
   const bizRows = $derived(Object.entries(data?.biz || {}).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])));
   const act = $derived(data?.tables.activity || { total: 0, rows: [] });
   const pdfT = $derived(data?.tables['pdf-templates'] || { total: 0, rows: [] });
@@ -54,6 +69,36 @@
 {:else}
   {@const miss = (s) => $t('bz.no_log', { svc: s })}
   <div class="content" class:dim={busy}>
+    {#if C.rules.length}
+      <AnalysisInfo {admin} text={$t('any.bz.info', { n: num(C.rules.length, $lang) })} />
+      <div class="kpis">
+        {#each C.rules as r (r.name)}
+          <Kpi icon="briefcase" label={r.name} value={r.has_logs ? r.n : null} delta={r.has_logs ? rd(r) : null} missing={miss(r.service)} caption={ruleText(r)} />
+        {/each}
+      </div>
+    {:else if !legacy}
+      <AnalysisInfo {admin} text={$t('any.bz.info_none', { src: srcName })} />
+      <section class="card empty">
+        <span class="ic"><Icon name="briefcase" size={26} /></span>
+        <div class="tx">
+          <h2>{$t('any.bz.empty_title')}</h2>
+          <p class="muted">{$t('any.bz.empty_text')}</p>
+        </div>
+        {#if admin}<a class="btn primary" href={build({ tab: 'admin/analysis', service: null, q: null })}>{$t('any.bz.setup')}</a>{/if}
+      </section>
+      {#if C.suggestions.length}
+        <DataTable title={$t('any.bz.suggested')} chip={null} rows={C.suggestions.map((x) => ({ ...x, rule: x.rule, text: sugText(x.rule), name: x.rule.name }))} limit={10} columns={[
+          { key: 'text', label: $t('any.bz.col.rule'), type: 'code', minw: 260 },
+          { key: 'name', label: $t('any.bz.col.name'), sort: true },
+          { key: 'count', label: $t('any.bz.col.today'), type: 'num', sort: true },
+          ...(admin ? [{ key: 'add', label: '', custom: true }] : []),
+        ]}>
+          {#snippet cell(r)}<button type="button" class="btn" onclick={() => add(r.rule)}>{$t('any.bz.add')}</button>{/snippet}
+        </DataTable>
+      {/if}
+      <div class="after"><Note>{$t('any.bz.note')}</Note></div>
+    {/if}
+    {#if legacy}
     <div class="kpis">
       <Kpi icon="file" label={bizLabel('reports_created')} value={B('reports_created')} delta={d('reports_created')} missing={miss(SL)} />
       <Kpi icon="file" label={bizLabel('report_registrations')} value={B('report_registrations')} delta={d('report_registrations')} missing={miss(SL)} />
@@ -100,10 +145,18 @@
         ]} />
       {/if}
     </div>
+    {/if}
   </div>
 {/if}
 
 <style>
+  .empty { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 22px 24px; margin-bottom: 18px; }
+  .ic { width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center; background: var(--icon-bg); border: 1px solid var(--icon-border); color: var(--accent-text); flex: none; }
+  .tx { flex: 1 1 320px; min-width: 0; }
+  .tx h2 { margin: 0 0 4px; font-size: 1.0625rem; font-weight: 600; color: var(--heading); }
+  .tx p { margin: 0; font-size: 0.875rem; }
+  .empty .btn { display: inline-flex; align-items: center; text-decoration: none; min-height: var(--touch); }
+  .after { margin-top: 18px; }
   .content { transition: opacity 0.15s; }
   .content.dim { opacity: 0.6; }
   .content :global(.note) { margin-bottom: 18px; }

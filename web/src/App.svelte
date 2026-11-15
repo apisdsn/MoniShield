@@ -17,6 +17,8 @@
   import VolumeBand from './lib/VolumeBand.svelte';
   import Header from './lib/Header.svelte';
   import LogFormats from './pages/LogFormats.svelte';
+  import AnalysisSettings from './pages/AnalysisSettings.svelte';
+  import Containers from './pages/Containers.svelte';
   import EmptyState from './lib/EmptyState.svelte';
   import ErrorState from './lib/ErrorState.svelte';
   import Toast, { toast } from './lib/Toast.svelte';
@@ -224,6 +226,8 @@
     if (r.tab === 'admin/ingest') return $t('menu.ingest');
     if (r.tab === 'collectors') return $t('nav.collectors');
     if (r.tab === 'admin/log-formats') return $t('nav.cfg.logformats');
+    if (r.tab === 'admin/analysis') return $t('nav.cfg.analysis');
+    if (r.tab === 'pods' && meta?.containers && meta.source === 'collector') return $t('tab.containers');
     return $t(`tab.${r.tab}`);
   });
   // Trends covers every folder: one line under the header says so
@@ -305,7 +309,7 @@
 {:else}
   <a class="skip" href="#main" onclick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>{$t('ui.skip')}</a>
   <aside id="side" class="side" class:open={drawer} class:collapsed aria-label={$t('nav.label')}>
-    <Sidebar route={{ ...$route, folder }} {summary} ingest={meta?.ingest} onpick={() => (drawer = false)} {collapsed} ontoggle={toggleSide} admin={me?.role === 'admin'} />
+    <Sidebar route={{ ...$route, folder }} {summary} ingest={meta?.ingest} onpick={() => (drawer = false)} {collapsed} ontoggle={toggleSide} admin={me?.role === 'admin'} containers={!!meta?.containers && meta.source === 'collector'} />
   </aside>
   {#if drawer}<button class="backdrop" aria-label={$t('nav.close')} onclick={closeDrawer}></button>{/if}
 
@@ -360,6 +364,8 @@
         <Collectors {onready} />
       {:else if $route.tab === 'admin/log-formats'}
         <LogFormats {onready} />
+      {:else if $route.tab === 'admin/analysis'}
+        <AnalysisSettings {onready} />
       {:else if $route.tab === 'servers'}
         <Servers admin={me.role === 'admin'} {reloadKey} {onready} />
       {:else if !folders.length}
@@ -373,19 +379,23 @@
           {:else if $route.tab === 'security'}
             <Security {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} />
           {:else if $route.tab === 'root-causes'}
-            <RootCause {folder} dnsUpstream={meta?.dns_upstream || ''} {reloadKey} {onready} />
+            <RootCause {folder} dnsUpstream={meta?.dns_upstream || ''} {reloadKey} {onready} admin={me.role === 'admin'} />
           {:else if $route.tab === 'availability'}
-            <Availability {folder} {reloadKey} {onready} />
+            <Availability {folder} {reloadKey} {onready} admin={me.role === 'admin'} />
           {:else if $route.tab === 'trends'}
             <Trends {reloadKey} {onready} />
           {:else if $route.tab === 'command-center'}
             <CommandCenter {folder} server={meta?.server} {reloadKey} {onready} />
           {:else if $route.tab === 'pods'}
-            <Pods {folder} {summary} {reloadKey} {onready} />
+            {#if meta?.containers && meta.source === 'collector'}
+              <Containers {folder} {reloadKey} {onready} admin={me.role === 'admin'} />
+            {:else}
+              <Pods {folder} {summary} {reloadKey} {onready} />
+            {/if}
           {:else if $route.tab === 'business'}
-            <Business {folder} {summary} {reloadKey} {onready} />
+            <Business {folder} {summary} {reloadKey} {onready} admin={me.role === 'admin'} />
           {:else if $route.tab === 'tracing'}
-            <Tracing {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} />
+            <Tracing {folder} hosts={meta?.hosts || {}} {reloadKey} {onready} admin={me.role === 'admin'} />
           {:else if $route.tab === 'raw-logs'}
             <RawLogs {folder} {summary} {onready} />
           {:else if $route.tab === 'ip'}

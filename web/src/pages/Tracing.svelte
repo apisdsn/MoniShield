@@ -39,7 +39,6 @@
   $effect(() => { void [folder, reloadKey]; if (folder) load(); });
 
   const pct1 = (a, b) => (b ? `${num((a / b) * 100, $lang, 1)}%` : '-');
-  // long URLs truncated to 200 characters (old); full text in the cell tooltip
   // stage 62: any source, matched by the request ID that the access log and an application log both write
   const rawHref = (id) => build({ tab: 'raw-logs', service: null, folder, module: null, q: id, svc: null, pod: null });
   const short = (id) => (id.length > 14 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id);
@@ -48,6 +47,7 @@
                '# JSON line: {"level":"info","request_id":"7f3a…","msg":"saved order"}'];
   const SAMPLE = [['7f3a…c21e', 'POST', '/api/v1/collector/logs', 200, 120, 'ok'], ['b19d…04aa', 'GET', '/api/v1/overview', 502, 1400, 'timeout'], ['c2e8…9f10', 'GET', '/api/v1/servers', 200, 84, 'ok']];
   const appWith = (g) => Object.values(g.ids.app).reduce((a, v) => a + v[0], 0);
+  // long URLs truncated to 200 characters (old); full text in the cell tooltip
   const cut200 = (s) => (s.length > 200 ? s.slice(0, 199) + '…' : s);
 </script>
 
@@ -176,7 +176,7 @@
   .pr .r { text-align: right; font-variant-numeric: tabular-nums; }
   .pr .bad { color: var(--err); }
   .mono { font-family: var(--mono); font-size: 0.8125rem; overflow-wrap: anywhere; }
-  .open { color: var(--accent-text); display: inline-flex; align-items: center; min-height: var(--touch); }
+  .open { display: inline-block; padding: 12px 0; margin: -12px 0; line-height: 1.25rem; color: var(--accent-text); white-space: nowrap; }
   @media (max-width: 900px) {
     .pr { grid-template-columns: minmax(0, 1fr) auto; padding: 8px 14px; }
     .pr.h { display: none; }

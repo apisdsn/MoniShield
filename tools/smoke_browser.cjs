@@ -9,7 +9,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8777';
 const SHOTS = process.argv[3] || '';
 const PW0 = 'smoke-test-first-password', PW1 = 'Smoke-Test-Second-Password-2026!';
 const PAGES = ['overview', 'command-center', 'trends', 'security', 'root-causes', 'availability', 'pods', 'business', 'tracing', 'raw-logs',
-  'services/event-api', 'servers', 'collectors', 'admin/log-formats', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
+  'services/event-api', 'servers', 'collectors', 'admin/log-formats', 'admin/analysis', 'admin/users', 'admin/ingest', 'admin/configuration', 'admin/notifications'];
 const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lang: 'id', source: 'collector' }, { lang: 'en', source: '' }];
 
 (async () => {
@@ -521,11 +521,11 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.goto(BASE + '/admin/log-formats');
   await page.waitForSelector('.lf .tbl .r:not(.h)');
   const lfNames = await page.$$eval('.tbl .svc b', (es) => es.map((e) => e.textContent));
-  if (!lfNames.includes('monishield-https-1') || !lfNames.includes('monishield-app-1')) throw new Error(`Log Formats: services ${lfNames}`);
-  const appRow = page.locator('.tbl .r:has-text("monishield-app-1")');
+  if (!lfNames.includes('monishield-https-1') || !lfNames.includes('monishield-postgres-1')) throw new Error(`Log Formats: services ${lfNames}`);
+  const appRow = page.locator('.tbl .r:has-text("monishield-postgres-1")');
   // the suggestion box is always there (its height is kept); wait for the text the suggestion request fills in
   try { await appRow.locator('.sug', { hasText: 'Suggested: plain' }).waitFor({ timeout: 15000 }); }
-  catch { throw new Error(`Log Formats: no "Suggested: plain" for monishield-app-1 (shows "${await appRow.locator('.sug').innerText()}")`); }
+  catch { throw new Error(`Log Formats: no "Suggested: plain" for monishield-postgres-1 (shows "${await appRow.locator('.sug').innerText()}")`); }
   if ((await page.locator('#folder-select').count()) || (await page.locator('.seg[role=radiogroup]').count())) throw new Error('Log Formats: date picker or source switch shown');
   await appRow.locator('select').selectOption('plain');
   await page.waitForSelector('.testp .tr.mono');
@@ -537,7 +537,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.click('[role=tab]:has-text("Rules (Advanced)")');
   await page.waitForSelector('.rule.last');
   const ruleNames = await page.$$eval('.rule .who .mono', (es) => es.map((e) => e.textContent));
-  if (!ruleNames.includes('docker-host-01/monishield-app-1') || ruleNames[ruleNames.length - 1] !== '*') throw new Error(`Log Formats: rules ${ruleNames}`);
+  if (!ruleNames.includes('docker-host-01/monishield-postgres-1') || ruleNames[ruleNames.length - 1] !== '*') throw new Error(`Log Formats: rules ${ruleNames}`);
   if (await page.locator('.rule.last [aria-label="Delete rule"]').count()) throw new Error('Log Formats: the catch-all rule can be deleted');
   await page.locator('.rule').first().locator('button:has-text("Edit")').click();
   await page.waitForSelector('dialog[open] #lf-match');
@@ -600,6 +600,70 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
   await page.setViewportSize({ width: 1440, height: 900 });
   console.log('ok   consistency: toolbar heights and centres, no glyph icons, 44 px targets at 390 px, one row height, no coloured dash');
 
+  // Analysis pages of the Collector source (stage 62): the state each page shows for a Caddy JSON access log and a JSON application log without a
+  // request ID, then the Analysis Settings page (add a business metric from the suggestions, save) and the Business page with that metric.
+  // At 1440, 1280 and 390 px: nothing scrolls sideways, the cards of one row of KPIs have one height, no glyph icons, 44 px targets on a phone.
+  await page.evaluate(() => localStorage.setItem('lang', 'en'));
+  const ANALYSIS = [
+    { path: '/availability', has: ['.strip:has-text("monishield-https-1")', '.kpis.four .kpi >> nth=3', '.sb li >> nth=3', 'table, [role=table]'] },
+    { path: '/root-causes', has: ['.strip:has-text("monishield-app-1")', '.kpis.four .kpi >> nth=3', 'text=Most Frequent Error Messages', 'text=Upstream Errors >> nth=1'] },
+    { path: '/pods', has: ['header.top h1:has-text("Containers")', '.kpis.four .kpi >> nth=3', 'text=Containers on docker-host-01', 'nav a:has-text("Containers")'] },
+    { path: '/tracing', has: ['.strip:has-text("not found in both logs")', '.setup .tile >> nth=2', '.preview', 'text=request_header X-Request-ID'] },
+    { path: '/business', has: ['.strip:has-text("No business metrics")', '.empty a:text-is("Set Up Business Metrics")', 'text=Suggested from This Folder'] },
+    { path: '/admin/analysis', has: ['.as .bar', '.roles .row >> nth=3', 'text=Business Metrics'] },
+  ];
+  const layout = () => page.evaluate(() => {
+    const out = [], vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    const over = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+    if (over > 0) out.push(`sideways scroll by ${over}px`);
+    for (const box of document.querySelectorAll('.kpis')) {
+      const rows = new Map();
+      for (const k of box.querySelectorAll(':scope > .kpi')) if (vis(k)) { const top = Math.round(k.getBoundingClientRect().top / 4); (rows.get(top) || rows.set(top, []).get(top)).push(k); }
+      for (const row of rows.values()) { const hs = row.map((k) => k.getBoundingClientRect().height); if (Math.max(...hs) - Math.min(...hs) > 1.01 && innerWidth > 900) out.push(`KPI cards of one row have heights ${hs.map(Math.round)}`); }
+    }
+    for (const e of document.querySelectorAll('main button, main a.btn, dialog button')) {
+      const t = (e.innerText || '').trim();
+      if (vis(e) && (/^[×✕✖▲▼△▽⌕☼☀☾◀▶⌄⌃⟳]+$/u.test(t) || (!t && !e.querySelector('svg, img') && !e.hasAttribute('aria-hidden')))) out.push(`glyph or empty icon button "${t}"`);
+    }
+    if (innerWidth < 800) for (const e of document.querySelectorAll('main button, main a.btn, main input:not([type=hidden]), main select')) {
+      if (!vis(e) || e.closest('.sr-only')) continue;
+      const r = e.getBoundingClientRect();
+      if (r.height < 43.5) out.push(`target ${e.tagName.toLowerCase()}"${(e.innerText || e.getAttribute('aria-label') || '').trim().slice(0, 20)}" ${Math.round(r.width)}x${Math.round(r.height)}`);
+    }
+    return out;
+  });
+  for (const [width, phone] of [[1440, false], [1280, false], [390, true]]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const a of ANALYSIS) {
+      await page.goto(BASE + a.path + '?source=collector');
+      await page.waitForSelector('main#main[aria-busy="false"]');
+      await page.waitForTimeout(900);
+      for (const sel of a.has) if (!(await page.locator(sel).first().count())) throw new Error(`${a.path} at ${width}px: nothing matches ${sel}`);
+      const found = await layout();
+      if (found.length) throw new Error(`${a.path} at ${width}px: ${[...new Set(found)].slice(0, 6).join(' | ')}`);
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(BASE + '/business?source=collector');
+  await page.waitForSelector('main#main[aria-busy="false"]');
+  await page.locator('tr:has-text("/api/v1/auth/login") button:text-is("Add")').click();
+  await page.waitForSelector('dialog[open] #as-name');
+  if ((await page.inputValue('#as-path')) !== '/api/v1/auth/login' || (await page.inputValue('#as-name')) !== 'Auth Login') throw new Error('Analysis Settings: the suggestion did not fill the dialog');
+  await page.fill('#as-name', 'Sign-ins');
+  await page.click('dialog button[type=submit]');
+  await page.click('button:has-text("Test on This Folder")');
+  await page.waitForSelector('text=nothing was saved');
+  if (!(await page.locator('.tbl .r:has-text("Sign-ins") .n').innerText()).match(/^\d+$/)) throw new Error('Analysis Settings: the test did not count the rule');
+  await page.click('button:has-text("Save Settings")');
+  await page.waitForSelector('text=Settings saved');
+  await page.goto(BASE + '/business?source=collector');
+  await page.waitForSelector('main#main[aria-busy="false"]');
+  await page.waitForSelector('.kpis .kpi:has-text("Sign-ins")');
+  if (!(await page.locator('.strip').innerText()).includes('1 business metrics')) throw new Error('Business: the info strip does not count the rule');
+  const rf = await layout();
+  if (rf.length) throw new Error(`Business with a metric: ${rf.join(' | ')}`);
+  console.log('ok   Analysis pages (Collector): states, no sideways scroll, one card height per row, no glyph icons, 44 px targets, add a metric from a suggestion, test, save, Business card');
+
   // The header keeps the title and the controls on one row at 1440 px; the numbers of one row of KPI cards share a top at 1440 and 1280 px
   for (const width of [1440, 1280]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -652,7 +716,7 @@ const RUNS = [{ lang: 'id', source: '' }, { lang: 'id', source: 'kafka' }, { lan
         if (picked !== null && picked !== (run.source || 's3')) problems.push(`source switch shows the wrong source: ${picked}`);
         // folder-wide volume band: on folder pages, never on a service page (its own numbers would contradict it)
         const band = await page.locator('section.vb').count();
-        if (p.startsWith('services/') && band) problems.push('volume band shown on a service page');
+        if (p.startsWith('services/') && band && new URL(page.url()).pathname.startsWith('/services/')) problems.push('volume band shown on a service page');   // (the collector source has no such service: its page opens the Overview)
       } catch (e) { problems.push(`did not load: ${e.message.split('\n')[0]}`); }
       checked++;
       const tag = `${run.lang} ${url}`;
