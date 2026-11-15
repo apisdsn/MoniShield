@@ -1543,6 +1543,13 @@ the cards, full width, for several) and six charts of one structure (title, lege
 browser smoke test checks rows, heights, tiles and the upgrade line at 1440 and 1280 px. Existing collectors need `install.sh --upgrade` (Windows `install.ps1 -Upgrade`,
 Kubernetes `helm upgrade`).
 
+## Stage 63 — Notifications for server metrics and collectors (done, 2026-11-15)
+
+Events `metric_unusual`, `disk_full` and `collector_offline` (with a "back online" message) in the existing notification model: settings and toggles on the
+Notifications page, once per item until it clears (ids hashed, state in the app setting `alert_open`), checked after each metrics roll-up, messages with counts
+and a link only. `MetricsStore.watch` and `queries/servers.watch` give the items; the rules and texts are in `domain/alerts.py`. Tests: `tests/test_alerts_servers.py`,
+`tests/test_servers_api.py`. Details: [`13-metrics.md`](13-metrics.md) section 9a.
+
 ## Stage 62 — Analysis pages for any log, and Analysis Settings (done, 2026-11-15)
 
 Approved mockup "Availability, Root Causes, Containers, Request Tracing, Business + Analysis Settings". `domain/analysis.py` (settings, validation, TOML writer, rule matching),
