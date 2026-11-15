@@ -133,9 +133,17 @@ image has it).
 User menu → **Configuration** → *Notifications* section → tick Telegram / Discord / Email, fill in the credentials (bot token + chat ID,
 webhook URL, or SMTP server), **Save**, then **Send test**. Sent on: spikes (≥ 2× the average of 7 comparable folders),
 critical attacks, failed ingest, S3 sync problems, today's log folder not arrived yet (the hour can be set), a failed backup,
-and — if ticked — the **daily summary** of every new S3 folder. Messages contain only numbers and links, **no IP addresses**;
+three server events (below), and — if ticked — the **daily summary** of every new S3 folder. Messages contain only numbers and links, **no IP addresses**;
 credentials are never shown again after saving. The message language (Bahasa Indonesia or English) is chosen in the same
 section and applies to every channel.
+
+**Server events** (checked every 5 minutes, after each metrics roll-up): *Disk Almost Full* (a mount point at 90% or more; on by default),
+*Collector Offline* (a collector that stopped sending, status Offline; Late does not count; on by default, with one more message when
+it is Online again) and *Unusual Server Values* (a server or container far above its usual level for the hour, the same items as the
+Servers banner; off by default because it needs 5 days of data). An item alerts once until it clears; a new item while others are open
+sends a new message with the current counts, for example "Servers: 2 unusual values (memory 1, CPU 1)". The messages carry counts and a
+link to the Servers or Collectors page only: never a host, container, collector or mount point name. A `.env` that lists
+`S4_ALERT_EVENTS` explicitly keeps its list: tick the new events on the page.
 
 The daily summary is a short report in four parts: the status on the first line (🟢 all clear, 🟡 needs a look, 🔴 critical: a
 5xx rate ≥ 5 % with at least 50 requests, or critical attacks), the main numbers against the 7-day average (▲ ▼ ≈), a numbered
@@ -302,6 +310,25 @@ the select and press **Save Rules**. The rules are in use at once; **Read Today 
 came in earlier keep their old reading until then). A change applies to that service on that host only. The **Rules (Advanced)** tab
 shows the rules in order: the first one whose name fits wins, the last one (`*`) catches every other service. The page writes
 `log-formats.toml` in the state folder and rewrites it when you save, so comments written by hand in it are not kept.
+
+### Analysis Settings
+
+The analysis pages need to know which service is the access log and which are the application logs. **Auto** (the default) reads what MoniShield
+did before: `nginx-ingress-controller` when the folder has its lines, otherwise the access log with the most requests, and every other service as an
+application log. Open **Configuration** → **Analysis Settings** (admin) to change that for one source (S3, Kafka or Collector); the settings are saved in
+`analysis.toml` in the state folder (`S4_ANALYSIS_FILE`) and used at once, without a restart.
+
+- **Access Log** feeds Availability, the HTTP cards and Security. Choose a service when Auto picks the wrong one.
+- **Application Logs** feed Root Causes and Request Tracing: Auto is every other service with lines, or choose the services.
+- **Request ID Field**: Auto reads `request_id`, `requestId`, `X-Request-ID`, `trace_id`, `traceId`, `reqId` and `correlation_id`; another name (dotted for nested
+  JSON, `meta.corr`) is read first. A new name applies to **new lines only**: lines already read keep their values (read today's folder again on the Log Formats
+  page to apply it to today). Request Tracing follows a request when the same ID is in the access log and in an application log: add `request_header X-Request-ID
+  {http.request.uuid}` and `log_append request_id {http.request.uuid}` to Caddy, `$request_id` to the nginx log format, and write the header in each application log line.
+- **Kubernetes Services** is a read-only line: the services named in the server's `.env` (events, authentication, report) whose sections stay hidden when a source has no such logs.
+- **Business Metrics** are rules, each on one service: a *Request* rule counts requests of its access log by method, path (as in the endpoint tables, ids read `:n` or `:id`;
+  a trailing `*` matches everything below) and status (`2xx` to `5xx`, or a code); a *Log Line* rule counts the application log lines that contain a text (capital letters do not matter).
+  **Test on This Folder** counts every rule over the newest folder without saving. The Business page shows one card per rule with the change against the previous folder; without rules it
+  suggests the successful POST endpoints of the access log, and **Add** opens the dialog filled in. A service read by a legacy format (Spring Boot) has no log line rules: choose another format on the Log Formats page.
 
 ### Raw Logs
 

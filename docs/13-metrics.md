@@ -147,9 +147,18 @@ block of `/etc/otelcol-contrib/config.yaml` by hand (an upgrade overwrites the f
 
 - Network values of a Kubernetes node (the pod's interface is not the node's) and the CPU architecture when the OS text does not name it.
 - Kubernetes per-container metrics (`kubeletstats`) and node network values.
-- Notifications for unusual values and almost-full disks.
 - Endpoint and SSL checks.
 - Process metrics: never (command lines are personal data).
+
+## 9a. Notifications (done, stage 63)
+
+Three events of the Notifications settings (`domain/alerts.py` `server_events`, `application/alert_service.py` `Notifier.check_servers`): `metric_unusual`
+(the `unusual` items of the Servers banner; off by default), `disk_full` (mount points at `metric_anomaly.DISK_FULL`, 90%) and `collector_offline`
+(status Offline by `domain/collectors.status`; Late does not alert; one "back online" message when it is Online again). The check runs on the metrics
+thread after every roll-up (every 5 minutes), never on the receiver. Each item has a hashed internal id; the ids that were notified and are still open
+are kept in the app setting `alert_open`, so a restart does not repeat a message. An item alerts once until it clears; a new item while others are open
+sends a new message with the current counts. Messages carry counts and a link to `/servers` or `/collectors` only, never a host, container, collector
+or mount point name. There is no quiet period (the existing spike events have none).
 
 ## 10. The Servers page
 

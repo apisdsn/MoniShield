@@ -8,7 +8,7 @@ Stage 24: previous-folder KPIs (▲/▼ change), hourly charts (requests, 5xx, a
 2026-10-07: average of comparable folders as the comparison (`baseline`), also used by notifications (monishield/alerts.py).
 """
 
-from monishield.domain import alerts, services as profile
+from monishield.domain import alerts, analysis, services as profile
 from monishield.infrastructure.queries.sql import H, _all, _one, local
 from .map import ipmap
 from .tables import NG, SEV_SQL, http_service
@@ -19,11 +19,11 @@ from .tables import NG, SEV_SQL, http_service
 JUMP_FACTOR, JUMP_MIN_JWT = 2, 20
 
 
-def _kpi(cur, folder, crs, svc=None):
+def _kpi(cur, folder, crs, svc=None, access=None):
     """One folder's numbers: main KPIs + inputs for attention items. All from the aggregates of their source pages.
     `svc` = the service of the HTTP cards (requests, 5xx): by default the folder's own (nginx-ingress-controller, else its busiest
     access log, tables.http_service); every folder of a comparison uses its own."""
-    if svc is None: svc = (http_service(cur, folder) or {}).get('service')
+    if svc is None: svc = (http_service(cur, folder, access) or {}).get('service')
     U, I = ('agg_crs_url', 'agg_crs_ip') if crs else ('agg_attack_url', 'agg_attack_ip')
     sev = 'severity' if crs else SEV_SQL
     ng = cur.execute('SELECT requests, n5xx, lines FROM agg_service WHERE folder = ? AND service = ? AND lines > 0', [folder, svc]).fetchone() if svc else None
@@ -51,10 +51,10 @@ WINDOW, MIN_FOLDERS = 7, 3
 NGX_KEYS = {'requests', 'n5xx', 'upstream_errors', 'attack_ips'}
 
 
-def baseline(cur, folder, crs, a):
+def baseline(cur, folder, crs, a, access=None):
     """-> dict(window, folders, n_all, n_nginx, kpi={key: average|None}, atk_req, jwt, svc={service: average err})."""
     prev = [str(r[0]) for r in cur.execute('SELECT folder FROM folder_state WHERE folder < ? ORDER BY folder DESC LIMIT ?', [folder, WINDOW]).fetchall()]
-    ks = [_kpi(cur, f, crs) for f in prev]
+    ks = [_kpi(cur, f, crs, access=access) for f in prev]
     ok_all = [k for k in ks if a['lines'] and k['lines'] >= 0.5 * a['lines']]
     ok_ngx = [k for k in ks if a['ng_lines'] and k['ng_lines'] >= 0.5 * a['ng_lines']]
 
@@ -78,10 +78,11 @@ def _jump(cur_n, prev_n, min_add):
 
 def command(cur, folder, cfg, module=None):
     crs = cfg.attack_rules == 'crs'
-    a = _kpi(cur, folder, crs)
+    access = analysis.of(cfg).access_log
+    a = _kpi(cur, folder, crs, access=access)
     prev_f = cur.execute('SELECT max(folder) FROM folder_state WHERE folder < ?', [folder]).fetchone()[0]
-    p = _kpi(cur, prev_f, crs) if prev_f else None
-    base = baseline(cur, folder, crs, a)
+    p = _kpi(cur, prev_f, crs, access=access) if prev_f else None
+    base = baseline(cur, folder, crs, a, access)
     use_avg = base['n_all'] >= MIN_FOLDERS   # spikes are judged against the average when there are enough comparable folders
 
     att = []   # order: red first, then yellow; each item links to the page that explains it

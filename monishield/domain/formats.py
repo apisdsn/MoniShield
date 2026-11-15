@@ -105,6 +105,7 @@ def finish(d, rule):
 # Access logs (nginx / apache combined)
 COMBINED = re.compile(r'(?P<ip>\S+) \S+ (?P<user>\S+) \[(?P<time>[^\]]+)\] "(?P<method>[A-Z]+) (?P<path>\S+)(?: [^"]*)?" '
                       r'(?P<status>\d{3}) (?P<bytes>\d+|-)(?: "(?P<referer>[^"]*)" "(?P<ua>[^"]*)")?(?P<rest>.*)$')
+HEX_ID = re.compile(r'\s"?([0-9a-f]{32})"?\s*$')
 TAIL_SECONDS = re.compile(r'^\s+(\d+\.\d+)(?:\s|$)')   # nginx $request_time right after the user agent
 
 
@@ -114,7 +115,9 @@ def read_combined(text, rule):
     d = m.groupdict()
     d['time'] = parse_time(d['time'], 'clf' if rule.time_format == 'iso' else rule.time_format)
     if not d['time']: return None
-    if t := TAIL_SECONDS.match(d.pop('rest') or ''): d['duration_ms'] = float(t[1]) * 1000
+    rest = d.pop('rest') or ''
+    if t := TAIL_SECONDS.match(rest): d['duration_ms'] = float(t[1]) * 1000
+    if r := HEX_ID.search(rest): d['request_id'] = r[1]   # nginx $request_id (32 hex digits) at the end of the line
     d['message'] = f'{d["method"]} {d["path"]} {d["status"]}'
     return finish(d, rule)
 
@@ -140,11 +143,22 @@ def dig(obj, path):
     return cur
 
 
+# The field names read as the request ID when Analysis Settings say Auto; a name set there is read first, for new lines (stage 62).
+ID_NAMES = ('request_id', 'requestId', 'X-Request-ID', 'x-request-id', 'trace_id', 'traceId', 'reqId', 'correlation_id', 'x_request_id')
+EXTRA_ID = ()
+
+
+def use_id_fields(names):
+    """Field names to read as the request ID before the common ones (Analysis Settings; set per parsed file, also in ingest subprocesses)."""
+    global EXTRA_ID
+    EXTRA_ID = tuple(names or ())
+
+
 JSON_DEFAULTS = {  # tried in order when the rule does not map a column
     'time': ('time', 'timestamp', '@timestamp', 'ts', 'date', 'datetime', 'Timestamp', 't'),
     'level': ('level', 'severity', 'lvl', 'loglevel', 'log.level', 'Level', '@l', 'levelname'),
     'message': ('message', 'msg', 'Message', '@m', '@mt', 'event', 'log'),
-    'request_id': ('request_id', 'requestId', 'trace_id', 'traceId', 'reqId', 'correlation_id', 'x_request_id'),
+    'request_id': ID_NAMES,
     'method': ('method', 'http.method', 'req.method', 'request.method'),
     'path': ('path', 'url', 'http.path', 'req.url', 'request.path', 'uri', 'request_uri'),
     'status': ('status', 'statusCode', 'status_code', 'http.status_code', 'res.statusCode', 'response.status'),
@@ -158,7 +172,7 @@ JSON_DEFAULTS = {  # tried in order when the rule does not map a column
 
 # Caddy's JSON access log (`log { format json }`): the field names of its documented example entry. The first source
 # that holds a value wins (the client IP behind a trusted proxy, else the socket's address).
-CADDY_FIELDS = {'time': ('ts',), 'ip': ('request.client_ip', 'request.remote_ip'), 'method': ('request.method',),
+CADDY_FIELDS = {'request_id': ('request_id', 'request.headers.X-Request-ID[0]'), 'time': ('ts',), 'ip': ('request.client_ip', 'request.remote_ip'), 'method': ('request.method',),
                 'path': ('request.uri',), 'status': ('status',), 'bytes': ('size',), 'duration_ms': ('duration',),
                 'ua': ('request.headers.User-Agent[0]',), 'referer': ('request.headers.Referer[0]',)}
 PRESET_FIELDS = {'caddy-json': CADDY_FIELDS}
@@ -167,6 +181,10 @@ PRESET_FIELDS = {'caddy-json': CADDY_FIELDS}
 def _pick(obj, rule, col):
     mapped = dict(rule.fields).get(col)
     if mapped: return dig(obj, mapped)
+    if col == 'request_id':
+        for k in EXTRA_ID:
+            v = dig(obj, k)
+            if v not in (None, ''): return v
     for k in PRESET_FIELDS.get(rule.format, {}).get(col, ()):
         v = dig(obj, k)
         if v not in (None, ''): return v

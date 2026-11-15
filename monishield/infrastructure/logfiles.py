@@ -4,7 +4,7 @@
 """
 import argparse, csv, gzip, hashlib, json, os, sys
 
-from monishield.domain import parse
+from monishield.domain import formats, parse
 from monishield.domain.parse import TABLES
 
 
@@ -28,9 +28,10 @@ class CsvOut(parse.Out):
         for fh in self._fh: fh.close()
 
 
-def parse_file(path, service, out_dir, profile=None, namespace=None, format_rules=None):
+def parse_file(path, service, out_dir, profile=None, namespace=None, format_rules=None, id_fields=()):
     """Parse one log file -> CSV in out_dir; returns a summary (lines, err, warn, corrupt_lines, counters, rows)."""
     os.makedirs(out_dir, exist_ok=True)
+    formats.use_id_fields(id_fields)   # the request ID field of Analysis Settings, read for these lines
     o = CsvOut(out_dir, service, profile, namespace, format_rules)
     try:
         with (gzip.open(path, 'rt', encoding='utf-8', errors='replace') if path.endswith('.gz')
@@ -48,7 +49,7 @@ def hash_file(path):
     return h.hexdigest()
 
 
-def work(path, service, out_dir, profile, known_sha, pair_path, namespace=None, format_rules=None):
+def work(path, service, out_dir, profile, known_sha, pair_path, namespace=None, format_rules=None, id_fields=()):
     """One file, run in an ingest subprocess: fingerprint, then parse only when the content differs from known_sha.
 
     Does not touch DuckDB (TRD K1/K2). Parse errors are returned, not raised, so other files still get loaded.
@@ -60,7 +61,7 @@ def work(path, service, out_dir, profile, known_sha, pair_path, namespace=None, 
     try:
         out['sha256'] = hash_file(path)
         if pair_path: out['pair_sha256'] = hash_file(pair_path)
-        if out['sha256'] != known_sha: out['summary'] = parse_file(path, service, out_dir, profile, namespace, format_rules)
+        if out['sha256'] != known_sha: out['summary'] = parse_file(path, service, out_dir, profile, namespace, format_rules, id_fields)
     except Exception as e:  # noqa: BLE001  (reported as status 'failed')
         out['error'] = f'{type(e).__name__}: {e}'
     return out
